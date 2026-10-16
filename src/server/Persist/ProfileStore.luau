@@ -146,7 +146,7 @@ end
 
 function ProfileStore.update(self: Store, userId: number, expectedRevision: number?, mutate: Mutate): (boolean, Profile?, string?)
 	local reason: string? = nil
-	local seen: Profile? = nil
+	local seen: any = nil
 	local ok, res = withRetry(self, function()
 		reason = nil
 		return self.ds:UpdateAsync(key(userId), function(old: any)

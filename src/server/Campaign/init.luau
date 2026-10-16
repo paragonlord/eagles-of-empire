@@ -30,6 +30,7 @@ export type Applied = { battleId: string, winner: string, outcome: string, turn:
 export type FactionState = { treasury: number, manpower: number, supply: number }
 export type Victory = { outcome: "victory" | "defeat", reason: string }
 export type Survivor = { strength: number, experience: number, destroyed: boolean? }
+type Placed = { u: Unit, a: Army }
 
 export type State = {
 	campaignId: string,
@@ -675,21 +676,21 @@ function Campaign.battleScenario(state: State, battleId: string): Scenarios.Scen
 		dx, dz = dx / len, dz / len
 		local heading = math.atan2(dz, dx)
 		local px, pz = -dz, dx
-		local line: { { Unit, Army } } = {}
-		local hqs: { { Unit, Army } } = {}
+		local line: { Placed } = {}
+		local hqs: { Placed } = {}
 		for _, a in armiesIn(state, b.regionId, faction) do
 			for _, u in a.units do
 				if CampaignData.UnitTypes[u.type].class == "hq" then
-					hqs[#hqs + 1] = { u, a }
+					hqs[#hqs + 1] = { u = u, a = a }
 				else
-					line[#line + 1] = { u, a }
+					line[#line + 1] = { u = u, a = a }
 				end
 			end
 		end
 		local perRow = 8
 		local rows = math.max(1, math.ceil(#line / perRow))
-		local function add(pair: { Unit, Army }, along: number, back: number)
-			local u, a = pair[1], pair[2]
+		local function add(pair: Placed, along: number, back: number)
+			local u, a = pair.u, pair.a
 			local x, z = clampTo(zone, cx + px * along - dx * back, cz + pz * along - dz * back)
 			units[#units + 1] = {
 				name = u.name,
@@ -995,7 +996,7 @@ function Campaign.deserialize(profile: any): State?
 		appliedBattles = copy(p.appliedBattles),
 		victory = copy(p.victory),
 	}
-	table.sort(state.armies, function(a, b)
+	table.sort(state.armies, function(a: Army, b: Army)
 		return a.id < b.id
 	end)
 	while #state.log > LOG_MAX do

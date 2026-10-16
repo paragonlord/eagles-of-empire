@@ -247,6 +247,26 @@ function Sim.precheck(self: Sim, cmd: Types.Command): (boolean, string?)
 			end
 		end
 	end
+	-- Engage/Charge on a target the faction cannot currently see leaks nothing: it is
+	-- converted to an attack-move on the last-known position, or refused if there is none.
+	if (cmd.kind == "Engage" or cmd.kind == "Charge") and cmd.data and type(cmd.data.targetId) == "number" then
+		local f = self.formations[cmd.ids[1]]
+		local target = self.formations[cmd.data.targetId]
+		if not target or not Formation.isActive(target) then
+			return false, "badTarget"
+		end
+		if f and not self:isVisibleTo(f.faction, target.id) then
+			local lk = self.views[f.faction] and self.views[f.faction].lastKnown[target.id]
+			if not lk then
+				return false, "badTarget"
+			end
+			cmd.kind = "AttackMove"
+			cmd.data = { pos = { x = lk.x, z = lk.z }, queue = cmd.data.queue }
+			if f.class == "artillery" then
+				return false, "badTarget"
+			end
+		end
+	end
 	return true, nil
 end
 

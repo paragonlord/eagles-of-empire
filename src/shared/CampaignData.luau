@@ -31,8 +31,8 @@ export type StartArmy = { faction: string, name: string, regionId: string, units
 local CampaignData = {}
 
 CampaignData.Factions = { player = "france", enemy = "prussia" }
-CampaignData.FactionNames = { france = "France", prussia = "Prussia" }
-CampaignData.Capitals = { france = "rudolstadt", prussia = "weimar" }
+CampaignData.FactionNames = { france = "France", prussia = "Prussia" } :: { [string]: string }
+CampaignData.Capitals = { france = "rudolstadt", prussia = "weimar" } :: { [string]: string }
 
 local function r(id: string, name: string, x: number, z: number, adjacent: { string }, terrain: string, owner: string, isCity: boolean): Region
 	return {
@@ -69,8 +69,8 @@ CampaignData.UnitTypes = {
 } :: { [string]: UnitType }
 
 CampaignData.Economy = {
-	StartTreasury = { france = 800, prussia = 700 },
-	StartManpower = { france = 600, prussia = 600 },
+	StartTreasury = { france = 800, prussia = 700 } :: { [string]: number },
+	StartManpower = { france = 600, prussia = 600 } :: { [string]: number },
 	MaxManpower = 2000,
 	MaxTreasury = 20000,
 	ReplenishCostPerMan = 0.5, -- treasury per man restored (plus one manpower per man)

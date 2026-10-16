@@ -339,3 +339,21 @@ test("Shaken formations fire less effectively", function()
 	end
 	assertTrue(volleyLoss(true) < volleyLoss(false), "shaken inflicts fewer casualties")
 end)
+
+test("Engage on an unseen enemy becomes an attack-move to its last-known position", function()
+	local sim = newSim({
+		unit("france", "infantry", "F", 500, 300, math.pi / 2),
+		unit("prussia", "infantry", "Near", 500, 400, -math.pi / 2),
+	})
+	run(sim, 1)
+	sim.formations[2].pos = { x = 1200, z = 1100 } -- vanishes behind the plateau
+	run(sim, 1)
+	local c = { matchId = "m", requestId = "e", kind = "Engage", ids = { 1 }, data = { targetId = 2 } }
+	local ok = sim:precheck(c)
+	assertTrue(ok, "accepted via last-known")
+	assertEq(c.kind, "AttackMove")
+	assertNear(c.data.pos.x, 500, 1e-6)
+	local far = { matchId = "m", requestId = "e2", kind = "Engage", ids = { 1 }, data = { targetId = 3 } }
+	local ok2, reason2 = sim:precheck(far)
+	assertTrue(not ok2 and reason2 == "badTarget", "never-seen target refused")
+end)
