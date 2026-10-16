@@ -54,8 +54,7 @@ function Net.init()
 	end
 	initialised = true
 	local folder = Shared:WaitForChild("Remotes")
-	for _, n in Protocol.Remotes do
-		local name = tostring(n)
+	for _, name in { "Command", "Control", "CommandResult", "Snapshot", "MatchState", "Campaign", "Debug" } do
 		local r = folder:WaitForChild(name, 30)
 		if r then
 			remotes[name] = r :: RemoteEvent

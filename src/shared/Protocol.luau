@@ -275,7 +275,7 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 			return false, Protocol.Reasons.badRequest
 		end
 	elseif msg.action == "difficulty" then
-		if type(msg.value) ~= "string" or not Config.AI.Difficulties[msg.value] then
+		if type(msg.value) ~= "string" or not (Config.AI.Difficulties :: any)[msg.value] then
 			return false, Protocol.Reasons.badRequest
 		end
 	elseif msg.action == "start" or msg.action == "restart" then

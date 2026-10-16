@@ -160,7 +160,7 @@ local function layoutSlots(class: string, shape: string, n: number, width: numbe
 				table.insert(list, { i, j, side, side, math.min(i, j, side - 1 - i, side - 1 - j) })
 			end
 		end
-		table.sort(list, function(a, b)
+		table.sort(list, function(a: { number }, b: { number })
 			if a[5] ~= b[5] then
 				return a[5] < b[5]
 			end
@@ -691,7 +691,7 @@ local function deconflictLabels(cam: Camera)
 			m.gui.Enabled = false
 		end
 	end
-	table.sort(list, function(a, b)
+	table.sort(list, function(a: { g: Group, x: number, y: number, w: number, h: number, pri: number }, b: { g: Group, x: number, y: number, w: number, h: number, pri: number })
 		if a.pri ~= b.pri then
 			return a.pri > b.pri
 		end

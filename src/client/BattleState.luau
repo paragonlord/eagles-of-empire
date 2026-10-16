@@ -228,7 +228,7 @@ function BattleState.ownFormations(): { Formation }
 			table.insert(out, f)
 		end
 	end
-	table.sort(out, function(a, b)
+	table.sort(out, function(a: Formation, b: Formation)
 		return a.id < b.id
 	end)
 	return out

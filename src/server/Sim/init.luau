@@ -80,6 +80,15 @@ export type Sim = {
 	isVisibleTo: (Sim, string, number) -> boolean,
 	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
+	-- methods
+	deploy: (Sim, number, Vec, number) -> (boolean, string?),
+	start: (Sim) -> (),
+	precheck: (Sim, Types.Command) -> (boolean, string?),
+	queueCommand: (Sim, Types.Command, string) -> (number, number),
+	step: (Sim) -> (),
+	snapshot: (Sim, string, boolean) -> Types.Snapshot,
+	clearEvents: (Sim) -> (),
+	buildResults: (Sim, string, string) -> Types.Results,
 }
 
 local Sim = {}
@@ -406,7 +415,7 @@ local function applyQueuedCommands(self: Sim)
 	if #self.commands == 0 then
 		return
 	end
-	table.sort(self.commands, function(a, b)
+	table.sort(self.commands, function(a: QueuedCommand, b: QueuedCommand)
 		if a.effectiveTick ~= b.effectiveTick then
 			return a.effectiveTick < b.effectiveTick
 		end
@@ -438,7 +447,7 @@ function Sim.step(self: Sim)
 	-- 1. commands
 	applyQueuedCommands(self)
 	-- 2. AI
-	local ai = (Sim :: any).aiStep
+	local ai: ((Sim) -> ())? = (Sim :: any).aiStep
 	if ai and self.tick % Config.AI.DecisionTicks == 0 then
 		ai(self)
 		applyQueuedCommands(self) -- AI commands stamped for this tick apply now
@@ -584,7 +593,7 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 		for _, lk in view.lastKnown do
 			lastKnown[#lastKnown + 1] = lk
 		end
-		table.sort(lastKnown, function(a, b)
+		table.sort(lastKnown, function(a: Types.LastKnown, b: Types.LastKnown)
 			return a.id < b.id
 		end)
 	end

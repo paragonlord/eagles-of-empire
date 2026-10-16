@@ -49,7 +49,7 @@ function Objectives.init(defs: { MapGen.Objective }): { ObjectiveState }
 end
 
 local function eligible(f: Formation): boolean
-	if not O.EligibleClasses[f.class] then
+	if not (O.EligibleClasses :: any)[f.class] then
 		return false
 	end
 	if not Formation.isActive(f) or f.state == "routing" or f.state == "rallying" or f.shattered then

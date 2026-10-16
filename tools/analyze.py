@@ -29,8 +29,11 @@ MOUNTS = {
 ROOT_RE = re.compile(
     r'^\s*local\s+(\w+)\s*=\s*game:GetService\("(\w+)"\)(?::WaitForChild\("(\w+)"\)|\.(\w+))\s*$'
 )
+SERVICE_RE = re.compile(r'^\s*local\s+(\w+)\s*=\s*game:GetService\("(\w+)"\)\s*$')
+SERVICE_CHILD_RE = re.compile(r'^\s*local\s+(\w+)\s*=\s*(\w+)(?::WaitForChild\("(\w+)"\)|\.(\w+))\s*$')
 ALIAS_RE = re.compile(r'^\s*local\s+(\w+)\s*=\s*(\w+)((?:\.\w+)+)\s*$')
 REQ_RE = re.compile(r'require\(([\w.]+)\)')
+SERVICE_CALL_RE = re.compile(r'game:GetService\("(\w+)"\)')
 
 # Ignore list: diagnostics that are noise for this project (none yet).
 IGNORE = ("Variable 'Shared' is never used",)
@@ -84,8 +87,21 @@ def to_module_file(node: pathlib.Path) -> pathlib.Path | None:
 
 def rewrite(src_file: pathlib.Path, text: str) -> str:
     roots: dict[str, pathlib.Path] = {}
+    services: dict[str, str] = {}
     out_lines = []
     for line in text.splitlines():
+        m = SERVICE_RE.match(line)
+        if m:
+            services[m.group(1)] = m.group(2)
+            out_lines.append(line)
+            continue
+        m = SERVICE_CHILD_RE.match(line)
+        if m and m.group(2) in services:
+            mount = MOUNTS.get((services[m.group(2)], m.group(3) or m.group(4)))
+            if mount:
+                roots[m.group(1)] = ROOT / mount
+            out_lines.append(line)
+            continue
         m = ROOT_RE.match(line)
         if m:
             name, service, folder = m.group(1), m.group(2), m.group(3) or m.group(4)
@@ -124,7 +140,10 @@ def rewrite(src_file: pathlib.Path, text: str) -> str:
             rel = rel_require(src_file, logical)
             return f'require("{rel}")'
 
-        out_lines.append(REQ_RE.sub(repl, line))
+        line = REQ_RE.sub(repl, line)
+        # The analyzer has no luau-lsp magic for GetService: cast to the service type in the mirror.
+        line = SERVICE_CALL_RE.sub(r'(game:GetService("\1") :: \1)', line)
+        out_lines.append(line)
     return "\n".join(out_lines) + "\n"
 
 
@@ -141,7 +160,7 @@ def main() -> int:
             files.append(dest)
     # the mirror must contain the whole tree so cross-module requires resolve
     luau_analyze = shutil.which("luau-analyze") or os.path.expanduser("~/.local/bin/luau-analyze")
-    cmd = [luau_analyze, "--mode=strict", "--solver=old", f"--definitions={DEFS}", "--formatter=plain"] + [str(f) for f in files]
+    cmd = [luau_analyze, "--mode=strict", "--solver=new", f"--definitions={DEFS}", "--formatter=plain"] + [str(f) for f in files]
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=MIRROR)
     out = proc.stdout + proc.stderr
     count = 0

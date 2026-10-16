@@ -200,6 +200,10 @@ function Camera.height(): number
 	return lastFrameHeight
 end
 
+function Camera.groundHeight(x: number, z: number): number
+	return groundY(x, z)
+end
+
 function Camera.shake(amount: number)
 	shakeAmount = math.max(shakeAmount, amount)
 end

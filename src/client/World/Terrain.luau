@@ -181,11 +181,11 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 			local cz0 = chz * CHUNK
 			local nx = math.min(CHUNK, cols - cx0)
 			local nz = math.min(CHUNK, rows - cz0)
-			local mats = table.create(nx)
-			local occs = table.create(nx)
+			local mats: { { { EnumMaterial } } } = table.create(nx)
+			local occs: { { { number } } } = table.create(nx)
 			for ix = 1, nx do
-				local mx = table.create(ny)
-				local ox = table.create(ny)
+				local mx: { { EnumMaterial } } = table.create(ny)
+				local ox: { { number } } = table.create(ny)
 				mats[ix] = mx
 				occs[ix] = ox
 				for iy = 1, ny do
