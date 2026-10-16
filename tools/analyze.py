@@ -140,10 +140,9 @@ def rewrite(src_file: pathlib.Path, text: str) -> str:
             rel = rel_require(src_file, logical)
             return f'require("{rel}")'
 
-        line = REQ_RE.sub(repl, line)
-        # The analyzer has no luau-lsp magic for GetService: cast to the service type in the mirror.
-        line = SERVICE_CALL_RE.sub(r'(game:GetService("\1") :: \1)', line)
-        out_lines.append(line)
+        out_lines.append(REQ_RE.sub(repl, line))
+    # The analyzer has no luau-lsp magic for GetService: cast to the service type in the mirror.
+    out_lines = [SERVICE_CALL_RE.sub(r'(game:GetService("\1") :: \1)', l) for l in out_lines]
     return "\n".join(out_lines) + "\n"
 
 

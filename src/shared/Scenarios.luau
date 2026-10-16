@@ -18,6 +18,7 @@ export type UnitDef = {
 	faction: string,
 	colour: string?, -- palette key override (Saxony)
 	commander: boolean?, -- is the army HQ
+	key: string?, -- campaign identity of this unit (nil for standalone battles)
 }
 
 export type Scenario = {
@@ -128,7 +129,7 @@ local function stress(): Scenario
 		local i = 0
 		local x = 300
 		local z = zBase
-		while #units < i + 24 and i < 24 do
+		while i < 24 do
 			local base = src[(i % #src) + 1]
 			if base.class ~= "hq" then
 				i += 1
