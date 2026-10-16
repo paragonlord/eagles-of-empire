@@ -158,7 +158,8 @@ Victory evaluator (one, server, runs after step 9, terminal once):
 1. **Collapse**: a side with ≥ 70 % of formations routing/shattered/destroyed/exited, or
    remaining strength < 35 % of deployed → the other side wins.
 2. **Objectives**: a side holding every objective for 120 s continuous wins, but not before
-   minute 10 (`HoldAllEarliest`), so a defender starting on the objectives cannot win by default.
+   minute 10 (`HoldAllEarliest`) and only if at least one of them was taken from the enemy
+   during the battle, so a defender starting on the objectives cannot win by default.
 3. **Timeout** (25 min): more objectives held wins; equal → draw ("Indecisive").
 Precedence when several trigger in the same tick: collapse of the *attacker* (player) is
 checked first, then the enemy, then objectives, then timeout.

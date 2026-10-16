@@ -109,8 +109,15 @@ test("A volley inflicts casualties and shakes morale; routing overrides orders",
 	local p = sim.formations[4]
 	run(sim, 20)
 	assertTrue(p.strength < 300, "took casualties")
-	run(sim, 120)
-	assertTrue(p.state == "routing" or p.state == "destroyed" or p.state == "exited" or p.state == "rallying", "broke under fire, got " .. p.state)
+	local broke = false
+	for _ = 1, 20 * 120 do
+		sim:step()
+		if p.state == "routing" or p.state == "destroyed" or p.state == "exited" then
+			broke = true
+			break
+		end
+	end
+	assertTrue(broke, "broke under fire, got " .. p.state)
 	if p.state == "routing" then
 		local ok, reason = Formation.canTakeOrders(p)
 		assertTrue(not ok and reason == "routing", "routing refuses orders")

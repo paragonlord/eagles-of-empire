@@ -343,8 +343,6 @@ function Movement.update(sim: SimLike, f: Formation)
 		end
 		-- At the home edge a routing formation waits in the rear and may still rally; only a
 		-- shattered formation (or one hopelessly stuck / off the map) leaves the field for good.
-		local m = Config.Morale.RoutExitMargin
-		local home = sim.homeEdge(sim, f.faction)
 		local atEdge = if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m
 		if atEdge and not f.shattered then
 			f.path = nil

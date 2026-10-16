@@ -18,6 +18,7 @@ export type ObjectiveState = {
 	progress: number, -- 0..1
 	contested: boolean,
 	heldSince: number?, -- tick when current owner took it
+	takenFromEnemy: boolean, -- captured from the other side at least once this battle
 }
 
 export type SimLike = {
@@ -43,7 +44,7 @@ local O = Config.Objectives
 function Objectives.init(defs: { MapGen.Objective }): { ObjectiveState }
 	local out = {}
 	for _, d in defs do
-		out[#out + 1] = { def = d, owner = nil, capturing = nil, progress = 0, contested = false, heldSince = nil }
+		out[#out + 1] = { def = d, owner = nil, capturing = nil, progress = 0, contested = false, heldSince = nil, takenFromEnemy = false }
 	end
 	return out
 end
@@ -88,6 +89,9 @@ function Objectives.update(sim: SimLike)
 				local prev = obj.owner
 				obj.owner = only
 				obj.heldSince = sim.tick
+				if prev ~= nil and prev ~= only then
+					obj.takenFromEnemy = true
+				end
 				obj.capturing = nil
 				obj.progress = 0
 				sim.emit(sim, { kind = "capture", tick = sim.tick, faction = only, x = obj.def.pos.x, z = obj.def.pos.z, text = obj.def.name .. " taken" })
@@ -155,6 +159,17 @@ end
 
 function Objectives.heldAll(sim: SimLike, faction: string): boolean
 	if #sim.objectives == 0 or sim.clock < O.HoldAllEarliest then
+		return false
+	end
+	-- Holding what you started with is not a victory; at least one objective must have been
+	-- taken from the enemy. The timeout rule still rewards the side holding more.
+	local tookOne = false
+	for _, obj in sim.objectives do
+		if obj.owner == faction and obj.takenFromEnemy then
+			tookOne = true
+		end
+	end
+	if not tookOne then
 		return false
 	end
 	for _, obj in sim.objectives do

@@ -162,13 +162,15 @@ function Morale.update(sim: SimLike, f: Formation)
 	end
 	f.hitSide = nil
 	f.meleeSide = nil
-	-- Friends routing nearby.
+	-- Friends routing nearby (a formation that is itself routing is past caring).
 	t.friendRout += DT
 	if t.friendRout >= M.FriendRoutInterval then
 		t.friendRout = 0
-		local n = routingFriendsNear(sim, f)
-		if n > 0 then
-			f.morale -= math.min(M.FriendRoutMax, n * M.FriendRoutPenalty)
+		if f.state ~= "routing" then
+			local n = routingFriendsNear(sim, f)
+			if n > 0 then
+				f.morale -= math.min(M.FriendRoutMax, n * M.FriendRoutPenalty)
+			end
 		end
 	end
 	-- Isolation.
@@ -187,7 +189,8 @@ function Morale.update(sim: SimLike, f: Formation)
 	local hq = sim.hqOf(sim, f.faction)
 	local cap = f.baseMorale
 	local rate = 0
-	if t.noDamage >= M.RecoveryDelay and f.state ~= "routing" then
+	if t.noDamage >= M.RecoveryDelay then
+		-- Routing formations recover too: that is how they come back to rally.
 		rate = M.RecoveryPerSecond
 	end
 	if hq and hq.id ~= f.id and Vec.dist(hq.pos, f.pos) <= Config.Units.hq.influence.radius then
