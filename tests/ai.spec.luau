@@ -202,7 +202,7 @@ test("Jena: every battery has infantry within 60 after a minute; cavalry is held
 	local st, log = attach(sim)
 	local cavStartZ = {}
 	for _, f in byId(sim, "prussia", "cavalry") do
-		cavStartZ[f.id] = f.pos.z
+		cavStartZ[f.id] = true
 	end
 	run(sim, 60)
 	for _, g in byId(sim, "prussia", "artillery") do
@@ -225,7 +225,9 @@ test("Jena: every battery has infantry within 60 after a minute; cavalry is held
 		for _, id in c.ids do
 			if cavStartZ[id] then
 				assertTrue(c.kind ~= "Charge" and c.kind ~= "AttackMove" and c.kind ~= "Engage", "cavalry not sent into action: " .. cmdString(c))
-				assertTrue(not c.data.pos or c.data.pos.z >= cavStartZ[id] - 20, "cavalry not ordered forward: " .. cmdString(c))
+				-- any move keeps it behind the line of battle
+				local behind = not c.data.pos or Vec.dot(Vec.sub(c.data.pos, st.wingPos.centre), st.forward) < -50
+				assertTrue(behind, "cavalry held behind the line: " .. cmdString(c))
 			end
 		end
 	end

@@ -291,6 +291,20 @@ end
 
 -- ------------------------------------------------------------------ boot
 
+-- Low sun from the south-east so north- and west-facing slopes fall into shadow (reference
+-- relief). Roblox's sun azimuth follows ClockTime/GeographicLatitude; verify in Studio.
+do
+	local lighting = game:GetService("Lighting") :: Lighting
+	lighting.ClockTime = 8.4
+	lighting.GeographicLatitude = 48
+	lighting.Brightness = 2.6
+	lighting.ShadowSoftness = 0.15
+	lighting.EnvironmentDiffuseScale = 0.45
+	lighting.Ambient = Color3.fromRGB(96, 92, 80)
+	lighting.OutdoorAmbient = Color3.fromRGB(118, 112, 96)
+end
+
+
 Audio.init()
 Camera.init()
 Input.init()

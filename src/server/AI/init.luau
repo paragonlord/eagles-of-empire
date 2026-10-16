@@ -33,6 +33,7 @@ type Unit = {
 	squareUntil: number,
 	withdrawUntil: number,
 	nextMove: number, -- throttle for maintenance moves / facing
+	orderedStep: number, -- decision step of the last command that included this unit
 	point: Vec?, -- goal point for guard / exploit goals
 }
 
@@ -54,6 +55,7 @@ export type AIState = {
 	wingPos: { [string]: Vec },
 	gunPos: { [number]: Vec },
 	nextPlan: number,
+	rolesAssigned: boolean,
 	units: { [number]: Unit },
 	mine: { Formation },
 	visible: { Formation },
@@ -74,7 +76,7 @@ local function unitOf(state: AIState, id: number): Unit
 	if u then
 		return u
 	end
-	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, point = nil }
+	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil }
 	state.units[id] = fresh
 	return fresh
 end
@@ -142,6 +144,9 @@ local function issue(state: AIState, kind: string, ids: { number }, data: { [str
 	state.n += 1
 	if PATH_CMDS[kind] then
 		state.budget -= 1
+	end
+	for _, id in ids do
+		unitOf(state, id).orderedStep = state.steps
 	end
 	(sim :: any):queueCommand(cmd, state.faction)
 	return true
@@ -241,7 +246,7 @@ local function desiredPosture(state: AIState): string
 	if total == 0 or broken >= total * 0.5 or ownStr < deployed * 0.45 then
 		return "withdraw"
 	end
-	if seen >= 1500 and ownStr > seen * 1.5 then
+	if seen >= ownStr * 0.4 and ownStr > seen * 1.5 then
 		return "attack"
 	end
 	return "defend"
@@ -360,16 +365,14 @@ local function plan(state: AIState)
 	end
 	state.hqPos = hqPos
 
-	-- Roles. Reserve: damaged units plus >= 20 % of infantry (those nearest home); cavalry all reserve.
+	-- Roles are sticky. First plan: >= 20 % of infantry (those nearest home) in reserve, the rest
+	-- split by lateral position into wings; cavalry all reserve. Later plans only rotate a badly
+	-- damaged line unit to the reserve and promote a healthy reserve unit into its place.
 	local inf: { Formation } = {}
 	for _, f in state.mine do
 		local u = unitOf(state, f.id)
 		if f.class == "infantry" then
-			if not Formation.isBroken(f) then
-				inf[#inf + 1] = f
-			else
-				u.role = "reserve"
-			end
+			inf[#inf + 1] = f
 		elseif f.class == "cavalry" then
 			u.role = "reserve"
 		elseif f.class == "artillery" then
@@ -378,36 +381,48 @@ local function plan(state: AIState)
 			u.role = "hq"
 		end
 	end
-	local nRes = math.ceil(0.2 * #inf)
-	table.sort(inf, function(a, b)
-		local da, db = damaged(a), damaged(b)
-		if da ~= db then
-			return da
+	if not state.rolesAssigned then
+		state.rolesAssigned = true
+		local nRes = math.ceil(0.2 * #inf)
+		table.sort(inf, function(a: Formation, b: Formation)
+			local ha, hb = Vec.dot(a.pos, forward), Vec.dot(b.pos, forward)
+			if ha ~= hb then
+				return ha < hb -- nearer home first
+			end
+			return a.id < b.id
+		end)
+		local line: { Formation } = {}
+		for i, f in inf do
+			if i <= nRes then
+				unitOf(state, f.id).role = "reserve"
+			else
+				line[#line + 1] = f
+			end
 		end
-		local ha, hb = Vec.dot(a.pos, forward), Vec.dot(b.pos, forward)
-		if ha ~= hb then
-			return ha < hb -- nearer home first
-		end
-		return a.id < b.id
-	end)
-	local line: { Formation } = {}
-	for i, f in inf do
-		if i <= nRes or damaged(f) then
-			unitOf(state, f.id).role = "reserve"
-		else
-			line[#line + 1] = f
+		table.sort(line, function(a: Formation, b: Formation)
+			local la, lb = lateral(state, a.pos), lateral(state, b.pos)
+			if la ~= lb then
+				return la < lb
+			end
+			return a.id < b.id
+		end)
+		local side = #line // 3
+		for i, f in line do
+			unitOf(state, f.id).role = if i <= side then "left" elseif i > #line - side then "right" else "centre"
 		end
 	end
-	table.sort(line, function(a: Formation, b: Formation)
-		local la, lb = lateral(state, a.pos), lateral(state, b.pos)
-		if la ~= lb then
-			return la < lb
+	for _, f in inf do
+		local u = unitOf(state, f.id)
+		if u.role ~= "reserve" and damaged(f) then
+			local w = u.role
+			u.role = "reserve"
+			local fresh = nearestOwn(state, wing[w], function(o)
+				return o.class == "infantry" and unitOf(state, o.id).role == "reserve" and healthy(o) and not damaged(o)
+			end)
+			if fresh then
+				unitOf(state, fresh.id).role = w
+			end
 		end
-		return a.id < b.id
-	end)
-	local side = #line // 3
-	for i, f in line do
-		unitOf(state, f.id).role = if i <= side then "left" elseif i > #line - side then "right" else "centre"
 	end
 
 	-- Gun positions: one wing each, centre first.
@@ -474,7 +489,7 @@ local function planTrigger(state: AIState): boolean
 	if state.sim.clock >= state.nextPlan then
 		return true
 	end
-	if desiredPosture(state) ~= state.posture then
+	if state.posture ~= "withdraw" and desiredPosture(state) == "withdraw" then
 		return true
 	end
 	for _, f in state.mine do
@@ -585,6 +600,7 @@ local function maintain(state: AIState, f: Formation, u: Unit)
 	u.nextMove = sim.clock + 10
 	if f.class == "infantry" and f.shape == "line" and d > 250 and nearestKnownDist(state, f.pos, 90) > 150 then
 		if issue(state, "Shape", { f.id }, { shape = "column" }) then
+			u.nextMove = sim.clock + Config.ReformTime.column + 1
 			u.reason = "column for the march"
 			return
 		end
@@ -841,12 +857,6 @@ local function artillery(state: AIState, f: Formation)
 		end
 		return
 	end
-	if gp and Vec.dist(f.pos, gp) > 80 then
-		if issue(state, "Limber", { f.id }, { limbered = true }) then
-			setGoal(state, f.id, "deploying", "relocating the battery")
-		end
-		return
-	end
 	if f.ammoMode ~= "auto" then
 		issue(state, "Ammo", { f.id }, { ammo = "auto" })
 	end
@@ -870,6 +880,8 @@ local function artillery(state: AIState, f: Formation)
 			end
 		end
 		u.goal, u.reason = "fire", "firing on " .. best.name
+	elseif gp and Vec.dist(f.pos, gp) > 120 and issue(state, "Limber", { f.id }, { limbered = true }) then
+		setGoal(state, f.id, "deploying", "relocating the battery")
 	else
 		u.goal, u.reason = "guns", "in battery, no target"
 	end
@@ -940,6 +952,7 @@ function AI.new(sim: SimLike, faction: string, difficulty: string): AIState
 		wingPos = {},
 		gunPos = {},
 		nextPlan = 0,
+		rolesAssigned = false,
 		units = {},
 		mine = {},
 		visible = {},
@@ -969,6 +982,8 @@ function AI.step(state: AIState)
 		local u = unitOf(state, f.id)
 		if f.state == "routing" or f.state == "rallying" then
 			u.goal, u.reason = "routing", f.state
+		elseif u.orderedStep == state.steps then
+			-- already ordered this tick by the plan / guard / exploit pass
 		elseif f.class == "infantry" then
 			infantry(state, f)
 		elseif f.class == "cavalry" then

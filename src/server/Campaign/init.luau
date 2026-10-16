@@ -1034,7 +1034,9 @@ end
 -- "alreadyApplied". Fails with "stale" (profile moved on), "notOwner", "campaignMismatch",
 -- "unknownBattle" or "error".
 function Campaign.commitBattle(store: Store, userId: number, sessionId: string, state: State, battleId: string, results: Types.Results, survivors: { [string]: Survivor }): (boolean, State?, string?)
-	local ok, profile, reason = store:update(userId, state.revision, function(old: any): (any, string?)
+	-- Revision is checked here, after the duplicate check, so a retried commit from a caller whose
+	-- in-memory state predates the first commit still gets "alreadyApplied" instead of "stale".
+	local ok, profile, reason = store:update(userId, nil, function(old: any): (any, string?)
 		if old == nil then
 			return nil, "noProfile"
 		end
@@ -1050,6 +1052,9 @@ function Campaign.commitBattle(store: Store, userId: number, sessionId: string, 
 		end
 		if isApplied(s, battleId) then
 			return nil, "alreadyApplied"
+		end
+		if old.revision ~= state.revision then
+			return nil, "stale"
 		end
 		local okA, why = Campaign.applyBattleResult(s, battleId, results, survivors)
 		if not okA then

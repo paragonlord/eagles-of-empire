@@ -41,11 +41,11 @@ end
 local function applyPalette()
 	local P = Config.Visual.Palette
 	local t = workspace.Terrain
-	t:SetMaterialColor(Enum.Material.Grass, rgb(P.TerrainGrass))
-	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(P.TerrainWoodsFloor))
+	t:SetMaterialColor(Enum.Material.Grass, rgb(P.TerrainGrass):Lerp(Color3.fromRGB(176, 150, 72), 0.3)) -- olive-gold on lit plateaus
+	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(P.TerrainWoodsFloor):Lerp(Color3.new(0, 0, 0), 0.25))
 	t:SetMaterialColor(Enum.Material.Ground, rgb(P.TerrainSlope))
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(96, 84, 70))
-	t:SetMaterialColor(Enum.Material.Cobblestone, rgb(P.Road))
+	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(196, 184, 156)) -- roads read as thin pale lines
 	t:SetMaterialColor(Enum.Material.Sand, rgb(P.Bank))
 	t.WaterColor = rgb(P.Water)
 	t.WaterTransparency = 0.35

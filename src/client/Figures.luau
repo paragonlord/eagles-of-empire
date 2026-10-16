@@ -277,80 +277,138 @@ local function buildNear(g: Group, f: any)
 	end
 end
 
-local function buildFar(g: Group, f: any)
-	local c = if g.ghost then desaturate(g.colour) else g.colour
-	local top = c:Lerp(Color3.new(1, 1, 1), 0.35)
-	local h = 2.4
-	local function block(cx: number, cz: number, sx: number, sz: number)
-		local b = mk("Part", Vector3.new(sx, h, sz), c)
-		local t = mk("Part", Vector3.new(sx, 0.2, sz), top)
-		t.CastShadow = false
+local BLACK = Color3.new(0, 0, 0)
+local WHITE = Color3.fromRGB(242, 240, 232)
+local GUN = Color3.fromRGB(30, 28, 26)
+local SLAB_H = 1.2
+
+-- Reference look: French deep cobalt, Prussian near-black charcoal; ghosts desaturated.
+local function slabColour(g: Group): Color3
+	local c = g.colour:Lerp(BLACK, if g.faction == "prussia" then 0.45 else 0.12)
+	return if g.ghost then desaturate(c) else c
+end
+
+-- Flat slab: thin dark edge, body colour, slightly lighter top face.
+local function slab(g: Group, cx: number, cz: number, sx: number, sz: number)
+	local c = slabColour(g)
+	local edge = mk("Part", Vector3.new(sx + 0.5, SLAB_H, sz + 0.5), c:Lerp(BLACK, 0.6))
+	local body = mk("Part", Vector3.new(sx, SLAB_H + 0.1, sz), c)
+	local top = mk("Part", Vector3.new(math.max(sx - 0.4, 0.5), 0.16, math.max(sz - 0.4, 0.5)), c:Lerp(Color3.new(1, 1, 1), 0.28))
+	top.CastShadow = false
+	for _, part in { edge, body, top } do
 		if g.ghost then
-			b.Transparency = 0.4
-			t.Transparency = 0.4
+			part.Transparency = 0.4
 		end
-		addPart(g, b, CFrame.new(cx, h / 2, cz), 0)
-		addPart(g, t, CFrame.new(cx, h + 0.1, cz), 0)
 	end
-	if g.class == "cavalry" then
-		local w = mk("WedgePart", Vector3.new(f.width, h * 1.3, f.depth), c)
+	addPart(g, edge, CFrame.new(cx, SLAB_H / 2, cz), 0)
+	addPart(g, body, CFrame.new(cx, SLAB_H / 2 + 0.05, cz), 0)
+	addPart(g, top, CFrame.new(cx, SLAB_H + 0.2, cz), 0)
+end
+
+-- White diagonal stripes on a slab top: French two parallel bands, Prussian a cross.
+local function stripes(g: Group, sx: number, sz: number)
+	local len = math.min(sx, sz) * 1.2
+	local y = SLAB_H + 0.3
+	local function stripe(ox: number, angle: number)
+		local s = mk("Part", Vector3.new(len, 0.16, math.max(0.5, math.min(sx, sz) * 0.14)), WHITE)
+		s.CastShadow = false
 		if g.ghost then
-			w.Transparency = 0.4
+			s.Transparency = 0.4
 		end
-		-- wedge thin edge forward: WedgePart slopes toward its -Z, so turn it to face local +X
-		addPart(g, w, CFrame.new(0, h * 0.65, 0) * CFrame.Angles(0, math.pi / 2, 0), 0)
+		addPart(g, s, CFrame.new(ox, y, 0) * CFrame.Angles(0, angle, 0), 0)
+	end
+	if g.faction == "france" then
+		stripe(-sx * 0.2, math.rad(45))
+		stripe(sx * 0.2, math.rad(45))
+	else
+		stripe(0, math.rad(45))
+		stripe(0, math.rad(-45))
+	end
+end
+
+local function buildFar(g: Group, f: any)
+	if g.class == "cavalry" then
+		slab(g, 0, 0, f.depth, f.width)
+		stripes(g, f.depth, f.width)
 	elseif g.class == "artillery" then
+		-- small dark gun silhouettes, no block
 		local n = figureCount("artillery", f.strength)
 		for i = 1, n do
 			local z = (i - 0.5) / n * f.width - f.width / 2
-			addPart(g, cylinder(5, 0.5, c), CFrame.new(0.5, 1.8, z), 0)
+			addPart(g, cylinder(5, 0.45, GUN), CFrame.new(0.5, 1.6, z), 0)
 			for side = -1, 1, 2 do
-				addPart(g, cylinder(0.5, 1.6, c), CFrame.new(-0.5, 1.6, z + side * 1.6) * CFrame.Angles(math.pi / 2, 0, 0) * CFrame.Angles(0, 0, math.pi / 2), 0)
+				addPart(g, cylinder(0.5, 1.5, GUN), CFrame.new(-0.5, 1.5, z + side * 1.5) * CFrame.Angles(math.pi / 2, 0, 0) * CFrame.Angles(0, 0, math.pi / 2), 0)
 			end
 		end
 	elseif g.class == "hq" then
-		block(0, 0, math.max(f.depth, 3), math.max(f.width, 4))
+		-- the marker alone stands for a headquarters
+		return
 	elseif f.shape == "square" then
-		local t = math.max(f.depth * 0.22, 2.5)
-		block(f.depth / 2 - t / 2, 0, t, f.width)
-		block(-f.depth / 2 + t / 2, 0, t, f.width)
-		block(0, f.width / 2 - t / 2, f.depth - 2 * t, t)
-		block(0, -f.width / 2 + t / 2, f.depth - 2 * t, t)
+		local tk = math.max(f.depth * 0.22, 2.5)
+		slab(g, f.depth / 2 - tk / 2, 0, tk, f.width)
+		slab(g, -f.depth / 2 + tk / 2, 0, tk, f.width)
+		slab(g, 0, f.width / 2 - tk / 2, f.depth - 2 * tk, tk)
+		slab(g, 0, -f.width / 2 + tk / 2, f.depth - 2 * tk, tk)
 	else
+		-- a cluster of 2–4 parallel slabs across the footprint depth
 		local shapeDef = (Config.Shapes :: any)[f.shape]
-		local ranks = math.max(1, math.min(if shapeDef then shapeDef.ranks else 3, figureCount(g.class, f.strength)))
+		local ranks = math.clamp(if shapeDef and shapeDef.ranks > 0 then shapeDef.ranks else 3, 2, 4)
+		ranks = math.max(1, math.min(ranks, figureCount(g.class, f.strength)))
 		local rankSp = f.depth / ranks
 		for r = 0, ranks - 1 do
-			block(f.depth / 2 - (r + 0.5) * rankSp, 0, rankSp * 0.8, f.width)
+			slab(g, f.depth / 2 - (r + 0.5) * rankSp, 0, rankSp * 0.6, f.width)
 		end
 	end
 end
 
+local POLE = Color3.fromRGB(150, 150, 150)
+local IVORY = Color3.fromRGB(246, 241, 226)
+local GOLD = Color3.fromRGB(205, 168, 62)
+local TRICOLOUR = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }
+
+-- Marker: pole (formation space), then camera-facing parts whose locals are offsets from the
+-- plate centre: frame, plate, square flag. parts[1] is always the pole.
 local function buildMarker(g: Group, f: any): Marker
 	local hq = g.class == "hq"
 	local scale = if hq then 1.5 else 1
 	local poleH = 13 * scale
-	local plateW = (if hq then 11 else 8)
-	local plateH = 2.6 * scale
+	local plateW = if hq then 12 else 8
+	local plateH = if hq then 4.2 else 2.8
 	local parts: { BasePart } = {}
 	local locals: { CFrame } = {}
-	local pole = cylinder(poleH, 0.12, INK)
+	local function face(p: BasePart, cf: CFrame)
+		p.CastShadow = false
+		table.insert(parts, p)
+		table.insert(locals, cf)
+	end
+	local pole = cylinder(poleH, 0.1, POLE)
 	pole.CastShadow = false
 	table.insert(parts, pole)
 	table.insert(locals, CFrame.new(0, poleH / 2, 0) * CFrame.Angles(0, 0, math.pi / 2))
-	local framePart = mk("Part", Vector3.new(plateW + 0.5, plateH + 0.5, 0.22), INK) :: Part
-	framePart.CastShadow = false
-	local plate = mk("Part", Vector3.new(plateW, plateH, 0.3), CREAM) :: Part
-	plate.CastShadow = false
-	table.insert(parts, framePart)
-	table.insert(locals, CFrame.new(0, poleH + plateH / 2, 0.08))
-	table.insert(parts, plate)
-	table.insert(locals, CFrame.new(0, poleH + plateH / 2, 0))
-	local flag = mk("Part", Vector3.new(2.6 * scale, 1.8 * scale, 0.15), if g.ghost then desaturate(g.colour) else g.colour) :: Part
-	flag.CastShadow = false
-	table.insert(parts, flag)
-	table.insert(locals, CFrame.new(1.4 * scale, poleH - 1.4 * scale, 0))
+	local framePart = mk("Part", Vector3.new(plateW + 0.4, plateH + 0.4, 0.2), if hq then GOLD else INK)
+	face(framePart, CFrame.new(0, 0, 0.12))
+	local plate = mk("Part", Vector3.new(plateW, plateH, 0.3), IVORY) :: Part
+	face(plate, CFrame.new())
+	-- square flag below the plate, beside the pole
+	local s = 2.4 * scale
+	local fx = s / 2 + 0.2
+	local fy = -(plateH / 2 + s / 2 + 0.3)
+	local prussian = g.faction ~= "france"
+	if prussian then
+		face(mk("Part", Vector3.new(s, s, 0.12), WHITE), CFrame.new(fx, fy, 0))
+		for _, a in { 45, -45 } do
+			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), INK), CFrame.new(fx, fy, -0.08) * CFrame.Angles(0, 0, math.rad(a)))
+		end
+	else
+		for i, c in TRICOLOUR do
+			face(mk("Part", Vector3.new(s / 3, s, 0.12), c), CFrame.new(fx + (i - 2) * s / 3, fy, 0))
+		end
+		face(mk("Part", Vector3.new(0.55, 0.55, 0.14), GOLD), CFrame.new(fx, fy, -0.08) * CFrame.Angles(0, 0, math.rad(45)))
+	end
 	for _, p in parts do
+		if g.ghost then
+			p.Transparency = 0.35
+		end
 		p.Parent = folder
 	end
 
@@ -359,27 +417,33 @@ local function buildMarker(g: Group, f: any): Marker
 	gui.CanvasSize = Vector2.new(plateW * 60, plateH * 60)
 	gui.LightInfluence = 0
 	gui.Parent = plate
-	local nameLabel = Instance.new("TextLabel") :: TextLabel
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Size = UDim2.new(1, -12, 0.55, 0)
-	nameLabel.Position = UDim2.new(0, 6, 0, 2)
-	nameLabel.Font = Enum.Font.Garamond
-	nameLabel.TextScaled = true
-	nameLabel.TextColor3 = INK
-	nameLabel.Text = f.name or ("#" .. g.id)
-	nameLabel.Parent = gui
-	local statusLabel = Instance.new("TextLabel") :: TextLabel
-	statusLabel.BackgroundTransparency = 1
-	statusLabel.Size = UDim2.new(1, -12, 0.3, 0)
-	statusLabel.Position = UDim2.new(0, 6, 0.55, 0)
-	statusLabel.Font = Enum.Font.Gotham
-	statusLabel.TextScaled = true
-	statusLabel.TextColor3 = INK
-	statusLabel.Text = ""
-	statusLabel.Parent = gui
+	local function line(sizeY: number, posY: number, text: string, font: EnumFont): TextLabel
+		local l = Instance.new("TextLabel") :: TextLabel
+		l.BackgroundTransparency = 1
+		l.Size = UDim2.new(1, -16, sizeY, 0)
+		l.Position = UDim2.new(0, 8, posY, 0)
+		l.Font = font
+		l.TextScaled = true
+		l.TextColor3 = INK
+		l.Text = text
+		l.Parent = gui
+		return l
+	end
+	local nameText = string.upper(tostring(f.name or ("#" .. g.id)))
+	local corpsText = string.upper(tostring(f.corps or ""))
+	if hq then
+		-- "Napoléon — Imperial HQ" -> NAPOLÉON / IMPERIAL HQ
+		local a, b = string.match(nameText, "^(.-)%s+[—%-]+%s+(.+)$")
+		if a and b then
+			nameText, corpsText = a, b
+		end
+	end
+	local nameLabel = line(if hq then 0.5 else 0.46, 0.04, nameText, Enum.Font.Garamond)
+	line(if hq then 0.22 else 0.26, if hq then 0.54 else 0.48, corpsText, Enum.Font.Garamond)
+	local statusLabel = line(0.22, if hq then 0.76 else 0.74, "", Enum.Font.Gotham)
 	local bar = Instance.new("Frame") :: Frame
-	bar.Size = UDim2.new(1, -12, 0, 8)
-	bar.Position = UDim2.new(0, 6, 1, -10)
+	bar.Size = UDim2.new(1, -16, 0, 6)
+	bar.Position = UDim2.new(0, 8, 1, -8)
 	bar.BackgroundColor3 = INK
 	bar.BorderSizePixel = 0
 	bar.Visible = false
@@ -870,18 +934,14 @@ function Figures.update(dt: number)
 					table.insert(moveParts, p)
 					table.insert(moveCfs, base * lc)
 				end
-				-- marker: pole/flag in formation space, plate turned to the camera
+				-- marker: pole in formation space, plate and flag turned to the camera
 				local m = g.marker
 				local markerBase = CFrame.new(g.rx, baseY, g.rz)
 				local plateY = baseY + m.height
 				local face = CFrame.lookAt(Vector3.new(g.rx, plateY, g.rz), Vector3.new(camPos.X, plateY, camPos.Z))
 				for i, p in m.parts do
 					table.insert(moveParts, p)
-					if i == 2 or i == 3 then
-						table.insert(moveCfs, face * CFrame.new(0, 0, if i == 2 then 0.12 else 0))
-					else
-						table.insert(moveCfs, markerBase * m.locals[i])
-					end
+					table.insert(moveCfs, if i == 1 then markerBase * m.locals[1] else face * m.locals[i])
 				end
 				-- selection / hover ring
 				local selected = Selection.isSelected(id)
@@ -904,10 +964,10 @@ function Figures.update(dt: number)
 				local m = g.marker
 				local plateY = groundY(g.rx, g.rz) + m.height
 				local face = CFrame.lookAt(Vector3.new(g.rx, plateY, g.rz), Vector3.new(camPos.X, plateY, camPos.Z))
-				table.insert(moveParts, m.parts[2])
-				table.insert(moveCfs, face * CFrame.new(0, 0, 0.12))
-				table.insert(moveParts, m.parts[3])
-				table.insert(moveCfs, face)
+				for i = 2, #m.parts do
+					table.insert(moveParts, m.parts[i])
+					table.insert(moveCfs, face * m.locals[i])
+				end
 			end
 			-- ring/dest refresh on selection or hover change
 			local selected = Selection.isSelected(id)

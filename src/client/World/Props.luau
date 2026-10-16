@@ -21,8 +21,11 @@ local objectiveMarks: { [string]: { ring: { Part }, flag: Part } } = {}
 local generation = 0
 local currentMap: any = nil
 
-local TREE_PRIORITY = { [1] = 0.62, [2] = 0.32, [3] = 0.0 } -- keep trees with priority >= this
-local CROWNS = { [1] = 2, [2] = 2, [3] = 3 }
+local TREE_PRIORITY = { [1] = 0.55, [2] = 0.25, [3] = 0.0 } -- keep trees with priority >= this
+local CROWNS = { [1] = 2, [2] = 3, [3] = 3 }
+local CROWN = Color3.fromRGB(52, 74, 36) -- dense dark green (reference), not the lighter palette crown
+local ROOF = Color3.fromRGB(58, 40, 30) -- very dark brown pitched roofs
+local WALL = Color3.fromRGB(104, 78, 58)
 
 local function part(parent: Instance, shape: EnumPartType?, size: Vector3, cf: CFrame, color: Color3, material: EnumMaterial?): Part
 	local p = Instance.new("Part") :: Part
@@ -75,23 +78,23 @@ local function buildTree(parent: Instance, t: any, crowns: number)
 	part(parent, Enum.PartType.Cylinder, Vector3.new(trunkH, r * 0.28, r * 0.28), CFrame.new(t.x, y + trunkH / 2, t.z) * CFrame.Angles(0, 0, math.pi / 2), rgb(P.TreeTrunk))
 	-- dark disc underneath gives the "depth beneath the canopy"
 	part(parent, Enum.PartType.Cylinder, Vector3.new(0.3, r * 2.1, r * 2.1), CFrame.new(t.x, y + 0.2, t.z) * CFrame.Angles(0, 0, math.pi / 2), Color3.fromRGB(38, 46, 28))
-	local crown = rgb(P.TreeCrown)
+	local crown = CROWN
 	local seed = (t.x * 7 + t.z * 13) % 10 / 10
 	for i = 1, crowns do
 		local f = (i - 1) / math.max(crowns - 1, 1)
 		local cr = r * (1.0 - f * 0.35)
 		local off = (i - 1) * r * 0.35
 		local ang = seed * math.pi * 2 + i * 2.1
-		part(parent, Enum.PartType.Ball, Vector3.new(cr * 2, cr * 2, cr * 2), CFrame.new(t.x + math.cos(ang) * off, y + trunkH + cr * 0.6 + off * 0.8, t.z + math.sin(ang) * off), crown:Lerp(Color3.new(0.2, 0.3, 0.15), f * 0.3))
+		part(parent, Enum.PartType.Ball, Vector3.new(cr * 2, cr * 2, cr * 2), CFrame.new(t.x + math.cos(ang) * off, y + trunkH + cr * 0.6 + off * 0.8, t.z + math.sin(ang) * off), crown:Lerp(Color3.fromRGB(30, 46, 22), f * 0.35))
 	end
 end
 
 local function buildBuilding(parent: Instance, b: any)
 	local y = groundY(b.pos.x, b.pos.z)
 	local base = yaw(b.pos.x, y + b.h / 2 - 0.5, b.pos.z, b.heading)
-	part(parent, nil, Vector3.new(b.w, b.h, b.d), base, rgb(P.Wall))
+	part(parent, nil, Vector3.new(b.w, b.h, b.d), base, WALL)
 	local roofH = b.h * 0.55
-	local roofColor = if (b.w * 3 + b.d) % 2 < 1 then rgb(P.Roof) else rgb(P.Roof):Lerp(Color3.fromRGB(90, 60, 45), 0.4)
+	local roofColor = if (b.w * 3 + b.d) % 2 < 1 then ROOF else ROOF:Lerp(Color3.fromRGB(28, 22, 18), 0.4)
 	local roofBase = yaw(b.pos.x, y + b.h - 0.5 + roofH / 2, b.pos.z, b.heading)
 	-- two wedges back to back along local Z form a gable with the ridge along local X
 	wedge(parent, Vector3.new(b.w + 0.6, roofH, b.d / 2 + 0.3), roofBase * CFrame.new(0, 0, -b.d / 4), roofColor)
@@ -121,7 +124,7 @@ local function buildBridge(parent: Instance, br: any)
 end
 
 local function buildLabel(parent: Instance, l: any)
-	local size = 28 * l.size
+	local size = 20 * l.size -- modest, mixed case, cream serif
 	local y = groundY(l.pos.x, l.pos.z)
 	local p = part(parent, nil, Vector3.new(size * 4, 0.2, size), CFrame.new(l.pos.x, y + 0.35, l.pos.z), Color3.new(1, 1, 1))
 	p.Transparency = 1
@@ -236,7 +239,7 @@ end
 -- Ground labels grow with camera height so they stay readable from any zoom.
 local lastLabelK = -1
 function Props.updateLabels(cameraHeight: number)
-	local k = math.clamp(cameraHeight / 350, 0.6, 2.6)
+	local k = math.clamp(cameraHeight / 420, 0.7, 2.0)
 	if math.abs(k - lastLabelK) < 0.05 then
 		return
 	end

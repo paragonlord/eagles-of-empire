@@ -12,7 +12,7 @@ local Camera = {}
 
 local MIN_HEIGHT, MAX_HEIGHT = 120, 900
 local MIN_PITCH, MAX_PITCH = math.rad(35), math.rad(65)
-local DEFAULT_PITCH = math.rad(50)
+local DEFAULT_PITCH = math.rad(52)
 local DEFAULT_HEIGHT = 420
 local DEFAULT_YAW = math.pi / 2 -- look toward +z (north)
 local PAN_SPEED = 1.1 -- studs per second per stud of height
@@ -179,7 +179,7 @@ function Camera.focusOn(x: number, z: number, snap: boolean?)
 	end
 end
 
--- Default angle: look north from the south at 50°, 420 studs up.
+-- Default angle: high oblique, look north from the south at 52°, 420 studs up.
 function Camera.reset(x: number, z: number)
 	target.yaw = DEFAULT_YAW
 	target.pitch = DEFAULT_PITCH
