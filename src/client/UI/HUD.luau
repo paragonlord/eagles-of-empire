@@ -407,18 +407,19 @@ end
 
 -- ------------------------------------------------------------------ command bar
 
-local COMMANDS = {
+type CommandDef = { key: string, text: string, tip: string, width: number? }
+local COMMANDS: { CommandDef } = {
 	{ key = "line", text = "Line", tip = "Three ranks: full fire, slow (infantry/cavalry)" },
 	{ key = "column", text = "Column", tip = "Twelve ranks: fast, strong in the charge, weak to fire" },
 	{ key = "square", text = "Square", tip = "Hollow box against cavalry; artillery loves it" },
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
-	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
+	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range", width = 84 },
 	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
 	{ key = "hold", text = "Hold", tip = "Stand and hold position" },
 	{ key = "stop", text = "Stop", tip = "Cancel orders" },
 	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
-	{ key = "ammo", text = "Ammo: auto", tip = "Round shot (long) / canister (short) / auto" },
+	{ key = "ammo", text = "Ammo: auto", tip = "Round shot (long) / canister (short) / auto", width = 84 },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
 }
 
@@ -477,15 +478,66 @@ local function buildCommandBar(sg: ScreenGui)
 	l.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	l.VerticalAlignment = Enum.VerticalAlignment.Center
 	for i, c in COMMANDS do
+		local key = c.key
 		local b = Kit.button(bar, c.text, function()
-			runCommand(c.key)
-		end, { size = UDim2.fromOffset(if c.key == "fire" or c.key == "ammo" then 84 else 56, 32), order = i, textSize = 12, tooltip = c.tip })
+			runCommand(key)
+		end, { size = UDim2.fromOffset(c.width or 56, 32), order = i, textSize = 12, tooltip = c.tip })
 		commandButtons[c.key] = b
 	end
 	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, -60), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
+end
+
+-- Which classes each command needs (any one of them, not routing).
+local COMMAND_CLASSES: { [string]: { string } } = {
+	line = { "infantry", "cavalry" },
+	column = { "infantry" },
+	square = { "infantry" },
+	wedge = { "cavalry" },
+	fire = { "infantry", "artillery" },
+	charge = { "infantry", "cavalry" },
+	limber = { "artillery" },
+	ammo = { "artillery" },
+	rally = { "hq" },
+}
+local ANY_CLASS = { "infantry", "cavalry", "artillery", "hq" }
+
+local function firstOfClass(forms: { any }, class: string): any
+	for _, f in forms do
+		if f.class == class then
+			return f
+		end
+	end
+	return nil
+end
+
+-- Button text / active look that depends on the selection; may veto with a reason.
+local function decorateCommand(key: string, b: TextButton, forms: { any }): string?
+	if key == "fire" then
+		local f: any = forms[1]
+		b.Text = if f and f.fireAtWill == false then "Hold fire" else "Fire at will"
+		Kit.setActiveLook(b, f ~= nil and f.fireAtWill ~= false)
+	elseif key == "charge" then
+		local armed = Input.armed() == "Charge"
+		Kit.setActiveLook(b, armed)
+		b.Text = if armed then "Charge…" else "Charge"
+	elseif key == "limber" then
+		local art = firstOfClass(forms, "artillery")
+		b.Text = if art and art.limbered == true then "Unlimber" else "Limber"
+	elseif key == "ammo" then
+		local art = firstOfClass(forms, "artillery")
+		local mode = if art and art.ammoMode then art.ammoMode else "auto"
+		b.Text = "Ammo: " .. (if mode == "roundShot" then "shot" elseif mode == "canister" then "canister" else "auto")
+	elseif key == "rally" then
+		for _, f in forms do
+			if f.class == "hq" and f.rallyCd and f.rallyCd > 0 then
+				return string.format("Recharging (%ds)", math.ceil(f.rallyCd))
+			end
+		end
+	end
+	return nil
 end
 
 function HUD.refreshCommands()
@@ -516,57 +568,11 @@ function HUD.refreshCommands()
 		end
 		return false, "Needs " .. table.concat(classes, " or ")
 	end
-	local first: any = forms[1]
 	for key, b in commandButtons do
-		local ok, reason
-		if key == "line" then
-			ok, reason = why({ "infantry", "cavalry" })
-		elseif key == "column" or key == "square" then
-			ok, reason = why({ "infantry" })
-		elseif key == "wedge" then
-			ok, reason = why({ "cavalry" })
-		elseif key == "fire" then
-			ok, reason = why({ "infantry", "artillery" })
-			local f = first
-			b.Text = if f and f.fireAtWill == false then "Hold fire" else "Fire at will"
-			Kit.setActiveLook(b, f ~= nil and f.fireAtWill ~= false)
-		elseif key == "charge" then
-			ok, reason = why({ "infantry", "cavalry" })
-			Kit.setActiveLook(b, Input.armed() == "Charge")
-			b.Text = if Input.armed() == "Charge" then "Charge…" else "Charge"
-		elseif key == "limber" then
-			ok, reason = why({ "artillery" })
-			local art: any = nil
-			for _, f in forms do
-				if f.class == "artillery" then
-					art = f
-					break
-				end
-			end
-			b.Text = if art and art.limbered == true then "Unlimber" else "Limber"
-		elseif key == "ammo" then
-			ok, reason = why({ "artillery" })
-			local art: any = nil
-			for _, f in forms do
-				if f.class == "artillery" then
-					art = f
-					break
-				end
-			end
-			local mode = if art and art.ammoMode then art.ammoMode else "auto"
-			b.Text = "Ammo: " .. (if mode == "roundShot" then "shot" elseif mode == "canister" then "canister" else "auto")
-		elseif key == "rally" then
-			ok, reason = why({ "hq" })
-			if ok then
-				for _, f in forms do
-					if f.class == "hq" and f.rallyCd and f.rallyCd > 0 then
-						ok = false
-						reason = string.format("Recharging (%ds)", math.ceil(f.rallyCd))
-					end
-				end
-			end
-		else
-			ok, reason = why({ "infantry", "cavalry", "artillery", "hq" })
+		local ok, reason = why(COMMAND_CLASSES[key] or ANY_CLASS)
+		local veto = decorateCommand(key, b, forms)
+		if ok and veto then
+			ok, reason = false, veto
 		end
 		Kit.setEnabled(b, ok, reason)
 	end

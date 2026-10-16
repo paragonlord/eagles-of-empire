@@ -103,6 +103,7 @@ BattleState.isCommander = false
 BattleState.difficulty = "normal"
 BattleState.speed = 1
 BattleState.scenario = nil :: any
+BattleState.campaignBattle = nil :: any -- {battleId, name} when the match belongs to the campaign
 BattleState.map = nil :: any -- MapGen.MapData once built
 BattleState.clock = 0
 BattleState.timeLimit = 0
@@ -139,6 +140,7 @@ function BattleState.applyMatchState(msg: any)
 	BattleState.difficulty = msg.difficulty or "normal"
 	BattleState.speed = msg.speed or 1
 	BattleState.scenario = msg.scenario
+	BattleState.campaignBattle = msg.campaignBattle
 	if msg.scenario and msg.scenario.factions then
 		local f = msg.scenario.factions
 		BattleState.enemyFaction = if f.player == BattleState.viewerFaction then f.enemy else f.player

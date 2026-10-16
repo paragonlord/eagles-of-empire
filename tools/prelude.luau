@@ -245,7 +245,8 @@ local function runTests()
 			print("FAIL (load) " .. path .. ": " .. tostring(err))
 		end
 		for _, t in tests do
-			if not filter or string.find(t.name, filter, 1, true) or string.find(path, filter, 1, true) then
+			local slow = string.sub(t.name, 1, 6) == "[slow]"
+			if (not filter and not slow) or (filter and (string.find(t.name, filter, 1, true) or string.find(path, filter, 1, true))) then
 				local t0 = os.clock()
 				local okT, errT = xpcall(t.fn, debug.traceback)
 				local dt = os.clock() - t0

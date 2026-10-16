@@ -431,7 +431,13 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 				t.timers.noDamage = 0
 			end
 			if a.side ~= "front" and (lost > 0 or a.kind ~= "volley") then
-				if t.hitSide == nil or (a.side == "rear") then
+				if a.kind == "melee" then
+					-- sustained pressure: per-second penalty applied by Morale
+					if t.meleeSide == nil or a.side == "rear" then
+						t.meleeSide = a.side
+					end
+				elseif t.hitSide == nil or a.side == "rear" then
+					-- one-shot shock from a flank/rear volley, cannonade or charge
 					t.hitSide = a.side
 				end
 			end

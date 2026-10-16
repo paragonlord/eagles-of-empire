@@ -75,7 +75,7 @@ volley (movement resumes after). Fire-at-will off ⇒ never fires unless ordered
 ```
 shooters   = strength * shape.fire * readiness          (readiness = cohesion, ≥ 0.4; ×0.7 when shaken)
 rangeF     = 1 - 0.65 * (dist / range)
-hit        = accuracy(0.10) * rangeF * (1 - cover) * (1 - 0.3 fatigue/100) * (1 + 0.08 exp)
+hit        = accuracy(0.07) * rangeF * (1 - cover) * (1 - 0.3 fatigue/100) * (1 + 0.08 exp)
              * targetShape * sideFactor * (1 + 0.1 if higher)        clamped to ≤ 0.30
 casualties = round(shooters * hit)       (seeded roll: floor + chance(frac))
 ```
@@ -93,7 +93,7 @@ Contact: footprints within 6 studs and the attacker's order targets the defender
 side charges into the other. Both sides deal damage each tick:
 
 ```
-casualties/s = strength * 0.004 * melee.attack * shape.melee * dir * (1 - 0.4 fatigue/100)
+casualties/s = strength * 0.0025 * melee.attack * shape.melee * dir * (1 - 0.4 fatigue/100)
                * (1 + 0.08 exp) * bayonetBonus / defender.melee.defense
 ```
 dir: front 1.0, flank 1.6, rear 2.2. Shaken attackers ×0.8; cavalry in melee for more than 25 s ×0.5. Bayonet charge: ×1.3 for 10 s after contact and a morale
@@ -104,10 +104,10 @@ Cavalry charge impact, applied once at first contact:
 impact = strength * 0.06 * runUpF * dirF * shapeF * (1 - 0.4 fatigue/100)
 runUpF = clamp(runUp / 80, 0.3, 1)        (distance travelled at charge speed before contact)
 dirF   = front 1.0 / flank 1.8 / rear 2.5
-shapeF = line 1.0, column 1.3, square 0.15, travel 1.8, limbered/deployed 3.0, routing ×3.0
+shapeF = line 1.0, column 1.3, square 0.15, travel 1.8, limbered/deployed 3.0, routing ×1.5
 ```
 After impact the cavalry fights ordinary melee (attack 1.4, defense 0.8); against a square it
-takes ×2 damage. A new impact needs 25 s of recovery out of contact. Cavalry in woods: speed
+takes ×2 damage. A new impact needs 40 s of recovery out of contact. Cavalry in woods: speed
 ×0.4 and charge impact ×0.5.
 
 ## Morale
@@ -116,8 +116,9 @@ takes ×2 damage. A new impact needs 25 s of recovery out of contact. Cavalry in
 
 | Cause | Effect |
 | --- | --- |
-| casualties | − (lost / strength) × 100 × 1.2 |
-| fired/meleed from flank | − 8 /s (rear: − 15 /s), at most once per tick |
+| casualties | − (lost / strength) × 100 × 1.0 |
+| volley / cannonade / charge from the flank | − 6 once per attack (rear: − 12) |
+| melee from the flank | − 1.5 /s (rear: − 3 /s) |
 | friend routing within 80 | − 2 every 5 s per friend, max − 6 |
 | no friend within 150 | − 1 every 5 s |
 | fatigue > 70 | − 0.2 /s |
@@ -156,7 +157,8 @@ eligible formations inside (progress freezes). Ownership shows on the HUD and mi
 Victory evaluator (one, server, runs after step 9, terminal once):
 1. **Collapse**: a side with ≥ 70 % of formations routing/shattered/destroyed/exited, or
    remaining strength < 35 % of deployed → the other side wins.
-2. **Objectives**: a side holding every objective for 120 s continuous wins.
+2. **Objectives**: a side holding every objective for 120 s continuous wins, but not before
+   minute 10 (`HoldAllEarliest`), so a defender starting on the objectives cannot win by default.
 3. **Timeout** (25 min): more objectives held wins; equal → draw ("Indecisive").
 Precedence when several trigger in the same tick: collapse of the *attacker* (player) is
 checked first, then the enemy, then objectives, then timeout.

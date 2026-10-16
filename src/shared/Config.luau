@@ -104,7 +104,7 @@ Config.Units = {
 	infantry = {
 		speed = 5.5, chargeSpeed = 7.5,
 		defaultShape = "line", legalShapes = { line = true, column = true, square = true, travel = true },
-		musket = { range = 90, reload = 15, accuracy = 0.10, minReadiness = 0.4 },
+		musket = { range = 90, reload = 15, accuracy = 0.07, minReadiness = 0.4 },
 		melee = { attack = 1.0, defense = 1.0 },
 		baseMorale = 70, fatigueMove = 0.35, fatigueCharge = 6.0, fatigueMelee = 2.0, rest = 1.5,
 		spot = 260, halfWidthFactor = 1.0,
@@ -114,7 +114,7 @@ Config.Units = {
 		defaultShape = "wedge", legalShapes = { wedge = true, line = true },
 		musket = nil,
 		melee = { attack = 1.4, defense = 0.8 },
-		charge = { runUp = 80, base = 0.06, recovery = 25, maxMeleeSeconds = 25, frontFactor = 1.0, flankFactor = 1.8, rearFactor = 2.5 },
+		charge = { runUp = 80, base = 0.06, recovery = 40, maxMeleeSeconds = 25, frontFactor = 1.0, flankFactor = 1.8, rearFactor = 2.5 },
 		baseMorale = 72, fatigueMove = 0.5, fatigueCharge = 7.0, fatigueMelee = 2.5, rest = 1.5,
 		spot = 320,
 	},
@@ -153,14 +153,14 @@ Config.Combat = {
 	RearFireFactor = 1.6,
 	FriendlyBlocksFire = true, -- a friendly formation inside the fire lane blocks the volley
 	FireLaneHalfWidth = 10,
-	MeleeRatePerSecond = 0.004, -- casualties = attackerStrength * rate * factors * dt
+	MeleeRatePerSecond = 0.0025, -- casualties = attackerStrength * rate * factors * dt
 	MeleeDirFactor = { front = 1.0, flank = 1.6, rear = 2.2 },
 	MeleeContactDistance = 6, -- studs between footprints
 	BayonetBonus = 1.3,
 	BayonetBonusSeconds = 10,
 	BayonetMoraleShock = { front = 10, flank = 20 },
 	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0 },
-	ChargeRoutingFactor = 3.0,
+	ChargeRoutingFactor = 1.5,
 	SquareReturnsDamage = 2.0, -- cavalry in melee with a square takes x2
 	MinRunUpFactor = 0.3,
 	ExperienceAccuracy = 0.08, -- per experience level
@@ -175,9 +175,11 @@ Config.Combat = {
 }
 
 Config.Morale = {
-	CasualtyFactor = 1.2, -- morale -= (casualties/strength) * 100 * factor
-	FlankHitPenalty = 8, -- per second under flank fire/melee (bounded)
-	RearHitPenalty = 15,
+	CasualtyFactor = 1.0, -- morale -= (casualties/strength) * 100 * factor
+	FlankHitPenalty = 6, -- once per flank volley / cannonade / charge received
+	RearHitPenalty = 12,
+	FlankMeleePerSecond = 1.5,
+	RearMeleePerSecond = 3,
 	FriendRoutPenalty = 2, FriendRoutRadius = 80, FriendRoutMax = 6, FriendRoutInterval = 5,
 	IsolationRadius = 150, IsolationPenalty = 1, IsolationInterval = 5,
 	FatigueThreshold = 70, FatiguePenaltyPerSecond = 0.2,
@@ -195,6 +197,7 @@ Config.Objectives = {
 	CaptureRadius = 60,
 	CaptureSeconds = 30,
 	HoldAllSeconds = 120,
+	HoldAllEarliest = 600, -- holding every objective only wins after this many seconds (gives the attacker a chance)
 	EligibleClasses = { infantry = true, cavalry = true },
 }
 

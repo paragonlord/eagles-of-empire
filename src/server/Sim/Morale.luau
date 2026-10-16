@@ -149,13 +149,19 @@ function Morale.update(sim: SimLike, f: Formation)
 		f.morale -= frac * 100 * M.CasualtyFactor
 		f.casualtiesThisTick = 0
 	end
-	-- Flank / rear pressure (bounded: once per tick).
+	-- Flank / rear shock: one-shot per volley/cannonade/charge, sustained per second in melee.
 	if f.hitSide == "flank" then
-		f.morale -= M.FlankHitPenalty * DT
+		f.morale -= M.FlankHitPenalty
 	elseif f.hitSide == "rear" then
-		f.morale -= M.RearHitPenalty * DT
+		f.morale -= M.RearHitPenalty
+	end
+	if f.meleeSide == "flank" then
+		f.morale -= M.FlankMeleePerSecond * DT
+	elseif f.meleeSide == "rear" then
+		f.morale -= M.RearMeleePerSecond * DT
 	end
 	f.hitSide = nil
+	f.meleeSide = nil
 	-- Friends routing nearby.
 	t.friendRout += DT
 	if t.friendRout >= M.FriendRoutInterval then

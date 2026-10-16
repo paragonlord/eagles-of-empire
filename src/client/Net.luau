@@ -16,6 +16,7 @@ Net.onSnapshot = Signal.new()
 Net.onMatchState = Signal.new()
 Net.onResult = Signal.new()
 Net.onDebug = Signal.new()
+Net.onCampaign = Signal.new() -- ({kind="view"|"error", ...})
 
 local remotes: { [string]: RemoteEvent } = {}
 local connections: { RBXScriptConnection } = {}
@@ -74,6 +75,7 @@ function Net.init()
 	hook(Protocol.Remotes.MatchState, Net.onMatchState)
 	hook(Protocol.Remotes.CommandResult, Net.onResult)
 	hook(Protocol.Remotes.Debug, Net.onDebug)
+	hook(Protocol.Remotes.Campaign, Net.onCampaign)
 	table.insert(connections, RunService.Heartbeat:Connect(drain))
 end
 
@@ -114,6 +116,17 @@ function Net.control(action: string, value: any): string?
 		warn("[EoE] control rejected locally: " .. tostring(reason))
 		return nil
 	end
+	r:FireServer(msg)
+	return msg.requestId
+end
+
+-- Campaign remote: open | new | command | battle | skip | return. Returns the requestId.
+function Net.campaign(action: string, data: { [string]: any }?): string?
+	local r = remotes[Protocol.Remotes.Campaign]
+	if not r then
+		return nil
+	end
+	local msg = { requestId = nextRequestId(), action = action, data = data or {} }
 	r:FireServer(msg)
 	return msg.requestId
 end

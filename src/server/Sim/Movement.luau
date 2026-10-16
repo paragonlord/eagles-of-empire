@@ -334,12 +334,23 @@ function Movement.update(sim: SimLike, f: Formation)
 	end
 	f.inWoods = Grid.terrainAt(sim.grid, f.pos.x, f.pos.z).blocksSight
 	if f.state == "routing" then
-		routeToHome(sim, f)
-		followPath(sim, f, 1)
-		-- Exited the field: reached the home edge band, or hopelessly stuck while fleeing.
+		local m = Config.Morale.RoutExitMargin
+		local home = sim.homeEdge(sim, f.faction)
+		local waiting = (if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m) and not f.shattered
+		if not waiting then
+			routeToHome(sim, f)
+			followPath(sim, f, 1)
+		end
+		-- At the home edge a routing formation waits in the rear and may still rally; only a
+		-- shattered formation (or one hopelessly stuck / off the map) leaves the field for good.
 		local m = Config.Morale.RoutExitMargin
 		local home = sim.homeEdge(sim, f.faction)
 		local atEdge = if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m
+		if atEdge and not f.shattered then
+			f.path = nil
+			f.status = "Fled to the rear"
+			return
+		end
 		if atEdge or f.timers.stuck > Config.Match.StuckSeconds * 3 or f.pos.x < -m or f.pos.z < -m or f.pos.x > sim.grid.width + m or f.pos.z > sim.grid.depth + m then
 			f.state = "exited"
 			sim.emit(sim, { kind = "destroyed", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. " has fled the field" })

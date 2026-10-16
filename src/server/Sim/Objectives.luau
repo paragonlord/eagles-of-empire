@@ -154,7 +154,7 @@ function Objectives.collapsed(sim: SimLike, faction: string): boolean
 end
 
 function Objectives.heldAll(sim: SimLike, faction: string): boolean
-	if #sim.objectives == 0 then
+	if #sim.objectives == 0 or sim.clock < O.HoldAllEarliest then
 		return false
 	end
 	for _, obj in sim.objectives do

@@ -6,7 +6,7 @@ local BattleState = require(script.Parent.Parent.BattleState)
 
 local Results = {}
 
-export type Callbacks = { restart: () -> (), menu: () -> () }
+export type Callbacks = { restart: () -> (), menu: () -> (), campaign: (() -> ())? }
 
 local gui: ScreenGui? = nil
 
@@ -92,11 +92,20 @@ function Results.show(results: any, cb: Callbacks)
 	buttons.BackgroundTransparency = 1
 	buttons.Parent = panel
 	Kit.list(buttons, 10, true)
-	local restart = Kit.button(buttons, "Restart", cb.restart, { size = UDim2.fromOffset(160, 40), primary = true, order = 1, textSize = 16 })
-	local menu = Kit.button(buttons, "Main Menu", cb.menu, { size = UDim2.fromOffset(160, 40), order = 2, textSize = 16 })
+	local campaign = cb.campaign
+	local returnBtn: TextButton? = nil
+	if campaign then
+		returnBtn = Kit.button(buttons, "Return to Campaign", campaign, { size = UDim2.fromOffset(190, 40), primary = true, order = 1, textSize = 16 })
+	end
+	-- Restart stays available for a campaign battle until the server refuses it.
+	local restart = Kit.button(buttons, "Restart", cb.restart, { size = UDim2.fromOffset(160, 40), primary = campaign == nil, order = 2, textSize = 16 })
+	local menu = Kit.button(buttons, "Main Menu", cb.menu, { size = UDim2.fromOffset(160, 40), order = 3, textSize = 16 })
 	if not BattleState.isCommander then
 		Kit.setEnabled(restart, false, "Only the commander can restart")
 		Kit.setEnabled(menu, false, "Only the commander can leave")
+		if returnBtn then
+			Kit.setEnabled(returnBtn, false, "Only the commander runs the campaign")
+		end
 	end
 	gui = sg
 end

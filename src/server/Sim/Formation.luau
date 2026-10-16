@@ -61,7 +61,8 @@ export type Formation = {
 	shattered: boolean,
 	runUp: number, -- distance at charge speed this charge
 	chargeReady: boolean, -- impact not yet applied for the current charge
-	hitSide: string?, -- strongest attack side suffered this tick
+	hitSide: string?, -- strongest one-shot attack side suffered this tick (volley/cannon/charge)
+	meleeSide: string?, -- strongest melee attack side this tick (sustained)
 	status: string?,
 	lastProgressDist: number,
 	moraleBand: Types.MoraleBand,
@@ -165,6 +166,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		runUp = 0,
 		chargeReady = false,
 		hitSide = nil,
+		meleeSide = nil,
 		status = nil,
 		lastProgressDist = math.huge,
 		moraleBand = "steady",

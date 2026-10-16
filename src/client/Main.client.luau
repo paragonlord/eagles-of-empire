@@ -26,6 +26,7 @@ local SettingsPanel = require(script.Parent.UI.SettingsPanel)
 local Help = require(script.Parent.UI.Help)
 local Loading = require(script.Parent.UI.Loading)
 local DevPanel = require(script.Parent.UI.DevPanel)
+local CampaignScreen = require(script.Parent.UI.CampaignScreen)
 
 local DEFAULT_MAP = "jena"
 local DEFAULT_SCENARIO = "jena"
@@ -36,6 +37,8 @@ local buildToken = 0
 local needCameraReset = false
 local pendingClock = 0
 local lastMatchId = ""
+local lastMenuArgs = { isCommander = false, campaignAvailable = false }
+local campaignWanted = false -- a campaign view should take the screen when it arrives
 local conns: { Signal.Connection } = {}
 
 -- ------------------------------------------------------------------ world
@@ -97,11 +100,57 @@ local menuCallbacks = {
 		Net.control("start", DEFAULT_SCENARIO)
 	end,
 	campaign = function()
-		Net.control("start", "campaign")
+		campaignWanted = true
+		Net.campaign("open")
 	end,
 	help = openHelp,
 	settings = openSettings,
 }
+
+local campaignCallbacks = {
+	send = function(action: string, data: { [string]: any }?)
+		Net.campaign(action, data)
+	end,
+	menu = function()
+		campaignWanted = false
+		CampaignScreen.hide()
+		if BattleState.state == "menu" then
+			Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+		else
+			Net.control("quit")
+		end
+	end,
+}
+
+local function onCampaign(msg: any)
+	if type(msg) ~= "table" then
+		return
+	end
+	if msg.kind == "error" then
+		if CampaignScreen.isOpen() then
+			CampaignScreen.showError(tostring(msg.reason))
+		elseif campaignWanted then
+			HUD.toast(tostring(msg.reason))
+			Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+			campaignWanted = false
+		end
+		return
+	end
+	if msg.kind ~= "view" or type(msg.view) ~= "table" then
+		return
+	end
+	if not campaignWanted then
+		return -- e.g. a view echoed while a campaign battle is being fought
+	end
+	-- the campaign takes the screen over the menu or the results panel
+	Menu.hide()
+	Results.destroy()
+	if CampaignScreen.isOpen() then
+		CampaignScreen.setView(msg.view, msg.sessionOnly == true)
+	else
+		CampaignScreen.show(msg.view, msg.sessionOnly == true, campaignCallbacks)
+	end
+end
 
 local hudCallbacks = {
 	settings = openSettings,
@@ -126,6 +175,7 @@ local function teardown()
 	Selection.reset()
 	Figures.setPreview(nil)
 	closePanels()
+	CampaignScreen.hide()
 end
 
 local function onMatchState(msg: any)
@@ -153,7 +203,13 @@ local function onMatchState(msg: any)
 	local mapId = if scenario and scenario.map then scenario.map else DEFAULT_MAP
 
 	if state == "menu" then
-		Menu.show(menuCallbacks, BattleState.isCommander, msg.campaignAvailable == true)
+		lastMenuArgs = { isCommander = BattleState.isCommander, campaignAvailable = msg.campaignAvailable == true }
+		if campaignWanted and BattleState.isCommander then
+			Net.campaign("return") -- back from a campaign battle: show the map again
+		else
+			campaignWanted = false
+			Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+		end
 		Camera.setEnabled(true)
 		if ensureWorld(DEFAULT_MAP) then
 			local m = BattleState.map
@@ -164,6 +220,7 @@ local function onMatchState(msg: any)
 		ensureWorld(mapId)
 		Loading.show("Waiting for the server…")
 	elseif state == "deployment" then
+		campaignWanted = msg.campaignBattle ~= nil
 		if not ensureWorld(mapId) then
 			return
 		end
@@ -201,13 +258,19 @@ local function onMatchState(msg: any)
 			return
 		end
 		Figures.init() -- the field stays visible, frozen, behind the panel
+		local inCampaign = BattleState.campaignBattle ~= nil
 		Results.show(msg.results or {}, {
 			restart = function()
 				Net.control("restart")
 			end,
 			menu = function()
+				campaignWanted = false
 				Net.control("quit")
 			end,
+			campaign = if inCampaign then function()
+				campaignWanted = true
+				Net.campaign("return")
+			end else nil,
 		})
 		Camera.setEnabled(true)
 	end
@@ -231,6 +294,7 @@ local function wire()
 		task.spawn(onMatchState, msg)
 	end))
 	table.insert(conns, Net.onSnapshot:Connect(onSnapshot))
+	table.insert(conns, Net.onCampaign:Connect(onCampaign))
 	table.insert(conns, Net.onResult:Connect(function(res: any)
 		if type(res) == "table" then
 			BattleState.applyResult(res)
