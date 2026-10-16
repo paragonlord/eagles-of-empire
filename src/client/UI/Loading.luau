@@ -13,7 +13,7 @@ local function build()
 	if gui then
 		return
 	end
-	local sg = Kit.screen("EoELoading", 40)
+	local sg = Kit.screen("EoELoading", 40, true)
 	local back = Instance.new("Frame") :: Frame
 	back.Size = UDim2.fromScale(1, 1)
 	back.BackgroundColor3 = Kit.CREAM

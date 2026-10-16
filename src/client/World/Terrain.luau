@@ -198,9 +198,10 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 				for ix = 1, nx do
 					local cx = cx0 + ix - 1
 					local idx = cz * cols + cx + 1
-					local h = g.height[idx]
 					local cls = g.class[idx]
 					local lvl = water[idx]
+					-- a bridge cell carries the deck height; its voxels are the river bed beneath
+					local h = if cls == IDS.bridge and lvl ~= nil then lvl - 3 else g.height[idx]
 					local mat = materialFor(cls, bank[idx] == true)
 					for iy = 1, ny do
 						local yBase = y0 + (iy - 1) * VOXEL

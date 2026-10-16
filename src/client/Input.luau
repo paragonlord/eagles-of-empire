@@ -260,7 +260,7 @@ local function ensureGui()
 	local sg = Instance.new("ScreenGui") :: ScreenGui
 	sg.Name = "EoEInput"
 	sg.ResetOnSpawn = false
-	sg.IgnoreGuiInset = false
+	sg.IgnoreGuiInset = true -- box coordinates come from GetMouseLocation (inset included)
 	sg.DisplayOrder = 5
 	sg.Parent = player:WaitForChild("PlayerGui")
 	local b = Instance.new("Frame") :: Frame

@@ -21,7 +21,7 @@ local remotes: { [string]: RemoteEvent } = {}
 local connections: { RBXScriptConnection } = {}
 local counter = 0
 local matchId: string = ""
-local ctx: any = nil -- Protocol.ValidateContext supplied by Main
+local ctxFn: (() -> any)? = nil -- builds a Protocol.ValidateContext at send time
 local queue: { { remote: RemoteEvent, payload: any } } = {}
 local sentThisSecond = 0
 local secondStart = 0
@@ -77,9 +77,9 @@ function Net.init()
 	table.insert(connections, RunService.Heartbeat:Connect(drain))
 end
 
-function Net.setMatch(id: string, validateCtx: any)
+function Net.setMatch(id: string, validateCtx: (() -> any)?)
 	matchId = id
-	ctx = validateCtx
+	ctxFn = validateCtx
 end
 
 function Net.matchId(): string
@@ -89,8 +89,8 @@ end
 -- Returns requestId on success, or nil plus the validation reason.
 function Net.send(kind: string, ids: { number }, data: { [string]: any }?): (string?, string?)
 	local cmd = { matchId = matchId, requestId = nextRequestId(), kind = kind, ids = ids, data = data or {} }
-	if ctx then
-		local ok, reason = Protocol.validateCommand(cmd, ctx)
+	if ctxFn then
+		local ok, reason = Protocol.validateCommand(cmd, ctxFn())
 		if not ok then
 			return nil, reason
 		end

@@ -208,30 +208,6 @@ function Camera.shake(amount: number)
 	shakeAmount = math.max(shakeAmount, amount)
 end
 
--- Ground point under a viewport pixel, via terrain / pick-plane raycast.
-function Camera.groundAt(vx: number, vy: number, extraFilter: { Instance }?): Vector3?
-	local cam = workspace.CurrentCamera
-	if not cam then
-		return nil
-	end
-	local ray = cam:ViewportPointToRay(vx, vy)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Include
-	local list: { Instance } = { workspace.Terrain }
-	if extraFilter then
-		for _, i in extraFilter do
-			table.insert(list, i)
-		end
-	end
-	params.FilterDescendantsInstances = list
-	params.IgnoreWater = false
-	local hit = workspace:Raycast(ray.Origin, ray.Direction * 6000, params)
-	if hit then
-		return hit.Position
-	end
-	return nil
-end
-
 function Camera.destroy()
 	if not bound then
 		return

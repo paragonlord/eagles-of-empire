@@ -32,11 +32,11 @@ function Kit.factionColour(faction: string?): Color3
 	return Kit.MUTED
 end
 
-function Kit.screen(name: string, order: number): ScreenGui
+function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenGui
 	local sg = Instance.new("ScreenGui") :: ScreenGui
 	sg.Name = name
 	sg.ResetOnSpawn = false
-	sg.IgnoreGuiInset = true
+	sg.IgnoreGuiInset = ignoreInset == true
 	sg.DisplayOrder = order
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
@@ -136,7 +136,7 @@ local function ensureTooltip()
 	if tooltip and tooltip.Parent then
 		return
 	end
-	local sg = Kit.screen("EoETooltip", 50)
+	local sg = Kit.screen("EoETooltip", 50, true)
 	local t = Kit.label(sg, "", { size = UDim2.fromOffset(240, 36), textSize = 13, wrap = true, align = Enum.TextXAlignment.Center })
 	t.BackgroundTransparency = 0.05
 	t.BackgroundColor3 = Kit.INK

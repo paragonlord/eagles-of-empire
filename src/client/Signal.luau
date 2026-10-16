@@ -13,9 +13,10 @@ function Signal.new(): Signal
 	return setmetatable({ _handlers = {} :: { Handler } }, Signal)
 end
 
-function Signal.Connect(self: Signal, fn: Handler): Connection
+-- `fn` is loosely typed on purpose: handlers declare only the arguments they use.
+function Signal.Connect(self: Signal, fn: any): Connection
 	local handlers = self._handlers
-	table.insert(handlers, fn)
+	table.insert(handlers, fn :: Handler)
 	return {
 		Disconnect = function(_self: Connection)
 			local i = table.find(handlers, fn)

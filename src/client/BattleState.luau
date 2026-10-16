@@ -115,10 +115,10 @@ BattleState.lastKnown = {} :: { [number]: LastKnown }
 BattleState.objectives = {} :: { Objective }
 BattleState.pending = {} :: { [string]: Pending }
 
-BattleState.updated = Signal.new() :: any -- (snapshot) after merge
-BattleState.event = Signal.new() :: any -- (event) one per snapshot event
-BattleState.pendingChanged = Signal.new() :: any
-BattleState.orderRejected = Signal.new() :: any -- (reason)
+BattleState.updated = Signal.new() -- (snapshot) after merge
+BattleState.event = Signal.new() -- (event) one per snapshot event
+BattleState.pendingChanged = Signal.new()
+BattleState.orderRejected = Signal.new() -- (reason)
 
 function BattleState.reset()
 	table.clear(BattleState.formations)

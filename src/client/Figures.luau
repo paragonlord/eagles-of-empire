@@ -134,7 +134,8 @@ local function desaturate(c: Color3): Color3
 	return Color3.new(g, g, g):Lerp(c, 0.25):Lerp(Color3.new(0.75, 0.72, 0.68), 0.3)
 end
 
-local function figureCount(class: string, strength: number): number
+local function figureCount(class: string, strength: number?): number
+	strength = strength or 0
 	if class == "hq" then
 		return 2
 	elseif class == "artillery" then
@@ -299,7 +300,7 @@ local function buildFar(g: Group, f: any)
 		-- wedge thin edge forward: WedgePart slopes toward its -Z, so turn it to face local +X
 		addPart(g, w, CFrame.new(0, h * 0.65, 0) * CFrame.Angles(0, math.pi / 2, 0), 0)
 	elseif g.class == "artillery" then
-		local n = math.max(1, math.ceil(f.strength / Config.Visual.CrewPerGun))
+		local n = figureCount("artillery", f.strength)
 		for i = 1, n do
 			local z = (i - 0.5) / n * f.width - f.width / 2
 			addPart(g, cylinder(5, 0.5, c), CFrame.new(0.5, 1.8, z), 0)
@@ -504,6 +505,10 @@ local function onSnapshot()
 				g.p0x, g.p0z, g.p0h = g.rx, g.rz, g.rh
 				g.p1x, g.p1z, g.p1h = f.x, f.z, f.heading
 				g.t1 = now + SNAP_DT
+			else
+				-- unchanged this snapshot: it has stopped, so settle on p1 (no extrapolation)
+				g.p0x, g.p0z, g.p0h = g.p1x, g.p1z, g.p1h
+				g.t1 = now
 			end
 		else
 			g = newGroup(id, f, false)

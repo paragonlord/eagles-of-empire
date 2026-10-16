@@ -1,0 +1,12 @@
+Measured from docs/reference/epic-history-jena-2.jpg (9x9 averages, video JPEG, vignette applied):
+terrain lit plateau  #5E5023
+terrain shadow       #825F51
+terrain dark valley  #0C0E0D
+woods                #513B13 / #756547
+water (Saale)        #55579E
+french block         #60568B (top #5C5047)
+prussian block       #5B5131
+roof cluster         #3D2519
+nameplate            #84818F
+label text           #8E6F3D
+road                 #9C8F8D

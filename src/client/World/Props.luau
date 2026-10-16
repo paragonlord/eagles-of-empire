@@ -234,8 +234,13 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 end
 
 -- Ground labels grow with camera height so they stay readable from any zoom.
+local lastLabelK = -1
 function Props.updateLabels(cameraHeight: number)
 	local k = math.clamp(cameraHeight / 350, 0.6, 2.6)
+	if math.abs(k - lastLabelK) < 0.05 then
+		return
+	end
+	lastLabelK = k
 	for _, l in labelParts do
 		local s = l.size * k
 		l.part.Size = Vector3.new(s * 4, 0.2, s)
