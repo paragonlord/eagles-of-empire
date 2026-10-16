@@ -1,0 +1,40 @@
+{
+  "name": "EaglesOfEmpire",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "EoE": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "EoE": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": { "EnableMouseLockOption": false, "CameraMaxZoomDistance": 2000 },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "EoEClient": { "$path": "src/client" }
+      }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": { "CharacterAutoLoads": false }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": { "StreamingEnabled": false }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "ClockTime": 9.5,
+        "Brightness": 2.2,
+        "GlobalShadows": true,
+        "EnvironmentDiffuseScale": 0.6,
+        "EnvironmentSpecularScale": 0.4
+      }
+    }
+  }
+}
