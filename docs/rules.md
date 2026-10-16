@@ -73,7 +73,7 @@ within the fire lane (half-width 10) unless `FriendlyBlocksFire = false`. Infant
 volley (movement resumes after). Fire-at-will off ⇒ never fires unless ordered to Engage.
 
 ```
-shooters   = strength * shape.fire * readiness          (readiness = cohesion, ≥ 0.4)
+shooters   = strength * shape.fire * readiness          (readiness = cohesion, ≥ 0.4; ×0.7 when shaken)
 rangeF     = 1 - 0.65 * (dist / range)
 hit        = accuracy(0.10) * rangeF * (1 - cover) * (1 - 0.3 fatigue/100) * (1 + 0.08 exp)
              * targetShape * sideFactor * (1 + 0.1 if higher)        clamped to ≤ 0.30
@@ -96,7 +96,7 @@ side charges into the other. Both sides deal damage each tick:
 casualties/s = strength * 0.004 * melee.attack * shape.melee * dir * (1 - 0.4 fatigue/100)
                * (1 + 0.08 exp) * bayonetBonus / defender.melee.defense
 ```
-dir: front 1.0, flank 1.6, rear 2.2. Bayonet charge: ×1.3 for 10 s after contact and a morale
+dir: front 1.0, flank 1.6, rear 2.2. Shaken attackers ×0.8; cavalry in melee for more than 25 s ×0.5. Bayonet charge: ×1.3 for 10 s after contact and a morale
 shock of 10 (front) / 20 (flank or rear) to the target.
 
 Cavalry charge impact, applied once at first contact:

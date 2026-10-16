@@ -170,6 +170,8 @@ Config.Combat = {
 	FatigueAccuracyPenalty = 0.3,
 	FatigueMeleePenalty = 0.4,
 	VolleyMinStrength = 10,
+	ShakenFireFactor = 0.7,
+	ShakenMeleeFactor = 0.8,
 }
 
 Config.Morale = {

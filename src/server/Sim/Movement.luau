@@ -372,6 +372,12 @@ function Movement.update(sim: SimLike, f: Formation)
 		if o and (o.kind == "Engage" or o.kind == "Charge") and o.targetId and sim.tick % 20 == 0 then
 			local target = sim.findFormation(sim, o.targetId)
 			if target and Formation.isActive(target) then
+				-- Leash: stop chasing once the pursuit has gone further than the player ordered.
+				if o.kind == "Engage" and o.anchor and Vec.dist(f.pos, o.anchor) > Config.Match.LeashDistance then
+					sim.emit(sim, { kind = "message", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. ": halted, pursuit limit reached" })
+					Formation.clearOrder(f)
+					return
+				end
 				local path = f.path
 				if path then
 					path[#path] = { x = target.pos.x, z = target.pos.z }

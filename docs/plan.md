@@ -11,9 +11,9 @@ in-engine until `docs/qa.md` records a Studio run.
 | Gate | Implementation | Verification |
 | --- | --- | --- |
 | 0 — environment, reference, contracts | done (this commit) | n/a |
-| 1 — visual target + command feel | in progress | blocked (Studio) |
-| 2 — real small battle | pending | blocked |
-| 3 — full tactical depth | pending | blocked |
+| 1 — visual target + command feel | source in progress (client helper) | blocked (Studio) |
+| 2 — real small battle | source done (sim + server runtime) | blocked |
+| 3 — full tactical depth | source in progress | blocked |
 | 4 — quality & robustness | pending | blocked |
 | 5 — campaign | pending | blocked |
 | 6 — polish & delivery | pending | blocked |
@@ -30,12 +30,12 @@ in-engine until `docs/qa.md` records a Studio run.
 ## Task list (living)
 
 - [x] Contracts: architecture, rules, visual notes
-- [ ] Shared: Config, Vec, RNG, Grid, MapGen (Jena map), Scenarios, Protocol, Types
-- [ ] Tools: test runner, analyzer wrapper, `.rbxlx` builder, `default.project.json`
-- [ ] Server: Sim core (formations, nav, movement, shapes), Net (remotes, validator, replicator), MatchService
+- [x] Shared: Config, Vec, RNG, Grid, MapGen (Jena map), Scenarios, Protocol, Types
+- [x] Tools: test runner, analyzer wrapper, `.rbxlx` builder, `default.project.json`
+- [x] Server: Sim core (formations, nav, movement, shapes), Net (remotes, validator, replicator), MatchService
 - [ ] Client: Net, World (terrain, props, labels), Figures (LOD), Camera, Input/Selection, HUD
-- [ ] Gate 2: combat, morale, routing, objectives, victory, results, restart
-- [ ] Gate 3: artillery, cavalry charge, squares, visibility/last-known, AI hierarchy, tutorial, settings, audio, effects
+- [x] Gate 2 (source): combat, morale, routing, objectives, victory, results, restart
+- [~] Gate 3: artillery, cavalry charge, squares, visibility/last-known done in Sim; AI hierarchy, tutorial, settings, audio, effects in progress (helpers)
 - [ ] Gate 4: edge cases, tests, profiling hooks, stress fixture
 - [ ] Gate 5: campaign map, turns, recruitment, battle hand-off, persistence
 - [ ] Gate 6: polish, docs, handoff

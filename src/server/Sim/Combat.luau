@@ -177,6 +177,9 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	local musket = unit.musket
 	local shapeCfg = (Config.Shapes :: any)[f.shape]
 	local readiness = math.max(musket.minReadiness, f.cohesion)
+	if f.moraleBand == "shaken" then
+		readiness *= C.ShakenFireFactor
+	end
 	local shooters = f.strength * shapeCfg.fire * readiness
 	if shooters < C.VolleyMinStrength then
 		return
@@ -248,6 +251,12 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	end
 	if att.class == "cavalry" and att.inWoods then
 		rate *= 0.5
+	end
+	if att.class == "cavalry" and att.timers.meleeSeconds > unitA.charge.maxMeleeSeconds then
+		rate *= 0.5 -- blown horses: sustained melee is not cavalry's business
+	end
+	if att.moraleBand == "shaken" then
+		rate *= C.ShakenMeleeFactor
 	end
 	rate /= unitD.melee.defense
 	local casualties = rollCasualties(sim, rate * DT)

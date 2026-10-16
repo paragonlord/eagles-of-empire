@@ -298,3 +298,44 @@ test("Snapshots hide unseen enemies and remember last-known positions", function
 	assertTrue(#snap2.lastKnown == 1 and snap2.lastKnown[1].id == 2, "last-known recorded, got " .. #snap2.lastKnown)
 	assertNear(snap2.lastKnown[1].x, 500, 1e-6, "frozen at the last seen position")
 end)
+
+test("Engage pursuit stops at the leash distance", function()
+	local sim = newSim({
+		unit("france", "cavalry", "Horse", 600, 300, math.pi / 2),
+		unit("prussia", "cavalry", "Fleeing", 600, 420, math.pi / 2),
+	})
+	local chaser, runner = sim.formations[1], sim.formations[2]
+	cmd(sim, "Engage", { 1 }, { targetId = 2 })
+	for _ = 1, 20 * 60 do
+		-- the target keeps running north out of reach
+		runner.pos = { x = 600, z = math.min(1100, runner.pos.z + 0.9) }
+		sim:step()
+		if chaser.order == nil then
+			break
+		end
+	end
+	assertTrue(chaser.order == nil, "order cleared by the leash")
+	assertTrue(Vec.dist(chaser.pos, { x = 600, z = 300 }) <= Config.Match.LeashDistance + 30, "did not run across the map")
+end)
+
+test("Shaken formations fire less effectively", function()
+	local function volleyLoss(shaken)
+		local sim = newSim({ unit("france", "infantry", "F1", A.x, A.z, 0), unit("prussia", "infantry", "P1", A.x + 60, A.z, math.pi) })
+		local f, p = sim.formations[1], sim.formations[2]
+		p.fireAtWill = false
+		if shaken then
+			f.moraleBand = "shaken"
+			f.morale = 45
+		end
+		local total = 0
+		for seed = 1, 6 do
+			sim.rng = require(Shared.RNG).new(seed)
+			f.reload = 0
+			sim:step()
+			total += 600 - p.strength
+			p.strength = 600
+		end
+		return total
+	end
+	assertTrue(volleyLoss(true) < volleyLoss(false), "shaken inflicts fewer casualties")
+end)

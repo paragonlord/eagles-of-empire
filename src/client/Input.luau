@@ -34,6 +34,7 @@ local box: Frame? = nil
 local left: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local right: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local deployHeading: { [number]: number } = {}
+local armed: string? = nil -- "Charge": the next right-click charges instead of moving
 
 -- ------------------------------------------------------------------ picking
 
@@ -121,6 +122,10 @@ end
 -- ------------------------------------------------------------------ orders
 
 local function sendOrder(kind: string, ids: { number }, data: { [string]: any }): boolean
+	if kind == "Charge" then
+		armed = nil
+		Input.action:Fire("disarm")
+	end
 	local requestId, reason = Net.send(kind, ids, data)
 	if requestId then
 		BattleState.addPending({
@@ -429,7 +434,23 @@ local function onRightUp()
 		return
 	end
 	local id, kind = pickAt(g)
-	if id and (kind == "enemy" or kind == "ghost") then
+	if armed == "Charge" then
+		local ids = {}
+		for _, f in selectedFormations() do
+			if f.class == "infantry" or f.class == "cavalry" then
+				table.insert(ids, f.id)
+			end
+		end
+		if #ids > 0 then
+			if id and (kind == "enemy" or kind == "ghost") then
+				sendOrder("Charge", ids, { targetId = id, queue = shift() })
+			else
+				sendOrder("Charge", ids, { pos = clampToMap(g), queue = shift() })
+			end
+		end
+		armed = nil
+		Input.action:Fire("disarm")
+	elseif id and (kind == "enemy" or kind == "ghost") then
 		issueEngage(id, shift())
 	elseif kind == "own" and id and Selection.count() == 1 and Selection.isSelected(id) then
 		-- right-clicking the only selected formation: no-op
@@ -495,7 +516,12 @@ local function onKey(input: InputObject)
 	local k = input.KeyCode
 	local state = BattleState.state
 	if k == Enum.KeyCode.Escape then
-		Selection.clear()
+		if armed then
+			armed = nil
+			Input.action:Fire("disarm")
+		else
+			Selection.clear()
+		end
 		Input.action:Fire("escape")
 	elseif k == Enum.KeyCode.F9 then
 		Input.action:Fire("dev")
@@ -598,9 +624,23 @@ function Input.mode(): string
 	return mode
 end
 
+-- Arms a two-step order (Charge): the next right-click supplies the target or position.
+function Input.arm(kind: string?)
+	armed = kind
+end
+
+function Input.armed(): string?
+	return armed
+end
+
+function Input.sendOrder(kind: string, ids: { number }, data: { [string]: any }): boolean
+	return sendOrder(kind, ids, data)
+end
+
 function Input.destroy()
 	cancelDrags()
 	mode = "off"
+	armed = nil
 	for _, c in connections do
 		c:Disconnect()
 	end
