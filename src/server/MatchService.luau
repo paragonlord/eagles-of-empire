@@ -18,6 +18,7 @@ local AI = require(script.Parent.AI)
 local Remotes = require(script.Parent.Net.Remotes)
 local CommandGate = require(script.Parent.Net.CommandGate)
 local MatchClock = require(script.Parent.Net.MatchClock)
+local CampaignService = require(script.Parent.CampaignService)
 
 type Sim = Sim.Sim
 
@@ -36,6 +37,7 @@ type Match = {
 	pausedPublishTimer: number,
 	devTimer: number,
 	leftAt: number?, -- os.clock() when the commander left
+	campaignBattleId: string?,
 }
 
 local MatchService = {}
@@ -89,7 +91,9 @@ local function matchStatePayload(player: Player)
 		speed = if m then m.clock.speed else 1,
 		results = if m then m.sim.result else nil,
 		reason = if m and m.sim.result then m.sim.result.reason else nil,
-		campaignAvailable = false,
+		campaignAvailable = true,
+		campaignSessionOnly = CampaignService.sessionOnly(),
+		campaignBattle = if m and m.campaignBattleId then { battleId = m.campaignBattleId, name = m.scenario.name } else nil,
 	}
 end
 
@@ -140,8 +144,7 @@ local function destroyMatch()
 	match = nil
 end
 
-local function createMatch(scenarioId: string)
-	local scenario = Scenarios.get(scenarioId) or Scenarios.jena
+local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: string?)
 	local map = mapFor(scenario.map)
 	matchCounter += 1
 	local id = string.format("m%d-%d", os.time() % 100000, matchCounter)
@@ -163,7 +166,12 @@ local function createMatch(scenarioId: string)
 		pausedPublishTimer = 0,
 		devTimer = 0,
 		leftAt = nil,
+		campaignBattleId = campaignBattleId,
 	}
+end
+
+local function createMatch(scenarioId: string)
+	createMatchFrom(Scenarios.get(scenarioId) or Scenarios.jena, nil)
 end
 
 local function result(player: Player, requestId: string, accepted: boolean, reason: string?, effectiveTick: number?)
@@ -215,9 +223,20 @@ local function onControl(player: Player, msg: any)
 		result(player, msg.requestId, true)
 		broadcastState()
 	elseif action == "start" or action == "restart" then
-		local scenarioId = if type(msg.value) == "string" then msg.value elseif m then m.scenario.id else "jena"
-		destroyMatch()
-		createMatch(scenarioId)
+		if action == "restart" and m and m.campaignBattleId then
+			-- A campaign battle can be refought only while its result has not been committed.
+			if CampaignService.isBattleCommitted(m.campaignBattleId) then
+				result(player, msg.requestId, false, Protocol.Reasons.badState)
+				return
+			end
+			local scenario, battleId = m.scenario, m.campaignBattleId
+			destroyMatch()
+			createMatchFrom(scenario, battleId)
+		else
+			local scenarioId = if type(msg.value) == "string" then msg.value elseif m then m.scenario.id else "jena"
+			destroyMatch()
+			createMatch(scenarioId)
+		end
 		result(player, msg.requestId, true)
 		broadcastState()
 		publish(true)
@@ -327,6 +346,10 @@ local function onHeartbeat(realDt: number)
 			m.state = "results"
 			m.clock.paused = true
 			publish(true)
+			if m.campaignBattleId and m.sim.result then
+				-- Exactly-once commit happens inside CampaignService (idempotent by battle id).
+				CampaignService.onBattleEnded(m.campaignBattleId, m.scenario, m.sim.result, m.sim.formations)
+			end
 			broadcastState()
 			return
 		end
@@ -404,6 +427,20 @@ function MatchService.start()
 		heartbeat:Disconnect()
 	end
 	heartbeat = RunService.Heartbeat:Connect(onHeartbeat)
+	CampaignService.start(remotes.Campaign, {
+		isCommander = function(player: Player): boolean
+			if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
+				commanderUserId = player.UserId
+			end
+			return isCommander(player)
+		end,
+		startBattle = function(scenario: Scenarios.Scenario, battleId: string)
+			destroyMatch()
+			createMatchFrom(scenario, battleId)
+			broadcastState()
+			publish(true)
+		end,
+	})
 end
 
 -- Exposed for tests / tooling.
