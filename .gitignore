@@ -1,4 +1,3 @@
-build/
-*.rbxlx
-*.rbxl
+build/*
+!build/EaglesOfEmpire.rbxlx
 .DS_Store

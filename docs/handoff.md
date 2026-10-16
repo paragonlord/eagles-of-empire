@@ -4,14 +4,10 @@ Updated whenever a gate moves. Resume from here; do not recap.
 
 ## State of the build
 
-- Gate 0 complete; Gate 1–3 **source implementation** in progress under the source-only
-  workflow exception (no Studio in this environment). Nothing is verified in-engine.
-- Shared foundation, battle simulation, server runtime: implemented, type-clean, 22 CLI tests
-  pass (`tools/check.sh`).
-- Client (src/client), enemy AI (src/server/AI), campaign + persistence
-  (src/server/Campaign, src/server/Persist): being implemented by parallel helpers with file
-  ownership; integration owner is the main session. Until they land, `MatchService` has an
-  unresolved `require(script.Parent.AI)`.
+- Release A and Release B are **implemented at source level** under the source-only workflow
+  exception (no Studio in this environment). Nothing is verified in-engine; see `docs/qa.md`.
+- 50 files, 0 analyzer diagnostics, 47 CLI tests + 1 slow scripted battle pass.
+- `build/EaglesOfEmpire.rbxlx` builds from the tree (`tools/build_place.py`).
 
 ## Exact commands
 
@@ -26,13 +22,15 @@ instance-path requires into string requires in a mirror under `build/analyze/`.
 
 ## Current errors
 
-None in shared/server (except the pending AI module require).
+None known at source level.
 
 ## Next concrete action
 
-1. Integrate AI, client and campaign deliveries; run `tools/check.sh`; rebuild the place.
-2. Wire campaign remote (`Protocol.Remotes.Campaign`) into MatchService: campaign view,
-   commands, battle hand-off (`Campaign.battleScenario` → `createMatch`), result commit
-   (`Campaign.commitBattle`) once per battle id, continue flow from `ProfileStore`.
-3. Write `docs/qa.md` with the requirement-to-evidence checklist (pass / fail / blocked).
-4. Push to the user's repository once it exists (not yet created).
+1. Open `build/EaglesOfEmpire.rbxlx` in Roblox Studio, press Play, and work through the manual
+   checklist in `docs/qa.md` starting at Gate 1 (terrain, camera, selection, one move). Fix
+   what fails before claiming any gate verified.
+2. Known unverifiable-without-Studio spots are marked `ponytail:` in the client (ground-label
+   SurfaceGui face orientation, sun azimuth, campaign map aspect at 1366×768).
+3. Measure performance in Studio (normal roster and the `stress` scenario via `/start stress`
+   is not wired to UI: start it from the server console with
+   `require(game.ServerScriptService.EoE.MatchService)._internal.createMatch("stress")`).

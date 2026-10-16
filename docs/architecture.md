@@ -121,3 +121,18 @@ otherwise the match resets to the menu.
 Lifecycle: `menu → loading → deployment → running ⇄ paused → results → (restart|campaign)`.
 `MatchService:destroyMatch()` disconnects every connection, stops the loop and clears
 replicated folders before a new match is created; the client mirrors this on `MatchState`.
+
+## Campaign (Release B)
+
+- Data: `src/shared/CampaignData.luau` (8 regions, adjacency, terrain variants, unit types,
+  economy and victory constants). Rules: `src/server/Campaign/init.luau` (pure, seeded).
+  Persistence: `src/server/Persist/ProfileStore.luau` (DataStore `UpdateAsync` semantics,
+  bounded retry, session claims, memory adapter flagged `sessionOnly`).
+- Session: `src/server/CampaignService.luau` owns one commander session per server; protocol on
+  the `Campaign` remote: client `{requestId, action, data}` with `open | new | command | battle |
+  skip | return`; server `{kind = "view", view, sessionOnly, battleId?}` or `{kind = "error"}`.
+- Battle hand-off: `Campaign.battleScenario` → `MatchService.createMatchFrom(scenario, battleId)`;
+  `MatchState.campaignBattle = {battleId, name}`. On results the match layer calls
+  `CampaignService.onBattleEnded`, which commits through `Campaign.commitBattle` (idempotent by
+  battle id, revision-checked, session-owned). The campaign is checkpointed before every battle;
+  there is no mid-battle resume: a disconnect resumes from the checkpoint with the battle pending.
