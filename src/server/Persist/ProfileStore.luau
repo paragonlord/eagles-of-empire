@@ -149,7 +149,7 @@ function ProfileStore.update(self: Store, userId: number, expectedRevision: numb
 	local seen: any = nil
 	local ok, res = withRetry(self, function()
 		reason = nil
-		return self.ds:UpdateAsync(key(userId), function(old: any)
+		return self.ds:UpdateAsync(key(userId), function(old: any): any
 			-- Pure section: no side effects, may run several times.
 			if old ~= nil and not isProfile(old) then
 				reason = "corrupt"
