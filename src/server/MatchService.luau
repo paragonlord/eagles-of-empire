@@ -133,8 +133,11 @@ local function publish(full: boolean)
 end
 
 local function destroyMatch()
+	local m = match
+	if m then
+		m.sim.aiStep = nil
+	end
 	match = nil
-	Sim.aiStep = nil
 end
 
 local function createMatch(scenarioId: string)
@@ -144,7 +147,7 @@ local function createMatch(scenarioId: string)
 	local id = string.format("m%d-%d", os.time() % 100000, matchCounter)
 	local sim = Sim.new({ matchId = id, scenario = scenario, map = map, seed = os.time() + matchCounter * 7919, difficulty = difficulty })
 	local ai = AI.new(sim, scenario.factions.enemy, difficulty)
-	Sim.aiStep = function(_s)
+	sim.aiStep = function(_s)
 		AI.step(ai)
 	end
 	match = {
@@ -205,7 +208,7 @@ local function onControl(player: Player, msg: any)
 			m.sim.difficulty = difficulty
 			m.ai = AI.new(m.sim, m.scenario.factions.enemy, difficulty)
 			local ai = m.ai
-			Sim.aiStep = function(_s)
+			m.sim.aiStep = function(_s)
 				AI.step(ai)
 			end
 		end

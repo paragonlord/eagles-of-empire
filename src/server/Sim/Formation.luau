@@ -229,7 +229,8 @@ function Formation.completeShape(f: Formation)
 		Formation.refreshFootprint(f)
 	end
 	if f.state == "reforming" then
-		f.state = if f.path then "moving" else "idle"
+		-- An order received during the reform still needs executing: Movement replans.
+		f.state = if f.path or (f.order and (f.order.pos or f.order.targetId)) then "moving" else "idle"
 	end
 end
 

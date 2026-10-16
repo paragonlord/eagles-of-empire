@@ -442,7 +442,8 @@ local function plan(state: AIState)
 	-- Group moves per wing / reserve (units that are free to move).
 	local function free(f: Formation): boolean
 		local u = unitOf(state, f.id)
-		return (f.state == "idle" or f.state == "moving") and f.shape ~= "square" and f.pendingShape == nil and (u.goal == "idle" or string.sub(u.goal, 1, 4) == "line" or u.goal == "reserve" or u.goal == "march")
+		local engaged = nearestVisible(state, f.pos, MUSKET + 30) ~= nil
+		return (f.state == "idle" or f.state == "moving") and not engaged and f.shape ~= "square" and f.pendingShape == nil and (u.goal == "idle" or string.sub(u.goal, 1, 4) == "line" or u.goal == "reserve" or u.goal == "march")
 	end
 	local moveKind = if posture == "attack" then "AttackMove" else "Move"
 	for _, w in WINGS do
@@ -606,7 +607,8 @@ local function maintain(state: AIState, f: Formation, u: Unit)
 		end
 	end
 	if issue(state, "Move", { f.id }, { pos = p, heading = state.facing }) then
-		u.reason = string.format("moving to %s (%.0f)", u.goal, d)
+		u.goal = if u.goal == "guard" or u.goal == "exploit" then u.goal elseif u.role == "reserve" then "reserve" else "line:" .. u.role
+		u.reason = string.format("moving to the %s position (%.0f)", u.role, d)
 	end
 end
 
@@ -670,19 +672,22 @@ local function infantry(state: AIState, f: Formation)
 	if u.goal == "retreat" and f.state == "retreating" then
 		return
 	end
-	-- Bayonet a shaken or routing enemy close in front.
+	-- Bayonet a shaken enemy close in front (routing ones are left to fire-at-will).
 	local weak = nearestVisible(state, f.pos, 60, function(e)
-		local band = Formation.moraleBandOf(e)
-		return (band == "shaken" or band == "routing") and e.shape ~= "square" and math.abs(Vec.bearing(f.pos, f.heading, e.pos)) < math.rad(50)
+		return Formation.moraleBandOf(e) == "shaken" and e.shape ~= "square" and math.abs(Vec.bearing(f.pos, f.heading, e.pos)) < math.rad(50)
 	end)
-	if weak and f.state ~= "charging" and quality(state) then
+	local charging = f.state == "charging" or (f.order ~= nil and f.order.kind == "Charge")
+	if weak and not charging and not (u.goal == "charge" and committed(state, u)) and quality(state) then
 		if issue(state, "Charge", { f.id }, { targetId = weak.id }) then
 			setGoal(state, f.id, "charge", "bayonets: " .. weak.name .. " is wavering")
 			return
 		end
 	end
-	if f.state == "charging" then
+	if charging then
 		return
+	end
+	if u.goal == "charge" or (u.goal == "square" and f.shape ~= "square" and f.pendingShape ~= "square") then
+		u.goal = "idle"
 	end
 	-- Enemy in musket range: engage (attack posture) or face it and let fire-at-will work.
 	local tgt, d = nearestVisible(state, f.pos, MUSKET + 10, function(e)
@@ -773,7 +778,8 @@ local function cavalry(state: AIState, f: Formation)
 				end
 			end
 		end
-		if best and (bestScore >= 60 or not committed(state, u)) and quality(state) then
+		local charging = f.order ~= nil and f.order.kind == "Charge"
+		if best and not charging and (bestScore >= 60 or not committed(state, u)) and quality(state) then
 			if issue(state, "Charge", { f.id }, { targetId = best.id }) then
 				setGoal(state, f.id, "charge", string.format("charging %s (%s)", best.name, Vec.attackSide(best.pos, best.heading, f.pos)))
 				return
@@ -825,7 +831,7 @@ local function artillery(state: AIState, f: Formation)
 			if issue(state, "Limber", { f.id }, { limbered = true }) then
 				setGoal(state, f.id, "withdraw", "threatened by " .. (if threat then threat.name else "the enemy"))
 			end
-		elseif f.state ~= "retreating" and f.state ~= "moving" then
+		elseif f.state ~= "retreating" and f.state ~= "moving" and Vec.dist(f.pos, state.reserve) > 40 then
 			if issue(state, "Retreat", { f.id }, { pos = state.reserve }) then
 				setGoal(state, f.id, "withdraw", "pulling back to the reserve")
 			end

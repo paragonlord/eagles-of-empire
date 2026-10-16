@@ -315,9 +315,12 @@ end
 local function routeToHome(sim: SimLike, f: Formation)
 	if not f.path or not f.path[f.pathIndex] then
 		local home = sim.homeEdge(sim, f.faction)
-		local target = { x = math.clamp(f.pos.x + (home.x - f.pos.x) * 0.2, 8, sim.grid.width - 8), z = home.z }
+		-- Aim at a walkable point just inside the home edge; the exit rule removes the unit there.
+		local edgeZ = math.clamp(home.z, 6, sim.grid.depth - 6)
+		local want = { x = math.clamp(f.pos.x + (home.x - f.pos.x) * 0.2, 8, sim.grid.width - 8), z = edgeZ }
+		local target = Nav.nearestWalkable(sim.nav, want, 12) or want
 		if not Movement.plan(sim, f, target) then
-			-- No route: drift straight toward home and let the edge rule remove the unit.
+			-- No route at all: drift straight toward home; the stuck rule removes the unit.
 			f.path = { target }
 			f.pathIndex = 1
 		end
@@ -333,9 +336,11 @@ function Movement.update(sim: SimLike, f: Formation)
 	if f.state == "routing" then
 		routeToHome(sim, f)
 		followPath(sim, f, 1)
-		-- Exited the field?
+		-- Exited the field: reached the home edge band, or hopelessly stuck while fleeing.
 		local m = Config.Morale.RoutExitMargin
-		if f.pos.x < -m or f.pos.z < -m or f.pos.x > sim.grid.width + m or f.pos.z > sim.grid.depth + m then
+		local home = sim.homeEdge(sim, f.faction)
+		local atEdge = if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m
+		if atEdge or f.timers.stuck > Config.Match.StuckSeconds * 3 or f.pos.x < -m or f.pos.z < -m or f.pos.x > sim.grid.width + m or f.pos.z > sim.grid.depth + m then
 			f.state = "exited"
 			sim.emit(sim, { kind = "destroyed", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. " has fled the field" })
 		end

@@ -80,6 +80,7 @@ export type Sim = {
 	isVisibleTo: (Sim, string, number) -> boolean,
 	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
+	aiStep: ((Sim) -> ())?, -- per-instance AI hook (preferred over the module-level Sim.aiStep)
 	-- methods
 	deploy: (Sim, number, Vec, number) -> (boolean, string?),
 	start: (Sim) -> (),
@@ -130,6 +131,7 @@ function Sim.new(opts: Options): Sim
 	self.lastSent = {}
 	self.difficulty = opts.difficulty or "normal"
 	self.simLag = 0
+	self.aiStep = nil
 	for i, def in opts.scenario.units do
 		local f = Formation.fromDef(i, def)
 		self.formations[i] = f
@@ -467,7 +469,7 @@ function Sim.step(self: Sim)
 	-- 1. commands
 	applyQueuedCommands(self)
 	-- 2. AI
-	local ai: ((Sim) -> ())? = (Sim :: any).aiStep
+	local ai: ((Sim) -> ())? = (self :: any).aiStep or (Sim :: any).aiStep
 	if ai and self.tick % Config.AI.DecisionTicks == 0 then
 		ai(self)
 		applyQueuedCommands(self) -- AI commands stamped for this tick apply now
