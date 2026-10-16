@@ -46,7 +46,8 @@ Config.Slope = {
 
 -- Visibility
 Config.Vision = {
-	EyeHeight = 2.0,
+	EyeHeight = 4.0, -- mounted officers / colour party; sees over small bulges of a slope
+	SightTolerance = 0.5, -- studs the terrain may rise above the sight line before it blocks
 	WoodsReveal = 60, -- a formation inside woods/village is only spotted within this distance
 	LastKnownForgetSeconds = 180,
 }
@@ -80,18 +81,19 @@ Config.Visual = {
 	},
 }
 
--- Formation shapes. ranks: files are derived from figure count / ranks.
+-- Formation shapes. ranks: files are derived from figure count / ranks. figureSpacing = studs between
+-- files (frontage per figure), rankSpacing = studs between ranks.
 -- fire: fraction of strength that can fire. shock: multiplier on cavalry charge impact received.
 -- artillery: multiplier on artillery casualties received. speed: multiplier on base speed.
 Config.Shapes = {
-	line = { ranks = 3, fire = 1.0, melee = 1.0, speed = 0.75, shock = 1.0, artillery = 1.0, turnRate = 0.45, figureSpacing = 2.4 },
-	column = { ranks = 12, fire = 0.3, melee = 1.15, speed = 1.0, shock = 1.3, artillery = 1.9, turnRate = 0.9, figureSpacing = 2.0 },
-	square = { ranks = 0, fire = 0.5, melee = 0.9, speed = 0.3, shock = 0.15, artillery = 2.2, turnRate = 1.2, figureSpacing = 2.0 },
-	travel = { ranks = 16, fire = 0.0, melee = 0.6, speed = 1.0, shock = 1.8, artillery = 2.0, turnRate = 1.0, figureSpacing = 2.0 }, -- forced column at choke points
-	limbered = { ranks = 1, fire = 0.0, melee = 0.3, speed = 1.0, shock = 3.0, artillery = 1.5, turnRate = 0.8, figureSpacing = 8 },
-	deployed = { ranks = 1, fire = 1.0, melee = 0.3, speed = 0.0, shock = 3.0, artillery = 1.0, turnRate = 0.0, figureSpacing = 8 },
-	wedge = { ranks = 4, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.0, artillery = 1.6, turnRate = 1.1, figureSpacing = 3.0 },
-	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 3.0 },
+	line = { ranks = 3, fire = 1.0, melee = 1.0, speed = 0.75, shock = 1.0, artillery = 1.0, turnRate = 0.45, figureSpacing = 5, rankSpacing = 3 },
+	column = { ranks = 8, fire = 0.3, melee = 1.15, speed = 1.0, shock = 1.3, artillery = 1.9, turnRate = 0.9, figureSpacing = 4, rankSpacing = 3 },
+	square = { ranks = 0, fire = 0.5, melee = 0.9, speed = 0.3, shock = 0.15, artillery = 2.2, turnRate = 1.2, figureSpacing = 4, rankSpacing = 4 },
+	travel = { ranks = 12, fire = 0.0, melee = 0.6, speed = 1.0, shock = 1.8, artillery = 2.0, turnRate = 1.0, figureSpacing = 4, rankSpacing = 3 }, -- forced column at choke points
+	limbered = { ranks = 1, fire = 0.0, melee = 0.3, speed = 1.0, shock = 3.0, artillery = 1.5, turnRate = 0.8, figureSpacing = 8, rankSpacing = 10 },
+	deployed = { ranks = 1, fire = 1.0, melee = 0.3, speed = 0.0, shock = 3.0, artillery = 1.0, turnRate = 0.0, figureSpacing = 8, rankSpacing = 8 },
+	wedge = { ranks = 4, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.0, artillery = 1.6, turnRate = 1.1, figureSpacing = 5, rankSpacing = 6 },
+	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
 }
 
 -- Seconds to change shape (from any shape to the key). Square from column is faster.
@@ -100,24 +102,24 @@ Config.SquareFromColumnTime = 10
 
 Config.Units = {
 	infantry = {
-		speed = 4.0, chargeSpeed = 5.6,
+		speed = 5.5, chargeSpeed = 7.5,
 		defaultShape = "line", legalShapes = { line = true, column = true, square = true, travel = true },
 		musket = { range = 90, reload = 15, accuracy = 0.10, minReadiness = 0.4 },
 		melee = { attack = 1.0, defense = 1.0 },
-		baseMorale = 70, fatigueMove = 1.0, fatigueCharge = 6.0, fatigueMelee = 2.0, rest = 1.5,
+		baseMorale = 70, fatigueMove = 0.35, fatigueCharge = 6.0, fatigueMelee = 2.0, rest = 1.5,
 		spot = 260, halfWidthFactor = 1.0,
 	},
 	cavalry = {
-		speed = 11.0, chargeSpeed = 16.0,
+		speed = 14.0, chargeSpeed = 20.0,
 		defaultShape = "wedge", legalShapes = { wedge = true, line = true },
 		musket = nil,
 		melee = { attack = 1.4, defense = 0.8 },
 		charge = { runUp = 80, base = 0.06, recovery = 25, maxMeleeSeconds = 25, frontFactor = 1.0, flankFactor = 1.8, rearFactor = 2.5 },
-		baseMorale = 72, fatigueMove = 1.2, fatigueCharge = 7.0, fatigueMelee = 2.5, rest = 1.5,
+		baseMorale = 72, fatigueMove = 0.5, fatigueCharge = 7.0, fatigueMelee = 2.5, rest = 1.5,
 		spot = 320,
 	},
 	artillery = {
-		speed = 3.5, chargeSpeed = 3.5,
+		speed = 4.5, chargeSpeed = 4.5,
 		defaultShape = "limbered", legalShapes = { limbered = true, deployed = true },
 		musket = nil,
 		melee = { attack = 0.2, defense = 0.4 },
@@ -127,18 +129,18 @@ Config.Units = {
 			canister = { range = 120, minRange = 0, reload = 18, hit = 0.9, casualtiesPerHit = 7, morale = 5 },
 			ammo = 40,
 		},
-		baseMorale = 60, fatigueMove = 0.8, fatigueCharge = 0.8, fatigueMelee = 2.0, rest = 1.5,
+		baseMorale = 60, fatigueMove = 0.3, fatigueCharge = 0.3, fatigueMelee = 2.0, rest = 1.5,
 		spot = 240,
 	},
 	hq = {
-		speed = 9.0, chargeSpeed = 9.0,
+		speed = 12.0, chargeSpeed = 12.0,
 		defaultShape = "staff", legalShapes = { staff = true },
 		musket = nil,
 		melee = { attack = 0.3, defense = 0.5 },
 		influence = { radius = 120, moraleBonus = 10, recoveryBonus = 0.3 },
 		rally = { cooldown = 90, radius = 100, moraleRestore = 30, minRoutingSeconds = 5 },
 		lossMoralePenalty = 15, -- to every friendly formation when the HQ is destroyed/exited
-		baseMorale = 80, fatigueMove = 0.8, fatigueCharge = 0.8, fatigueMelee = 2.0, rest = 2.0,
+		baseMorale = 80, fatigueMove = 0.3, fatigueCharge = 0.3, fatigueMelee = 2.0, rest = 2.0,
 		spot = 300,
 	},
 }

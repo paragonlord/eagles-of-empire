@@ -109,7 +109,7 @@ local function checkIds(ids: any, ctx: ValidateContext, kind: string): (boolean,
 		if not ctx.isOwned(id) then
 			return false, Protocol.Reasons.notOwned
 		end
-		if allowed then
+		if type(allowed) == "table" then
 			local cls = ctx.classOf(id)
 			if not cls or not allowed[cls] then
 				return false, Protocol.Reasons.wrongClass

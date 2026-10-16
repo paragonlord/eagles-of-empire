@@ -165,10 +165,10 @@ MAPS.jena = {
 		{ name = "Rau-Bach", points = { v(0, 1010), v(250, 990), v(520, 960), v(800, 940), v(1100, 980), v(1340, 1000), v(1500, 1000) }, width = 14, level = 18 },
 	},
 	bridges = {
-		{ a = v(1450, 150), b = v(1570, 150), width = 10 },
-		{ a = v(1455, 820), b = v(1580, 820), width = 10 },
-		{ a = v(820, 925), b = v(832, 965), width = 10 },
-		{ a = v(330, 970), b = v(330, 1010), width = 10 },
+		{ a = v(1440, 150), b = v(1580, 150), width = 24 },
+		{ a = v(1440, 820), b = v(1590, 820), width = 24 },
+		{ a = v(818, 915), b = v(834, 975), width = 24 },
+		{ a = v(330, 960), b = v(330, 1020), width = 24 },
 	},
 	labels = {
 		{ text = "Landgrafenberg", pos = v(800, 250), size = 1.4 },
@@ -205,7 +205,7 @@ MAPS.bridge = {
 		{ points = { v(660, 520), v(700, 1200) }, width = 5 },
 	},
 	rivers = { { name = "Saale", points = { v(800, 0), v(790, 400), v(810, 800), v(790, 1200) }, width = 50, level = 1 } },
-	bridges = { { a = v(755, 600), b = v(850, 605), width = 10 } },
+	bridges = { { a = v(740, 600), b = v(860, 605), width = 24 } },
 	labels = { { text = "Saale", pos = v(800, 300), size = 1.0 } },
 	objectives = { { id = "bridge", name = "Camsdorf bridge", pos = v(800, 602), radius = 60 }, { id = "camsdorf", name = "Camsdorf", pos = v(920, 620), radius = 60 } },
 	deployZones = {

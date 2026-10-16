@@ -27,17 +27,18 @@ fatigueFactor = 1 - 0.4 * fatigue / 100
 
 | Class | base speed | charge speed | shapes |
 | --- | --- | --- | --- |
-| infantry | 4.0 | 5.6 | line ×0.75, column ×1.0, square ×0.3, travel ×1.0 |
-| cavalry | 11.0 | 16.0 | wedge ×1.0, line ×1.0 |
-| artillery | 3.5 (limbered) | – | limbered ×1.0, deployed ×0 |
-| hq | 9.0 | – | staff |
+| infantry | 5.5 | 7.5 | line ×0.75, column ×1.0, square ×0.3, travel ×1.0 |
+| cavalry | 14.0 | 20.0 | wedge ×1.0, line ×1.0 |
+| artillery | 4.5 (limbered) | – | limbered ×1.0, deployed ×0 |
+| hq | 12.0 | – | staff |
 
 Terrain: open 1.0, road 1.3, woods 0.6 (cavalry 0.4), village 0.7 (0.5), bridge 0.9, steep 0.5,
 water/cliff impassable. Roads give the only >1.0 factor, so marching in column along a road is
 the fastest way across the map.
 
-Footprint: `width = files * spacing`, `depth = ranks * spacing`; files = ceil(figures / ranks).
-Square: side = ceil(sqrt(figures)) files. Half-width is used for clearance; if the path's
+Footprint: `width = files * figureSpacing`, `depth = ranks * rankSpacing`; files = ceil(figures / ranks).
+Line 5/3 (a 600-man battalion: 8 files → 40 × 9 studs), column 4/3 (8 ranks), square 4/4, travel 4/3
+(12 ranks). Square: side = ceil(sqrt(figures)) files. Half-width is used for clearance; if the path's
 minimum clearance < half-width the formation adopts `travel` (half-width 8) until clearance
 allows the previous shape again (restored automatically, costs the reform time).
 
@@ -54,9 +55,9 @@ arrives. Avoidance: formations push apart when footprints overlap by more than
 | Shape | ranks | fire | melee | cavalry shock taken | artillery taken |
 | --- | --- | --- | --- | --- | --- |
 | line | 3 | 1.0 | 1.0 | 1.0 | 1.0 |
-| column | 12 | 0.3 | 1.15 | 1.3 | 1.9 |
+| column | 8 | 0.3 | 1.15 | 1.3 | 1.9 |
 | square | – | 0.5 | 0.9 | 0.15 | 2.2 |
-| travel | 16 | 0 | 0.6 | 1.8 | 2.0 |
+| travel | 12 | 0 | 0.6 | 1.8 | 2.0 |
 
 Reform times (seconds): line 12, column 8, square 15 (10 from column), travel 6, limber 25,
 unlimber 20. While `reforming`, fire = 0, melee ×0.6, shock taken ×1.5. A square ordered after
@@ -135,13 +136,13 @@ centre crosses the map edge + 20 → removed from play, counted as lost.
 
 ## Fatigue
 
-0–100. + 1.0 /s marching (×terrain.fatigue), + 6 /s charging, + 2 /s in melee, − 1.5 /s resting
+0–100. + 0.35 /s marching (infantry; cavalry 0.5, guns 0.3; ×terrain.fatigue), + 6 /s charging, + 2 /s in melee, − 1.5 /s resting
 (idle). Effects: speed ×(1 − 0.4 f), accuracy ×(1 − 0.3 f), melee ×(1 − 0.4 f). Never immobile.
 
 ## Visibility
 
 A formation sees enemies within its spot radius (infantry 260, cavalry 320, artillery 240, HQ
-300) with clear LOS (heightmap + woods/village sight height). Enemies inside woods or villages
+300) with clear LOS (heightmap + woods/village sight height, eye height 4, tolerance 0.5). Enemies inside woods or villages
 are only seen within 60. Visible set per faction is the union; last-known entries remember
 position, heading, shape and class with an age, and are forgotten after 180 s. AI receives the
 same observation set as the player. Snapshots to a client contain only that faction's view.

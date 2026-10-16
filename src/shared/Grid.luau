@@ -209,7 +209,7 @@ function Grid.lineOfSight(g: Grid, a: Vec, b: Vec, eyeA: number?, eyeB: number?)
 			local cls = g.class[cz * g.cols + cx + 1]
 			local terrainH = Grid.heightAt(g, x, z) + TERRAIN[cls].sightHeight
 			local lineH = ha + (hb - ha) * t
-			if terrainH > lineH then
+			if terrainH > lineH + Config.Vision.SightTolerance then
 				return false
 			end
 		end
