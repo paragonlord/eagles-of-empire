@@ -210,8 +210,10 @@ local function diag(text: string)
 		sg.Parent = (game:GetService("Players") :: Players).LocalPlayer:WaitForChild("PlayerGui")
 		beaconGui = sg
 		local l = Instance.new("TextLabel") :: TextLabel
-		l.Size = UDim2.new(0, 900, 0, 18)
-		l.Position = UDim2.new(0, 8, 1, -22)
+		l.AnchorPoint = Vector2.new(1, 0)
+		l.Position = UDim2.new(1, -8, 0, 90)
+		l.Size = UDim2.fromOffset(0, 18)
+		l.AutomaticSize = Enum.AutomaticSize.X
 		l.AnchorPoint = Vector2.new(0, 0)
 		l.BackgroundTransparency = 0.4
 		l.BackgroundColor3 = Color3.new(0, 0, 0)
