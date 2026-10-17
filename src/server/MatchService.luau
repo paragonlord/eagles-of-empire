@@ -388,6 +388,10 @@ local function onHeartbeat(realDt: number)
 end
 
 local function onPlayerAdded(player: Player)
+	-- The first player present is the commander; later joiners spectate until they leave.
+	if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
+		commanderUserId = player.UserId
+	end
 	if commanderUserId == player.UserId then
 		local m = match
 		if m then
@@ -409,6 +413,16 @@ local function onPlayerRemoving(player: Player)
 			m.clock.paused = true
 		end
 		m.leftAt = os.clock()
+		broadcastState()
+	elseif not m and isCommander(player) then
+		-- No match in progress: hand command to whoever is still here.
+		commanderUserId = nil
+		for _, p in Players:GetPlayers() do
+			if p ~= player then
+				commanderUserId = p.UserId
+				break
+			end
+		end
 		broadcastState()
 	end
 end
