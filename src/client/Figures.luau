@@ -125,6 +125,19 @@ local function frame(x: number, y: number, z: number, heading: number): CFrame
 	return CFrame.new(x, y, z) * CFrame.Angles(0, -heading, 0)
 end
 
+-- Like frame(), but tilted to the slope under a d-deep, w-wide footprint, so blocks, rings and
+-- destination markers lie on a hillside instead of floating level through it.
+local function groundFrame(x: number, z: number, lift: number, heading: number, w: number, d: number): CFrame
+	local fx, fz = math.cos(heading), math.sin(heading)
+	local rx, rz = -fz, fx
+	local hd, hw = math.max(d / 2, 2), math.max(w / 2, 2)
+	local slopeF = (groundY(x + fx * hd, z + fz * hd) - groundY(x - fx * hd, z - fz * hd)) / (2 * hd)
+	local slopeR = (groundY(x + rx * hw, z + rz * hw) - groundY(x - rx * hw, z - rz * hw)) / (2 * hw)
+	local fwd = Vector3.new(fx, slopeF, fz).Unit
+	local up = Vector3.new(rx, slopeR, rz).Unit:Cross(fwd).Unit
+	return CFrame.fromMatrix(Vector3.new(x, groundY(x, z) + lift, z), fwd, up, fwd:Cross(up))
+end
+
 local function factionColour(faction: string, colourKey: string?): Color3
 	return Factions.colour(faction, colourKey)
 end
@@ -823,7 +836,7 @@ local function ghostParts(colour: Color3, alpha: number): { BasePart }
 end
 
 local function placeGhost(parts: { BasePart }, x: number, z: number, heading: number, w: number, d: number)
-	local cf = frame(x, groundY(x, z) + 0.4, z, heading)
+	local cf = groundFrame(x, z, 0.4, heading, w, d)
 	parts[1].Size = Vector3.new(d, 0.3, w)
 	parts[1].CFrame = cf
 	parts[2].CFrame = cf * CFrame.new(d / 2 + 1.2, 0, 1.0) * CFrame.Angles(0, math.rad(40), 0)
@@ -1143,7 +1156,8 @@ function Figures.update(dt: number)
 			if g.dirty then
 				g.dirty = false
 				local baseY = groundY(g.rx, g.rz)
-				local cf = frame(g.rx, baseY, g.rz, g.rh)
+				local cf = frame(g.rx, baseY, g.rz, g.rh) -- figures stand upright; slots sample their own ground
+				local tilted = groundFrame(g.rx, g.rz, 0, g.rh, f.width, f.depth) -- blocks and rings follow the slope
 				local routing = state == "routing"
 				local charging = state == "charging"
 				-- muskets come down for volleys and bayonet charges
@@ -1181,7 +1195,7 @@ function Figures.update(dt: number)
 				for i, p in g.parts do
 					local slot = slots[i]
 					local lc = g.locals[i]
-					local base = cf
+					local base = tilted
 					if slot > 0 then
 						base = slotCf[slot]
 						local a = anims[i]
@@ -1215,7 +1229,7 @@ function Figures.update(dt: number)
 					g.ring = nil
 				end
 				if g.ring then
-					placeRing(moveParts, moveCfs, g.ring, cf, f.width, f.depth)
+					placeRing(moveParts, moveCfs, g.ring, tilted, f.width, f.depth)
 				end
 			else
 				-- the plate still has to follow the camera; cheap enough per frame
