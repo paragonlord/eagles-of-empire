@@ -123,6 +123,46 @@ each round): `deploy.jpg` (end of the intro sweep), `hud.jpg` (battle start, ×4
 - Fixed: the beacon ran off the right edge (only "E" visible). `AnchorPoint` was set to (1, 0) and
   then reset to (0, 0) two lines later; the second line is gone.
 
+**2026-10-17 round 4 (First Empire UI), build 0f8e425.** `docs/shots/` now holds only this
+round's shots: `menu.jpg`, `select.jpg`, `select-glitch.jpg`, `dispatch.jpg`,
+`terrain-holes.jpg`, `hud.jpg`, `fight.jpg` (Pratzen), `results.jpg`. Played Austerlitz at ×4
+to the end: Close Victory on time, totals reconcile (France 14,200 − 1,237 = 12,963; Allies
+13,840 − 1,391 = 12,449). No EoE errors or warnings on client or server.
+- Good: the menu column, battle cards with flags and stars, the parchment dispatch, the walnut
+  top bar and the results report all read as one style and look finished.
+- Open, ranked:
+  1. **Terrain holes during the intro sweep** (`terrain-holes.jpg`). On Austerlitz, 9 s after
+     Fight the dispatch is up and the camera sweeps over big rectangular holes in the ground,
+     with trees and villages floating over the void; it fills in by about 25 s. `ensureWorld`
+     has already written every voxel, so this is Roblox still meshing a large map. Holding the
+     loading screen (or the sweep) a few seconds after `Terrain.build` would hide it.
+  2. **Village houses are too big** (`fight.jpg`): plain boxes several times taller than the
+     soldiers, flat dark tops, no pitched roofs. Reads as warehouses, not a village.
+  3. Volley smoke still shows as stacks of opaque white balls (`fight.jpg`, by the Pratzen
+     houses). The teal haze and snow-like roads from round 3 are unchanged.
+  4. **Battle select, third card half-drawn on open** (`select-glitch.jpg`): before the list is
+     scrolled, the Austerlitz card shows only its flags and a strip of parchment; title, frame
+     and Fight button are missing. All its properties are normal (visible, ZIndex 1, opaque);
+     after one scroll every card draws correctly. Looks like a Roblox clipping redraw issue on
+     the first frame.
+  5. **Flags**: Prussia is a white field with a black X, which reads as a close button; Britain
+     (Waterloo) is a white cross on red, which reads as Denmark.
+  6. **Card bar on big armies** (`hud.jpg`): Austerlitz has ~28 cards; the bar scrolls sideways
+     with a 4 px bar and the last card is cut at the right edge next to the minimap. Nothing
+     hints that it scrolls.
+  7. The balance-of-power bar is fully blue at the start in fog (no enemy seen yet), so it reads
+     as total superiority until contact.
+  8. Menu column stops at the Roblox top-bar inset, leaving a strip of 3D world above it
+     (`menu.jpg`, top left).
+  9. Results: the objective chip "Pratzen Heights — Russia &…" is truncated; the lower third of
+     the report is empty; "Notes from the field" was the same generic line in both battles.
+  10. A 30-minute Austerlitz with 28 v 30 formations ended with no routed or destroyed formation
+      on either side and about 10 % casualties: feels inconclusive (my orders were plain
+      attack-moves on the three objectives, so a human plan may differ).
+  11. Minor: `Terrain.ensurePickPlane` asks for map + 4000 studs, but Roblox caps a part at 2048,
+      so on the 2400-wide maps the plane does not reach the outer 176 studs on each side. Only
+      clicks past the map edge are affected, since terrain is raycast first.
+
 ## Known failures
 
 None recorded yet.
