@@ -136,3 +136,7 @@ replicated folders before a new match is created; the client mirrors this on `Ma
   `CampaignService.onBattleEnded`, which commits through `Campaign.commitBattle` (idempotent by
   battle id, revision-checked, session-owned). The campaign is checkpointed before every battle;
   there is no mid-battle resume: a disconnect resumes from the checkpoint with the battle pending.
+
+## Grand campaign (Europe 1805–1815)
+
+Rules: `src/server/GrandCampaign/` (pure, seeded; State, Economy, Movement, Diplomacy, Battles, Events, AI, Serialize). Data: `src/shared/EuropeData.luau`. Client: `src/client/Campaign/` (3D board, camera, panels). Interface: `docs/grand-campaign-contract.md`; rules and numbers: `docs/campaign.md`. Saved separately from the Thuringian campaign (`EoEGrand` store).

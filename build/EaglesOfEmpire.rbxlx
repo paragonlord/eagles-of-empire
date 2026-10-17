@@ -221,6 +221,14 @@ Config.Visual = {
 		Netherlands = { 150, 112, 80 }, -- orange-tinged slate
 		Select = { 240, 226, 180 },
 		Hostile = { 170, 60, 48 },
+		Spain = { 196, 150, 40 },
+		Portugal = { 40, 110, 70 },
+		Italy = { 60, 120, 70 },
+		Naples = { 150, 160, 180 },
+		Wurttemberg = { 170, 50, 50 },
+		Sweden = { 50, 90, 160 },
+		Denmark = { 180, 40, 50 },
+		Ottoman = { 120, 30, 40 },
 	},
 }
 
