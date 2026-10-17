@@ -291,6 +291,7 @@ local function onMatchState(msg: any)
 		Camera.setEnabled(true)
 		if zone then
 			Camera.reset((zone.x0 + zone.x1) / 2, (zone.z0 + zone.z1) / 2)
+			Camera.playIntro() -- sweep over the field while the briefing is read
 			needCameraReset = false
 		end
 	elseif state == "running" or state == "paused" then

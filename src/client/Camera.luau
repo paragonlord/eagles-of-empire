@@ -13,6 +13,11 @@ local Camera = {}
 local MIN_HEIGHT, MAX_HEIGHT = 120, 900
 local MIN_PITCH, MAX_PITCH = math.rad(35), math.rad(65)
 local DEFAULT_PITCH = math.rad(52)
+-- NTW-style: the view tilts toward the horizon as it nears the ground (full tilt at MIN_HEIGHT,
+-- none above TILT_FROM).
+local TILT_MAX = math.rad(18)
+local TILT_FROM = 520
+local INTRO_SECONDS = 11
 local DEFAULT_HEIGHT = 420
 local DEFAULT_YAW = math.pi / 2 -- look toward +z (north)
 local PAN_SPEED = 1.1 -- studs per second per stud of height
@@ -29,6 +34,9 @@ local shakeAmount = 0
 local connections: { RBXScriptConnection } = {}
 local bound = false
 local enabled = true
+-- cinematic intro: sweeps from `from` to `to` over INTRO_SECONDS; any input skips it
+type View = { x: number, z: number, yaw: number, pitch: number, height: number }
+local intro: { t0: number, from: View, to: View }? = nil
 local lastFrameHeight = DEFAULT_HEIGHT
 
 local function groundY(x: number, z: number): number
@@ -98,19 +106,59 @@ local function readKeys(dt: number)
 	clampTarget()
 end
 
+local function smoothstep(t: number): number
+	t = math.clamp(t, 0, 1)
+	return t * t * (3 - 2 * t)
+end
+
+local function finishIntro()
+	local i = intro
+	if not i then
+		return
+	end
+	intro = nil
+	target.x, target.z, target.yaw, target.pitch, target.height = i.to.x, i.to.z, i.to.yaw, i.to.pitch, i.to.height
+	cur.x, cur.z, cur.yaw, cur.pitch, cur.height = i.to.x, i.to.z, i.to.yaw, i.to.pitch, i.to.height
+end
+
+local function stepIntro(): boolean
+	local i = intro
+	if not i then
+		return false
+	end
+	local t = (os.clock() - i.t0) / INTRO_SECONDS
+	if t >= 1 then
+		finishIntro()
+		return false
+	end
+	local e = smoothstep(t)
+	local a, b = i.from, i.to
+	cur.x = a.x + (b.x - a.x) * e
+	cur.z = a.z + (b.z - a.z) * e
+	cur.yaw = a.yaw + (b.yaw - a.yaw) * e
+	cur.pitch = a.pitch + (b.pitch - a.pitch) * e
+	-- rise a little mid-sweep, then settle onto the default view
+	cur.height = a.height + (b.height - a.height) * e + math.sin(e * math.pi) * 120
+	return true
+end
+
 local function step(dt: number)
-	readKeys(dt)
-	local k = 1 - math.exp(-DAMP * dt)
-	cur.x += (target.x - cur.x) * k
-	cur.z += (target.z - cur.z) * k
-	cur.height += (target.height - cur.height) * k
-	cur.pitch += (target.pitch - cur.pitch) * k
-	-- shortest-way yaw blend
-	local dy = (target.yaw - cur.yaw + math.pi) % (2 * math.pi) - math.pi
-	cur.yaw += dy * k
+	if not stepIntro() then
+		readKeys(dt)
+		local k = 1 - math.exp(-DAMP * dt)
+		cur.x += (target.x - cur.x) * k
+		cur.z += (target.z - cur.z) * k
+		cur.height += (target.height - cur.height) * k
+		cur.pitch += (target.pitch - cur.pitch) * k
+		-- shortest-way yaw blend
+		local dy = (target.yaw - cur.yaw + math.pi) % (2 * math.pi) - math.pi
+		cur.yaw += dy * k
+	end
 
 	local focusY = groundY(cur.x, cur.z)
-	local dist = cur.height / math.tan(cur.pitch)
+	local tilt = TILT_MAX * math.clamp((TILT_FROM - cur.height) / (TILT_FROM - MIN_HEIGHT), 0, 1)
+	local pitch = cur.pitch - tilt
+	local dist = cur.height / math.tan(pitch)
 	local camX = cur.x - math.cos(cur.yaw) * dist
 	local camZ = cur.z - math.sin(cur.yaw) * dist
 	local camY = focusY + cur.height
@@ -150,7 +198,17 @@ function Camera.init()
 		cam.FieldOfView = 55
 	end
 	RunService:BindToRenderStep("EoECamera", Enum.RenderPriority.Camera.Value, step)
+	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject)
+		local t = input.UserInputType
+		if intro and (t == Enum.UserInputType.Keyboard or t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.Touch or t == Enum.UserInputType.Gamepad1) then
+			finishIntro()
+		end
+	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, gp: boolean)
+		if input.UserInputType == Enum.UserInputType.MouseWheel and intro then
+			finishIntro()
+			return
+		end
 		if gp or not enabled or input.UserInputType ~= Enum.UserInputType.MouseWheel then
 			return
 		end
@@ -185,11 +243,32 @@ end
 
 -- Default angle: high oblique, look north from the south at 52°, 420 studs up.
 function Camera.reset(x: number, z: number)
+	intro = nil
 	target.yaw = DEFAULT_YAW
 	target.pitch = DEFAULT_PITCH
 	target.height = DEFAULT_HEIGHT
 	Camera.focusOn(x, z, true)
 	cur.yaw, cur.pitch, cur.height = target.yaw, target.pitch, target.height
+end
+
+-- Sweeps in from high over the far side of the field, turning onto the current default view
+-- (call after Camera.reset). Skipped by any key, click or wheel.
+function Camera.playIntro()
+	if not map then
+		return
+	end
+	local to: View = { x = target.x, z = target.z, yaw = target.yaw, pitch = target.pitch, height = target.height }
+	local cx, cz = map.width / 2, map.depth / 2
+	-- start across the map centre from the destination, looking back toward it
+	local fx = math.clamp(cx + (cx - to.x) * 0.6, map.width * 0.2, map.width * 0.8)
+	local fz = math.clamp(cz + (cz - to.z) * 0.6, map.depth * 0.2, map.depth * 0.8)
+	local from: View = { x = fx, z = fz, yaw = to.yaw - 2.4, pitch = math.rad(40), height = 700 }
+	intro = { t0 = os.clock(), from = from, to = to }
+	cur.x, cur.z, cur.yaw, cur.pitch, cur.height = from.x, from.z, from.yaw, from.pitch, from.height
+end
+
+function Camera.introPlaying(): boolean
+	return intro ~= nil
 end
 
 function Camera.getFocus(): (number, number)
@@ -218,6 +297,7 @@ function Camera.destroy()
 	end
 	bound = false
 	RunService:UnbindFromRenderStep("EoECamera")
+	intro = nil
 	for _, c in connections do
 		c:Disconnect()
 	end
