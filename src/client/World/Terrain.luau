@@ -65,7 +65,8 @@ local function applyPalette()
 	local t = workspace.Terrain
 	-- Studio showed the palette olive reading brown under warm low light; these are tuned with
 	-- World/Lighting (ClockTime 10.2) toward the reference's olive-gold and green.
-	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(162, 150, 58)) -- saturated olive-gold
+	-- olive-gold with green (Studio: 162,150,58 read orange/desert under the low warm sun)
+	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(126, 136, 62))
 	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(52, 74, 30))
 	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads and village lanes
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
@@ -233,6 +234,32 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	bounds = { minY = math.floor((minH - 8) / VOXEL) * VOXEL, maxY = 0 }
 	ensurePickPlane(map, minH)
 
+	-- River ends that touch the border, extended 800 studs outward along their last segment.
+	local outs: { { a: { x: number, z: number }, b: { x: number, z: number }, half: number, level: number } } = {}
+	for _, river in map.rivers do
+		local pts = river.points
+		for _, ends in { { pts[1], pts[2] }, { pts[#pts], pts[#pts - 1] } } do
+			local e, prev = ends[1], ends[2]
+			if e and prev then
+				local nearEdge = e.x < 60 or e.z < 60 or e.x > map.width - 60 or e.z > map.depth - 60
+				if nearEdge then
+					local dir = Vec.normalize(Vec.sub(e, prev))
+					table.insert(outs, { a = e, b = Vec.add(e, Vec.scale(dir, 800)), half = river.width / 2, level = river.level })
+				end
+			end
+		end
+	end
+	local function riverOut(x: number, z: number): (number, number?, number)
+		local best, lvl, half = math.huge, nil, 0
+		for _, o in outs do
+			local d = Vec.distToSegment({ x = x, z = z }, o.a, o.b)
+			if d < best then
+				best, lvl, half = d, o.level, o.half
+			end
+		end
+		return best, lvl, half
+	end
+
 	-- Column at cell (cx, cz), possibly outside the map: ground height, material, water level.
 	local function column(cx: number, cz: number): (number, EnumMaterial, number?)
 		if cx >= 0 and cz >= 0 and cx < cols and cz < rows then
@@ -256,17 +283,22 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 		local rough = math.min(1, d / 120)
 		local h = g.height[eidx] + (plain - g.height[eidx]) * s
 			+ ((noise(x, z, 150, seed) - 0.5) * 18 + (noise(x, z, 44, seed + 1) - 0.5) * 5) * rough
-		local lvl = water[eidx]
-		if lvl and d < 240 then
-			-- rivers run on past the edge
-			return math.min(h, lvl - 3), Enum.Material.Sand, lvl
+		-- rivers run on past the edge along their end segments; banks rise above the water
+		local rd, rlvl, rhalf = riverOut(x, z)
+		if rlvl then
+			if rd < rhalf then
+				return math.min(h, rlvl - 3), Enum.Material.Sand, rlvl
+			elseif rd < rhalf + 30 then
+				h = math.max(h, rlvl + 0.6 + (rd - rhalf) * 0.08)
+				if rd < rhalf + 6 then
+					return h, Enum.Material.Sand, nil
+				end
+			end
 		end
 		if d < 40 and g.class[eidx] == IDS.road and not roadOff[eidx] then
 			return h, Enum.Material.Ground, nil
 		end
-		if noise(x, z, 90, seed + 2) > 0.7 then
-			return h, Enum.Material.LeafyGrass, nil
-		end
+		-- one continuous field colour: copy the edge's ground only where it is plain grass
 		return h, Enum.Material.Grass, nil
 	end
 

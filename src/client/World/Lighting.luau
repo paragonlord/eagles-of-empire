@@ -38,20 +38,23 @@ end
 local currentQuality = 2
 local currentWeather: string? = nil
 
--- Weather tints only the distance: fog is a pale warm grey that thickens far away.
+-- Weather tints only the distance. Atmosphere haze turned the whole field teal in Studio
+-- under fog, so fog weather switches the Atmosphere off and uses plain distance fog in a pale
+-- warm grey, which leaves the near ground untouched.
 local function applyHaze(L: Lighting, atmo: Atmosphere?)
 	local foggy = currentWeather == "fog"
 	if atmo then
-		atmo.Density = if foggy then 0.32 else 0.1
-		atmo.Offset = if foggy then 0.05 else 0.25
-		atmo.Color = if foggy then Color3.fromRGB(214, 206, 190) else Color3.fromRGB(232, 216, 182)
-		atmo.Decay = if foggy then Color3.fromRGB(196, 188, 170) else Color3.fromRGB(206, 182, 140)
+		atmo.Parent = if foggy then nil else L
+		atmo.Density = 0.08
+		atmo.Offset = 0.3
+		atmo.Color = Color3.fromRGB(226, 216, 190)
+		atmo.Decay = Color3.fromRGB(196, 184, 150)
 		atmo.Glare = 0
-		atmo.Haze = if foggy then 1.4 else 0.3
+		atmo.Haze = 0.2
 	end
-	L.FogColor = Color3.fromRGB(214, 206, 188)
-	L.FogStart = if foggy then 500 else 1600
-	L.FogEnd = if foggy then 2200 else 4200
+	L.FogColor = Color3.fromRGB(206, 200, 186)
+	L.FogStart = if foggy then 380 else 1800
+	L.FogEnd = if foggy then 1700 else 4600
 end
 
 local atmosphere: Atmosphere? = nil
@@ -81,9 +84,9 @@ function Lighting.apply(quality: number)
 	sky.SunAngularSize = 14
 
 	local cc = own(Instance.new("ColorCorrectionEffect") :: ColorCorrectionEffect, L)
-	cc.TintColor = Color3.fromRGB(255, 244, 222) -- warm, never cyan
-	cc.Contrast = 0.18
-	cc.Saturation = 0.22
+	cc.TintColor = Color3.fromRGB(255, 250, 240) -- a touch warm, never cyan or orange
+	cc.Contrast = 0.16
+	cc.Saturation = 0.08
 	cc.Brightness = 0.02
 
 	local bloom = own(Instance.new("BloomEffect") :: BloomEffect, L)
