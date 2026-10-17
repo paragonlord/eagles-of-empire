@@ -9142,6 +9142,8 @@ local shakeAmount = 0
 local connections: { RBXScriptConnection } = {}
 local bound = false
 local enabled = true
+local rotating = false -- middle-mouse drag in progress
+local ROTATE_DRAG = 0.006 -- radians per pixel
 -- cinematic intro: sweeps from `from` to `to` over INTRO_SECONDS; any input skips it
 type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
@@ -9306,6 +9308,27 @@ function Camera.init()
 		cam.FieldOfView = 55
 	end
 	RunService:BindToRenderStep("EoECamera", Enum.RenderPriority.Camera.Value, step)
+	-- Middle-mouse drag rotates (yaw) and tilts (pitch), Total War style.
+	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
+		if input.UserInputType == Enum.UserInputType.MouseButton3 and not gp and enabled then
+			rotating = true
+		end
+	end))
+	table.insert(connections, UserInputService.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton3 then
+			rotating = false
+		end
+	end))
+	table.insert(connections, UserInputService.WindowFocusReleased:Connect(function()
+		rotating = false
+	end))
+	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject)
+		if rotating and enabled and not intro and input.UserInputType == Enum.UserInputType.MouseMovement then
+			target.yaw -= input.Delta.X * ROTATE_DRAG
+			target.pitch += input.Delta.Y * ROTATE_DRAG
+			clampTarget()
+		end
+	end))
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject)
 		local t = input.UserInputType
 		if intro and (t == Enum.UserInputType.Keyboard or t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.Touch or t == Enum.UserInputType.Gamepad1) then
@@ -9406,6 +9429,7 @@ function Camera.destroy()
 	bound = false
 	RunService:UnbindFromRenderStep("EoECamera")
 	intro = nil
+	rotating = false
 	for _, c in connections do
 		c:Disconnect()
 	end
@@ -9784,7 +9808,9 @@ local SNAP_DT = 0.1
 local MAX_EXTRAP = 0.15
 local LABEL_INTERVAL = 0.15
 
-type Slot = { x: number, z: number, sx: number, sz: number, phase: number } -- local offset + scatter (routing spread)
+-- x/z: slot offset in the formation; sx/sz: routing scatter; ox/oz + vx/vz: personal flocking
+-- offset and velocity; tx/tz: decaying slide from the previous layout; left/right: rank neighbours.
+type Slot = { x: number, z: number, sx: number, sz: number, phase: number, ox: number, oz: number, vx: number, vz: number, tx: number, tz: number, left: number, right: number }
 type Marker = {
 	parts: { BasePart },
 	locals: { CFrame },
@@ -9958,7 +9984,27 @@ local function layoutSlots(class: string, shape: string, n: number, width: numbe
 				sx = (rng:NextNumber() - 0.5) * 6,
 				sz = (rng:NextNumber() - 0.5) * 6,
 				phase = rng:NextNumber() * math.pi * 2,
+				ox = 0, oz = 0, vx = 0, vz = 0, tx = 0, tz = 0, left = 0, right = 0,
 			})
+		end
+	end
+	-- rank neighbours: slots sharing x, ordered by z (O(n log n) once per layout)
+	local order = {}
+	for i = 1, #slots do
+		order[i] = i
+	end
+	table.sort(order, function(a: number, b: number)
+		local sa, sb = slots[a], slots[b]
+		if math.abs(sa.x - sb.x) > 0.01 then
+			return sa.x < sb.x
+		end
+		return sa.z < sb.z
+	end)
+	for j = 2, #order do
+		local a, b = order[j - 1], order[j]
+		if math.abs(slots[a].x - slots[b].x) <= 0.01 then
+			slots[a].right = b
+			slots[b].left = a
 		end
 	end
 	return slots
@@ -10013,7 +10059,7 @@ local function buildNear(g: Group, f: any)
 	end
 	if g.class == "infantry" then
 		for _, s in specialSlots(f) do
-			table.insert(g.slots, { x = s.x, z = s.z, sx = 0, sz = 0, phase = #g.slots * 1.7 })
+			table.insert(g.slots, { x = s.x, z = s.z, sx = 0, sz = 0, phase = #g.slots * 1.7, ox = 0, oz = 0, vx = 0, vz = 0, tx = 0, tz = 0, left = 0, right = 0 })
 			slotIndex = #g.slots
 			local add = adder()
 			if s.role == "officer" then
@@ -10235,7 +10281,38 @@ local function destroyParts(list: { BasePart })
 	table.clear(list)
 end
 
+local SLIDE_MAX = 4 -- studs; farther than this a figure pops instead of sliding
+
+-- New slots slide in from the nearest old figure position (casualties close up over ~1 s).
+local function carryOver(old: { { x: number, z: number } }, slots: { Slot })
+	if #old == 0 then
+		return
+	end
+	local used: { [number]: boolean } = {}
+	for _, s in slots do
+		local best, bd = 0, SLIDE_MAX * SLIDE_MAX
+		for j, o in old do
+			if not used[j] then
+				local d = (o.x - s.x) ^ 2 + (o.z - s.z) ^ 2
+				if d < bd then
+					best, bd = j, d
+				end
+			end
+		end
+		if best > 0 then
+			used[best] = true
+			s.tx, s.tz = old[best].x - s.x, old[best].z - s.z
+		end
+	end
+end
+
 local function rebuildBody(g: Group, f: any)
+	local old: { { x: number, z: number } } = {}
+	if g.lod == "near" then
+		for _, s in g.slots do
+			table.insert(old, { x = s.x + s.ox + s.tx, z = s.z + s.oz + s.tz })
+		end
+	end
 	destroyParts(g.parts)
 	table.clear(g.locals)
 	table.clear(g.partSlot)
@@ -10244,6 +10321,7 @@ local function rebuildBody(g: Group, f: any)
 	table.clear(g.slots)
 	if g.lod == "near" and not g.ghost then
 		buildNear(g, f)
+		carryOver(old, g.slots)
 	else
 		buildFar(g, f)
 	end
@@ -10613,6 +10691,50 @@ function Figures.setPreview(list: { { x: number, z: number, heading: number, wid
 	end
 end
 
+-- Per-figure life: spring back to the slot, damped per-figure noise (stagger while marching,
+-- sway at rest), separation from rank neighbours only, decaying slide-in. Returns true if moved.
+local FLOCK_K, FLOCK_C, FLOCK_SEP = 7, 3.2, 14
+local function stepFlock(g: Group, dt: number, moving: boolean, bound: number, now: number): boolean
+	local slots = g.slots
+	local amp = if moving then 3.0 else 0.5
+	local decay = math.exp(-3.5 * dt)
+	local any = false
+	for _, s in slots do
+		local ax = -FLOCK_K * s.ox - FLOCK_C * s.vx + amp * math.sin(now * 1.7 + s.phase * 3.1)
+		local az = -FLOCK_K * s.oz - FLOCK_C * s.vz + amp * math.sin(now * 1.3 + s.phase * 5.3)
+		for _, n in { s.left, s.right } do
+			if n > 0 then
+				local o = slots[n]
+				local nominal = math.abs(s.z - o.z)
+				local d = (s.z + s.oz) - (o.z + o.oz)
+				local gap = math.abs(d)
+				if gap < nominal * 0.8 then
+					az += (if d >= 0 then 1 else -1) * (nominal * 0.8 - gap) * FLOCK_SEP
+				end
+			end
+		end
+		s.vx += ax * dt
+		s.vz += az * dt
+		s.ox += s.vx * dt
+		s.oz += s.vz * dt
+		local m = math.sqrt(s.ox * s.ox + s.oz * s.oz)
+		if m > bound then
+			s.ox, s.oz = s.ox / m * bound, s.oz / m * bound
+			s.vx *= 0.5
+			s.vz *= 0.5
+		end
+		if s.tx ~= 0 or s.tz ~= 0 then
+			s.tx *= decay
+			s.tz *= decay
+			if math.abs(s.tx) + math.abs(s.tz) < 0.02 then
+				s.tx, s.tz = 0, 0
+			end
+		end
+		any = any or m > 0.01 or s.tx ~= 0 or s.tz ~= 0
+	end
+	return any
+end
+
 function Figures.update(dt: number)
 	if not folder then
 		return
@@ -10623,6 +10745,7 @@ function Figures.update(dt: number)
 	end
 	local camPos = cam.CFrame.Position
 	local now = os.clock()
+	local flockOn = Settings.get().quality >= 2
 	local moveParts: { BasePart } = {}
 	local moveCfs: { CFrame } = {}
 	local hovered = Selection.hovered()
@@ -10664,6 +10787,13 @@ function Figures.update(dt: number)
 				g.phase += dt * (if state == "charging" or state == "routing" then 9 else 5.5)
 				g.dirty = true
 			end
+			-- flocking layer: near LOD only, infantry/cavalry, quality 2+
+			if flockOn and not g.ghost and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
+				local bound = if f.shape == "line" and not animating then 0.6 else 1.2
+				if stepFlock(g, math.min(dt, 0.05), animating and state ~= "routing", bound, now) then
+					g.dirty = true
+				end
+			end
 			if g.dirty then
 				g.dirty = false
 				local baseY = groundY(g.rx, g.rz)
@@ -10676,7 +10806,7 @@ function Figures.update(dt: number)
 				local slotCf: { CFrame } = {}
 				local swing: { number } = {}
 				for si, s in g.slots do
-					local sx, sz = s.x, s.z
+					local sx, sz = s.x + s.ox + s.tx, s.z + s.oz + s.tz
 					if routing then
 						-- running back with a ragged spread
 						sx += s.sx * 2.5
