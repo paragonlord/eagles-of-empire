@@ -27,9 +27,9 @@ local Help = require(script.Parent.UI.Help)
 local Loading = require(script.Parent.UI.Loading)
 local DevPanel = require(script.Parent.UI.DevPanel)
 local CampaignScreen = require(script.Parent.UI.CampaignScreen)
+local BattleSelect = require(script.Parent.UI.BattleSelect)
 
 local DEFAULT_MAP = "jena"
-local DEFAULT_SCENARIO = "jena"
 
 local mapCache: { [string]: any } = {}
 local builtMapId: string? = nil
@@ -83,6 +83,7 @@ end
 local function closePanels()
 	Help.hide()
 	SettingsPanel.hide()
+	BattleSelect.hide()
 end
 
 local function openHelp()
@@ -95,9 +96,23 @@ local function openSettings()
 	SettingsPanel.show()
 end
 
-local menuCallbacks = {
+local menuCallbacks: any
+menuCallbacks = {
 	play = function()
-		Net.control("start", DEFAULT_SCENARIO)
+		Menu.hide()
+		BattleSelect.show({
+			fight = function(id: string)
+				BattleSelect.hide()
+				Net.control("start", id)
+			end,
+			difficulty = function(v: string)
+				Net.control("difficulty", v)
+			end,
+			back = function()
+				BattleSelect.hide()
+				Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+			end,
+		}, BattleState.isCommander)
 	end,
 	campaign = function()
 		campaignWanted = true
