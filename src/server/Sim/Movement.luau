@@ -11,6 +11,7 @@ local Types = require(Shared.Types)
 
 local Formation = require(script.Parent.Formation)
 local Nav = require(script.Parent.Nav)
+local Edges = require(script.Parent.Edges)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -346,8 +347,9 @@ local function routeToHome(sim: SimLike, f: Formation)
 	if not f.path or not f.path[f.pathIndex] then
 		local home = sim.homeEdge(sim, f.faction)
 		-- Aim at a walkable point just inside the home edge; the exit rule removes the unit there.
-		local edgeZ = math.clamp(home.z, 6, sim.grid.depth - 6)
-		local want = { x = math.clamp(f.pos.x + (home.x - f.pos.x) * 0.2, 8, sim.grid.width - 8), z = edgeZ }
+		local side = Edges.sideOf(home, sim.grid.width, sim.grid.depth)
+		local along = Vec.lerp(f.pos, home, 0.2)
+		local want = Edges.inside(side, along, 6, sim.grid.width, sim.grid.depth, 8)
 		local target = Nav.nearestWalkable(sim.nav, want, 12) or want
 		if not Movement.plan(sim, f, target) then
 			-- No route at all: drift straight toward home; the stuck rule removes the unit.
@@ -366,14 +368,15 @@ function Movement.update(sim: SimLike, f: Formation)
 	if f.state == "routing" then
 		local m = Config.Morale.RoutExitMargin
 		local home = sim.homeEdge(sim, f.faction)
-		local waiting = (if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m) and not f.shattered
+		local side = Edges.sideOf(home, sim.grid.width, sim.grid.depth)
+		local waiting = Edges.distance(side, f.pos, sim.grid.width, sim.grid.depth) < m and not f.shattered
 		if not waiting then
 			routeToHome(sim, f)
 			followPath(sim, f, 1)
 		end
 		-- At the home edge a routing formation waits in the rear and may still rally; only a
 		-- shattered formation (or one hopelessly stuck / off the map) leaves the field for good.
-		local atEdge = if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m
+		local atEdge = Edges.distance(Edges.sideOf(home, sim.grid.width, sim.grid.depth), f.pos, sim.grid.width, sim.grid.depth) < m
 		if atEdge and not f.shattered then
 			f.path = nil
 			f.status = "Fled to the rear"

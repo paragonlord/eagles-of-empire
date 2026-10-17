@@ -15,6 +15,7 @@ local Types = require(Shared.Types)
 local Formation = require(script.Formation)
 local Abilities = require(script.Abilities)
 local Nav = require(script.Nav)
+local Edges = require(script.Edges)
 local Movement = require(script.Movement)
 local Combat = require(script.Combat)
 local Morale = require(script.Morale)
@@ -179,12 +180,18 @@ end
 
 -- A faction's home edge is the map edge nearest its deployment zone.
 function Sim.homeEdge(self: Sim, faction: string): Vec
-	local zone = self.map.deployZones[faction]
+	local zones = self.map.deployZones
+	local zone = zones[faction]
 	local margin = Config.Morale.RoutExitMargin + 6
-	if zone and (zone.z0 + zone.z1) / 2 > self.map.depth / 2 then
-		return { x = (zone.x0 + zone.x1) / 2, z = self.map.depth + margin }
+	local w, d = self.map.width, self.map.depth
+	local own = if zone then { x = (zone.x0 + zone.x1) / 2, z = (zone.z0 + zone.z1) / 2 } else { x = w / 2, z = d / 2 }
+	local enemy: Vec? = nil
+	for other, oz in zones do
+		if other ~= faction and (other == self.playerFaction or other == self.enemyFaction) then
+			enemy = { x = (oz.x0 + oz.x1) / 2, z = (oz.z0 + oz.z1) / 2 }
+		end
 	end
-	return { x = if zone then (zone.x0 + zone.x1) / 2 else self.map.width / 2, z = -margin }
+	return Edges.home(own, enemy, w, d, margin)
 end
 
 -- Deployment --------------------------------------------------------------------------------

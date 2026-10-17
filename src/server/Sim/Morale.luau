@@ -7,6 +7,7 @@ local Vec = require(Shared.Vec)
 local Types = require(Shared.Types)
 
 local Formation = require(script.Parent.Formation)
+local Edges = require(script.Parent.Edges)
 
 type Formation = Formation.Formation
 
@@ -18,8 +19,8 @@ export type SimLike = {
 	log: (sim: any, text: string) -> (),
 	hqOf: (sim: any, faction: string) -> Formation?,
 	stats: { [string]: any },
-	homeEdge: ((sim: any, faction: string) -> { x: number, z: number })?,
-	grid: { width: number, depth: number }?,
+	homeEdge: any, -- (sim, faction) -> {x, z}; optional for test fakes
+	grid: any, -- needs width and depth
 }
 
 local Morale = {}
@@ -109,12 +110,13 @@ function Morale.rally(sim: SimLike, f: Formation, by: string)
 	local home = if sim.homeEdge then sim.homeEdge(sim, f.faction) else nil
 	local grid = sim.grid
 	if home and grid then
-		local edgeZ = if home.z < 0 then 0 else grid.depth
-		if math.abs(f.pos.z - edgeZ) < 80 then
-			local inward = if home.z < 0 then 1 else -1
-			local x = math.clamp(f.pos.x + ((f.id % 5) - 2) * 45, 30, grid.width - 30)
-			local z = edgeZ + inward * (110 + (f.id % 3) * 30)
-			f.order = { kind = "Move", pos = { x = x, z = z }, heading = if inward > 0 then math.pi / 2 else -math.pi / 2, issuedTick = sim.tick }
+		local side = Edges.sideOf(home, grid.width, grid.depth)
+		if Edges.distance(side, f.pos, grid.width, grid.depth) < 80 then
+			local inward = Edges.inward(side)
+			local spread = (f.id % 5 - 2) * 45
+			local along = { x = f.pos.x + inward.z * spread, z = f.pos.z + inward.x * spread }
+			local dest = Edges.inside(side, along, 110 + (f.id % 3) * 30, grid.width, grid.depth, 30)
+			f.order = { kind = "Move", pos = dest, heading = math.atan2(inward.z, inward.x), issuedTick = sim.tick }
 			f.queue = {}
 		end
 	end

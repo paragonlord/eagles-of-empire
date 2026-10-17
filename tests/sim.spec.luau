@@ -549,3 +549,24 @@ test("No map lets a path cross a brook outside its bridges; a unit standing in w
 	run(sim, 60)
 	assertTrue(f.pos.z < 500, string.format("left the brook, z=%.0f", f.pos.z))
 end)
+
+test("Home edges follow the deployment: Austerlitz armies flee west and east, Jena north and south", function()
+	local Edges = require(Server.Sim.Edges)
+	local function sides(id)
+		local sc = Scenarios.get(id)
+		local map = MapGen.generate(sc.map)
+		local sim = Sim.new({ matchId = "e", scenario = sc, map = map, seed = 1 })
+		local p = Edges.sideOf(sim:homeEdge(sc.factions.player), map.width, map.depth)
+		local e = Edges.sideOf(sim:homeEdge(sc.factions.enemy), map.width, map.depth)
+		return p, e
+	end
+	local jp, je = sides("jena")
+	assertTrue(jp == "s" and je == "n", "jena " .. jp .. "/" .. je)
+	local ap, ae = sides("austerlitz")
+	assertTrue(ap ~= ae, "austerlitz sides differ: " .. ap .. "/" .. ae)
+	assertTrue(ap == "w" and ae == "e", "austerlitz " .. ap .. "/" .. ae)
+	for _, entry in Scenarios.list() do
+		local p, e = sides(entry.id)
+		assertTrue(p ~= e, entry.id .. ": both armies share the " .. p .. " edge")
+	end
+end)
