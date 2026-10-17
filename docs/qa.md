@@ -163,6 +163,15 @@ to the end: Close Victory on time, totals reconcile (France 14,200 − 1,237 = 1
       so on the 2400-wide maps the plane does not reach the outer 176 studs on each side. Only
       clicks past the map edge are affected, since terrain is raycast first.
 
+**2026-10-17 round 4b, build 773498e (tutorial server side, figure jostle).** Started the
+`tutorial` scenario through the Control remote: the training ground loads to deployment, Start
+Battle runs at ×4 for two game minutes, no EoE errors on client or server (`tutorial.jpg`). The
+lesson panel is not in this build, so the scripted steps were not exercised; full tutorial test
+next round. Figures (`figures.jpg`): the jostle reads well, but a battalion in line draws as
+8 thin files of 2–3 figures with gaps as wide as the files, so a line looks like open order. The
+reference blocks are solid; closing the gaps (or more figures per file) would read as a line.
+The small training map shows the floating-slab edge on all sides.
+
 ## Known failures
 
 None recorded yet.
