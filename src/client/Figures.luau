@@ -64,6 +64,12 @@ type Group = {
 	partSlot: { number }, -- part index -> slot index (0 = formation-relative, no bob)
 	anim: { number }, -- part index -> Soldiers anim code
 	pivot: { number }, -- part index -> swing pivot height
+	flagIdx: { number }, -- part indices of colours (anim 6), swayed every frame
+	slotCf: { CFrame }, -- last placed slot frames (flags sway between full placements)
+	look: Soldiers.Look?,
+	nLine: number, -- slots 1..nLine are rank and file (specials follow)
+	lastStrength: number,
+	lossAcc: number, -- men lost not yet shown as a falling figure
 	layoutKey: string,
 	p0x: number,
 	p0z: number,
@@ -322,14 +328,21 @@ local function addPart(g: Group, p: BasePart, cf: CFrame, slot: number, anim: nu
 	p.Parent = folder
 end
 
--- Battalion extras: a mounted officer in front, colour-bearer and drummer at the front centre
--- (inside a square they stand in the middle). Never thinned.
+-- Battalion extras: a mounted officer in front, the colour (the Eagle for France) at the
+-- centre of the front rank and a drummer on each flank; inside a square they all stand in the
+-- middle. Never thinned.
 local function specialSlots(f: any): { { x: number, z: number, role: string } }
 	if f.shape == "square" then
-		return { { x = 0, z = 0, role = "officer" }, { x = 0.6, z = -1.4, role = "colour" }, { x = 0.6, z = 1.4, role = "drummer" } }
+		return { { x = 0, z = 0, role = "officer" }, { x = 0.6, z = -1.0, role = "colour" }, { x = -0.8, z = 1.4, role = "drummer" }, { x = -0.8, z = -1.6, role = "drummer" } }
 	end
 	local front = f.depth / 2
-	return { { x = front + 3.6, z = 0, role = "officer" }, { x = front + 1.3, z = -0.6, role = "colour" }, { x = front + 1.3, z = 1.4, role = "drummer" } }
+	local flank = f.width / 2 + 1.0
+	return {
+		{ x = front + 3.6, z = 0, role = "officer" },
+		{ x = front + 0.9, z = 0, role = "colour" },
+		{ x = front - 0.6, z = flank, role = "drummer" },
+		{ x = front - 0.6, z = -flank, role = "drummer" },
+	}
 end
 
 local function buildNear(g: Group, f: any)
@@ -343,31 +356,132 @@ local function buildNear(g: Group, f: any)
 			addPart(g, p, cf, si, anim, pivot)
 		end
 	end
-	local coat = Soldiers.coat(g.faction, f.colour, g.colour)
+	local look = Soldiers.look(g.faction, f.colour, g.class, f.name)
+	g.look = look
 	local base = #g.slots
+	g.nLine = base
 	for i = 1, base do
 		slotIndex = i
 		local add = adder()
 		if g.class == "infantry" then
-			Soldiers.infantry(add, g.faction, coat, detail, "line")
+			Soldiers.infantry(add, look, detail, "line", i)
 		elseif g.class == "cavalry" then
-			Soldiers.rider(add, g.faction, coat, Soldiers.riderKind(f.name), detail, g.id + i)
+			Soldiers.rider(add, look, detail, g.id + i)
 		elseif g.class == "hq" then
-			Soldiers.rider(add, g.faction, coat, "officer", detail, g.id + i)
+			-- the general, then an aide in plain staff dress (the Emperor's grey is his alone)
+			Soldiers.rider(add, if i == 1 then look else Soldiers.look(g.faction, f.colour, "hq", nil), detail, g.id + i)
 		elseif g.class == "artillery" then
-			Soldiers.gun(add, g.faction, coat, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
+			Soldiers.gun(add, look, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
 		end
 	end
 	if g.class == "infantry" then
+		local officer = Soldiers.look(g.faction, f.colour, "hq", nil)
 		for _, s in specialSlots(f) do
 			table.insert(g.slots, { x = s.x, z = s.z, sx = 0, sz = 0, phase = #g.slots * 1.7, ox = 0, oz = 0, vx = 0, vz = 0, tx = 0, tz = 0, left = 0, right = 0 })
 			slotIndex = #g.slots
 			local add = adder()
 			if s.role == "officer" then
-				Soldiers.rider(add, g.faction, coat, "officer", detail, g.id)
+				Soldiers.rider(add, officer, detail, g.id)
 			else
-				Soldiers.infantry(add, g.faction, coat, detail, if s.role == "colour" then "colour" else "drummer")
+				Soldiers.infantry(add, look, detail, if s.role == "colour" then "colour" else "drummer", 0)
 			end
+		end
+	end
+	for i, a in g.anim do
+		if a == 6 then
+			table.insert(g.flagIdx, i)
+		end
+	end
+end
+
+-- ------------------------------------------------------------------ the fallen
+-- Every 25 men lost (1 figure) by a near-LOD battalion or regiment, a figure from its ranks
+-- tips over, settles on the ground and lies there for a while, then sinks away. Plain
+-- low-detail builds; capped per quality level, oldest first.
+
+type Body = { parts: { BasePart }, locals: { CFrame }, origin: CFrame, aboutX: boolean, fall: number, lift: number, t0: number }
+local bodies: { Body } = {}
+local bodyRng = Random.new(1815)
+local FALL_T = 0.65
+local BODY_LIFE = 50
+local SINK_T = 4
+local MAX_BODIES = { 24, 48, 80 }
+
+local function removeBody(i: number)
+	for _, p in bodies[i].parts do
+		p:Destroy()
+	end
+	table.remove(bodies, i)
+end
+
+local function spawnBody(g: Group, now: number)
+	local look = g.look
+	local n = math.min(g.nLine, #g.slotCf)
+	if not look or n == 0 then
+		return
+	end
+	-- mostly from the front rank (where the fire lands)
+	local si = bodyRng:NextInteger(1, n)
+	for _ = 1, 3 do
+		local c = bodyRng:NextInteger(1, n)
+		if g.slots[c] and g.slots[si] and g.slots[c].x > g.slots[si].x then
+			si = c
+		end
+	end
+	local pos = g.slotCf[si].Position
+	local origin = frame(pos.X, groundY(pos.X, pos.Z), pos.Z, g.rh + (bodyRng:NextNumber() - 0.5) * 0.8)
+	local b: Body = { parts = {}, locals = {}, origin = origin, aboutX = g.class == "cavalry", fall = 0, lift = 0, t0 = now + bodyRng:NextNumber() * 0.4 }
+	local add = function(p: BasePart, cf: CFrame, anim: number, pivot: number)
+		p.CastShadow = false
+		p.Parent = folder
+		table.insert(b.parts, p)
+		table.insert(b.locals, if anim == 3 then Soldiers.partCFrame(anim, cf, pivot, 0, false) else cf)
+	end
+	local dir = if bodyRng:NextNumber() < 0.7 then 1 else -1 -- most fall back, away from the fire
+	local len = 2.8
+	if b.aboutX then
+		Soldiers.rider(add, look, false, g.id + si)
+		len, b.lift = 2.0, 0.35
+	else
+		Soldiers.infantry(add, look, false, "line", 0)
+		b.lift = if dir > 0 then 0.42 else 0.24
+	end
+	-- lie along the slope: where the head lands decides how far the body turns
+	local hd = if b.aboutX then Vector3.new(0, 0, dir * len) else Vector3.new(-dir * len, 0, 0)
+	local hp = origin * hd
+	local slope = math.atan2(groundY(hp.X, hp.Z) - origin.Position.Y, len)
+	b.fall = dir * math.clamp(math.pi / 2 - slope, 0.7, 1.9)
+	table.insert(bodies, b)
+	local cap = MAX_BODIES[math.clamp(Settings.get().quality, 1, 3)]
+	while #bodies > cap do
+		removeBody(1)
+	end
+end
+
+local function placeBodies(now: number, moveParts: { BasePart }, moveCfs: { CFrame })
+	local i = 1
+	while i <= #bodies do
+		local b = bodies[i]
+		local age = now - b.t0
+		if age > BODY_LIFE + SINK_T then
+			removeBody(i)
+		else
+			if age < FALL_T + 0.35 or age > BODY_LIFE or age < 0 then
+				local k = 0
+				if age >= FALL_T then
+					k = 1 - 0.07 * math.sin(math.pi * math.min((age - FALL_T) / 0.35, 1)) -- small bounce
+				elseif age > 0 then
+					k = (age / FALL_T) ^ 2 -- topples faster as it goes
+				end
+				local a = b.fall * k
+				local dy = b.lift * k - math.max(0, age - BODY_LIFE) / SINK_T * 1.2
+				local cf = CFrame.new(0, dy, 0) * b.origin * (if b.aboutX then CFrame.Angles(a, 0, 0) else CFrame.Angles(0, 0, a))
+				for j, p in b.parts do
+					table.insert(moveParts, p)
+					table.insert(moveCfs, cf * b.locals[j])
+				end
+			end
+			i += 1
 		end
 	end
 end
@@ -656,6 +770,8 @@ local function rebuildBody(g: Group, f: any)
 	table.clear(g.anim)
 	table.clear(g.pivot)
 	table.clear(g.slots)
+	table.clear(g.flagIdx)
+	table.clear(g.slotCf)
 	if g.lod == "near" and not g.ghost then
 		buildNear(g, f)
 		carryOver(old, g.slots)
@@ -684,6 +800,12 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		partSlot = {},
 		anim = {},
 		pivot = {},
+		flagIdx = {},
+		slotCf = {},
+		look = nil,
+		nLine = 0,
+		lastStrength = f.strength or 0,
+		lossAcc = 0,
 		layoutKey = "",
 		p0x = f.x,
 		p0z = f.z,
@@ -746,6 +868,19 @@ local function onSnapshot()
 		local g: Group
 		if existing then
 			g = existing
+			local str = f.strength or 0
+			if str < g.lastStrength and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
+				local per = Config.Visual.SoldiersPerFigure
+				g.lossAcc += g.lastStrength - str
+				local n = 0
+				while g.lossAcc >= per and n < 4 do
+					spawnBody(g, now)
+					g.lossAcc -= per
+					n += 1
+				end
+				g.lossAcc = math.min(g.lossAcc, per)
+			end
+			g.lastStrength = str
 			if f.x ~= g.p1x or f.z ~= g.p1z or f.heading ~= g.p1h then
 				g.p0x, g.p0z, g.p0h = g.rx, g.rz, g.rh
 				g.p1x, g.p1z, g.p1h = f.x, f.z, f.heading
@@ -1059,6 +1194,13 @@ end
 
 -- Per-figure life: spring back to the slot, damped per-figure noise (stagger while marching,
 -- sway at rest), separation from rank neighbours only, decaying slide-in. Returns true if moved.
+-- Colour sway (radians about the pole): streams a little off the pole and swings with the
+-- breeze, harder on the march. Each battalion has its own phase.
+local function flagSway(g: Group, now: number, moving: boolean): number
+	local k = if moving then 1.5 else 1
+	return 0.35 + k * (0.28 * math.sin(now * 1.3 + g.id * 1.7) + 0.1 * math.sin(now * 3.1 + g.id * 0.9))
+end
+
 local FLOCK_K, FLOCK_C, FLOCK_SEP = 7, 3.2, 14
 local function stepFlock(g: Group, dt: number, moving: boolean, bound: number, now: number): boolean
 	local slots = g.slots
@@ -1171,6 +1313,7 @@ function Figures.update(dt: number)
 				local charging = state == "charging"
 				-- muskets come down for volleys and bayonet charges
 				local armed = state == "firing" or (charging and g.class == "infantry")
+				local pitched = g.class == "cavalry" or g.class == "artillery" or g.class == "hq"
 				local amp = if routing or charging then 0.75 else 0.45
 				local slotCf: { CFrame } = {}
 				local swing: { number } = {}
@@ -1195,11 +1338,18 @@ function Figures.update(dt: number)
 						h += math.pi + (s.phase - math.pi) * 0.35
 					end
 					local scf = frame(wp.X, y, wp.Z, h)
+					if pitched then
+						-- horses and guns pitch with the slope under them; men stay upright
+						local fx, fz = math.cos(h), math.sin(h)
+						scf *= CFrame.Angles(0, 0, math.atan((groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2))
+					end
 					if charging then
 						scf *= CFrame.Angles(0, 0, if g.class == "cavalry" then -0.1 else -0.22) -- lean into the charge
 					end
 					slotCf[si] = scf
 				end
+				g.slotCf = slotCf
+				local sway = flagSway(g, now, animating)
 				local anims, pivots, slots = g.anim, g.pivot, g.partSlot
 				for i, p in g.parts do
 					local slot = slots[i]
@@ -1209,7 +1359,7 @@ function Figures.update(dt: number)
 						base = slotCf[slot]
 						local a = anims[i]
 						if a ~= 0 then
-							lc = Soldiers.partCFrame(a, lc, pivots[i], swing[slot], armed and not routing)
+							lc = Soldiers.partCFrame(a, lc, pivots[i], if a == 6 then sway else swing[slot], armed and not routing)
 						end
 					end
 					table.insert(moveParts, p)
@@ -1249,6 +1399,17 @@ function Figures.update(dt: number)
 					table.insert(moveParts, m.parts[i])
 					table.insert(moveCfs, face * m.locals[i])
 				end
+				-- colours keep swaying while the battalion stands still
+				if g.lod == "near" and #g.flagIdx > 0 then
+					local sway = flagSway(g, now, false)
+					for _, i in g.flagIdx do
+						local scf = g.slotCf[g.partSlot[i]]
+						if scf then
+							table.insert(moveParts, g.parts[i])
+							table.insert(moveCfs, scf * Soldiers.partCFrame(6, g.locals[i], 0, sway, false))
+						end
+					end
+				end
 			end
 			-- ring/dest refresh on selection or hover change
 			local selected = Selection.isSelected(id)
@@ -1277,6 +1438,7 @@ function Figures.update(dt: number)
 			updateOrders(g, f, selected)
 		end
 	end
+	placeBodies(now, moveParts, moveCfs)
 	if #moveParts > 0 then
 		workspace:BulkMoveTo(moveParts, moveCfs, Enum.BulkMoveMode.FireCFrameChanged)
 	end
@@ -1299,6 +1461,7 @@ function Figures.clear()
 		destroyGroup(g)
 	end
 	table.clear(groups)
+	table.clear(bodies) -- their parts go with the folder
 	destroyParts(previews)
 	table.clear(prevSelected)
 	pendingKey = ""

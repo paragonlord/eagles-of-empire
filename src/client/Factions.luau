@@ -76,6 +76,10 @@ local FLAGS: { [string]: Flag } = {
 	austria = { field = WHITE, mark = "double", markColour = BLACK },
 	-- Union flag approximation: blue field, white saltire, red upright cross
 	britain = { field = Color3.fromRGB(28, 44, 110), mark = "x", markColour = WHITE, cross = Color3.fromRGB(190, 34, 44) },
+	-- allied contingents carried their own colours (unit palette override picks these up close)
+	saxony = { stripes = { WHITE, Color3.fromRGB(36, 110, 60) }, field = WHITE, mark = "double", markColour = Color3.fromRGB(36, 110, 60) },
+	netherlands = { stripes = { Color3.fromRGB(178, 36, 44), WHITE, Color3.fromRGB(30, 50, 120) }, field = WHITE, mark = "double", markColour = BLACK },
+	bavaria = { field = WHITE, mark = "diamond", markColour = Color3.fromRGB(70, 120, 200) },
 }
 
 function Factions.flag(faction: string?): Flag
