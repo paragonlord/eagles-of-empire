@@ -32,6 +32,7 @@ Protocol.CommandKinds = {
 	Stance = { infantry = true, artillery = true },
 	Charge = { infantry = true, cavalry = true },
 	Rally = { hq = true },
+	Ability = { hq = true }, -- the HQ general's active ability: data.abilityId (src/shared/Generals.luau)
 	Limber = { artillery = true },
 	Deploy = false, -- pre-battle placement
 	Ammo = { artillery = true }, -- choose roundShot / canister preference
@@ -73,6 +74,7 @@ Protocol.Reasons = {
 	unreachable = "No route to that position",
 	deployZone = "Outside your deployment zone",
 	notPaused = "Only the commander may pause",
+	noTarget = "No formation within reach of the general",
 }
 
 export type ValidateContext = {
@@ -245,6 +247,11 @@ function Protocol.validateCommand(cmd: any, ctx: ValidateContext): (boolean, str
 		end
 		return true, nil
 	elseif kind == "Rally" then
+		return true, nil
+	elseif kind == "Ability" then
+		if type(data.abilityId) ~= "string" or #data.abilityId == 0 or #data.abilityId > 32 or #cmd.ids ~= 1 then
+			return false, Protocol.Reasons.badRequest
+		end
 		return true, nil
 	elseif kind == "Stop" or kind == "Hold" then
 		return true, nil

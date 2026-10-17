@@ -188,7 +188,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	end
 	local dist = Vec.dist(f.pos, target.pos)
 	local rangeF = 1 - C.RangeFalloff * (dist / musket.range)
-	local cover = Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover
+	local cover = math.min(0.9, Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover + target.mods.cover)
 	local side = Vec.attackSide(target.pos, target.heading, f.pos)
 	local sideF = if side == "front" then 1 elseif side == "flank" then C.FlankFireFactor else C.RearFireFactor
 	local hit = musket.accuracy * rangeF * (1 - cover) * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
@@ -197,7 +197,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	if uphill(sim, f.pos, target.pos) then
 		hit *= 1 + Config.Slope.UphillFireBonus
 	end
-	hit *= ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).accuracy
+	hit *= ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).accuracy * f.mods.accuracy
 	hit = math.min(C.MaxHitChance, hit)
 	local casualties = rollCasualties(sim, shooters * hit)
 	f.reload = musket.reload
@@ -217,9 +217,9 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	local guns = Formation.figures(f)
 	local rangeF = 1 - C.RangeFalloff * (dist / ammo.range)
 	local shapeF = (Config.Shapes :: any)[target.shape].artillery
-	local cover = Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover
+	local cover = math.min(0.9, Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover + target.mods.cover)
 	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).cannon
-	local expected = guns * ammo.hit * weatherF * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
+	local expected = guns * ammo.hit * weatherF * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience) * f.mods.accuracy
 	local casualties = rollCasualties(sim, expected)
 	f.reload = ammo.reload
 	f.ammo -= 1
@@ -246,7 +246,7 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 		dirF = 1 -- a square has no flank
 	end
 	local rate = att.strength * C.MeleeRatePerSecond * unitA.melee.attack * shapeA.melee * dirF
-	rate *= Formation.fatigueFactor(att, C.FatigueMeleePenalty) * (1 + C.ExperienceMelee * att.experience)
+	rate *= Formation.fatigueFactor(att, C.FatigueMeleePenalty) * (1 + C.ExperienceMelee * att.experience) * att.mods.melee
 	if att.timers.bayonet > 0 then
 		rate *= C.BayonetBonus
 	end
@@ -288,13 +288,13 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 		if def.state == "routing" then
 			shapeF *= C.ChargeRoutingFactor
 		end
-		local impact = att.strength * ch.base * runUpF * dirF * shapeF * Formation.fatigueFactor(att, C.FatigueMeleePenalty)
+		local impact = att.strength * ch.base * runUpF * dirF * shapeF * Formation.fatigueFactor(att, C.FatigueMeleePenalty) * att.mods.chargeImpact
 		if att.inWoods then
 			impact *= 0.5
 		end
 		local casualties = rollCasualties(sim, impact)
 		attacks[#attacks + 1] = { attackerId = att.id, targetId = def.id, casualties = casualties, side = side, moraleExtra = if def.shape == "square" then 0 else 8, kind = "charge" }
-		att.timers.chargeRecover = ch.recovery
+		att.timers.chargeRecover = ch.recovery * att.mods.chargeRecovery
 		att.fatigue = math.min(100, att.fatigue + 10)
 		sim.emit(sim, { kind = "charge", tick = sim.tick, id = att.id, targetId = def.id, faction = att.faction, x = att.pos.x, z = att.pos.z, tx = def.pos.x, tz = def.pos.z, n = casualties, text = if def.shape == "square" then "square" else side })
 	else

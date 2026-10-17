@@ -19,6 +19,7 @@ local Combat = require(script.Combat)
 local Morale = require(script.Morale)
 local Visibility = require(script.Visibility)
 local Objectives = require(script.Objectives)
+local Abilities = require(script.Abilities)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -252,6 +253,12 @@ function Sim.precheck(self: Sim, cmd: Types.Command): (boolean, string?)
 			if cmd.kind == "Rally" and f.timers.rallyCd > 0 then
 				return false, "cooldown"
 			end
+			if cmd.kind == "Ability" then
+				local okA, whyA = Abilities.check(self :: any, f, cmd.data)
+				if not okA then
+					return false, whyA
+				end
+			end
 		end
 	end
 	-- Engage/Charge on a target the faction cannot currently see leaks nothing: it is
@@ -409,7 +416,9 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 					local dir = Vec.normalize(Vec.sub(home, f.pos))
 					pos = Vec.clamp(Vec.add(f.pos, Vec.scale(dir, 200)), 8, 8, self.map.width - 8, self.map.depth - 8)
 				end
-				f.cohesion = math.max(0.3, f.cohesion - 0.2)
+				if not f.mods.steadyRetreat then
+					f.cohesion = math.max(0.3, f.cohesion - 0.2)
+				end
 				applyOrder(self, f, { kind = "Retreat", pos = pos, issuedTick = self.tick }, false)
 			elseif kind == "Shape" then
 				if Formation.legalShapes(f)[data.shape] then
@@ -433,6 +442,8 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 				f.ammoMode = data.ammo
 			elseif kind == "Rally" then
 				Morale.hqRally(self :: any, f)
+			elseif kind == "Ability" then
+				Abilities.use(self :: any, f, data)
 			end
 		end
 	end
@@ -548,6 +559,7 @@ function Sim.step(self: Sim)
 		ai(self)
 		applyQueuedCommands(self) -- AI commands stamped for this tick apply now
 	end
+	Abilities.update(s) -- generals' traits and ability effects -> formation mods
 	-- 3/4. timers, navigation, movement
 	for _, id in self.order do
 		local f = self.formations[id]
@@ -653,7 +665,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 end
 
 local function viewKey(v: Types.FormationView): string
-	return string.format("%.1f|%.1f|%.2f|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d", v.x, v.z, v.heading, v.shape, v.state, v.strength, v.moraleBand, tostring(v.status), tostring(v.orderKind), tostring(v.fireAtWill), tostring(v.ammo), tostring(math.floor((v.morale or 0) / 2)), math.ceil(v.reload or 0)) -- reload in whole seconds so cards stay current
+	return string.format("%.1f|%.1f|%.2f|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d", v.x, v.z, v.heading, v.shape, v.state, v.strength, v.moraleBand, tostring(v.status), tostring(v.orderKind), tostring(v.fireAtWill), tostring(v.ammo), tostring(math.floor((v.morale or 0) / 2)), math.ceil(v.reload or 0)) .. (v.tags or "") .. tostring(v.abilityReadyAt) -- reload in whole seconds so cards stay current
 end
 
 -- Build the snapshot for one viewer faction. Pass full=true for keyframes.
@@ -674,6 +686,9 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 			local show = Formation.isActive(f) and (own or (view and view.visible[id]))
 			if show then
 				local v = viewOf(f, own)
+				if own then
+					Abilities.view(self :: any, f, v)
+				end
 				local key = viewKey(v)
 				nowKeys[id] = key
 				if full or last[id] ~= key then

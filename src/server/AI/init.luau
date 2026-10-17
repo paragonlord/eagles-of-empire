@@ -17,6 +17,7 @@ local Sim = require(script.Parent.Sim)
 local Formation = require(script.Parent.Sim.Formation)
 local Combat = require(script.Parent.Sim.Combat)
 local Nav = require(script.Parent.Sim.Nav)
+local Abilities = require(script.Parent.Sim.Abilities)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -919,6 +920,20 @@ local function hq(state: AIState, f: Formation)
 					return
 				end
 			end
+		end
+	end
+	-- The general's ability, through the player's command path, when the line around him wavers.
+	local g = Abilities.generalOf(state.sim :: any, f.id)
+	if g and Abilities.cooldownLeft(state.sim :: any, f.id) <= 0 then
+		local wavering = 0
+		for _, o in state.mine do
+			if o.id ~= f.id and (o.moraleBand == "shaken" or o.state == "routing") and Vec.dist(o.pos, f.pos) <= g.ability.radius then
+				wavering += 1
+			end
+		end
+		if wavering >= 2 and issue(state, "Ability", { f.id }, { abilityId = g.ability.id }) then
+			setGoal(state, f.id, "ability", g.ability.name, 5)
+			return
 		end
 	end
 	if u.goal == "evade" and f.state == "idle" then

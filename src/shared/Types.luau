@@ -74,6 +74,9 @@ export type FormationView = {
 	experience: number?,
 	ammoMode: string?,
 	queue: { Vec }?,
+	general: string?, -- own HQ: id in src/shared/Generals.luau
+	abilityReadyAt: number?, -- own HQ: sim clock (s) when the general's ability is ready again
+	tags: string?, -- own: comma-joined trait / ability ids affecting this formation now
 }
 
 export type LastKnown = {

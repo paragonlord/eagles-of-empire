@@ -11,6 +11,22 @@ local Types = require(Shared.Types)
 type Vec = Vec.Vec
 type UnitDef = Scenarios.UnitDef
 
+-- Per-tick modifiers from generals' traits and abilities (set by Sim/Abilities, neutral otherwise).
+export type Mods = {
+	speed: number,
+	chargeImpact: number,
+	chargeRecovery: number,
+	accuracy: number,
+	melee: number,
+	cover: number, -- added to the terrain cover of incoming fire
+	recovery: number, -- extra morale per second
+	shockFloor: number, -- casualty shock cannot push morale below this
+	hideBeyond: number?, -- enemies cannot spot it from further away
+	noRout: boolean, -- morale stops at the rout threshold (unless below 30 % strength)
+	steadyRetreat: boolean, -- Retreat costs no cohesion
+	tags: { string }, -- trait / ability ids applied this tick (shown to the owner)
+}
+
 export type Formation = {
 	id: number,
 	faction: string,
@@ -76,6 +92,7 @@ export type Formation = {
 	visibleTo: { [string]: boolean },
 	inWoods: boolean,
 	arrivalTick: number?, -- reinforcements: tick at which the formation enters the field
+	mods: Mods,
 }
 
 local Formation = {}
@@ -111,6 +128,10 @@ function Formation.refreshFootprint(f: Formation)
 	f.width = w
 	f.depth = d
 	f.halfRadius = math.max(w, d) / 2
+end
+
+function Formation.neutralMods(): Mods
+	return { speed = 1, chargeImpact = 1, chargeRecovery = 1, accuracy = 1, melee = 1, cover = 0, recovery = 0, shockFloor = 0, hideBeyond = nil, noRout = false, steadyRetreat = false, tags = {} }
 end
 
 function Formation.fromDef(id: number, def: UnitDef): Formation
@@ -181,6 +202,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		visibleTo = {},
 		inWoods = false,
 		arrivalTick = nil,
+		mods = Formation.neutralMods(),
 	}
 	-- Off-map reinforcements: `arrival = { seconds, pos }` on the unit definition.
 	local arrival = (def :: any).arrival

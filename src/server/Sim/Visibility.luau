@@ -42,6 +42,9 @@ local function canSee(sim: SimLike, observer: Formation, target: Formation): boo
 	if target.inWoods then
 		spot = math.min(spot, Config.Vision.WoodsReveal)
 	end
+	if target.mods.hideBeyond then
+		spot = math.min(spot, target.mods.hideBeyond) -- reverse slope (Sim/Abilities)
+	end
 	if d > spot then
 		return false
 	end

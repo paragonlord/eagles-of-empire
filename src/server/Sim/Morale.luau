@@ -162,7 +162,7 @@ function Morale.update(sim: SimLike, f: Formation)
 	-- Casualty shock.
 	if f.casualtiesThisTick > 0 then
 		local frac = f.casualtiesThisTick / math.max(1, f.strength + f.casualtiesThisTick)
-		f.morale -= frac * 100 * M.CasualtyFactor
+		f.morale = math.max(f.morale - frac * 100 * M.CasualtyFactor, math.min(f.morale, f.mods.shockFloor))
 		f.casualtiesThisTick = 0
 	end
 	-- Flank / rear shock: one-shot per volley/cannonade/charge, sustained per second in melee.
@@ -213,6 +213,7 @@ function Morale.update(sim: SimLike, f: Formation)
 		cap += Config.Units.hq.influence.moraleBonus
 		rate += Config.Units.hq.influence.recoveryBonus
 	end
+	rate += f.mods.recovery -- generals' traits / abilities (Sim/Abilities)
 	if f.morale < cap then
 		f.morale = math.min(cap, f.morale + rate * DT)
 	end
@@ -232,6 +233,9 @@ function Morale.update(sim: SimLike, f: Formation)
 			f.state = if f.order and f.order.pos then "moving" else "idle"
 		end
 		return
+	end
+	if f.morale < M.RoutEnter and f.mods.noRout and f.strength >= f.startStrength * M.ShatterStrengthFraction then
+		f.morale = M.RoutEnter -- "Hold the line": they stand
 	end
 	if f.morale < M.RoutEnter then
 		startRout(sim, f, "morale collapsed")
