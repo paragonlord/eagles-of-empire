@@ -29,6 +29,7 @@ local Loading = require(script.Parent.UI.Loading)
 local DevPanel = require(script.Parent.UI.DevPanel)
 local CampaignScreen = require(script.Parent.UI.CampaignScreen)
 local BattleSelect = require(script.Parent.UI.BattleSelect)
+local Grand = require(script.Parent.Campaign)
 local Tutorial = require(script.Parent.Tutorial)
 
 local DEFAULT_MAP = "jena"
@@ -120,6 +121,7 @@ menuCallbacks = {
 		campaignWanted = true
 		Net.campaign("open")
 	end,
+	grand = Grand.request,
 	help = openHelp,
 	settings = openSettings,
 	tutorial = function()
@@ -146,6 +148,9 @@ local campaignCallbacks = {
 
 local function onCampaign(msg: any)
 	if type(msg) ~= "table" then
+		return
+	end
+	if Grand.handle(msg, BattleState.state == "menu" or BattleState.state == "results") then
 		return
 	end
 	if msg.kind == "error" then
@@ -198,6 +203,7 @@ local function teardown()
 	Figures.setPreview(nil)
 	closePanels()
 	CampaignScreen.hide()
+	Grand.close()
 end
 
 local gotServerState = false
@@ -262,7 +268,9 @@ local function onMatchState(msg: any)
 
 	if state == "menu" then
 		lastMenuArgs = { isCommander = BattleState.isCommander, campaignAvailable = msg.campaignAvailable == true }
-		if campaignWanted and BattleState.isCommander then
+		if Grand.wanted() and BattleState.isCommander then
+			Grand.request() -- back from a grand-campaign battle
+		elseif campaignWanted and BattleState.isCommander then
 			Net.campaign("return") -- back from a campaign battle: show the map again
 		else
 			campaignWanted = false
@@ -326,9 +334,14 @@ local function onMatchState(msg: any)
 			end,
 			menu = function()
 				campaignWanted = false
+				Grand.forget()
 				Net.control("quit")
 			end,
 			campaign = if inCampaign then function()
+				if Grand.wanted() then
+					Grand.request()
+					return
+				end
 				campaignWanted = true
 				Net.campaign("return")
 			end else nil,
@@ -351,6 +364,20 @@ end
 -- ------------------------------------------------------------------ wiring
 
 local function wire()
+	Grand.init({
+		shown = function()
+			Menu.hide()
+			Results.destroy()
+		end,
+		menu = function()
+			if BattleState.state == "menu" then
+				Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+				Camera.setEnabled(true)
+			else
+				Net.control("quit")
+			end
+		end,
+	})
 	table.insert(conns, Net.onMatchState:Connect(function(msg: any)
 		gotServerState = true
 		task.spawn(onMatchState, msg)

@@ -118,6 +118,10 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		campaignBtn = item("Campaign", cb.campaign, 2)
 		item("How to Command", cb.help, 3)
 		item("Settings", cb.settings, 4)
+		local grand = (cb :: any).grand
+		if grand then
+			item("Grand Campaign", grand, 5)
+		end
 		item("Tutorial", cb.tutorial, 5) -- the aide-de-camp's training ground (Tutorial.luau)
 		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
 		gui = sg
