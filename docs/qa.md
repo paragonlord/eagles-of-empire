@@ -339,6 +339,19 @@ title card (`moment-card.jpg`); the episode ends at 10:00 as a Draw with sane to
   France took Cospeda but not Closewitz in 10 minutes, so it never showed. Chronicle still writes
   "prussia captured Cospeda" in lowercase ids.
 
+**2026-10-18 round 10, build 9e6df9d.** Boots clean. Verified the round 9 fixes on the Landgrafenberg
+episode at ×4: the moment card now pauses the battle (clock held at 03:05.7 for the whole card,
+beacon "state=paused"), the band is dark and the title clean (`moment-card.jpg`); the chronicle
+lists "03:05 Closewitz is carried" and "04:00 The fog lifts" with "France"/"Prussia" names; olive
+fields read right at last (`menu-olive.jpg`). No EoE errors.
+- Open: during the deployment intro sweep the camera rises high enough to see past FogEnd (1700):
+  the far skirt is a flat cream slab ending in a hard edge against a bright cyan sky
+  (`horizon-edge.jpg`). Fog colour and sky do not meet; tint the sky to the fog colour, or cap the
+  sweep's height/pitch, or use an Atmosphere so the horizon blends.
+- Open: at the default deployment zoom the far-LOD plates are blank white tabs with no text or
+  colour (`far-banners.jpg`), so the line of battalions is a row of identical white flags; a
+  faction-colour fill or the unit's number would make them useful.
+
 ## Known failures
 
 None recorded yet.
