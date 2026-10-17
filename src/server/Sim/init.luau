@@ -13,13 +13,13 @@ local Scenarios = require(Shared.Scenarios)
 local Types = require(Shared.Types)
 
 local Formation = require(script.Formation)
+local Abilities = require(script.Abilities)
 local Nav = require(script.Nav)
 local Movement = require(script.Movement)
 local Combat = require(script.Combat)
 local Morale = require(script.Morale)
 local Visibility = require(script.Visibility)
 local Objectives = require(script.Objectives)
-local Abilities = require(script.Abilities)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
