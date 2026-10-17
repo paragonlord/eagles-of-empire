@@ -134,6 +134,7 @@ export type Snapshot = {
 	viewer: string,
 	removed: { number }?,
 	reinforcements: { { id: number, name: string, corps: string, eta: number } }?, -- own side, not yet arrived
+	weather: string?, -- key into Config.Weather
 }
 
 export type Results = {

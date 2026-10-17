@@ -27,6 +27,7 @@ export type SimLike = {
 	grid: Grid.Grid,
 	tick: number,
 	rng: any,
+	weather: string?,
 	formations: { [number]: Formation },
 	order: { number },
 	emit: (sim: any, ev: Types.Event) -> (),
@@ -195,6 +196,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	if uphill(sim, f.pos, target.pos) then
 		hit *= 1 + Config.Slope.UphillFireBonus
 	end
+	hit *= ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).accuracy
 	hit = math.min(C.MaxHitChance, hit)
 	local casualties = rollCasualties(sim, shooters * hit)
 	f.reload = musket.reload
@@ -215,7 +217,8 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	local rangeF = 1 - C.RangeFalloff * (dist / ammo.range)
 	local shapeF = (Config.Shapes :: any)[target.shape].artillery
 	local cover = Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover
-	local expected = guns * ammo.hit * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
+	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).cannon
+	local expected = guns * ammo.hit * weatherF * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
 	local casualties = rollCasualties(sim, expected)
 	f.reload = ammo.reload
 	f.ammo -= 1

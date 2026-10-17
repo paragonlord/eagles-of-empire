@@ -80,6 +80,7 @@ export type Sim = {
 	isVisibleTo: (Sim, string, number) -> boolean,
 	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
+	weather: string, -- key into Config.Weather, may change once at weatherUntil
 	aiStep: ((Sim) -> ())?, -- per-instance AI hook (preferred over the module-level Sim.aiStep)
 	-- methods
 	deploy: (Sim, number, Vec, number) -> (boolean, string?),
@@ -132,6 +133,7 @@ function Sim.new(opts: Options): Sim
 	self.difficulty = opts.difficulty or "normal"
 	self.simLag = 0
 	self.aiStep = nil
+	self.weather = if (Config.Weather :: any)[(opts.scenario :: any).weather] then (opts.scenario :: any).weather else "clear"
 	for i, def in opts.scenario.units do
 		local f = Formation.fromDef(i, def)
 		self.formations[i] = f
@@ -469,7 +471,13 @@ function Sim.step(self: Sim)
 	self.tick += 1
 	self.clock = self.tick * DT
 	local s: any = self
-	-- 0. reinforcements entering the field
+	-- 0. weather clearing, reinforcements entering the field
+	local until_ = (self.scenario :: any).weatherUntil
+	if self.weather ~= "clear" and type(until_) == "number" and self.clock >= until_ then
+		self.weather = "clear"
+		self:emit({ kind = "message", tick = self.tick, text = "The weather clears" })
+		self:log("Weather cleared")
+	end
 	for _, id in self.order do
 		local f = self.formations[id]
 		if f and f.state == "offmap" and f.arrivalTick and f.arrivalTick <= self.tick then
@@ -672,6 +680,7 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 		viewer = viewer,
 		removed = if #removed > 0 then removed else nil,
 		reinforcements = if #reinforcements > 0 then reinforcements else nil,
+		weather = self.weather,
 	}
 end
 

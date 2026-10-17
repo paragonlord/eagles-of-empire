@@ -31,6 +31,7 @@ export type SimLike = {
 	emit: (sim: any, ev: Types.Event) -> (),
 	homeEdge: (sim: any, faction: string) -> Vec,
 	findFormation: (sim: any, id: number) -> Formation?,
+	weather: string?,
 }
 
 local function terrainSpeed(f: Formation, grid: Grid.Grid): number
@@ -49,7 +50,8 @@ function Movement.currentSpeed(sim: SimLike, f: Formation, dir: Vec): number
 	local slope = Grid.slopeAlong(sim.grid, f.pos.x, f.pos.z, dir)
 	local slopeFactor = math.max(0.25, 1 - Config.Slope.UphillPenalty * math.max(0, slope) + Config.Slope.DownhillBonus * math.max(0, -slope))
 	local fatigue = Formation.fatigueFactor(f, Config.Combat.FatigueSpeedPenalty)
-	local speed = base * shapeFactor * terrainSpeed(f, sim.grid) * slopeFactor * fatigue
+	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).speed
+	local speed = base * shapeFactor * terrainSpeed(f, sim.grid) * slopeFactor * fatigue * weatherF
 	if f.state == "routing" then
 		speed = base * terrainSpeed(f, sim.grid) * slopeFactor * Config.Morale.RoutSpeedFactor
 	end

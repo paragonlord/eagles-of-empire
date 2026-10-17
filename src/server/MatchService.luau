@@ -83,6 +83,10 @@ local function matchStatePayload(player: Player)
 				factions = m.scenario.factions,
 				factionNames = m.scenario.factionNames,
 				timeLimit = m.sim.timeLimit,
+				date = (m.scenario :: any).date,
+				summary = (m.scenario :: any).summary,
+				weather = m.sim.weather,
+				difficultyNote = (m.scenario :: any).difficultyNote,
 			}
 			else nil,
 		viewerFaction = playerFaction(m),

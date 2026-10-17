@@ -392,3 +392,29 @@ test("Reinforcements stay off the map until their arrival time and never count a
 	end
 	assertTrue(seen, "visible after arrival")
 end)
+
+test("Weather: fog shortens spotting and clears at weatherUntil; mud slows the march", function()
+	local function make(weather, untilS)
+		local sc = scenario({ unit("france", "infantry", "F", 500, 300, math.pi / 2), unit("prussia", "infantry", "P", 440, 440, -math.pi / 2), FAR_ENEMY, FAR_FRIEND })
+		sc.weather = weather
+		sc.weatherUntil = untilS
+		local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+		sim:start()
+		return sim
+	end
+	local foggy = make("fog", 10)
+	run(foggy, 1)
+	assertTrue(not foggy.views.france.visible[2], "150 studs away is hidden in fog (spot 260 × 0.45 = 117)")
+	run(foggy, 10)
+	assertEq(foggy.weather, "clear")
+	run(foggy, 1)
+	assertTrue(foggy.views.france.visible[2], "seen once the fog lifts")
+	local clear = make("clear", nil)
+	local mud = make("mud", nil)
+	for _, sim in { clear, mud } do
+		sim.formations[1].fireAtWill = false
+		sim:queueCommand({ matchId = "m", requestId = "mv", kind = "Move", ids = { 1 }, data = { pos = { x = 500, z = 100 } } }, "france")
+		run(sim, 20)
+	end
+	assertTrue(clear.formations[1].pos.z < mud.formations[1].pos.z - 5, "mud is slower")
+end)

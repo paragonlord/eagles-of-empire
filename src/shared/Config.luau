@@ -201,6 +201,17 @@ Config.Objectives = {
 	EligibleClasses = { infantry = true, cavalry = true },
 }
 
+-- Weather / ground state per scenario (`scenario.weather`, optional `scenario.weatherUntil` seconds
+-- after which it clears). Multipliers on musket accuracy, artillery hit chance, movement speed and
+-- spotting distance.
+Config.Weather = {
+	clear = { accuracy = 1.0, cannon = 1.0, speed = 1.0, spot = 1.0, label = "Clear" },
+	rain = { accuracy = 0.6, cannon = 0.85, speed = 0.9, spot = 0.8, label = "Rain" },
+	mud = { accuracy = 0.9, cannon = 0.7, speed = 0.8, spot = 1.0, label = "Sodden ground" },
+	fog = { accuracy = 0.9, cannon = 0.8, speed = 1.0, spot = 0.45, label = "Fog" },
+	snow = { accuracy = 0.85, cannon = 0.9, speed = 0.8, spot = 0.7, label = "Snow" },
+}
+
 Config.Victory = {
 	CollapseFraction = 0.7, -- fraction of formations routing/shattered/destroyed/exited
 	CollapseStrengthFraction = 0.35,

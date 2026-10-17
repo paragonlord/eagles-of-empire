@@ -27,6 +27,7 @@ export type SimLike = {
 	order: { number },
 	factions: { string },
 	views: { [string]: FactionView },
+	weather: string?,
 }
 
 local Visibility = {}
@@ -36,7 +37,7 @@ function Visibility.newView(): FactionView
 end
 
 local function canSee(sim: SimLike, observer: Formation, target: Formation): boolean
-	local spot = Formation.unitConfig(observer).spot
+	local spot = Formation.unitConfig(observer).spot * ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).spot
 	local d = Vec.dist(observer.pos, target.pos)
 	if target.inWoods then
 		spot = math.min(spot, Config.Vision.WoodsReveal)
