@@ -18,6 +18,7 @@ local Figures = require(script.Parent.Figures)
 local Effects = require(script.Parent.Effects)
 local Terrain = require(script.Parent.World.Terrain)
 local Props = require(script.Parent.World.Props)
+local WorldLighting = require(script.Parent.World.Lighting)
 local Menu = require(script.Parent.UI.Menu)
 local HUD = require(script.Parent.UI.HUD)
 local Deployment = require(script.Parent.UI.Deployment)
@@ -393,6 +394,7 @@ local function wire()
 	table.insert(conns, Settings.changed:Connect(function(key: string)
 		if key == "quality" then
 			Effects.applySettings()
+			WorldLighting.apply(Settings.get().quality)
 			local id = builtMapId
 			if id then
 				task.spawn(function()
@@ -407,23 +409,8 @@ end
 
 -- ------------------------------------------------------------------ boot
 
--- Low sun from the south-east so north- and west-facing slopes fall into shadow (reference
--- relief). Roblox's sun azimuth follows ClockTime/GeographicLatitude; verify in Studio.
-do
-	local lighting = game:GetService("Lighting") :: Lighting
-	lighting.ClockTime = 8.4
-	lighting.GeographicLatitude = 48
-	lighting.Brightness = 2.6
-	lighting.ShadowSoftness = 0.15
-	lighting.EnvironmentDiffuseScale = 0.45
-	lighting.Ambient = Color3.fromRGB(96, 92, 80)
-	lighting.OutdoorAmbient = Color3.fromRGB(118, 112, 96)
-	-- distance fog in the sky's tone hides the horizon beyond the map edge
-	lighting.FogColor = Color3.fromRGB(196, 190, 170)
-	lighting.FogStart = 1400
-	lighting.FogEnd = 3200
-end
-
+-- Morning light, haze and post effects (World/Lighting); re-applied when quality changes.
+WorldLighting.apply(Settings.get().quality)
 
 Audio.init()
 Camera.init()
