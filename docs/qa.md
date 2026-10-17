@@ -113,6 +113,15 @@ each round): `deploy.jpg` (end of the intro sweep), `hud.jpg` (battle start, ×4
 - Incident: builds 0871170 to 67ad183 did not boot. `Kit.luau:27: Expected identifier when
   parsing method name, got '{'` (a type annotation on `Kit.MORALE`). Fixed in 243f5f8. A parse
   check before each push (`tools/check.sh`) would catch this class.
+- New battles, build 9260d37: Auerstedt, Austerlitz and Waterloo each load to deployment with no
+  errors (`auerstedt.jpg`, `austerlitz.jpg`, `waterloo.jpg`; started via the Control remote).
+  Same haze, road and village notes as Jena, plus: the Austerlitz field reads flat, so the
+  Pratzen plateau the briefing is about does not show; Waterloo's Brussels road is a wide white
+  stripe through the middle of the field and through La Belle Alliance and Rossomme; Waterloo
+  villages are a few tall narrow dark blocks that read as chimneys, not houses; the deployment
+  briefing appears a second or two before the terrain finishes drawing (a patch of void shows).
+- Fixed: the beacon ran off the right edge (only "E" visible). `AnchorPoint` was set to (1, 0) and
+  then reset to (0, 0) two lines later; the second line is gone.
 
 ## Known failures
 

@@ -11656,7 +11656,7 @@ end
 
 local gotServerState = false
 
--- Diagnostic beacon (bottom-left, F10 toggles; shown by default only in Studio).
+-- Diagnostic beacon (top-right under the top bar, F10 toggles; shown by default only in Studio).
 local beacon: TextLabel? = nil
 local beaconGui: ScreenGui? = nil
 local function diag(text: string)
@@ -11674,7 +11674,6 @@ local function diag(text: string)
 		l.Position = UDim2.new(1, -8, 0, 90)
 		l.Size = UDim2.fromOffset(0, 18)
 		l.AutomaticSize = Enum.AutomaticSize.X
-		l.AnchorPoint = Vector2.new(0, 0)
 		l.BackgroundTransparency = 0.4
 		l.BackgroundColor3 = Color3.new(0, 0, 0)
 		l.TextColor3 = Color3.new(1, 1, 1)
