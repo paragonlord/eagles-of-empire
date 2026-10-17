@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Meta name="ExplicitAutoJoints">true</Meta><External>null</External><External>nil</External><Item class="ReplicatedStorage" referent="RBX00000013"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX00000012"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000001"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignData</string><ProtectedString name="Source"><![CDATA[--!strict
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Meta name="ExplicitAutoJoints">true</Meta><External>null</External><External>nil</External><Item class="ReplicatedStorage" referent="RBX00000014"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX00000013"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000001"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignData</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Authored campaign map: Thuringia / Saxony, October 1806 (inspired by the Jena campaign; names
 -- are real towns, borders and numbers are balance choices). Region `pos` is on a 0..1000 client
 -- map (x east, z south). `terrain` names the tactical map variant used when a battle happens there.
@@ -2092,6 +2092,47 @@ MAPS.tutorial = {
 	valley = nil,
 }
 
+-- Episode maps (quick battles, Scenarios `mode = "episode"`): the same ground as a full battle
+-- (same features and seed, so an identical grid) with their own deployment zones and objectives.
+-- Home edges are north/south (Sim.homeEdge): each side's zone centre stays on its own half.
+local function episode(base: string, objectives: { Objective }, zones: { [string]: Rect }): MapDef
+	local d = table.clone(MAPS[base])
+	d.objectives = objectives
+	d.deployZones = zones
+	return d
+end
+
+MAPS.austerlitz_pratzen = episode("austerlitz", {
+	{ id = "pratzen", name = "Pratzen Heights", pos = v(1450, 900), radius = 70 },
+	{ id = "vinohrady", name = "Staré Vinohrady", pos = v(1480, 1250), radius = 60 },
+}, { france = { x0 = 800, z0 = 560, x1 = 1120, z1 = 1000 }, russia = { x0 = 1360, z0 = 900, x1 = 1950, z1 = 1400 } })
+MAPS.austerlitz_sokolnitz = episode("austerlitz", {
+	{ id = "sokolnitz", name = "Sokolnitz", pos = v(870, 450), radius = 60 },
+	{ id = "telnitz", name = "Telnitz", pos = v(940, 170), radius = 60 },
+}, { france = { x0 = 480, z0 = 120, x1 = 960, z1 = 600 }, russia = { x0 = 1040, z0 = 700, x1 = 1560, z1 = 1100 } })
+MAPS.jena_vierzehnheiligen = episode("jena", {
+	{ id = "vierzehnheiligen", name = "Vierzehnheiligen", pos = v(760, 760), radius = 60 },
+}, { france = { x0 = 450, z0 = 420, x1 = 1120, z1 = 640 }, prussia = { x0 = 400, z0 = 830, x1 = 1150, z1 = 920 } })
+MAPS.jena_landgrafenberg = episode("jena", {
+	{ id = "closewitz", name = "Closewitz", pos = v(1000, 520), radius = 60 },
+	{ id = "cospeda", name = "Cospeda", pos = v(540, 470), radius = 60 },
+}, { france = { x0 = 550, z0 = 100, x1 = 1200, z1 = 360 }, prussia = { x0 = 420, z0 = 440, x1 = 1280, z1 = 800 } })
+MAPS.auerstedt_hassenhausen = episode("auerstedt", {
+	{ id = "hassenhausen", name = "Hassenhausen", pos = v(1150, 700), radius = 60 },
+	{ id = "lissbach", name = "Lissbach bridge", pos = v(750, 760), radius = 60 },
+}, { france = { x0 = 950, z0 = 480, x1 = 1420, z1 = 920 }, prussia = { x0 = 260, z0 = 420, x1 = 920, z1 = 1150 } })
+MAPS.auerstedt_spielberg = episode("auerstedt", {
+	{ id = "spielberg", name = "Spielberg", pos = v(1280, 1130), radius = 60 },
+	{ id = "poppel", name = "Poppel", pos = v(690, 1060), radius = 60 },
+}, { france = { x0 = 1250, z0 = 500, x1 = 1700, z1 = 980 }, prussia = { x0 = 260, z0 = 880, x1 = 660, z1 = 1380 } })
+MAPS.waterloo_hougoumont = episode("waterloo", {
+	{ id = "hougoumont", name = "Hougoumont", pos = v(760, 790), radius = 60 },
+}, { france = { x0 = 420, z0 = 360, x1 = 1120, z1 = 600 }, britain = { x0 = 560, z0 = 730, x1 = 1060, z1 = 1160 } })
+MAPS.waterloo_lahayesainte = episode("waterloo", {
+	{ id = "lahayesainte", name = "La Haye Sainte", pos = v(1200, 920), radius = 60 },
+	{ id = "crossroads", name = "Mont-Saint-Jean crossroads", pos = v(1200, 1060), radius = 60 },
+}, { france = { x0 = 880, z0 = 400, x1 = 1520, z1 = 640 }, britain = { x0 = 940, z0 = 880, x1 = 1500, z1 = 1260 } })
+
 function MapGen.list(): { string }
 	return { "jena", "auerstedt", "austerlitz", "waterloo", "bridge", "village" }
 end
@@ -2396,7 +2437,82 @@ function MapGen.inZone(map: MapData, faction: string, p: Vec): boolean
 end
 
 return MapGen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000007"><Properties><bool name="Disabled">false</bool><string name="Name">Protocol</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000007"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Historical moments: scripted, condition-driven beats of a battle (docs/vision.md pillar 3).
+-- Data lives on each scenario (`Scenarios.<id>.moments`); the server evaluates them in
+-- src/server/Sim/Moments.luau and the client presents them in src/client/Cinematic.luau.
+--
+-- A Selector picks formations. Every field given must match: faction exactly, class exactly,
+-- name and corps as plain substrings (no Lua patterns). Conditions are tables whose keys are all
+-- required (AND); `any` gives OR, `all` groups. Effects are deliberately small: morale changes are
+-- clamped to +/- MoraleLimit, a release brings named off-map formations on now, weather sets the
+-- sky (a scenario's weatherUntil still clears it once passed).
+
+local Moments = {}
+
+export type Selector = {
+	faction: string?,
+	name: string?, -- plain substring of the formation name
+	corps: string?, -- plain substring of the corps label
+	class: string?,
+	-- condition/effect extras
+	fraction: number?, -- strengthBelow: current / starting strength of the selection
+	objective: string?, -- formationNear: objective id to measure from
+	pos: { x: number, z: number }?, -- formationNear: point to measure from (instead of objective)
+	radius: number?, -- formationNear
+	amount: number?, -- morale effect, clamped to +/- MoraleLimit
+}
+
+export type Condition = {
+	time: number?, -- sim seconds >= time
+	before: number?, -- sim seconds < before
+	weatherCleared: boolean?, -- current weather is (true) / is not (false) clear
+	objectiveTaken: { id: string, by: string, seconds: number? }?, -- owned by `by` (for `seconds`)
+	formationRouted: Selector?, -- any selected formation routing, shattered or destroyed
+	strengthBelow: Selector?, -- selected strength below `fraction` of its start
+	formationNear: Selector?, -- any selected formation, on the field and not routing, within radius
+	all: { Condition }?,
+	any: { Condition }?,
+}
+
+export type Effect = {
+	morale: { Selector }?, -- each selector with `amount`
+	release: string?, -- substring of off-map formation names to bring on now
+	weather: string?, -- key into Config.Weather
+}
+
+export type Moment = {
+	id: string,
+	title: string,
+	text: string,
+	when: Condition,
+	camera: { x: number, z: number, height: number? }?,
+	effect: Effect?,
+	faction: string?, -- only this faction is told (when the text would be wrong for the other)
+}
+
+Moments.MoraleLimit = 15
+Moments.EveryTicks = 10
+
+-- Works on UnitDefs and Formations alike (both carry faction, name, corps, class).
+function Moments.matches(sel: Selector, f: { faction: string, name: string, corps: string, class: string }): boolean
+	if sel.faction and f.faction ~= sel.faction then
+		return false
+	end
+	if sel.class and f.class ~= sel.class then
+		return false
+	end
+	if sel.name and not string.find(f.name, sel.name, 1, true) then
+		return false
+	end
+	if sel.corps and not string.find(f.corps, sel.corps, 1, true) then
+		return false
+	end
+	return true
+end
+
+return Moments
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000008"><Properties><bool name="Disabled">false</bool><string name="Name">Protocol</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client ↔ server protocol: remote names, command kinds, limits and the pure validator.
 -- The server is the only authority; the client may run the same validator for early feedback.
 
@@ -2698,7 +2814,7 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 end
 
 return Protocol
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000008"><Properties><bool name="Disabled">false</bool><string name="Name">RNG</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><bool name="Disabled">false</bool><string name="Name">RNG</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deterministic xorshift32 RNG with a serializable integer state. All simulation randomness
 -- goes through one instance owned by the sim; cosmetic randomness uses separate instances.
 
@@ -2771,13 +2887,14 @@ function RNG.hash(a: number, b: number, c: number): number
 end
 
 return RNG
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><bool name="Disabled">false</bool><string name="Name">Scenarios</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><bool name="Disabled">false</bool><string name="Name">Scenarios</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Orders of battle. Condensed and partly representative: regiment names are drawn from
 -- formations present at each battle where known (docs/battles.md says which names are attested
 -- and which are representative), strengths are balance choices (docs/rules.md), not returns.
 -- Positions are initial deployment inside the zones; `arrival` units start off the map.
 
 local Vec = require(script.Parent.Vec)
+local Moments = require(script.Parent.Moments)
 
 type Vec = Vec.Vec
 
@@ -2812,9 +2929,13 @@ export type Scenario = {
 	difficultyNote: string?, -- e.g. "Hard: you are outnumbered 2:1"
 	weather: string?, -- key into Config.Weather; nil = clear
 	weatherUntil: number?, -- sim seconds after which the weather clears
+	moments: { Moments.Moment }?, -- historical moments (src/shared/Moments.luau)
+	mode: ("full" | "episode")?, -- listed battles: the whole field, or a quick-battle slice of it
+	parent: string?, -- episodes: id of the full battle they are cut from
 }
 
-export type ListEntry = { id: string, name: string, date: string?, map: string, factionNames: { [string]: string }, summary: string?, difficultyNote: string? }
+-- mode: "full" | "episode"; parent: the full battle's id for episodes (nil for full battles).
+export type ListEntry = { id: string, name: string, date: string?, map: string, factionNames: { [string]: string }, summary: string?, difficultyNote: string?, mode: string, parent: string?, timeLimit: number? }
 
 local NORTH = math.pi / 2
 local SOUTH = -math.pi / 2
@@ -2909,6 +3030,34 @@ Scenarios.jena = {
 	difficultyNote = "Even: the opening battle. Equal numbers, the French hold the high ground.",
 	weather = "fog",
 	weatherUntil = 300,
+	mode = "full",
+	moments = {
+		{
+			id = "jena_fog",
+			title = "The fog lifts",
+			text = "The mist tears open over the Landgrafenberg. Hohenlohe sees at last how many French stand on the plateau above Jena.",
+			when = { weatherCleared = true },
+			camera = { x = 800, z = 330 },
+			effect = { morale = { { faction = "france", amount = 6 } } },
+		},
+		{
+			id = "jena_ney",
+			title = "Ney goes in alone",
+			text = "Marshal Ney has flung his advance guard at Vierzehnheiligen without orders and is out on his own. The Emperor sends Lannes to his aid.",
+			when = { before = 600, formationNear = { faction = "france", corps = "VI Corps", objective = "vierzehnheiligen", radius = 150 } },
+			camera = { x = 760, z = 700 },
+			effect = { morale = { { faction = "france", corps = "VI Corps", amount = -6 } } },
+			faction = "france",
+		},
+		{
+			id = "jena_vierzehnheiligen",
+			title = "Vierzehnheiligen is taken",
+			text = "Vierzehnheiligen burns, and it is French. Grawert's battalions stand in the open before it, volleying by numbers as on parade, and are shot to pieces.",
+			when = { objectiveTaken = { id = "vierzehnheiligen", by = "france" } },
+			camera = { x = 760, z = 760 },
+			effect = { morale = { { faction = "prussia", amount = -8 } } },
+		},
+	},
 } :: Scenario
 
 for _, d in JENA_FRENCH do
@@ -2993,6 +3142,30 @@ Scenarios.auerstedt = {
 	difficultyNote = "Hard: you are outnumbered 2:1, but your men are veterans and the enemy arrives in pieces.",
 	weather = "fog",
 	weatherUntil = 240,
+	mode = "full",
+	moments = {
+		{
+			id = "auerstedt_hassenhausen",
+			title = "Davout holds Hassenhausen",
+			text = "Hassenhausen is still French. Gudin's division has held the village against half the Prussian army, and the whole corps stands in line at last.",
+			when = { time = 600, objectiveTaken = { id = "hassenhausen", by = "france", seconds = 300 } },
+			camera = { x = 1150, z = 700 },
+			effect = { morale = { { faction = "france", amount = 8 } } },
+		},
+		{
+			id = "auerstedt_brunswick",
+			title = "Brunswick is struck down",
+			text = "The Duke of Brunswick is shot through the eyes while leading his grenadiers forward. He will not live, and the Prussian command falls into confusion.",
+			when = {
+				any = {
+					{ strengthBelow = { faction = "prussia", name = "Brunswick", fraction = 0.95 } },
+					{ strengthBelow = { faction = "prussia", fraction = 0.85 } },
+					{ time = 480, formationNear = { faction = "prussia", class = "infantry", objective = "hassenhausen", radius = 250 } },
+				},
+			},
+			effect = { morale = { { faction = "prussia", amount = -10 } } },
+		},
+	},
 } :: Scenario
 for _, d in AUERSTEDT_FRENCH do
 	table.insert(Scenarios.auerstedt.units, d)
@@ -3081,6 +3254,8 @@ local AUSTERLITZ_ALLIED = {
 	u("russia", "Garde · Grossfürst Konstantin", "infantry", "Semenovsky Guards", 700, 3, 1750, 1050, WEST),
 	u("russia", "Garde · Grossfürst Konstantin", "cavalry", "Chevalier Guards", 400, 3, 1850, 1100, WEST),
 	u("russia", "Garde · Grossfürst Konstantin", "artillery", "Guard Battery", 120, 2, 1700, 1200, WEST),
+	-- Held back: enters only through the "The Russian Guard" moment (arrival is past the time limit).
+	u("russia", "Garde · Grossfürst Konstantin", "cavalry", "Life Guard Horse Regiment", 400, 3, 1950, 1150, WEST, { arrival = { seconds = 3600, pos = { x = 1950, z = 1150 } } }),
 }
 
 Scenarios.austerlitz = {
@@ -3098,6 +3273,33 @@ Scenarios.austerlitz = {
 	difficultyNote = "Hard: outnumbered and fog-bound; the plateau is the battle.",
 	weather = "fog",
 	weatherUntil = 480,
+	mode = "full",
+	moments = {
+		{
+			id = "austerlitz_sun",
+			title = "The Sun of Austerlitz",
+			text = "The fog burns off and the sun rises over the Pratzen. The allied columns are marching down off the heights, just as the Emperor foretold.",
+			when = { weatherCleared = true },
+			camera = { x = 1450, z = 900 },
+			effect = { morale = { { faction = "france", amount = 8 } } },
+		},
+		{
+			id = "austerlitz_pratzen",
+			title = "Soult on the Pratzen",
+			text = "Saint-Hilaire and Vandamme have the plateau. 'Twenty minutes, Sire,' Soult had promised, and the allied centre is cut in two.",
+			when = { objectiveTaken = { id = "pratzen", by = "france" } },
+			camera = { x = 1450, z = 900 },
+			effect = { morale = { { faction = "russia", corps = "4. Kolonne", amount = -10 }, { faction = "russia", corps = "3. Kolonne", amount = -6 } } },
+		},
+		{
+			id = "austerlitz_guard",
+			title = "The Russian Guard",
+			text = "Grand Duke Constantine throws the Guard at the heights. The Life Guard Horse comes on at the gallop from Krzenowitz.",
+			when = { time = 900, objectiveTaken = { id = "pratzen", by = "france", seconds = 120 } },
+			camera = { x = 1750, z = 1150 },
+			effect = { release = "Life Guard Horse Regiment" },
+		},
+	},
 } :: Scenario
 for _, d in AUSTERLITZ_FRENCH do
 	table.insert(Scenarios.austerlitz.units, d)
@@ -3199,6 +3401,32 @@ Scenarios.waterloo = {
 	summary = "Napoleon delayed his attack for the ground to dry, then spent the day on frontal assaults: Reille was drawn into Hougoumont, d'Erlon's columns were broken by Picton and the Union Brigade, Ney's cavalry charged the allied squares unsupported, and La Haye Sainte fell only in the evening. Bülow's Prussians took Plancenoit, Zieten joined Wellington's left, and the repulse of the Imperial Guard at dusk turned the French retreat into a rout. The French lost around 25,000 killed and wounded and the war; Napoleon abdicated four days later.",
 	difficultyNote = "Very hard: a strong defensive position, mud, and Prussian reinforcements against you from minute 12.",
 	weather = "mud",
+	mode = "full",
+	moments = {
+		{
+			id = "waterloo_hougoumont",
+			title = "Hougoumont ablaze",
+			text = "French howitzers have set Hougoumont alight. The château and the great barn burn over the wounded, and still the Guards hold the walls.",
+			when = { time = 600, formationNear = { faction = "france", objective = "hougoumont", radius = 180 } },
+			camera = { x = 760, z = 790 },
+			effect = { morale = { { faction = "britain", corps = "Byng", amount = -5 } } },
+		},
+		{
+			id = "waterloo_prussians",
+			title = "The Prussians at Plancenoit",
+			text = "Dark columns are coming out of the Bois de Paris: Bülow's Prussians are on the field, marching on Plancenoit and the French rear.",
+			when = { formationNear = { faction = "britain", corps = "Bülow", pos = { x = 2200, z = 340 }, radius = 400 } },
+			camera = { x = 2100, z = 350 },
+			effect = { morale = { { faction = "france", amount = -4 } } },
+		},
+		{
+			id = "waterloo_garde",
+			title = "La Garde recule !",
+			text = "The Guard is falling back! The cry runs down the French line, and an army that has fought all day begins to come apart.",
+			when = { formationRouted = { faction = "france", corps = "Garde Impériale", class = "infantry" } },
+			effect = { morale = { { faction = "france", amount = -12 } } },
+		},
+	},
 } :: Scenario
 for _, d in WATERLOO_FRENCH do
 	table.insert(Scenarios.waterloo.units, d)
@@ -3206,6 +3434,440 @@ end
 for _, d in WATERLOO_ALLIED do
 	table.insert(Scenarios.waterloo.units, d)
 end
+
+-- ---------------------------------------------------------------------------------------------
+-- Episodes: quick battles (10 min) cut from the four battles. Same ground as the parent battle
+-- (map ids `<battle>_<episode>` in MapGen share its features and seed) with their own zones and
+-- objectives. docs/battles.md has the history and the name legend for each.
+-- ---------------------------------------------------------------------------------------------
+local EPISODE_MINUTES = 10
+
+local function episode(s: Scenario): Scenario
+	s.timeLimit = EPISODE_MINUTES * 60
+	s.mode = "episode"
+	(Scenarios :: any)[s.id] = s
+	return s
+end
+
+episode({
+	id = "jena_landgrafenberg",
+	parent = "jena",
+	name = "Lannes on the Landgrafenberg",
+	map = "jena_landgrafenberg",
+	date = "14 October 1806, dawn",
+	year = 1806,
+	briefing = "Six in the morning, 14 October 1806. Lannes' V Corps has spent the night packed on the Landgrafenberg and now goes down into a fog so thick that battalions lose each other. Tauentzien's advance guard holds Closewitz and Cospeda below. Clear both villages to give the army room to deploy. The fog will lift in about four minutes; you have ten.",
+	factions = { player = "france", enemy = "prussia" },
+	factionNames = { france = "France", prussia = "Prussia" },
+	summary = "Suchet's and Gazan's divisions came down off the plateau in the fog, took Closewitz and Cospeda and threw Tauentzien's advance guard back towards the Dornberg and Vierzehnheiligen, opening the ground on which Napoleon deployed the rest of the army that morning.",
+	difficultyNote = "Even: equal numbers in the fog; the villages are the cover.",
+	weather = "fog",
+	weatherUntil = 240,
+	units = {
+		u("france", "HQ", "hq", "Lannes — V Corps HQ", 40, 3, 820, 170, NORTH, { commander = true }),
+		u("france", "V Corps · Lannes / Suchet", "infantry", "17e Légère", 600, 2, 700, 330, NORTH),
+		u("france", "V Corps · Lannes / Suchet", "infantry", "34e de Ligne", 600, 1, 800, 330, NORTH),
+		u("france", "V Corps · Lannes / Suchet", "infantry", "40e de Ligne", 600, 1, 900, 330, NORTH),
+		u("france", "V Corps · Lannes / Suchet", "infantry", "64e de Ligne", 600, 1, 1000, 320, NORTH),
+		u("france", "V Corps · Lannes / Suchet", "infantry", "88e de Ligne", 600, 1, 1100, 300, NORTH),
+		u("france", "V Corps · Lannes / Gazan", "infantry", "21e Légère", 600, 2, 620, 300, NORTH),
+		u("france", "V Corps · Lannes", "artillery", "Batterie 5e Corps", 120, 1, 860, 250, NORTH),
+		u("prussia", "HQ", "hq", "Tauentzien — Avantgarde HQ", 40, 2, 800, 680, SOUTH, { commander = true }),
+		u("prussia", "Avantgarde · Tauentzien", "infantry", "Füsilier-Bataillon Pelet", 600, 1, 1000, 560, SOUTH),
+		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 20 Prinz Louis Ferdinand", 600, 1, 890, 530, SOUTH),
+		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 38 Pelchrzim", 600, 1, 560, 500, SOUTH),
+		u("prussia", "Avantgarde · Tauentzien", "artillery", "Batterie Tauentzien", 120, 1, 760, 580, SOUTH),
+		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Rechten (Sachsen)", 600, 0, 660, 620, SOUTH, { colour = "Saxony" }),
+		u("prussia", "Avantgarde · Tauentzien", "cavalry", "Dragoner-Regiment Prinz Johann (Sachsen)", 400, 1, 1100, 640, SOUTH, { colour = "Saxony" }),
+		u("prussia", "Detachement Holtzendorff", "infantry", "IR Nr. 51 Kauffberg", 600, 1, 1220, 600, SOUTH),
+	},
+	moments = {
+		{
+			id = "landgrafenberg_fog",
+			title = "The fog lifts",
+			text = "The mist tears open over the Landgrafenberg. Tauentzien sees for the first time how many French are on the slope above him.",
+			when = { weatherCleared = true },
+			camera = { x = 800, z = 380 },
+			effect = { morale = { { faction = "france", amount = 6 } } },
+		},
+		{
+			id = "landgrafenberg_closewitz",
+			title = "Closewitz is carried",
+			text = "Suchet's skirmishers clear Closewitz and the wood beyond it. Tauentzien's battalions fall back towards the Dornberg.",
+			when = { objectiveTaken = { id = "closewitz", by = "france" } },
+			camera = { x = 1000, z = 520 },
+			effect = { morale = { { faction = "prussia", corps = "Tauentzien", amount = -8 } } },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "jena_vierzehnheiligen",
+	parent = "jena",
+	name = "The fight for Vierzehnheiligen",
+	map = "jena_vierzehnheiligen",
+	date = "14 October 1806, late morning",
+	year = 1806,
+	briefing = "Late morning, 14 October 1806. The fog is gone. Marshal Ney has pushed his advance guard far ahead of the army towards Vierzehnheiligen, with Lannes' men on his flanks. Grawert's division is forming its line beyond the village, with cavalry on both wings. Take Vierzehnheiligen and hold it until the Prussian line breaks. Ten minutes.",
+	factions = { player = "france", enemy = "prussia" },
+	factionNames = { france = "France", prussia = "Prussia" },
+	summary = "Ney's premature attack took Vierzehnheiligen and was nearly cut off until Lannes and Napoleon came to his aid. Grawert's Prussians then stood for two hours in the open before the burning village, firing volleys at skirmishers they could not see, and broke when the French reserves came up.",
+	difficultyNote = "Even: the village is the battle; whoever holds it has the cover.",
+	units = {
+		u("france", "HQ", "hq", "Ney — VI Corps HQ", 40, 3, 760, 440, NORTH, { commander = true }),
+		u("france", "VI Corps · Ney / Marchand", "infantry", "6e Légère", 600, 1, 700, 600, NORTH),
+		u("france", "VI Corps · Ney / Marchand", "infantry", "39e de Ligne", 600, 1, 820, 600, NORTH),
+		u("france", "VI Corps · Ney / Marchand", "infantry", "69e de Ligne", 600, 1, 760, 530, NORTH),
+		u("france", "VI Corps · Ney", "artillery", "Batterie 6e Corps", 120, 1, 860, 500, NORTH),
+		u("france", "VI Corps · Ney / Colbert", "cavalry", "10e Chasseurs à cheval", 400, 1, 1050, 600, NORTH),
+		u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 580, 560, NORTH),
+		u("france", "V Corps · Lannes", "infantry", "40e de Ligne", 600, 1, 960, 600, NORTH),
+		u("france", "V Corps · Lannes", "artillery", "Batterie 5e Corps", 120, 1, 640, 480, NORTH),
+		u("prussia", "HQ", "hq", "Grawert — Division HQ", 40, 2, 900, 890, SOUTH, { commander = true }),
+		u("prussia", "Division Grawert", "infantry", "IR Nr. 29 Treuenfels", 600, 2, 600, 850, SOUTH),
+		u("prussia", "Division Grawert", "infantry", "IR Nr. 49 Müffling", 600, 1, 700, 850, SOUTH),
+		u("prussia", "Division Grawert", "infantry", "Grenadier-Bataillon Hahn", 600, 2, 820, 850, SOUTH),
+		u("prussia", "Division Grawert", "artillery", "Batterie Grawert", 120, 1, 760, 900, SOUTH),
+		u("prussia", "Kavallerie · Prinz Wilhelm", "cavalry", "Kürassier-Regiment Henckel", 400, 2, 1000, 860, SOUTH),
+		u("prussia", "Kavallerie · Prinz Wilhelm", "cavalry", "Husaren-Regiment Gettkandt", 400, 1, 1090, 880, SOUTH),
+		u("prussia", "Sächsisches Korps · Zezschwitz", "infantry", "IR Prinz Clemens (Sachsen)", 600, 1, 470, 870, SOUTH, { colour = "Saxony" }),
+	},
+	moments = {
+		{
+			id = "vierzehnheiligen_rescue",
+			title = "Lannes to the rescue",
+			text = "Ney's battalions are being shot down before the village, too far ahead of the army. The Emperor sends Lannes in on either side of them.",
+			when = { strengthBelow = { faction = "france", corps = "VI Corps", fraction = 0.8 } },
+			camera = { x = 760, z = 680 },
+			effect = { morale = { { faction = "france", corps = "VI Corps", amount = 6 } } },
+			faction = "france",
+		},
+		{
+			id = "vierzehnheiligen_taken",
+			title = "Vierzehnheiligen is taken",
+			text = "Vierzehnheiligen burns, and it is French. Grawert's battalions stand in the open before it, volleying by numbers as on parade, and are shot to pieces.",
+			when = { objectiveTaken = { id = "vierzehnheiligen", by = "france" } },
+			camera = { x = 760, z = 760 },
+			effect = { morale = { { faction = "prussia", amount = -8 } } },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "auerstedt_hassenhausen",
+	parent = "auerstedt",
+	name = "Gudin at Hassenhausen",
+	map = "auerstedt_hassenhausen",
+	date = "14 October 1806, morning",
+	year = 1806,
+	briefing = "Morning, 14 October 1806, in fog. Gudin's division has just reached Hassenhausen and run into the head of the whole Prussian army: Schmettau's infantry is already over the Lissbach, with Blücher's cavalry on its flank. Friant is coming up on your right. Hold Hassenhausen, then throw the Prussians back over the Lissbach bridge. Form squares when the horsemen come. Ten minutes.",
+	factions = { player = "france", enemy = "prussia" },
+	factionNames = { france = "France", prussia = "Prussia" },
+	summary = "Gudin's division held Hassenhausen alone for the first hours of Auerstedt. Blücher's cavalry broke on its squares in the fog and Schmettau's division was fought to a standstill in front of the village. Brunswick, leading the grenadiers forward, was mortally wounded, and Friant's arrival on the right saved the position.",
+	difficultyNote = "Hard: one division against the head of an army; the squares must hold.",
+	weather = "fog",
+	weatherUntil = 180,
+	units = {
+		u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 700, WEST, { commander = true }),
+		u("france", "Division Gudin", "infantry", "25e de Ligne", 600, 2, 1080, 640, WEST),
+		u("france", "Division Gudin", "infantry", "85e de Ligne", 600, 2, 1080, 760, WEST),
+		u("france", "Division Gudin", "infantry", "21e de Ligne", 600, 2, 1180, 600, WEST),
+		u("france", "Division Gudin", "infantry", "12e de Ligne", 600, 2, 1180, 800, WEST),
+		u("france", "Division Gudin", "artillery", "Batterie Gudin", 120, 2, 1230, 700, WEST),
+		u("france", "Division Friant", "infantry", "108e de Ligne", 600, 2, 1400, 900, WEST, { arrival = { seconds = 240, pos = { x = 1400, z = 900 } } }),
+		u("france", "Division Friant", "infantry", "111e de Ligne", 600, 2, 1480, 940, WEST, { arrival = { seconds = 300, pos = { x = 1480, z = 940 } } }),
+		u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 560, 760, EAST, { commander = true }),
+		u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 860, 760, EAST),
+		u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 860, 660, EAST),
+		u("prussia", "Division Schmettau", "infantry", "IR Nr. 22 Pirch", 600, 1, 840, 860, EAST),
+		u("prussia", "Division Schmettau", "infantry", "Grenadier-Bataillon Hanstein", 600, 2, 820, 570, EAST),
+		u("prussia", "Division Schmettau", "artillery", "Batterie Schmettau", 120, 1, 640, 760, EAST),
+		u("prussia", "Division Wartensleben", "infantry", "IR Nr. 23 Winning", 600, 1, 810, 950, EAST),
+		u("prussia", "Kavallerie · Blücher", "cavalry", "Garde du Corps Nr. 13", 400, 2, 620, 1050, EAST),
+		u("prussia", "Kavallerie · Blücher", "cavalry", "Husaren-Regiment Blücher Nr. 8", 400, 1, 540, 1000, EAST),
+	},
+	moments = {
+		{
+			id = "hassenhausen_squares",
+			title = "Gudin's squares",
+			text = "Blücher's squadrons have broken on Gudin's squares in the fog. His own horse is shot under him.",
+			when = { any = { { formationRouted = { faction = "prussia", corps = "Blücher" } }, { strengthBelow = { faction = "prussia", corps = "Blücher", fraction = 0.75 } } } },
+			camera = { x = 1050, z = 800 },
+			effect = { morale = { { faction = "france", amount = 6 } } },
+		},
+		{
+			id = "hassenhausen_brunswick",
+			title = "Brunswick is struck down",
+			text = "The Duke of Brunswick is shot through the eyes while leading his grenadiers forward. He will not live, and the Prussian command falls into confusion.",
+			when = {
+				any = {
+					{ strengthBelow = { faction = "prussia", name = "Brunswick", fraction = 0.95 } },
+					{ strengthBelow = { faction = "prussia", fraction = 0.8 } },
+					{ time = 180, formationNear = { faction = "prussia", class = "infantry", objective = "hassenhausen", radius = 250 } },
+				},
+			},
+			effect = { morale = { { faction = "prussia", amount = -10 } } },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "auerstedt_spielberg",
+	parent = "auerstedt",
+	name = "Friant at Spielberg",
+	map = "auerstedt_spielberg",
+	date = "14 October 1806, midday",
+	year = 1806,
+	briefing = "Midday, 14 October 1806. Friant's division has come up on Gudin's right and is ordered to swing round the Prussian left: take Spielberg, then push on over the Lissbach to Poppel. The Prince of Orange's division stands between you and the stream. Brunswick is down and nobody is commanding the Prussian reserve. Ten minutes.",
+	factions = { player = "france", enemy = "prussia" },
+	factionNames = { france = "France", prussia = "Prussia" },
+	summary = "Friant extended Davout's right through Spielberg and turned the Prussian flank while Morand did the same on the left. With Brunswick mortally wounded and the reserve under Kalckreuth never committed, the Prussian army fell back west in growing disorder.",
+	difficultyNote = "Even: a fair fight on open ground; the Prussians hold the stream.",
+	units = {
+		u("france", "HQ", "hq", "Friant — Division HQ", 40, 3, 1550, 760, WEST, { commander = true }),
+		u("france", "Division Friant", "infantry", "33e de Ligne", 600, 2, 1300, 900, WEST),
+		u("france", "Division Friant", "infantry", "48e de Ligne", 600, 2, 1400, 900, WEST),
+		u("france", "Division Friant", "infantry", "108e de Ligne", 600, 2, 1500, 900, WEST),
+		u("france", "Division Friant", "infantry", "111e de Ligne", 600, 2, 1350, 820, WEST),
+		u("france", "III Corps", "artillery", "Batterie du 3e Corps", 120, 2, 1450, 820, WEST),
+		u("france", "Cavalerie · Vialannes", "cavalry", "12e Chasseurs à cheval", 400, 2, 1600, 880, WEST),
+		u("prussia", "HQ", "hq", "Prinz von Oranien — Division HQ", 40, 2, 380, 1150, EAST, { commander = true }),
+		u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 580, 1000, EAST),
+		u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 580, 1100, EAST),
+		u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1200, EAST),
+		u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 480, 1050, EAST),
+		u("prussia", "Kavallerie · Blücher", "cavalry", "Leib-Kürassier-Regiment Nr. 3", 400, 1, 480, 1300, EAST),
+		u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 380, 1300, EAST),
+	},
+	moments = {
+		{
+			id = "spielberg_taken",
+			title = "Spielberg falls",
+			text = "Friant's men have stormed Spielberg and are swinging in on the Prussian flank. Orange's battalions find French fire coming at them from two sides.",
+			when = { objectiveTaken = { id = "spielberg", by = "france" } },
+			camera = { x = 1280, z = 1130 },
+			effect = { morale = { { faction = "prussia", corps = "Oranien", amount = -6 } } },
+		},
+		{
+			id = "spielberg_reserve",
+			title = "The reserve does not come",
+			text = "Couriers gallop back for Kalckreuth's reserve, but with Brunswick fallen nobody commands the army to send it. It will stand idle all day.",
+			when = { time = 420, strengthBelow = { faction = "prussia", fraction = 0.8 } },
+			effect = { morale = { { faction = "prussia", amount = -6 } } },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "austerlitz_pratzen",
+	parent = "austerlitz",
+	name = "Soult on the Pratzen",
+	map = "austerlitz_pratzen",
+	date = "2 December 1805, morning",
+	year = 1805,
+	briefing = "Eight in the morning, 2 December 1805. Saint-Hilaire's and Vandamme's divisions wait in the fog below the Pratzen while the allied columns march off it to the south. When the sun breaks through, go up: take the plateau and Staré Vinohrady from what is left of Kolowrat's column. The Russian Guard is close behind them. Ten minutes.",
+	factions = { player = "france", enemy = "russia" },
+	factionNames = { france = "France", russia = "Russia & Austria" },
+	summary = "Soult's two divisions climbed out of the mist onto the half-empty plateau, routed Kolowrat's and Miloradovich's troops and held the heights against Constantine's Guard, whose cavalry was finally thrown back by the French Guard cavalry under Bessières and Rapp. The allied army was cut in two.",
+	difficultyNote = "Hard: an uphill attack, and the Russian Guard is coming.",
+	weather = "fog",
+	weatherUntil = 150,
+	units = {
+		u("france", "HQ", "hq", "Soult — IV Corps HQ", 40, 3, 860, 840, EAST, { commander = true }),
+		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 1060, 700, EAST),
+		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 1060, 620, EAST),
+		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "36e de Ligne", 600, 1, 980, 660, EAST),
+		u("france", "IV Corps · Soult / Vandamme", "infantry", "24e Légère", 600, 2, 1060, 960, EAST),
+		u("france", "IV Corps · Soult / Vandamme", "infantry", "4e de Ligne", 600, 1, 1060, 880, EAST),
+		u("france", "IV Corps · Soult / Vandamme", "infantry", "28e de Ligne", 600, 1, 980, 920, EAST),
+		u("france", "IV Corps · Soult / Vandamme", "infantry", "57e de Ligne", 600, 2, 980, 990, EAST),
+		u("france", "IV Corps · Soult", "artillery", "Batterie 4e Corps", 120, 2, 940, 780, EAST),
+		u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1700, 1000, WEST, { commander = true }),
+		u("russia", "4. Kolonne · Kolowrat", "infantry", "Novgorod Musketeers", 600, 1, 1400, 950, WEST),
+		u("russia", "4. Kolonne · Kolowrat", "infantry", "Apsheron Musketeers", 600, 1, 1400, 1050, WEST),
+		u("russia", "4. Kolonne · Kolowrat", "infantry", "IR Nr. 23 Salzburg", 600, 1, 1480, 1180, WEST, { colour = "Austria" }),
+		u("russia", "4. Kolonne · Kolowrat", "infantry", "IR Nr. 20 Kaunitz", 600, 1, 1480, 920, WEST, { colour = "Austria" }),
+		u("russia", "4. Kolonne · Kolowrat", "artillery", "Österreichische Batterie", 120, 1, 1540, 1040, WEST, { colour = "Austria" }),
+		u("russia", "Garde · Grossfürst Konstantin", "infantry", "Preobrazhensky Guards", 700, 3, 1900, 1150, WEST, { arrival = { seconds = 240, pos = { x = 1900, z = 1150 } } }),
+		u("russia", "Garde · Grossfürst Konstantin", "infantry", "Semenovsky Guards", 700, 3, 1900, 1050, WEST, { arrival = { seconds = 300, pos = { x = 1900, z = 1050 } } }),
+		u("russia", "Garde · Grossfürst Konstantin", "cavalry", "Chevalier Guards", 400, 3, 1950, 1250, WEST, { arrival = { seconds = 3600, pos = { x = 1950, z = 1250 } } }),
+	},
+	moments = {
+		{
+			id = "pratzen_sun",
+			title = "The Sun of Austerlitz",
+			text = "The fog burns off and the sun rises over the Pratzen. The allied columns are marching down off the heights, just as the Emperor foretold.",
+			when = { weatherCleared = true },
+			camera = { x = 1450, z = 900 },
+			effect = { morale = { { faction = "france", amount = 8 } } },
+		},
+		{
+			id = "pratzen_guard",
+			title = "The Chevalier Guards",
+			text = "Grand Duke Constantine throws his Guard at the heights. The Chevalier Guards, the Tsar's own horsemen, are coming at the gallop.",
+			when = { time = 300, objectiveTaken = { id = "pratzen", by = "france", seconds = 60 } },
+			camera = { x = 1750, z = 1150 },
+			effect = { release = "Chevalier Guards" },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "austerlitz_sokolnitz",
+	parent = "austerlitz",
+	name = "Davout at Sokolnitz",
+	map = "austerlitz_sokolnitz",
+	date = "2 December 1805, morning",
+	year = 1805,
+	briefing = "Morning, 2 December 1805. Three allied columns are coming down off the Pratzen against the French right, and only Legrand's thin division holds Telnitz and Sokolnitz on the Goldbach. Davout's III Corps is still arriving: Friant's men have marched from Vienna in two days and will come up the Raigern road in the first three minutes. Hold both villages for ten minutes.",
+	factions = { player = "france", enemy = "russia" },
+	factionNames = { france = "France", russia = "Russia & Austria" },
+	summary = "Legrand's division and Friant's exhausted regiments held the Goldbach villages all morning against three allied columns, losing and retaking Sokolnitz several times. The columns were still jammed in the villages when Soult's corps, having taken the Pratzen, fell on their rear and drove them onto the frozen ponds.",
+	difficultyNote = "Hard: outnumbered, with the reinforcements still on the road.",
+	weather = "fog",
+	weatherUntil = 180,
+	units = {
+		u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 560, 300, EAST, { commander = true }),
+		u("france", "IV Corps · Soult / Legrand", "infantry", "3e de Ligne", 600, 1, 930, 200, EAST),
+		u("france", "IV Corps · Soult / Legrand", "infantry", "26e Légère", 600, 2, 890, 450, EAST),
+		u("france", "IV Corps · Soult / Legrand", "infantry", "Tirailleurs du Pô", 600, 1, 900, 560, EAST),
+		u("france", "IV Corps · Soult / Legrand", "artillery", "Batterie Legrand", 120, 1, 700, 450, EAST),
+		u("france", "Division de dragons · Bourcier", "cavalry", "15e Dragons", 400, 1, 620, 200, EAST),
+		u("france", "III Corps · Davout / Friant", "infantry", "48e de Ligne", 600, 2, 300, 200, EAST, { arrival = { seconds = 90, pos = { x = 300, z = 200 } } }),
+		u("france", "III Corps · Davout / Friant", "infantry", "108e de Ligne", 600, 2, 300, 280, EAST, { arrival = { seconds = 120, pos = { x = 300, z = 280 } } }),
+		u("france", "III Corps · Davout / Friant", "infantry", "15e Légère", 600, 2, 360, 240, EAST, { arrival = { seconds = 150, pos = { x = 360, z = 240 } } }),
+		u("russia", "HQ", "hq", "Buxhöwden — Allied left HQ", 40, 2, 1400, 980, WEST, { commander = true }),
+		u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1100, 720, WEST, { colour = "Austria" }),
+		u("russia", "1. Kolonne · Dokhturov", "infantry", "Novo-Ingermanland Musketeers", 600, 1, 1180, 720, WEST),
+		u("russia", "1. Kolonne · Dokhturov", "infantry", "Yaroslavl Musketeers", 600, 1, 1260, 720, WEST),
+		u("russia", "1. Kolonne · Dokhturov", "artillery", "Battery, 1st Column", 120, 1, 1180, 880, WEST),
+		u("russia", "2. Kolonne · Langeron", "infantry", "Vyborg Musketeers", 600, 1, 1100, 800, WEST),
+		u("russia", "2. Kolonne · Langeron", "infantry", "Perm Musketeers", 600, 1, 1180, 800, WEST),
+		u("russia", "3. Kolonne · Przhebishevsky", "infantry", "Galicia Musketeers", 600, 1, 1260, 800, WEST),
+		u("russia", "3. Kolonne · Przhebishevsky", "infantry", "Narva Musketeers", 600, 1, 1100, 880, WEST),
+	},
+	moments = {
+		{
+			id = "sokolnitz_friant",
+			title = "Friant comes up",
+			text = "Friant's division, seventy miles in two days from Vienna, comes up the Raigern road and goes straight in at Sokolnitz.",
+			when = { formationNear = { faction = "france", name = "108e", objective = "sokolnitz", radius = 200 } },
+			camera = { x = 820, z = 420 },
+			effect = { morale = { { faction = "france", amount = 6 } } },
+		},
+		{
+			id = "sokolnitz_jammed",
+			title = "The columns are stuck",
+			text = "Three allied columns are jammed in the lanes of Telnitz and Sokolnitz while the battle is decided on the heights above them.",
+			when = { time = 360, all = { { objectiveTaken = { id = "sokolnitz", by = "france", seconds = 90 } }, { objectiveTaken = { id = "telnitz", by = "france" } } } },
+			camera = { x = 900, z = 320 },
+			effect = { morale = { { faction = "russia", amount = -6 } } },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "waterloo_hougoumont",
+	parent = "waterloo",
+	name = "The struggle for Hougoumont",
+	map = "waterloo_hougoumont",
+	date = "18 June 1815, from 11:30",
+	year = 1815,
+	briefing = "Half past eleven, 18 June 1815. The Emperor wants a diversion against Wellington's right: Reille is to take Hougoumont, the walled farm in front of the ridge. Jérôme's division leads through the wood; Foy and Bachelu are behind. The Guards hold the château, with Nassauers in the orchard. Take Hougoumont in ten minutes. The ground is sodden.",
+	factions = { player = "france", enemy = "britain" },
+	factionNames = { france = "France", britain = "Anglo-allied" },
+	summary = "The attack on Hougoumont, meant as a diversion, drew in most of Reille's corps for the whole day. The French cleared the wood and briefly broke in through the north gate before Macdonell's Coldstreamers forced it shut. Howitzers set the château on fire in the afternoon, but the Guards held it until the end of the battle.",
+	difficultyNote = "Hard: walls, a wood and mud between you and the farm.",
+	weather = "mud",
+	units = {
+		u("france", "HQ", "hq", "Reille — II Corps HQ", 40, 3, 800, 400, NORTH, { commander = true }),
+		u("france", "II Corps · Reille / Jérôme", "infantry", "1er Légère", 600, 2, 700, 560, NORTH),
+		u("france", "II Corps · Reille / Jérôme", "infantry", "3e de Ligne", 600, 1, 780, 560, NORTH),
+		u("france", "II Corps · Reille / Jérôme", "infantry", "1er de Ligne", 600, 1, 860, 560, NORTH),
+		u("france", "II Corps · Reille / Foy", "infantry", "92e de Ligne", 600, 1, 960, 540, NORTH),
+		u("france", "II Corps · Reille / Foy", "infantry", "100e de Ligne", 600, 1, 1040, 540, NORTH),
+		u("france", "II Corps · Reille / Bachelu", "infantry", "2e Légère", 600, 2, 1000, 460, NORTH),
+		u("france", "II Corps · Reille", "artillery", "Batterie du 2e Corps", 120, 1, 880, 460, NORTH),
+		u("france", "II Corps · Reille / Piré", "cavalry", "6e Lanciers", 400, 1, 520, 480, NORTH),
+		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 40, 2, 800, 1130, SOUTH, { commander = true }),
+		u("britain", "1st Division · Cooke / Byng", "infantry", "2/3rd Foot Guards", 700, 2, 760, 790, SOUTH),
+		u("britain", "1st Division · Cooke / Byng", "infantry", "2/2nd Coldstream Guards", 700, 2, 820, 900, SOUTH),
+		u("britain", "1st Division · Cooke / Maitland", "infantry", "2/1st Foot Guards", 700, 2, 760, 1060, SOUTH),
+		u("britain", "1st Division · Cooke / Maitland", "infantry", "3/1st Foot Guards", 700, 2, 880, 1060, SOUTH),
+		u("britain", "2e Division · Perponcher / Saxe-Weimar", "infantry", "1st Bn, 2nd Nassau Regiment", 600, 1, 680, 870, SOUTH, { colour = "Netherlands" }),
+		u("britain", "Royal Horse Artillery", "artillery", "Bull's Troop RHA", 120, 2, 960, 1040, SOUTH),
+	},
+	moments = {
+		{
+			id = "hougoumont_gate",
+			title = "The north gate",
+			text = "Sous-lieutenant Legros of the 1er Légère has axed open the north gate and the French are in the courtyard. Macdonell and a handful of Coldstreamers put their shoulders to it and force it shut.",
+			when = { formationNear = { faction = "france", objective = "hougoumont", radius = 45 } },
+			camera = { x = 760, z = 800 },
+			effect = { morale = { { faction = "britain", corps = "Byng", amount = 8 } } },
+		},
+		{
+			id = "hougoumont_ablaze",
+			title = "Hougoumont ablaze",
+			text = "French howitzers have set Hougoumont alight. The château and the great barn burn over the wounded, and still the Guards hold the walls.",
+			when = { time = 240, formationNear = { faction = "france", objective = "hougoumont", radius = 180 } },
+			camera = { x = 760, z = 790 },
+			effect = { morale = { { faction = "britain", corps = "Byng", amount = -5 }, { faction = "britain", corps = "Saxe-Weimar", amount = -5 } } },
+		},
+	},
+} :: Scenario)
+
+episode({
+	id = "waterloo_lahayesainte",
+	parent = "waterloo",
+	name = "The fall of La Haye Sainte",
+	map = "waterloo_lahayesainte",
+	date = "18 June 1815, evening",
+	year = 1815,
+	briefing = "About six in the evening, 18 June 1815. Major Baring's King's German Legion riflemen have held La Haye Sainte on the Brussels road all afternoon, and their ammunition is running out. The Emperor orders Ney to take the farm at any cost. Take La Haye Sainte, then push for the crossroads on the ridge behind it. Ten minutes, in the mud.",
+	factions = { player = "france", enemy = "britain" },
+	factionNames = { france = "France", britain = "Anglo-allied" },
+	summary = "After repulsing every attack since early afternoon, Baring's 2nd Light Battalion KGL ran out of rifle ammunition and La Haye Sainte fell at about 18:30. French guns and skirmishers then pushed up close to the centre of Wellington's line, which was never closer to breaking. Then the Prussians arrived and the Guard was repulsed.",
+	difficultyNote = "Very hard: a fortified farm, a ridge behind it, and riflemen in the sandpit.",
+	weather = "mud",
+	units = {
+		u("france", "HQ", "hq", "Ney — Advanced HQ", 40, 3, 1200, 420, NORTH, { commander = true }),
+		u("france", "I Corps · d'Erlon / Donzelot", "infantry", "13e Légère", 600, 2, 1120, 600, NORTH),
+		u("france", "I Corps · d'Erlon / Donzelot", "infantry", "51e de Ligne", 600, 1, 1280, 600, NORTH),
+		u("france", "I Corps · d'Erlon / Quiot", "infantry", "54e de Ligne", 600, 1, 1040, 560, NORTH),
+		u("france", "I Corps · d'Erlon / Quiot", "infantry", "55e de Ligne", 600, 1, 1360, 560, NORTH),
+		u("france", "I Corps · d'Erlon / Quiot", "infantry", "105e de Ligne", 600, 1, 1200, 540, NORTH),
+		u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1080, 480, NORTH),
+		u("france", "IV Corps de cavalerie · Milhaud", "cavalry", "1er Cuirassiers", 400, 2, 960, 500, NORTH),
+		u("france", "IV Corps de cavalerie · Milhaud", "cavalry", "4e Cuirassiers", 400, 2, 1440, 480, NORTH),
+		u("britain", "HQ", "hq", "Alten — 3rd Division HQ", 40, 2, 1100, 1220, SOUTH, { commander = true }),
+		u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
+		u("britain", "5th Division · Picton / Kempt", "infantry", "1/95th Rifles", 600, 2, 1270, 1000, SOUTH),
+		u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),
+		u("britain", "3rd Division · Alten / Ompteda", "infantry", "8th Line Battalion KGL", 600, 2, 1300, 1120, SOUTH),
+		u("britain", "3rd Division · Alten / Halkett", "infantry", "30th Foot", 600, 1, 1000, 1110, SOUTH),
+		u("britain", "3rd Division · Alten / Halkett", "infantry", "73rd Foot", 600, 1, 1000, 1190, SOUTH),
+		u("britain", "Royal Horse Artillery", "artillery", "Ross's Troop RHA", 120, 2, 1350, 1040, SOUTH),
+	},
+	moments = {
+		{
+			id = "lahayesainte_ammunition",
+			title = "The rifles fall silent",
+			text = "Baring's riflemen have fired their last rounds. The rifle cartridges they need never came, and they are holding the walls with the bayonet.",
+			when = { time = 240, formationNear = { faction = "france", objective = "lahayesainte", radius = 200 } },
+			camera = { x = 1200, z = 920 },
+			effect = { morale = { { faction = "britain", name = "2nd Light Battalion KGL", amount = -10 } } },
+		},
+		{
+			id = "lahayesainte_falls",
+			title = "La Haye Sainte has fallen",
+			text = "La Haye Sainte is French. Guns are galloping up to the farm and shooting into the centre of Wellington's line at point-blank range.",
+			when = { objectiveTaken = { id = "lahayesainte", by = "france" } },
+			camera = { x = 1200, z = 960 },
+			effect = { morale = { { faction = "britain", corps = "Alten", amount = -8 } } },
+		},
+	},
+} :: Scenario)
 
 -- Stress fixture: 24 formations per side, generated from the Jena roster. Profiling only.
 local function stress(): Scenario
@@ -3291,14 +3953,20 @@ Scenarios.tutorial = {
 	timeLimit = 60 * 60,
 } :: Scenario
 
--- Battles in display order; fixtures (stress, skirmish) are not listed.
-local DISPLAY_ORDER = { "jena", "auerstedt", "austerlitz", "waterloo" }
+-- Battles in display order, each full battle followed by its episodes; fixtures (stress,
+-- skirmish) and the tutorial are not listed.
+local DISPLAY_ORDER = {
+	"jena", "jena_landgrafenberg", "jena_vierzehnheiligen",
+	"auerstedt", "auerstedt_hassenhausen", "auerstedt_spielberg",
+	"austerlitz", "austerlitz_pratzen", "austerlitz_sokolnitz",
+	"waterloo", "waterloo_hougoumont", "waterloo_lahayesainte",
+}
 
 function Scenarios.list(): { ListEntry }
 	local out: { ListEntry } = {}
 	for _, id in DISPLAY_ORDER do
 		local s = (Scenarios :: any)[id] :: Scenario
-		out[#out + 1] = { id = s.id, name = s.name, date = s.date, map = s.map, factionNames = s.factionNames, summary = s.summary, difficultyNote = s.difficultyNote }
+		out[#out + 1] = { id = s.id, name = s.name, date = s.date, map = s.map, factionNames = s.factionNames, summary = s.summary, difficultyNote = s.difficultyNote, mode = s.mode or "full", parent = s.parent, timeLimit = s.timeLimit }
 	end
 	return out
 end
@@ -3312,7 +3980,7 @@ function Scenarios.get(id: string): Scenario?
 end
 
 return Scenarios
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><bool name="Disabled">false</bool><string name="Name">Types</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000011"><Properties><bool name="Disabled">false</bool><string name="Name">Types</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Shared type definitions. Runtime-free; `require` for types only.
 
 local Vec = require(script.Parent.Vec)
@@ -3421,7 +4089,7 @@ export type ObjectiveView = {
 }
 
 export type Event = {
-	kind: string, -- volley | cannon | melee | charge | rout | rally | capture | destroyed | message
+	kind: string, -- volley | cannon | melee | charge | rout | rally | capture | destroyed | message | moment
 	x: number?,
 	z: number?,
 	id: number?,
@@ -3432,6 +4100,9 @@ export type Event = {
 	tx: number?,
 	tz: number?,
 	n: number?,
+	momentId: string?, -- moment: scenario moment id (src/shared/Moments.luau)
+	title: string?, -- moment: title card heading
+	height: number?, -- moment: camera height for the pan, if the moment asks for one
 }
 
 export type Snapshot = {
@@ -3477,7 +4148,7 @@ export type Results = {
 }
 
 return {}
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000011"><Properties><bool name="Disabled">false</bool><string name="Name">Vec</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000012"><Properties><bool name="Disabled">false</bool><string name="Name">Vec</string><ProtectedString name="Source"><![CDATA[--!strict
 -- 2D vectors on the battlefield plane. Pure Luau; no Roblox datatypes.
 -- Heading: radians, 0 along +x, increasing toward +z. right(f) = f rotated +90° (toward +z when f = +x).
 
@@ -3618,7 +4289,7 @@ function Vec.distToSegment(p: Vec, a: Vec, b: Vec): number
 end
 
 return Vec
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000044"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000043"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000014"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000047"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000046"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Enemy commander. Pure Luau, deterministic: reads its own formations fully, the enemy only
 -- through sim.views[faction] (visible ids + last-known memory), randomness only via sim.rng.
 -- Orders go through sim:queueCommand with the same command kinds the player uses.
@@ -4647,7 +5318,7 @@ function AI.debugView(state: AIState): { { id: number, goal: string, reason: str
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000016"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Operational campaign (Release B). Pure Luau, deterministic through `state.rng`; no wall clock,
 -- no Roblox APIs. The tactical battle is delegated to the Sim through `battleScenario` and the
 -- outcome returns through `applyBattleResult` (idempotent by battle id).
@@ -5764,7 +6435,7 @@ function Campaign.commitBattle(store: Store, userId: number, sessionId: string, 
 end
 
 return Campaign
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000016"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000017"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign session for the commander: profile load/continue, turns, battle hand-off to the
 -- tactical match and exactly-once result commits. Talks to clients over the Campaign remote.
 --
@@ -6193,7 +6864,7 @@ function CampaignService.sessionOnly(): boolean
 end
 
 return CampaignService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign, Europe 1805–1815 (docs/campaign.md, docs/grand-campaign-contract.md). Pure Luau,
 -- deterministic through `state.rng`; no wall clock, no Roblox APIs.
 --
@@ -6796,7 +7467,7 @@ function GrandCampaign.commitBattle(store: Store, userId: number, sessionId: str
 end
 
 return GrandCampaign
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000017"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-nation AI. Same rules as the player (Movement.move, Economy.recruit, Diplomacy). Each army
 -- scores every province it can reach within three hops and marches toward the best:
 --   hold          20 (+50 at an own capital threatened beyond the other troops there, +35 while besieging, home guard +40)
@@ -7152,7 +7823,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Contacts, battles, sieges and occupation.
 --
 -- After every nation has moved, each province holding armies at war with each other produces one
@@ -7175,6 +7846,7 @@ local EuropeData = require(Shared.EuropeData)
 local MapGen = require(Shared.MapGen)
 local Scenarios = require(Shared.Scenarios)
 local Types = require(Shared.Types)
+local Moments = require(Shared.Moments)
 local State = require(script.Parent.State)
 local Movement = require(script.Parent.Movement)
 local Diplomacy = require(script.Parent.Diplomacy)
@@ -7636,6 +8308,60 @@ function Battles.zoneKeys(s: State, b: Battle, map: MapGen.MapData): { [string]:
 	return out
 end
 
+-- Moments whose selectors (and releases) still find a formation in `units`; the rest are dropped.
+local function keptMoments(base: Scenarios.Scenario, units: { Scenarios.UnitDef }): { Moments.Moment }?
+	if not base.moments then
+		return nil
+	end
+	local function found(sel: Moments.Selector): boolean
+		for _, u in units do
+			if Moments.matches(sel, u :: any) then
+				return true
+			end
+		end
+		return false
+	end
+	local function condOk(c: Moments.Condition): boolean
+		for _, sel in { c.formationRouted, c.strengthBelow, c.formationNear } do
+			if sel and not found(sel) then
+				return false
+			end
+		end
+		for _, sub in c.all or {} do
+			if not condOk(sub) then
+				return false
+			end
+		end
+		for _, sub in c.any or {} do
+			if not condOk(sub) then
+				return false
+			end
+		end
+		return true
+	end
+	local out: { Moments.Moment } = {}
+	for _, m in base.moments do
+		local ok = condOk(m.when)
+		local e = m.effect
+		if ok and e then
+			for _, sel in e.morale or {} do
+				ok = ok and found(sel)
+			end
+			if e.release then
+				local released = false
+				for _, u in units do
+					released = released or (u.arrival ~= nil and string.find(u.name, e.release :: string, 1, true) ~= nil)
+				end
+				ok = ok and released
+			end
+		end
+		if ok then
+			out[#out + 1] = table.clone(m)
+		end
+	end
+	return out
+end
+
 local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): Scenarios.Scenario
 	-- which campaign side plays which scenario faction
 	local sp: EuropeData.SetPiece? = nil
@@ -7655,7 +8381,9 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 	factionSide[fb] = if spAttackerSide == "attackers" then "defenders" else "attackers"
 	local histMen: { [string]: number } = { attackers = 0, defenders = 0 }
 	for _, d in base.units do
-		histMen[factionSide[d.faction]] += d.strength
+		if d.arrival == nil and d.class ~= "hq" then -- off-map reinforcements do not set the scale
+			histMen[factionSide[d.faction]] += d.strength
+		end
 	end
 	local ratio: { [string]: number } = {}
 	for _, side in { "attackers", "defenders" } do
@@ -7673,7 +8401,7 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 		if d.arrival then
 			u.arrival = { seconds = d.arrival.seconds, pos = { x = d.arrival.pos.x, z = d.arrival.pos.z } }
 		end
-		if d.class ~= "hq" then
+		if d.class ~= "hq" and d.arrival == nil then
 			u.strength = math.max(40, math.floor(d.strength * ratio[side]))
 		end
 		u.key = string.format("h:%s:%d", side, i)
@@ -7697,6 +8425,7 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 		difficultyNote = base.difficultyNote,
 		weather = base.weather,
 		weatherUntil = base.weatherUntil,
+		moments = keptMoments(base, units),
 	}
 end
 
@@ -7808,7 +8537,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 end
 
 return Battles
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- War, peace, alliances, offers and coalitions.
 --
 -- War score per pair (-100..100): battle won +8 (+4 if an enemy army is destroyed), province
@@ -8187,7 +8916,7 @@ function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 end
 
 return Diplomacy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Income, manpower, upkeep, recruitment and replenishment. Owners collect the full income and
 -- manpower of provinces they hold; an occupier requisitions half the income and no manpower; the
 -- dispossessed owner gets nothing. Upkeep is paid every turn; a shortfall empties the treasury and
@@ -8448,7 +9177,7 @@ function Economy.unrest(s: State, provinceId: string): number
 end
 
 return Economy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scripted events (EuropeData.Events): each fires once, at the first turn of its window whose
 -- conditions hold. Base effects apply at once; a chooser picks one of the choices: the player
 -- through a pop-up (default = the first choice, applied at the end of the turn if unanswered), an
@@ -8643,7 +9372,7 @@ function Events.closeTurn(s: State)
 end
 
 return Events
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Army movement by province path. Movement points per turn: 2, 3 under a general rated 4+.
 -- Entering a province costs 1, +1 inside an enemy zone of control (a neighbouring province holds
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
@@ -8875,7 +9604,7 @@ function Movement.relocateStrays(s: State)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Profile format for the grand campaign (DataStore-safe: string keys, arrays, finite numbers).
 -- `deserialize` validates everything it reads and returns nil rather than a half-valid state.
 
@@ -9088,7 +9817,7 @@ function Serialize.deserialize(p: any): State?
 end
 
 return Serialize
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign state: types, construction from EuropeData and the small helpers every rules
 -- module shares. Pure Luau; all randomness through `state.rng`; every loop whose order matters
 -- walks an array (NationOrder, ProvinceIds, armies by id), never `pairs` of a dictionary.
@@ -9495,10 +10224,10 @@ function State.new(seed: number, playerNation: string?): State
 end
 
 return State
-]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
 -- Server entry point.
 require(script.Parent.MatchService).start()
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Match lifecycle, commander ownership, request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
@@ -10085,7 +10814,7 @@ MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatc
 end }
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000031"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000032"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-player request gate: rate limiting and request-id de-duplication. Pure Luau; the
 -- caller injects real elapsed time (never the paused battle clock).
 
@@ -10150,7 +10879,7 @@ function CommandGate.forget(gate: Gate, key: any)
 end
 
 return CommandGate
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Real time → logical ticks. Speed scales the accumulator, never the step. Work per frame is
 -- bounded; sustained overload shows up as simLag instead of a giant step.
 
@@ -10207,7 +10936,7 @@ function MatchClock.advance(clock: Clock, realDt: number, step: () -> ()): numbe
 end
 
 return MatchClock
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Creates the RemoteEvents under ReplicatedStorage/EoE/Remotes (server only).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10240,7 +10969,7 @@ function Remotes.create(): { [string]: RemoteEvent }
 end
 
 return Remotes
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000033"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000034"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Versioned profile store on top of DataStoreService.UpdateAsync. Pure Luau; the DataStore
 -- service is injected so tests run in the CLI with the memory adapter.
 --
@@ -10449,7 +11178,7 @@ function ProfileStore.releaseSession(self: Store, userId: number, sessionId: str
 end
 
 return ProfileStore
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The authoritative battle simulation. Pure Luau: no Roblox APIs, no wall-clock time.
 -- Owns formations, commands, the fixed tick, visibility, objectives, victory and snapshots.
 -- Tick order is documented in docs/architecture.md and implemented in Sim:step().
@@ -10466,11 +11195,13 @@ local Types = require(Shared.Types)
 local Formation = require(script.Formation)
 local Abilities = require(script.Abilities)
 local Nav = require(script.Nav)
+local Edges = require(script.Edges)
 local Movement = require(script.Movement)
 local Combat = require(script.Combat)
 local Morale = require(script.Morale)
 local Visibility = require(script.Visibility)
 local Objectives = require(script.Objectives)
+local Moments = require(script.Moments)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -10532,7 +11263,8 @@ export type Sim = {
 	isVisibleTo: (Sim, string, number) -> boolean,
 	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
-	weather: string, -- key into Config.Weather, may change once at weatherUntil
+	weather: string, -- key into Config.Weather, may change once at weatherUntil (or by a moment)
+	momentsFired: { [string]: boolean }, -- scenario moments already fired (Sim/Moments)
 	aiStep: ((Sim) -> ())?, -- per-instance AI hook (preferred over the module-level Sim.aiStep)
 	-- methods
 	deploy: (Sim, number, Vec, number) -> (boolean, string?),
@@ -10585,6 +11317,7 @@ function Sim.new(opts: Options): Sim
 	self.difficulty = opts.difficulty or "normal"
 	self.simLag = 0
 	self.aiStep = nil
+	self.momentsFired = {}
 	self.weather = if (Config.Weather :: any)[(opts.scenario :: any).weather] then (opts.scenario :: any).weather else "clear"
 	for i, def in opts.scenario.units do
 		local f = Formation.fromDef(i, def)
@@ -10627,12 +11360,18 @@ end
 
 -- A faction's home edge is the map edge nearest its deployment zone.
 function Sim.homeEdge(self: Sim, faction: string): Vec
-	local zone = self.map.deployZones[faction]
+	local zones = self.map.deployZones
+	local zone = zones[faction]
 	local margin = Config.Morale.RoutExitMargin + 6
-	if zone and (zone.z0 + zone.z1) / 2 > self.map.depth / 2 then
-		return { x = (zone.x0 + zone.x1) / 2, z = self.map.depth + margin }
+	local w, d = self.map.width, self.map.depth
+	local own = if zone then { x = (zone.x0 + zone.x1) / 2, z = (zone.z0 + zone.z1) / 2 } else { x = w / 2, z = d / 2 }
+	local enemy: Vec? = nil
+	for other, oz in zones do
+		if other ~= faction and (other == self.playerFaction or other == self.enemyFaction) then
+			enemy = { x = (oz.x0 + oz.x1) / 2, z = (oz.z0 + oz.z1) / 2 }
+		end
 	end
-	return { x = if zone then (zone.x0 + zone.x1) / 2 else self.map.width / 2, z = -margin }
+	return Edges.home(own, enemy, w, d, margin)
 end
 
 -- Deployment --------------------------------------------------------------------------------
@@ -11040,6 +11779,7 @@ function Sim.step(self: Sim)
 	end
 	-- 9. objectives
 	Objectives.update(s)
+	Moments.update(s) -- historical moments, every Moments.EveryTicks
 	-- 10. victory
 	local winner, reason = Objectives.evaluate(s)
 	if winner then
@@ -11172,8 +11912,8 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 	local events: { Types.Event } = {}
 	for _, ev in self.events do
 		local copy: Types.Event = table.clone(ev)
-		if ev.kind == "message" and ev.faction and ev.faction ~= viewer then
-			continue -- the enemy's own order/route messages are never shown to us
+		if (ev.kind == "message" or ev.kind == "moment") and ev.faction and ev.faction ~= viewer then
+			continue -- the enemy's own order/route messages (and its own moments) are never shown to us
 		end
 		if ev.id and ev.faction and ev.faction ~= viewer and not self:isVisibleTo(viewer, ev.id) then
 			if ev.targetId and self.formations[ev.targetId] and self.formations[ev.targetId].faction == viewer then
@@ -11282,7 +12022,7 @@ function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Resu
 end
 
 return Sim
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Generals in battle: trait modifiers recomputed every tick (bounded) and the HQ's active ability.
 -- Data and plain-text descriptions live in src/shared/Generals.luau; docs/rules.md ("Generals")
 -- is the contract. Pure Luau, deterministic, no randomness.
@@ -11700,7 +12440,7 @@ function Abilities.view(sim: SimLike, f: Formation, v: any)
 end
 
 return Abilities
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Fire, artillery, melee and charge resolution. Step 6 gathers attacks from a frozen view of
 -- the tick (positions/states as they are after movement); step 7 applies them. Both sides
 -- resolve simultaneously; ordering is ascending formation id for determinism.
@@ -12181,7 +12921,82 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 end
 
 return Combat
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Map edges as a faction's "home" (where routers flee, where rallied units turn back from).
+-- A home is one of four sides, chosen as the side facing away from the enemy's deployment.
+-- Edges are identified from the home point, which always lies just beyond its edge.
+
+export type Side = "n" | "s" | "e" | "w"
+export type Point = { x: number, z: number }
+
+local Edges = {}
+
+-- Side of a point lying beyond the map rectangle 0..w × 0..d (+z is north).
+function Edges.sideOf(p: Point, w: number, d: number): Side
+	if p.x < 0 then
+		return "w"
+	elseif p.x > w then
+		return "e"
+	elseif p.z > d then
+		return "n"
+	end
+	return "s"
+end
+
+-- Unit vector pointing from the edge into the map.
+function Edges.inward(side: Side): Point
+	if side == "w" then
+		return { x = 1, z = 0 }
+	elseif side == "e" then
+		return { x = -1, z = 0 }
+	elseif side == "n" then
+		return { x = 0, z = -1 }
+	end
+	return { x = 0, z = 1 }
+end
+
+-- Distance from p to the edge.
+function Edges.distance(side: Side, p: Point, w: number, d: number): number
+	if side == "w" then
+		return p.x
+	elseif side == "e" then
+		return w - p.x
+	elseif side == "n" then
+		return d - p.z
+	end
+	return p.z
+end
+
+-- Point `offset` studs inside the edge, keeping p's position along the edge (clamped by `pad`).
+function Edges.inside(side: Side, p: Point, offset: number, w: number, d: number, pad: number): Point
+	if side == "w" then
+		return { x = offset, z = math.clamp(p.z, pad, d - pad) }
+	elseif side == "e" then
+		return { x = w - offset, z = math.clamp(p.z, pad, d - pad) }
+	elseif side == "n" then
+		return { x = math.clamp(p.x, pad, w - pad), z = d - offset }
+	end
+	return { x = math.clamp(p.x, pad, w - pad), z = offset }
+end
+
+-- Home point (beyond the edge by `margin`) for a deployment centre `own` facing an enemy centre.
+function Edges.home(own: Point, enemy: Point?, w: number, d: number, margin: number): Point
+	local dx, dz
+	if enemy then
+		dx, dz = own.x - enemy.x, own.z - enemy.z
+	else
+		dx, dz = own.x - w / 2, own.z - d / 2
+	end
+	-- Compare normalised by map size so a wide map does not always pick east/west.
+	local nx, nz = dx / w, dz / d
+	if math.abs(nx) > math.abs(nz) then
+		return if nx < 0 then { x = -margin, z = own.z } else { x = w + margin, z = own.z }
+	end
+	return if nz < 0 then { x = own.x, z = -margin } else { x = own.x, z = d + margin }
+end
+
+return Edges
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation records: creation from scenario definitions, footprint geometry, shape changes,
 -- legality helpers. Pure Luau; no Roblox APIs.
 
@@ -12498,7 +13313,174 @@ function Formation.frontCentre(f: Formation): Vec
 end
 
 return Formation
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Evaluates the scenario's historical moments (src/shared/Moments.luau) every
+-- Moments.EveryTicks ticks, after objectives. Pure and deterministic: reads sim state only,
+-- fires each moment at most once, in list order.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Config = require(Shared.Config)
+local Vec = require(Shared.Vec)
+local Defs = require(Shared.Moments)
+
+local Formation = require(script.Parent.Formation)
+
+type Formation = Formation.Formation
+type Condition = Defs.Condition
+type Selector = Defs.Selector
+type Moment = Defs.Moment
+
+local Moments = {}
+
+local DT = Config.Sim.DT
+local LIMIT = Defs.MoraleLimit
+
+local function each(sim: any, sel: Selector, fn: (Formation) -> boolean?): boolean
+	for _, id in sim.order do
+		local f = sim.formations[id]
+		if f and Defs.matches(sel, f) and fn(f) then
+			return true
+		end
+	end
+	return false
+end
+
+local function objective(sim: any, id: string): any
+	for _, o in sim.objectives do
+		if o.def.id == id then
+			return o
+		end
+	end
+	return nil
+end
+
+local function holds(sim: any, c: Condition): boolean
+	if c.time and sim.clock < c.time then
+		return false
+	end
+	if c.before and sim.clock >= c.before then
+		return false
+	end
+	if c.weatherCleared ~= nil and (sim.weather == "clear") ~= c.weatherCleared then
+		return false
+	end
+	local ot = c.objectiveTaken
+	if ot then
+		local o = objective(sim, ot.id)
+		if not o or o.owner ~= ot.by then
+			return false
+		end
+		if ot.seconds and (not o.heldSince or (sim.tick - o.heldSince) * DT < ot.seconds) then
+			return false
+		end
+	end
+	local fr = c.formationRouted
+	if fr and not each(sim, fr, function(f)
+		return f.state == "routing" or f.state == "destroyed" or f.shattered
+	end) then
+		return false
+	end
+	local sb = c.strengthBelow
+	if sb then
+		local now, start = 0, 0
+		each(sim, sb, function(f)
+			start += f.startStrength
+			if f.state ~= "destroyed" and f.state ~= "exited" then
+				now += f.strength
+			end
+			return false
+		end)
+		if start == 0 or now >= start * (sb.fraction or 0) then
+			return false
+		end
+	end
+	local fn = c.formationNear
+	if fn then
+		local at = fn.pos
+		if fn.objective then
+			local o = objective(sim, fn.objective)
+			at = if o then o.def.pos else nil
+		end
+		local p = at
+		if not p then
+			return false
+		end
+		local r2 = (fn.radius or 0) ^ 2
+		if not each(sim, fn, function(f)
+			return Formation.isActive(f) and f.state ~= "routing" and Vec.dist2(f.pos, p) <= r2
+		end) then
+			return false
+		end
+	end
+	if c.all then
+		for _, sub in c.all do
+			if not holds(sim, sub) then
+				return false
+			end
+		end
+	end
+	if c.any then
+		local ok = false
+		for _, sub in c.any do
+			if holds(sim, sub) then
+				ok = true
+				break
+			end
+		end
+		if not ok then
+			return false
+		end
+	end
+	return true
+end
+Moments.holds = holds
+
+local function apply(sim: any, m: Moment)
+	local e = m.effect
+	if not e then
+		return
+	end
+	for _, sel in e.morale or {} do
+		local amount = math.clamp(sel.amount or 0, -LIMIT, LIMIT)
+		each(sim, sel, function(f)
+			if Formation.isActive(f) then
+				f.morale = math.clamp(f.morale + amount, 0, 100)
+			end
+			return false
+		end)
+	end
+	if e.release then
+		each(sim, { name = e.release }, function(f)
+			if f.state == "offmap" and f.arrivalTick and f.arrivalTick > sim.tick then
+				f.arrivalTick = sim.tick -- enters at step 0 of the next tick
+			end
+			return false
+		end)
+	end
+	if e.weather and (Config.Weather :: any)[e.weather] then
+		sim.weather = e.weather
+	end
+end
+
+-- Called every tick from Sim.step; does work every Moments.EveryTicks.
+function Moments.update(sim: any)
+	local list: { Moment }? = sim.scenario.moments
+	if not list or sim.tick % Defs.EveryTicks ~= 0 then
+		return
+	end
+	for _, m in list do
+		if not sim.momentsFired[m.id] and holds(sim, m.when) then
+			sim.momentsFired[m.id] = true
+			apply(sim, m)
+			local cam = m.camera
+			sim:emit({ kind = "moment", tick = sim.tick, momentId = m.id, title = m.title, text = m.text, faction = m.faction, x = cam and cam.x, z = cam and cam.z, height = cam and cam.height })
+			sim:log(m.title)
+		end
+	end
+end
+
+return Moments
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morale, fatigue effects, rout / rally / shatter transitions, destruction. Step 8.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -12507,6 +13489,7 @@ local Vec = require(Shared.Vec)
 local Types = require(Shared.Types)
 
 local Formation = require(script.Parent.Formation)
+local Edges = require(script.Parent.Edges)
 
 type Formation = Formation.Formation
 
@@ -12518,8 +13501,8 @@ export type SimLike = {
 	log: (sim: any, text: string) -> (),
 	hqOf: (sim: any, faction: string) -> Formation?,
 	stats: { [string]: any },
-	homeEdge: ((sim: any, faction: string) -> { x: number, z: number })?,
-	grid: { width: number, depth: number }?,
+	homeEdge: any, -- (sim, faction) -> {x, z}; optional for test fakes
+	grid: any, -- needs width and depth
 }
 
 local Morale = {}
@@ -12609,12 +13592,13 @@ function Morale.rally(sim: SimLike, f: Formation, by: string)
 	local home = if sim.homeEdge then sim.homeEdge(sim, f.faction) else nil
 	local grid = sim.grid
 	if home and grid then
-		local edgeZ = if home.z < 0 then 0 else grid.depth
-		if math.abs(f.pos.z - edgeZ) < 80 then
-			local inward = if home.z < 0 then 1 else -1
-			local x = math.clamp(f.pos.x + ((f.id % 5) - 2) * 45, 30, grid.width - 30)
-			local z = edgeZ + inward * (110 + (f.id % 3) * 30)
-			f.order = { kind = "Move", pos = { x = x, z = z }, heading = if inward > 0 then math.pi / 2 else -math.pi / 2, issuedTick = sim.tick }
+		local side = Edges.sideOf(home, grid.width, grid.depth)
+		if Edges.distance(side, f.pos, grid.width, grid.depth) < 80 then
+			local inward = Edges.inward(side)
+			local spread = (f.id % 5 - 2) * 45
+			local along = { x = f.pos.x + inward.z * spread, z = f.pos.z + inward.x * spread }
+			local dest = Edges.inside(side, along, 110 + (f.id % 3) * 30, grid.width, grid.depth, 30)
+			f.order = { kind = "Move", pos = dest, heading = math.atan2(inward.z, inward.x), issuedTick = sim.tick }
 			f.queue = {}
 		end
 	end
@@ -12771,7 +13755,7 @@ function Morale.hqRally(sim: SimLike, hq: Formation): (boolean, string?)
 end
 
 return Morale
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Timed transitions (shape/limber/rally/charge recovery), navigation, movement, facing,
 -- choke-point travel columns, avoidance, stuck detection and routing flight.
 -- Runs in tick steps 3 and 4. Formations are processed in ascending id order.
@@ -12784,6 +13768,7 @@ local Types = require(Shared.Types)
 
 local Formation = require(script.Parent.Formation)
 local Nav = require(script.Parent.Nav)
+local Edges = require(script.Parent.Edges)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -13119,8 +14104,9 @@ local function routeToHome(sim: SimLike, f: Formation)
 	if not f.path or not f.path[f.pathIndex] then
 		local home = sim.homeEdge(sim, f.faction)
 		-- Aim at a walkable point just inside the home edge; the exit rule removes the unit there.
-		local edgeZ = math.clamp(home.z, 6, sim.grid.depth - 6)
-		local want = { x = math.clamp(f.pos.x + (home.x - f.pos.x) * 0.2, 8, sim.grid.width - 8), z = edgeZ }
+		local side = Edges.sideOf(home, sim.grid.width, sim.grid.depth)
+		local along = Vec.lerp(f.pos, home, 0.2)
+		local want = Edges.inside(side, along, 6, sim.grid.width, sim.grid.depth, 8)
 		local target = Nav.nearestWalkable(sim.nav, want, 12) or want
 		if not Movement.plan(sim, f, target) then
 			-- No route at all: drift straight toward home; the stuck rule removes the unit.
@@ -13139,14 +14125,15 @@ function Movement.update(sim: SimLike, f: Formation)
 	if f.state == "routing" then
 		local m = Config.Morale.RoutExitMargin
 		local home = sim.homeEdge(sim, f.faction)
-		local waiting = (if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m) and not f.shattered
+		local side = Edges.sideOf(home, sim.grid.width, sim.grid.depth)
+		local waiting = Edges.distance(side, f.pos, sim.grid.width, sim.grid.depth) < m and not f.shattered
 		if not waiting then
 			routeToHome(sim, f)
 			followPath(sim, f, 1)
 		end
 		-- At the home edge a routing formation waits in the rear and may still rally; only a
 		-- shattered formation (or one hopelessly stuck / off the map) leaves the field for good.
-		local atEdge = if home.z < 0 then f.pos.z < m else f.pos.z > sim.grid.depth - m
+		local atEdge = Edges.distance(Edges.sideOf(home, sim.grid.width, sim.grid.depth), f.pos, sim.grid.width, sim.grid.depth) < m
 		if atEdge and not f.shattered then
 			f.path = nil
 			f.status = "Fled to the rear"
@@ -13211,7 +14198,7 @@ function Movement.update(sim: SimLike, f: Formation)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation navigation on a coarse grid derived from the terrain grid.
 -- Nodes are Config.Map.NavCellSize studs; a node is walkable when its clearance allows at
 -- least a travel column (half-width 8). Cost = distance / infantry terrain speed.
@@ -13533,7 +14520,7 @@ function Nav.segmentMinClearance(nav: NavGrid, a: Vec, b: Vec): number
 end
 
 return Nav
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Objective capture (step 9) and the single victory evaluator (step 10).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -13754,7 +14741,7 @@ function Objectives.evaluate(sim: SimLike): (string?, string?)
 end
 
 return Objectives
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-faction visibility: which enemy formations are currently seen, and last-known memory.
 -- Recomputed every Config.Sim.VisibilityEveryTicks ticks (step 5). The AI and the snapshot
 -- filter both read this; nothing else decides what a faction knows.
@@ -13889,7 +14876,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000087"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000086"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000085"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000091"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000090"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000089"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -14007,7 +14994,7 @@ function Audio.destroy()
 end
 
 return Audio
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side mirror of the match: merged snapshot data, pending orders, match metadata.
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
@@ -14300,7 +15287,7 @@ function BattleState.validateContext(): any
 end
 
 return BattleState
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scriptable RTS camera: bounded pan, rotate, zoom, pitch; never clips into hills.
 -- Height is measured above the terrain under the focus point.
 
@@ -14631,7 +15618,7 @@ function Camera.destroy()
 end
 
 return Camera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign client: the server's grandView is the only state. Owns the board, the
 -- camera, the panels and the board input while open; `close()` removes all of it (Main calls
 -- it on every lifecycle change) and `request()` asks for the view again (menu, back from battle).
@@ -14912,7 +15899,7 @@ function Grand.close()
 end
 
 return Grand
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign tabletop: Europe as a painted relief board on a walnut table, far from the
 -- battlefield. Static geometry (land, sea, mountains, towns, forts, piers, names) builds once;
 -- owner colours, borders, occupation hatching, armies, highlights and the path preview follow
@@ -15593,7 +16580,7 @@ function Board.destroy()
 end
 
 return Board
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Board camera: orbit (middle drag), pan (WASD / arrows), zoom (wheel), clamped to the board
 -- and smoothed. Runs after the battlefield camera in the render step, so it owns the view
 -- while the campaign is open; the battlefield camera is told to ignore its keys meanwhile.
@@ -15727,7 +16714,7 @@ function CampaignCamera.stop()
 end
 
 return CampaignCamera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign panels in the Kit style: top bar, selected army and province (left),
 -- diplomacy (right) and the documents on top: event dispatches, the battle dialog, the
 -- turn summary, victory/defeat and the choice of nation. Rebuilt from the view on each
@@ -16510,7 +17497,7 @@ function UI.destroy()
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign static data (shared EuropeData) and the nation look-ups the board and panels
 -- share: colour, name, flag.
 
@@ -16564,7 +17551,7 @@ function Data.flag(nation: string?): Factions.Flag
 end
 
 return Data
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure grand-campaign view logic (no Roblox types, so tests run it in the Luau CLI): who may act,
 -- march routes mirroring the server's Movement rules, reachable provinces, readable reasons,
 -- the turn summary and offer terms.
@@ -16807,7 +17794,166 @@ function Logic.offerText(o: any): string
 end
 
 return Logic
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
+-- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
+-- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~4 s.
+-- Any key, click or touch skips it (the camera snaps back at once). The card never takes input:
+-- nothing here is Active, so clicks fall through to the field. No pan while a mouse button is
+-- held (the player is dragging) or while the intro plays; with reduced effects, only the card.
+
+local TweenService = game:GetService("TweenService") :: TweenService
+local UserInputService = game:GetService("UserInputService") :: UserInputService
+local Kit = require(script.Parent.UI.Kit)
+local HUD = require(script.Parent.UI.HUD)
+local Camera = require(script.Parent.Camera)
+local Settings = require(script.Parent.Settings)
+
+local Cinematic = {}
+
+local FADE = 0.45
+local HOLD = 4 -- seconds the card stays up (the pan's length)
+local PAN_BACK_AT = 3 -- seconds into the hold the camera starts back
+local BAR = 0.085 -- letterbox bar height, fraction of the screen
+
+type Card = { gui: ScreenGui, group: CanvasGroup, bars: { Frame }, back: ((snap: boolean) -> ())? }
+
+local queue: { any } = {}
+local current: Card? = nil
+local skipConn: RBXScriptConnection? = nil
+
+local function tween(inst: Instance, t: number, props: { [string]: any })
+	TweenService:Create(inst, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+end
+
+local showNext: () -> ()
+
+local function close(card: Card, fast: boolean)
+	if current ~= card then
+		return
+	end
+	current = nil
+	if card.back then
+		card.back(fast) -- skipped: snap back so a drag starting now sees a still camera
+		card.back = nil
+	end
+	local t = if fast then 0.2 else FADE
+	tween(card.group, t, { GroupTransparency = 1 })
+	for i, b in card.bars do
+		tween(b, t, { Position = if i == 1 then UDim2.fromScale(0, -BAR) else UDim2.fromScale(0, 1) })
+	end
+	task.delay(t, function()
+		card.gui:Destroy()
+		showNext()
+	end)
+end
+
+local function build(ev: any, letterbox: boolean): Card
+	local sg = Kit.screen("EoEMoment", 15, true)
+	local bars: { Frame } = {}
+	if letterbox then
+		for i = 1, 2 do
+			local b = Instance.new("Frame") :: Frame
+			b.Size = UDim2.fromScale(1, BAR)
+			b.Position = if i == 1 then UDim2.fromScale(0, -BAR) else UDim2.fromScale(0, 1)
+			b.BackgroundColor3 = Color3.new(0, 0, 0)
+			b.BorderSizePixel = 0
+			b.Active = false
+			b.Parent = sg
+			bars[i] = b
+		end
+	end
+	local g = Instance.new("CanvasGroup") :: CanvasGroup
+	g.AnchorPoint = Vector2.new(0.5, 0)
+	g.Position = UDim2.fromScale(0.5, 0.62)
+	g.Size = UDim2.new(1, 0, 0, 118)
+	g.BackgroundColor3 = Kit.INSET
+	g.BackgroundTransparency = 0.3
+	g.BorderSizePixel = 0
+	g.GroupTransparency = 1
+	g.Active = false
+	g.Parent = sg
+	for _, y in { 0, 1 } do
+		local edge = Instance.new("Frame") :: Frame
+		edge.Size = UDim2.new(1, 0, 0, 1)
+		edge.Position = UDim2.fromScale(0, y)
+		edge.AnchorPoint = Vector2.new(0, y)
+		edge.BackgroundColor3 = Kit.GILT_DARK
+		edge.BorderSizePixel = 0
+		edge.Parent = g
+	end
+	local title = Kit.title(g, tostring(ev.title or ""), { spaced = true, align = Enum.TextXAlignment.Center, colour = Kit.GILT_BRIGHT, textSize = 28, size = UDim2.new(1, -40, 0, 34), position = UDim2.fromOffset(20, 14) })
+	title.TextStrokeTransparency = 0.6
+	title.TextStrokeColor3 = Kit.INK
+	Kit.rule(g, UDim2.new(0.5, 0, 0, 54), 180, 0.5)
+	local body = Kit.label(g, tostring(ev.text or ""), { align = Enum.TextXAlignment.Center, colour = Kit.IVORY, textSize = 19, wrap = true, size = UDim2.new(0.7, 0, 0, 48), position = UDim2.new(0.15, 0, 0, 62) })
+	body.FontFace = Kit.ITALIC
+	return { gui = sg, group = g, bars = bars }
+end
+
+showNext = function()
+	if current or #queue == 0 then
+		return
+	end
+	local ev = table.remove(queue, 1)
+	local reduced = Settings.get().reducedEffects == true
+	local card = build(ev, not reduced)
+	current = card
+	tween(card.group, FADE, { GroupTransparency = 0 })
+	for i, b in card.bars do
+		tween(b, FADE, { Position = if i == 1 then UDim2.fromScale(0, 0) else UDim2.fromScale(0, 1 - BAR) })
+	end
+	local dragging = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+	if not reduced and not dragging and not Camera.introPlaying() and type(ev.x) == "number" and type(ev.z) == "number" then
+		local fx, fz = Camera.getFocus()
+		Camera.focusOn(ev.x, ev.z)
+		card.back = function(snap: boolean)
+			Camera.focusOn(fx, fz, snap)
+		end
+		task.delay(PAN_BACK_AT, function()
+			if current == card and card.back then
+				card.back(false)
+				card.back = nil
+			end
+		end)
+	end
+	task.delay(HOLD, function()
+		close(card, false) -- no-op if it was skipped
+	end)
+end
+
+-- Called with every snapshot event; acts on moments only.
+function Cinematic.onEvent(ev: any)
+	if type(ev) ~= "table" or ev.kind ~= "moment" then
+		return
+	end
+	HUD.message(tostring(ev.title or ""), Kit.GILT_BRIGHT, true)
+	if #queue < 3 then
+		table.insert(queue, ev)
+	end
+	if not skipConn then
+		skipConn = UserInputService.InputBegan:Connect(function(input: InputObject)
+			local t = input.UserInputType
+			local card = current
+			if card and (t == Enum.UserInputType.Keyboard or t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.Touch or t == Enum.UserInputType.Gamepad1) then
+				close(card, true)
+			end
+		end)
+	end
+	showNext()
+end
+
+-- Drop any card and queued moments (leaving a battle).
+function Cinematic.clear()
+	table.clear(queue)
+	local card = current
+	if card then
+		close(card, true)
+	end
+end
+
+return Cinematic
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pooled one-shot visual effects driven by snapshot events only. Smoke and dust are soft
 -- translucent particles (built-in smoke texture, no asset ids) burst from a small round-robin
 -- pool of emitter parts; flashes, earth spray and rout markers are short-lived pooled parts.
@@ -17115,7 +18261,7 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
 -- unit `colour` override, else the faction), display names and marker-flag designs.
 
@@ -17209,7 +18355,7 @@ function Factions.slabDarken(faction: string?): number
 end
 
 return Factions
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
@@ -18447,7 +19593,7 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -19103,7 +20249,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, builds the world per map, wires the
 -- modules together and drives the match lifecycle from MatchState messages.
 
@@ -19136,6 +20282,7 @@ local CampaignScreen = require(script.Parent.UI.CampaignScreen)
 local BattleSelect = require(script.Parent.UI.BattleSelect)
 local Grand = require(script.Parent.Campaign)
 local Tutorial = require(script.Parent.Tutorial)
+local Cinematic = require(script.Parent.Cinematic)
 
 local DEFAULT_MAP = "jena"
 
@@ -19322,6 +20469,7 @@ local function teardown()
 	closePanels()
 	CampaignScreen.hide()
 	Grand.close()
+	Cinematic.clear()
 end
 
 local gotServerState = false
@@ -19529,6 +20677,7 @@ local function wire()
 	table.insert(conns, BattleState.event:Connect(function(ev: any)
 		Effects.onEvent(ev)
 		HUD.onEvent(ev)
+		Cinematic.onEvent(ev)
 		if ev.kind == "volley" or ev.kind == "cannon" or ev.kind == "melee" or ev.kind == "charge" or ev.kind == "rout" or ev.kind == "rally" or ev.kind == "capture" then
 			Audio.play(ev.kind)
 		end
@@ -19612,7 +20761,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -19746,7 +20895,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -19868,7 +21017,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local Signal = require(script.Parent.Signal)
@@ -19914,7 +21063,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -19958,7 +21107,7 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -20358,9 +21507,9 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000079"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
--- Battle select: the scenarios from Scenarios.list() (fallback: Scenarios.jena alone), each with
--- name, date, sides, summary, difficulty note and a Fight button; a difficulty selector on top.
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000083"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Battle select: Quick battles (each battle a framed painting header over its two episode
+-- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
 local RunService = game:GetService("RunService") :: RunService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -20376,7 +21525,10 @@ export type Callbacks = {
 	back: () -> (),
 }
 
-type Entry = { id: string, name: string, date: string?, map: string?, factionNames: { [string]: string }?, summary: string?, difficultyNote: string? }
+type Entry = { id: string, name: string, date: string?, map: string?, factionNames: { [string]: string }?, summary: string?, difficultyNote: string?, mode: string?, parent: string?, timeLimit: number? }
+
+-- "quick" (episodes) or "full"; session-local, quick first so a new player starts short
+local mode = "quick"
 
 local gui: ScreenGui? = nil
 local difficultyButtons: { [string]: TextButton } = {}
@@ -20454,7 +21606,43 @@ end
 
 -- A framed "painting": gold-bordered dark card with the name, the date in italic, the two
 -- flags facing each other, the history on a parchment strip and the difficulty in stars.
-local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean)
+local function minutes(e: Entry, fallback: number): string
+	return string.format("%d min", math.floor((e.timeLimit or fallback * 60) / 60 + 0.5))
+end
+
+-- A smaller card for one episode of a battle: name, length, date, short summary, stars, Fight.
+local function episodeCard(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean)
+	local f = Kit.panel(parent, { size = UDim2.new(0.5, -5, 0, 150), position = UDim2.new(), plain = true, padding = 10 })
+	f.LayoutOrder = order
+	local name = Kit.title(f, e.name, { size = UDim2.new(1, 0, 0, 22), textSize = 19, caps = false, colour = Kit.IVORY })
+	name.TextTruncate = Enum.TextTruncate.AtEnd
+	local kind = Kit.label(f, "Quick battle · " .. minutes(e, 10) .. (if e.date then "   ·   " .. e.date else ""), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 22), textSize = 16, colour = Kit.GILT })
+	kind.FontFace = Kit.ITALIC
+	kind.TextTruncate = Enum.TextTruncate.AtEnd
+	local summary = Kit.label(f, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 52), position = UDim2.fromOffset(0, 42), textSize = 15, font = Enum.Font.Garamond, wrap = true, colour = Kit.MUTED })
+	summary.TextYAlignment = Enum.TextYAlignment.Top
+	summary.TextTruncate = Enum.TextTruncate.AtEnd
+	local diff = Instance.new("Frame") :: Frame
+	diff.Size = UDim2.fromOffset(60, 16)
+	diff.Position = UDim2.new(0, 0, 1, -22)
+	diff.BackgroundTransparency = 1
+	diff.Parent = f
+	local n = stars(e.difficultyNote)
+	for i = 1, 3 do
+		star(diff, 6 + (i - 1) * 16, i <= n)
+	end
+	Kit.hoverTip(diff, function(): string
+		return tostring(e.difficultyNote or "")
+	end)
+	local b = Kit.button(f, "Fight", function()
+		cb.fight(e.id)
+	end, { size = UDim2.fromOffset(90, 32), position = UDim2.new(1, 0, 1, 0), anchor = Vector2.new(1, 1), primary = true, textSize = 16 })
+	Kit.setEnabled(b, isCommander, "Only the commander starts a battle")
+end
+
+-- `episodes` given: the painting is a header (name, date, flags) over its quick-battle cards;
+-- otherwise the full battle with its history and Fight.
+local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean, episodes: { Entry }?)
 	local f = Kit.panel(parent, { size = UDim2.new(1, -8, 0, 150), position = UDim2.new(), dark = true, padding = 12 })
 	f.LayoutOrder = order
 	f.AutomaticSize = Enum.AutomaticSize.Y
@@ -20482,6 +21670,20 @@ local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, is
 	for i = 2, math.min(#ids, 3) do
 		Kit.flag(flags, ids[i], Vector2.new(36, 24), UDim2.fromOffset(72 + (i - 2) * 10, (i - 2) * 6), true)
 	end
+	if episodes then
+		local row = Instance.new("Frame") :: Frame
+		row.Size = UDim2.new(1, 0, 0, 150)
+		row.Position = UDim2.new(0, 0, 0, 56)
+		row.BackgroundTransparency = 1
+		row.Parent = f
+		Kit.list(row, 10, true)
+		for i, ep in episodes do
+			episodeCard(row, ep, i, cb, isCommander)
+		end
+		return
+	end
+	local fullLen = Kit.label(f, "Full battle · " .. minutes(e, 25), { size = UDim2.fromOffset(110, 18), position = UDim2.new(1, 0, 0, 44), anchor = Vector2.new(1, 0), textSize = 15, colour = Kit.GILT, align = Enum.TextXAlignment.Right })
+	fullLen.FontFace = Kit.ITALIC
 	-- summary on a parchment strip, then the difficulty
 	local body = Instance.new("Frame") :: Frame
 	body.Size = UDim2.new(1, -124, 0, 0)
@@ -20538,9 +21740,15 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 		difficultyButtons[key] = b
 	end
 	refreshDifficulty()
+	local tabs = Instance.new("Frame") :: Frame
+	tabs.Size = UDim2.new(1, 0, 0, 32)
+	tabs.Position = UDim2.new(0, 0, 0, 84)
+	tabs.BackgroundTransparency = 1
+	tabs.Parent = panel
+	Kit.list(tabs, 8, true)
 	local scroll = Instance.new("ScrollingFrame") :: ScrollingFrame
-	scroll.Size = UDim2.new(1, 0, 1, -86)
-	scroll.Position = UDim2.new(0, 0, 0, 82)
+	scroll.Size = UDim2.new(1, 0, 1, -126)
+	scroll.Position = UDim2.new(0, 0, 0, 124)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 6
@@ -20549,11 +21757,42 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	scroll.CanvasSize = UDim2.new()
 	scroll.Active = true
 	scroll.Parent = panel
-	Kit.list(scroll, 10)
 	local list = entries()
-	for i, e in list do
-		card(scroll, e, i, cb, isCommander)
+	local tabButtons: { [string]: TextButton } = {}
+	local function fill()
+		for _, c in scroll:GetChildren() do
+			c:Destroy()
+		end
+		Kit.list(scroll, 10)
+		for key, b in tabButtons do
+			Kit.setActiveLook(b, key == mode)
+		end
+		local byParent: { [string]: { Entry } } = {}
+		for _, e in list do
+			if e.mode == "episode" and e.parent then
+				byParent[e.parent] = byParent[e.parent] or {}
+				table.insert(byParent[e.parent], e)
+			end
+		end
+		local i = 0
+		for _, e in list do
+			if e.mode ~= "episode" then
+				i += 1
+				local eps = byParent[e.id]
+				-- a battle without episodes still shows in full in the quick list
+				card(scroll, e, i, cb, isCommander, if mode == "quick" and eps and #eps > 0 then eps else nil)
+			end
+		end
+		scroll.CanvasPosition = Vector2.new(0, 0)
 	end
+	for i, t in { { "quick", "Quick battles (8–10 min)" }, { "full", "Full battles (25–30 min)" } } do
+		local key = t[1]
+		tabButtons[key] = Kit.button(tabs, t[2], function()
+			mode = key
+			fill()
+		end, { size = UDim2.fromOffset(250, 32), order = i, textSize = 16, caps = false })
+	end
+	fill()
 	-- Roblox can leave a card under the scroll window's clip half-drawn on the first frame;
 	-- nudging the canvas after the first layout pass forces a full redraw.
 	task.spawn(function()
@@ -20587,7 +21826,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -21278,7 +22517,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -21451,8 +22690,9 @@ local function tipFor(id: number): string
 		lines[4] ..= " · " .. f.status
 	end
 	-- generals' traits and abilities acting on it now (the gilt star on the card)
-	if type(f.tags) == "string" then
-		for tag in string.gmatch(f.tags, "[^,]+") do
+	local tags = (f :: any).tags -- not in BattleState.Formation yet
+	if type(tags) == "string" then
+		for tag in string.gmatch(tags, "[^,]+") do
 			local name, text = Generals.tagInfo(tag)
 			if name then
 				table.insert(lines, "★ " .. name .. ": " .. tostring(text))
@@ -21914,7 +23154,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -22026,7 +23266,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -22111,7 +23351,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -23039,7 +24279,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -23142,7 +24382,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents. Every panel is Active so clicks never reach
@@ -23891,7 +25131,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
 -- What the client saw of its own army during one battle, for the results report: one record per
 -- own formation (start, last strength, final status) and counts of squares, charges, routs,
 -- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
@@ -24043,7 +25283,7 @@ function Ledger.counts(): Counts
 end
 
 return Ledger
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (terrain + props build).
 
 local Kit = require(script.Parent.Kit)
@@ -24120,7 +25360,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -24279,7 +25519,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -24538,7 +25778,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -24858,7 +26098,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
@@ -24987,7 +26227,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -25149,7 +26389,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000084"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000088"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morning battlefield light: warm sun from the south-east, light haze, soft clouds, slight
 -- warmth and contrast. Built-in defaults only (no asset ids). Quality 1 drops the costly bits.
 
@@ -25275,7 +26515,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -25652,7 +26892,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -25981,7 +27221,7 @@ function Soldiers.gun(add: Add, faction: string, coat: Color3, limbered: boolean
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
@@ -26351,4 +27591,4 @@ function Terrain.clear()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000088"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000089"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000090"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000092"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000093"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000094"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
