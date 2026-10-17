@@ -200,3 +200,140 @@ test("Moments are deterministic: same seed, same moments at the same ticks", fun
 	assertTrue(string.find(a, "near@", 1, true) ~= nil and string.find(a, "late@", 1, true) ~= nil, "both fired: " .. a)
 end)
 
+-- Every listed scenario's moments name things that exist, and none fires at the first check.
+local function check(sel, units, what)
+	local hit = false
+	for _, d in units do
+		if MomentDefs.matches(sel, d) then
+			hit = true
+		end
+	end
+	assertTrue(hit, what .. " selects no formation")
+end
+
+local function walk(cond, sc, map, what)
+	local objIds = {}
+	for _, o in map.objectives do
+		objIds[o.id] = true
+	end
+	local ot = cond.objectiveTaken
+	if ot then
+		assertTrue(objIds[ot.id], what .. ": objective " .. ot.id)
+		assertTrue(sc.factionNames[ot.by] ~= nil, what .. ": faction " .. ot.by)
+	end
+	for _, key in { "formationRouted", "strengthBelow", "formationNear" } do
+		local sel = cond[key]
+		if sel then
+			assertTrue(sel.faction == nil or sc.factionNames[sel.faction] ~= nil, what .. ": " .. key .. " faction")
+			check(sel, sc.units, what .. ": " .. key)
+		end
+	end
+	local near = cond.formationNear
+	if near then
+		assertTrue((near.objective and objIds[near.objective]) or near.pos ~= nil, what .. ": formationNear needs an objective or pos")
+		assertTrue(type(near.radius) == "number" and near.radius > 0, what .. ": radius")
+	end
+	if cond.strengthBelow then
+		assertTrue(type(cond.strengthBelow.fraction) == "number", what .. ": fraction")
+	end
+	for _, sub in cond.all or {} do
+		walk(sub, sc, map, what)
+	end
+	for _, sub in cond.any or {} do
+		walk(sub, sc, map, what)
+	end
+end
+
+for _, entry in Scenarios.list() do
+	test("Moments of " .. entry.id .. ": references exist, effects small, none fires at the start", function()
+		local sc = Scenarios.get(entry.id)
+		assert(sc)
+		local map = mapOf(sc.map)
+		local ids = {}
+		assertTrue(#(sc.moments or {}) >= 2 and #sc.moments <= 3, entry.id .. ": 2-3 moments")
+		for _, m in sc.moments do
+			local what = entry.id .. "/" .. m.id
+			assertTrue(not ids[m.id], what .. " duplicate id")
+			ids[m.id] = true
+			assertTrue(#m.title > 0 and #m.text > 20 and #m.text < 260, what .. " title and text")
+			assertTrue(m.faction == nil or sc.factionNames[m.faction] ~= nil, what .. " faction")
+			walk(m.when, sc, map, what)
+			if m.camera then
+				assertTrue(Grid.inBounds(map.grid, m.camera.x, m.camera.z), what .. " camera on the map")
+			end
+			local e = m.effect or {}
+			for _, sel in e.morale or {} do
+				assertTrue(math.abs(sel.amount or 0) <= MomentDefs.MoraleLimit, what .. " morale within the limit")
+				check(sel, sc.units, what .. " morale")
+			end
+			if e.release then
+				local held = false
+				for _, d in sc.units do
+					held = held or (d.arrival ~= nil and string.find(d.name, e.release, 1, true) ~= nil)
+				end
+				assertTrue(held, what .. " releases an off-map formation")
+			end
+			assertTrue(e.weather == nil or Config.Weather[e.weather] ~= nil, what .. " weather key")
+		end
+		local sim = Sim.new({ matchId = "m", scenario = sc, map = map, seed = 1 })
+		sim:start()
+		for _ = 1, MomentDefs.EveryTicks do
+			sim:step()
+		end
+		assertEq(#momentEvents(sim), 0, entry.id .. ": no moment is free at the start")
+	end)
+end
+
+-- Episodes: real slices of the four battles, deployable and winnable.
+for _, entry in Scenarios.list() do
+	if entry.mode == "episode" then
+		test("Episode " .. entry.id .. ": a quick battle with sound deployment and reachable objectives", function()
+			local sc = Scenarios.get(entry.id)
+			assert(sc)
+			local parent = Scenarios.get(entry.parent or "")
+			assertTrue(parent ~= nil and parent.mode == "full", "parent battle")
+			assert(parent)
+			assertEq(sc.timeLimit, 600)
+			assertTrue(type(sc.date) == "string" and type(sc.summary) == "string" and #sc.briefing > 100, "display fields")
+			assertTrue(string.find(sc.difficultyNote or "", "^Even") or string.find(sc.difficultyNote or "", "^Hard") or string.find(sc.difficultyNote or "", "^Very hard"), "difficulty note")
+			assertEq(sc.factions.player, parent.factions.player)
+			assertEq(sc.factions.enemy, parent.factions.enemy)
+			local map = mapOf(sc.map)
+			local base = mapOf(parent.map)
+			assertEq(map.width, base.width)
+			for i = 1, #map.grid.class, 997 do
+				assertEq(map.grid.class[i], base.grid.class[i], "same ground as the parent battle")
+			end
+			assertTrue(#map.objectives >= 1 and #map.objectives <= 2, "one or two objectives")
+			local count, hqs, seen = {}, {}, {}
+			for _, d in sc.units do
+				assertTrue(not seen[d.name], "duplicate " .. d.name)
+				seen[d.name] = true
+				count[d.faction] = (count[d.faction] or 0) + 1
+				if d.commander then
+					hqs[d.faction] = (hqs[d.faction] or 0) + 1
+				end
+				assertTrue(d.colour == nil or Config.Visual.Palette[d.colour] ~= nil, "palette " .. tostring(d.colour))
+				local p = if d.arrival then d.arrival.pos else d.pos
+				if not d.arrival then
+					assertTrue(MapGen.inZone(map, d.faction, p), d.name .. " in zone")
+				end
+				assertTrue(Grid.inBounds(map.grid, p.x, p.z), d.name .. " on the map")
+				assertTrue(Grid.terrainAt(map.grid, p.x, p.z).passable, d.name .. " on passable ground")
+				assertTrue(Grid.clearanceAt(map.grid, p.x, p.z) >= 8, d.name .. " has clearance")
+			end
+			for _, faction in { sc.factions.player, sc.factions.enemy } do
+				assertTrue(count[faction] >= 6 and count[faction] <= 9, faction .. ": 6-9 formations, got " .. tostring(count[faction]))
+				assertEq(hqs[faction], 1, faction .. " has one army HQ")
+			end
+			local nav = Nav.build(map.grid)
+			local zone = map.deployZones[sc.factions.player]
+			local from = { x = (zone.x0 + zone.x1) / 2, z = (zone.z0 + zone.z1) / 2 }
+			for _, o in map.objectives do
+				assertTrue(Grid.terrainAt(map.grid, o.pos.x, o.pos.z).passable, o.id .. " passable")
+				local path = Nav.findPath(nav, from, o.pos, 8)
+				assertTrue(path ~= nil and #path > 0 and Vec.dist(path[#path], o.pos) < Config.Map.NavCellSize * 2, "path to " .. o.id)
+			end
+		end)
+	end
+end

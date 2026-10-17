@@ -500,6 +500,47 @@ MAPS.tutorial = {
 	valley = nil,
 }
 
+-- Episode maps (quick battles, Scenarios `mode = "episode"`): the same ground as a full battle
+-- (same features and seed, so an identical grid) with their own deployment zones and objectives.
+-- Home edges are north/south (Sim.homeEdge): each side's zone centre stays on its own half.
+local function episode(base: string, objectives: { Objective }, zones: { [string]: Rect }): MapDef
+	local d = table.clone(MAPS[base])
+	d.objectives = objectives
+	d.deployZones = zones
+	return d
+end
+
+MAPS.austerlitz_pratzen = episode("austerlitz", {
+	{ id = "pratzen", name = "Pratzen Heights", pos = v(1450, 900), radius = 70 },
+	{ id = "vinohrady", name = "Staré Vinohrady", pos = v(1480, 1250), radius = 60 },
+}, { france = { x0 = 800, z0 = 560, x1 = 1120, z1 = 1000 }, russia = { x0 = 1360, z0 = 900, x1 = 1950, z1 = 1400 } })
+MAPS.austerlitz_sokolnitz = episode("austerlitz", {
+	{ id = "sokolnitz", name = "Sokolnitz", pos = v(870, 450), radius = 60 },
+	{ id = "telnitz", name = "Telnitz", pos = v(940, 170), radius = 60 },
+}, { france = { x0 = 480, z0 = 120, x1 = 960, z1 = 600 }, russia = { x0 = 1040, z0 = 700, x1 = 1560, z1 = 1100 } })
+MAPS.jena_vierzehnheiligen = episode("jena", {
+	{ id = "vierzehnheiligen", name = "Vierzehnheiligen", pos = v(760, 760), radius = 60 },
+}, { france = { x0 = 450, z0 = 420, x1 = 1120, z1 = 640 }, prussia = { x0 = 400, z0 = 830, x1 = 1150, z1 = 920 } })
+MAPS.jena_landgrafenberg = episode("jena", {
+	{ id = "closewitz", name = "Closewitz", pos = v(1000, 520), radius = 60 },
+	{ id = "cospeda", name = "Cospeda", pos = v(540, 470), radius = 60 },
+}, { france = { x0 = 550, z0 = 100, x1 = 1200, z1 = 360 }, prussia = { x0 = 420, z0 = 440, x1 = 1280, z1 = 800 } })
+MAPS.auerstedt_hassenhausen = episode("auerstedt", {
+	{ id = "hassenhausen", name = "Hassenhausen", pos = v(1150, 700), radius = 60 },
+	{ id = "lissbach", name = "Lissbach bridge", pos = v(750, 760), radius = 60 },
+}, { france = { x0 = 950, z0 = 480, x1 = 1420, z1 = 920 }, prussia = { x0 = 260, z0 = 420, x1 = 920, z1 = 1150 } })
+MAPS.auerstedt_spielberg = episode("auerstedt", {
+	{ id = "spielberg", name = "Spielberg", pos = v(1280, 1130), radius = 60 },
+	{ id = "poppel", name = "Poppel", pos = v(690, 1060), radius = 60 },
+}, { france = { x0 = 1250, z0 = 500, x1 = 1700, z1 = 980 }, prussia = { x0 = 260, z0 = 880, x1 = 660, z1 = 1380 } })
+MAPS.waterloo_hougoumont = episode("waterloo", {
+	{ id = "hougoumont", name = "Hougoumont", pos = v(760, 790), radius = 60 },
+}, { france = { x0 = 420, z0 = 360, x1 = 1120, z1 = 600 }, britain = { x0 = 560, z0 = 730, x1 = 1060, z1 = 1160 } })
+MAPS.waterloo_lahayesainte = episode("waterloo", {
+	{ id = "lahayesainte", name = "La Haye Sainte", pos = v(1200, 920), radius = 60 },
+	{ id = "crossroads", name = "Mont-Saint-Jean crossroads", pos = v(1200, 1060), radius = 60 },
+}, { france = { x0 = 880, z0 = 400, x1 = 1520, z1 = 640 }, britain = { x0 = 940, z0 = 880, x1 = 1500, z1 = 1260 } })
+
 function MapGen.list(): { string }
 	return { "jena", "auerstedt", "austerlitz", "waterloo", "bridge", "village" }
 end

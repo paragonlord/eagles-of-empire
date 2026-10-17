@@ -127,7 +127,12 @@ end)
 local BATTLES = { "jena", "auerstedt", "austerlitz", "waterloo" }
 
 test("Scenarios.list is the four battles in display order with display fields", function()
-	local list = Scenarios.list()
+	local list = {}
+	for _, e in Scenarios.list() do
+		if e.mode == "full" then
+			list[#list + 1] = e
+		end
+	end
 	assertEq(#list, 4)
 	for i, id in BATTLES do
 		assertEq(list[i].id, id)
