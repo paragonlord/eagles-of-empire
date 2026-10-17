@@ -158,7 +158,12 @@ local TUTORIAL_UNITS = {
 	skirmishers = "Grenz-Infanterie Nr. 1",
 	cavalry = "Chevaulegers Nr. 3",
 	conscripts = "Conscrits de 1809",
+	garrison = "IR 49 Kerpen",
 }
+local TUTORIAL_CAV_REPEAT = 10 -- s between renewed cavalry attacks while lesson 9 runs
+local TUTORIAL_GRENZ_BREAK = 0.75 -- Grenzers withdraw below this fraction of their strength
+local TUTORIAL_GRENZ_FALLBACK = { x = 430, z = 650 } -- over the Mühlbach, west of Ebersdorf
+local TUTORIAL_GARRISON_FALLBACK = { x = 900, z = 760 } -- out of Ebersdorf to the north-east
 
 local function tutorialIds(sim: Sim, faction: string, name: string?): { number }
 	local ids = {}
@@ -193,20 +198,7 @@ local function tutorialScript(m: any, step: number, target: number)
 	if step == 6 then
 		tutorialOrder(sim, "Stance", tutorialIds(sim, enemy, TUTORIAL_UNITS.skirmishers), { fireAtWill = true })
 	elseif step == 9 and target == 9 then
-		-- the cavalry rides at the nearest French battalion
-		local cav = tutorialIds(sim, enemy, TUTORIAL_UNITS.cavalry)
-		local from = if cav[1] then sim.formations[cav[1]].pos else { x = 0, z = 0 }
-		local best, bestD = nil, math.huge
-		for _, id in tutorialIds(sim, sim.playerFaction, nil) do
-			local f = sim.formations[id]
-			local d = (f.pos.x - from.x) ^ 2 + (f.pos.z - from.z) ^ 2
-			if f.class == "infantry" and f.state ~= "routing" and d < bestD then
-				best, bestD = f, d
-			end
-		end
-		if best then
-			tutorialOrder(sim, "AttackMove", cav, { pos = { x = best.pos.x, z = best.pos.z } })
-		end
+		m.tutorialCavAt = 0 -- tutorialTick sends the cavalry now and renews the attack
 	elseif step == 10 and target == 10 then
 		-- the conscripts break (a scripted shock, so the rally lesson always has a subject)
 		for _, id in tutorialIds(sim, sim.playerFaction, TUTORIAL_UNITS.conscripts) do
@@ -221,6 +213,73 @@ local function tutorialScript(m: any, step: number, target: number)
 		if ai then
 			sim.aiStep = function(_s)
 				AI.step(ai)
+			end
+		end
+	end
+end
+
+-- The cavalry rides at the nearest French battalion it can see (any, if it sees none).
+local function tutorialCavalryAttack(sim: Sim)
+	local cav = tutorialIds(sim, sim.enemyFaction, TUTORIAL_UNITS.cavalry)
+	local c = cav[1] and sim.formations[cav[1]]
+	if not c or c.state == "routing" then
+		return
+	end
+	local best, bestD, bestSeen = nil, math.huge, false
+	for _, id in tutorialIds(sim, sim.playerFaction, nil) do
+		local f = sim.formations[id]
+		local seen = sim:isVisibleTo(sim.enemyFaction, id)
+		local d = (f.pos.x - c.pos.x) ^ 2 + (f.pos.z - c.pos.z) ^ 2
+		if f.class == "infantry" and f.state ~= "routing" and ((seen and not bestSeen) or (seen == bestSeen and d < bestD)) then
+			best, bestD, bestSeen = f, d, seen
+		end
+	end
+	if best then
+		tutorialOrder(sim, "AttackMove", cav, { pos = { x = best.pos.x, z = best.pos.z } })
+	end
+end
+
+local function tutorialWithdraw(sim: Sim, f: any, pos: { x: number, z: number }, text: string)
+	tutorialOrder(sim, "Stance", { f.id }, { fireAtWill = false })
+	tutorialOrder(sim, "Retreat", { f.id }, { pos = pos })
+	sim:emit({ kind = "message", tick = sim.tick, text = text })
+end
+
+-- Per-frame upkeep of the scripted enemy (pure; exposed for tests): renews the cavalry attack
+-- while lesson 9 runs, pulls the Grenzers back once bloodied so lesson 6 ends in a win, and
+-- has the Kerpen battalion abandon Ebersdorf when two French battalions are in its streets.
+local function tutorialTick(m: any)
+	local step = m.tutorialStep
+	local sim: Sim = m.sim
+	if step == nil or sim.state ~= "running" then
+		return
+	end
+	if step == 9 and m.tutorialCavAt and sim.clock >= m.tutorialCavAt then
+		m.tutorialCavAt = sim.clock + TUTORIAL_CAV_REPEAT
+		tutorialCavalryAttack(sim)
+	end
+	if step >= 6 and not m.tutorialGrenzOut then
+		for _, id in tutorialIds(sim, sim.enemyFaction, TUTORIAL_UNITS.skirmishers) do
+			local f = sim.formations[id]
+			if f.state ~= "routing" and f.strength < f.startStrength * TUTORIAL_GRENZ_BREAK then
+				m.tutorialGrenzOut = true
+				tutorialWithdraw(sim, f, TUTORIAL_GRENZ_FALLBACK, "The Grenzers give ground and fall back over the Mühlbach")
+			end
+		end
+	end
+	if step >= TUTORIAL_RELEASE and not m.tutorialGarrisonOut then
+		for _, id in tutorialIds(sim, sim.enemyFaction, TUTORIAL_UNITS.garrison) do
+			local g = sim.formations[id]
+			local close = 0
+			for _, fid in tutorialIds(sim, sim.playerFaction, nil) do
+				local f = sim.formations[fid]
+				if f.class == "infantry" and f.state ~= "routing" and (f.pos.x - g.pos.x) ^ 2 + (f.pos.z - g.pos.z) ^ 2 <= 80 * 80 then
+					close += 1
+				end
+			end
+			if close >= 2 and g.state ~= "routing" then
+				m.tutorialGarrisonOut = true
+				tutorialWithdraw(sim, g, TUTORIAL_GARRISON_FALLBACK, g.name .. " abandons Ebersdorf")
 			end
 		end
 	end
@@ -457,6 +516,9 @@ local function onHeartbeat(realDt: number)
 		return
 	end
 	if m.state == "running" then
+		if m.tutorialStep then
+			tutorialTick(m)
+		end
 		local ticks = MatchClock.advance(m.clock, realDt, function()
 			m.sim:step()
 		end)
@@ -580,7 +642,7 @@ function MatchService.start()
 end
 
 -- Exposed for tests / tooling.
-MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatch, tutorialStart = tutorialStart, tutorialStep = tutorialStep, getMatch = function()
+MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatch, tutorialStart = tutorialStart, tutorialStep = tutorialStep, tutorialTick = tutorialTick, getMatch = function()
 	return match
 end }
 

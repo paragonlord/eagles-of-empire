@@ -24,7 +24,7 @@ function TutorialPanel.show(cb: Callbacks)
 		return
 	end
 	local sg = Kit.screen("EoETutorial", 20)
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(340, 0), position = UDim2.new(1, -8, 0, 84), anchor = Vector2.new(1, 0), padding = 14, transparency = 0.06 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(340, 0), position = UDim2.new(1, -8, 0, 120), anchor = Vector2.new(1, 0), padding = 14, transparency = 0.06 })
 	p.AutomaticSize = Enum.AutomaticSize.Y
 	-- the list goes on an inner frame: on the panel itself it would also stack the panel's trim
 	-- and rosettes, and the trim (sized to the panel) pushed every line below the screen
@@ -59,8 +59,15 @@ function TutorialPanel.show(cb: Callbacks)
 	row.LayoutOrder = 5
 	row.Parent = content
 	Kit.list(row, 8, true)
-	Kit.button(row, "Skip step", cb.skipStep, { size = UDim2.fromOffset(120, 28), order = 1, tooltip = "Move on to the next lesson" })
-	Kit.button(row, "Skip tutorial", cb.skipAll, { size = UDim2.fromOffset(140, 28), order = 2, tooltip = "Dismiss the aide-de-camp and fight the battle out" })
+	-- the button stays under the pointer (or is destroyed) after a click: drop its tooltip
+	Kit.button(row, "Skip step", function()
+		Kit.hideTooltip()
+		cb.skipStep()
+	end, { size = UDim2.fromOffset(120, 28), order = 1, tooltip = "Move on to the next lesson" })
+	Kit.button(row, "Skip tutorial", function()
+		Kit.hideTooltip()
+		cb.skipAll()
+	end, { size = UDim2.fromOffset(140, 28), order = 2, tooltip = "Dismiss the aide-de-camp and fight the battle out" })
 
 	local f = Instance.new("Frame") :: Frame
 	f.BackgroundTransparency = 1
@@ -146,6 +153,7 @@ function TutorialPanel.update(t: number)
 end
 
 function TutorialPanel.hide()
+	Kit.hideTooltip()
 	TutorialPanel.highlight(nil)
 	TutorialPanel.ring(nil, nil, nil, nil)
 	if gui then

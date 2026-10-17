@@ -1056,7 +1056,7 @@ Scenarios.tutorial = {
 		u("france", "Brigade", "artillery", "Batterie à pied, 5e d'artillerie", 120, 1, 480, 150, NORTH),
 		u("france", "Brigade", "cavalry", "8e Hussards", 400, 1, 540, 220, NORTH),
 		u("austria", "HQ", "hq", "Brigade-Hauptquartier", 40, 1, 860, 740, SOUTH, { commander = true }),
-		u("austria", "Vorposten", "infantry", "Grenz-Infanterie Nr. 1", 400, 1, 420, 430, SOUTH),
+		u("austria", "Vorposten", "infantry", "Grenz-Infanterie Nr. 1", 300, 0, 420, 430, SOUTH),
 		u("austria", "Brigade", "infantry", "IR 4 Hoch- und Deutschmeister", 600, 1, 800, 430, WEST),
 		u("austria", "Brigade", "infantry", "IR 49 Kerpen", 600, 1, 620, 690, SOUTH),
 		u("austria", "Brigade", "cavalry", "Chevaulegers Nr. 3", 400, 1, 880, 640, WEST),

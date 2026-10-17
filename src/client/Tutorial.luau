@@ -22,7 +22,7 @@ local RELEASE = 11 -- server step that frees the enemy brigade (also sent by Ski
 local ADVANCE_DELAY = 1.6
 
 type Vec = { x: number, z: number }
-type Ctx = { t: number, seen: { [string]: boolean }, cam: { x: number, z: number, yaw: number, h: number }?, shapes: { [string]: boolean } }
+type Ctx = { t: number, seen: { [string]: boolean }, cam: { x: number, z: number, yaw: number, h: number }?, shapes: { [string]: boolean }, squareSince: number? }
 type Step = {
 	title: string,
 	text: string,
@@ -183,7 +183,7 @@ local STEPS: { Step } = {
 	},
 	{
 		title = "Fire",
-		text = "Grenzers hold the far side of the ridge: from its foot you cannot see them, nor they you. Advance a battalion in line to the crest; with fire at will it volleys once in range, then needs fifteen seconds to reload.",
+		text = "Grenzers hold the far side of the ridge: from its foot you cannot see them, nor they you. Advance a battalion in line to the crest; with fire at will it volleys once in range, then needs fifteen seconds to reload. Bloodied, the Grenzers will give ground.",
 		ui = command("Fire at will"),
 		spot = at(420, 345, 45),
 		done = function(ctx: Ctx): boolean
@@ -224,13 +224,19 @@ local STEPS: { Step } = {
 		text = "Austrian chevaulegers are crossing the Mühlbach at the gallop. Form square with the battalion they ride for: horsemen break on a square but cut a line to pieces.",
 		ui = command("Square"),
 		spot = near("Chevaulegers Nr. 3", { x = 620, z = 540 }, 40),
-		done = function(): boolean
+		done = function(ctx: Ctx): boolean
+			-- the square under threat, or held 20 s if the horsemen never come
+			local square = false
 			for _, f in own() do
-				if f.class == "infantry" and f.shape == "square" and enemyCavalryNear(f, 320) then
-					return true
+				if f.class == "infantry" and f.shape == "square" then
+					if enemyCavalryNear(f, 320) then
+						return true
+					end
+					square = true
 				end
 			end
-			return false
+			ctx.squareSince = if square then (ctx.squareSince or ctx.t) else nil
+			return ctx.squareSince ~= nil and ctx.t - ctx.squareSince >= 20
 		end,
 	},
 	{
@@ -244,7 +250,7 @@ local STEPS: { Step } = {
 	},
 	{
 		title = "Ebersdorf",
-		text = "Mon général, the enemy holds the village beyond the bridge, and the brigade is yours to command. Take Ebersdorf and keep it until the colours fly.",
+		text = "Mon général, the enemy holds the village beyond the bridge, and the brigade is yours to command. Press into Ebersdorf with two battalions and keep it until the colours fly.",
 		spot = at(620, 690, 60),
 		done = function(): boolean
 			for _, o in BattleState.objectives do

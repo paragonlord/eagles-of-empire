@@ -145,3 +145,69 @@ test("Tutorial step 10 breaks the conscripts, who can be rallied", function()
 	end
 	assertTrue(routed, "conscripts rout")
 end)
+
+test("Tutorial upkeep: cavalry attack renewed, bloodied Grenzers and crowded Kerpen withdraw", function()
+	local step, tick = MatchService._internal.tutorialStep, MatchService._internal.tutorialTick
+	local m = newMatch()
+	local sim = m.sim
+	local function named(name)
+		for _, f in sim.formations do
+			if f.name == name then
+				return f
+			end
+		end
+		error("no " .. name)
+	end
+	local function ordersFor(id, kind)
+		local n = 0
+		for _, c in sim.commands do
+			if c.kind == kind and table.find(c.ids, id) then
+				n += 1
+			end
+		end
+		return n
+	end
+	for _, p in { { x = 430, z = 650 }, { x = 900, z = 760 } } do
+		assertTrue(Grid.terrainAt(MAP.grid, p.x, p.z).passable, "fallback point passable")
+	end
+	-- lesson 6: the Grenzers fall back once below three quarters strength
+	assertTrue(step(m, true, 6))
+	local grenz = named("Grenz-Infanterie Nr. 1")
+	tick(m)
+	assertEq(ordersFor(grenz.id, "Retreat"), 0, "unhurt Grenzers stand")
+	grenz.strength = math.floor(grenz.startStrength * 0.7)
+	tick(m)
+	tick(m)
+	assertEq(ordersFor(grenz.id, "Retreat"), 1, "bloodied Grenzers withdraw once")
+	-- lesson 9: the cavalry is sent at once and again every 10 s
+	local cav = named("Chevaulegers Nr. 3")
+	assertTrue(step(m, true, 9))
+	tick(m)
+	assertEq(ordersFor(cav.id, "AttackMove"), 1, "cavalry sent")
+	tick(m)
+	assertEq(ordersFor(cav.id, "AttackMove"), 1, "not every frame")
+	for _ = 1, 10 / Config.Sim.DT + 2 do
+		sim:step()
+	end
+	tick(m)
+	assertTrue(ordersFor(cav.id, "AttackMove") >= 1 and m.tutorialCavAt > sim.clock, "attack renewed after 10 s")
+	-- lesson 11: Kerpen leaves the village when two French battalions are within 80
+	assertTrue(step(m, true, 11))
+	local kerpen = named("IR 49 Kerpen")
+	local n = 0
+	for _, f in sim.formations do
+		if f.faction == "france" and f.class == "infantry" and f.name ~= "Conscrits de 1809" then
+			n += 1
+			f.pos = { x = kerpen.pos.x + (if n == 1 then 50 else 300), z = kerpen.pos.z - 30 }
+		end
+	end
+	tick(m)
+	assertEq(ordersFor(kerpen.id, "Retreat"), 0, "one battalion is not enough")
+	for _, f in sim.formations do
+		if f.faction == "france" and f.class == "infantry" and f.name ~= "Conscrits de 1809" then
+			f.pos = { x = kerpen.pos.x - 40, z = kerpen.pos.z - 40 }
+		end
+	end
+	tick(m)
+	assertEq(ordersFor(kerpen.id, "Retreat"), 1, "Kerpen abandons Ebersdorf")
+end)
