@@ -47,6 +47,7 @@ type Marker = {
 	statusLabel: TextLabel,
 	bar: Frame,
 	barFill: Frame,
+	stripe: Frame, -- co-op: the commanding officer's slot colour down the plate's left edge
 	height: number,
 	priority: number,
 }
@@ -584,6 +585,11 @@ local function buildMarker(g: Group, f: any): Marker
 	fill.BackgroundColor3 = g.colour
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
+	local stripe = Instance.new("Frame") :: Frame
+	stripe.Size = UDim2.new(0, 5, 1, 0)
+	stripe.BorderSizePixel = 0
+	stripe.Visible = false
+	stripe.Parent = plate
 	return {
 		parts = parts,
 		locals = locals,
@@ -599,6 +605,7 @@ local function buildMarker(g: Group, f: any): Marker
 		statusLabel = statusLabel,
 		bar = bar,
 		barFill = fill,
+		stripe = stripe,
 		height = poleH + 0.5,
 		priority = if hq then 4 elseif g.ghost then 0 else 1,
 	}
@@ -1108,6 +1115,8 @@ function Figures.update(dt: number)
 	local moveParts: { BasePart } = {}
 	local moveCfs: { CFrame } = {}
 	local hovered = Selection.hovered()
+	local coop = BattleState.coop()
+	local deploying = BattleState.state == "deployment"
 	local farD = Config.Visual.FarLodDistance
 
 	for id, g in groups do
@@ -1251,7 +1260,15 @@ function Figures.update(dt: number)
 			local showStatus = selected or id == hovered
 			local m = g.marker
 			if not g.ghost then
-				m.statusLabel.Text = if showStatus then statusText(f) else ""
+				-- co-op: allies' wings carry their officer's colour (every wing while deploying)
+				local owner = if coop and g.faction == BattleState.viewerFaction then BattleState.player(BattleState.controllerOf(id)) else nil
+				local ally = owner ~= nil and not BattleState.isMine(id)
+				local striped = owner ~= nil and (deploying or ally)
+				m.stripe.Visible = striped
+				if striped then
+					m.stripe.BackgroundColor3 = Kit.slotColour(owner.slot)
+				end
+				m.statusLabel.Text = if not showStatus then "" elseif ally then tostring(owner.name) .. " · " .. statusText(f) else statusText(f)
 				m.bar.Visible = showStatus
 				if showStatus then
 					m.barFill.Size = UDim2.fromScale(math.clamp(f.strength / math.max(f.startStrength, 1), 0, 1), 1)

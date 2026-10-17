@@ -287,6 +287,34 @@ function Effects.update(_dt: number)
 	end
 end
 
+-- Co-op ping: a banner pole in the sender's slot colour, struck after 6 s.
+function Effects.ping(x: number, z: number, colour: Color3)
+	local f = folder
+	if not f then
+		return
+	end
+	local y = groundY(x, z)
+	local pole = makePart()
+	pole.Shape = Enum.PartType.Block
+	pole.Transparency = 0
+	pole.Color = Color3.fromRGB(70, 60, 50)
+	pole.Size = Vector3.new(0.4, 18, 0.4)
+	pole.CFrame = CFrame.new(x, y + 9, z)
+	pole.Parent = f
+	local banner = makePart()
+	banner.Shape = Enum.PartType.Block
+	banner.Transparency = 0
+	banner.Material = Enum.Material.Fabric
+	banner.Color = colour
+	banner.Size = Vector3.new(0.15, 4, 6)
+	banner.CFrame = CFrame.new(x, y + 16, z + 3.2)
+	banner.Parent = f
+	task.delay(6, function()
+		pole:Destroy()
+		banner:Destroy()
+	end)
+end
+
 function Effects.clear()
 	for _, a in active do
 		a.part:Destroy()

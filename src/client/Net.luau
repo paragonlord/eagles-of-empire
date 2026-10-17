@@ -17,6 +17,7 @@ Net.onMatchState = Signal.new()
 Net.onResult = Signal.new()
 Net.onDebug = Signal.new()
 Net.onCampaign = Signal.new() -- ({kind="view"|"error", ...})
+Net.onPing = Signal.new() -- ({userId, name, x, z, kind, tick}) co-op map pings
 
 local remotes: { [string]: RemoteEvent } = {}
 local connections: { RBXScriptConnection } = {}
@@ -77,6 +78,15 @@ function Net.init()
 	hook(Protocol.Remotes.Debug, Net.onDebug)
 	hook(Protocol.Remotes.Campaign, Net.onCampaign)
 	table.insert(connections, RunService.Heartbeat:Connect(drain))
+	-- co-op remote: an older server has none, so never block start-up on it
+	task.spawn(function()
+		local r = folder:WaitForChild("Ping", 60) :: RemoteEvent?
+		if r then
+			table.insert(connections, r.OnClientEvent:Connect(function(payload: any)
+				Net.onPing:Fire(payload)
+			end))
+		end
+	end)
 end
 
 function Net.setMatch(id: string, validateCtx: (() -> any)?)

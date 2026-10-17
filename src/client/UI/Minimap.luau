@@ -216,6 +216,14 @@ function Minimap.update()
 	for _, lk in BattleState.lastKnown do
 		place(lk.x, lk.z, Kit.factionColour(lk.faction):Lerp(Kit.MUTED, 0.6), 0.3, 4)
 	end
+	-- co-op pings: a pulsing blip in the sender's slot colour for 6 s
+	local now = os.clock()
+	for _, pg in BattleState.pings do
+		local age = now - pg.t0
+		if age < 6 then
+			place(pg.x, pg.z, Kit.slotColour(pg.slot), age / 8, 7 + 3 * math.sin(age * 8))
+		end
+	end
 	for j = i + 1, #dots do
 		dots[j].Visible = false
 	end

@@ -100,6 +100,14 @@ BattleState.state = "menu"
 BattleState.viewerFaction = ""
 BattleState.enemyFaction = ""
 BattleState.isCommander = false
+-- co-op (docs/coop-contract.md). Absent from an old server / solo: everything is yours.
+BattleState.role = "spectator" -- commander | officer | spectator
+BattleState.players = {} :: { { userId: number, name: string, role: string, ready: boolean?, slot: number? } }
+BattleState.controllers = {} :: { [string]: number } -- formation id (string) -> userId
+BattleState.pauseVotes = 0
+BattleState.pauseNeeded = 0
+BattleState.pings = {} :: { { x: number, z: number, slot: number, kind: string, t0: number } } -- for the minimap
+BattleState.userId = 0 -- the local player's, set by Main at boot
 BattleState.difficulty = "normal"
 BattleState.speed = 1
 BattleState.scenario = nil :: any
@@ -128,6 +136,7 @@ function BattleState.reset()
 	BattleState.objectives = {}
 	BattleState.reinforcements = {}
 	table.clear(BattleState.pending)
+	table.clear(BattleState.pings)
 	BattleState.clock = 0
 	BattleState.tick = 0
 	BattleState.simLag = 0
@@ -139,6 +148,11 @@ function BattleState.applyMatchState(msg: any)
 	BattleState.state = msg.state or "menu"
 	BattleState.viewerFaction = msg.viewerFaction or ""
 	BattleState.isCommander = msg.isCommander == true
+	BattleState.role = if type(msg.role) == "string" then msg.role elseif BattleState.isCommander then "commander" else "spectator"
+	BattleState.players = if type(msg.players) == "table" then msg.players else {}
+	BattleState.controllers = if type(msg.controllers) == "table" then msg.controllers else {}
+	BattleState.pauseVotes = tonumber(msg.pauseVotes) or 0
+	BattleState.pauseNeeded = tonumber(msg.pauseNeeded) or 0
 	BattleState.difficulty = msg.difficulty or "normal"
 	BattleState.speed = msg.speed or 1
 	BattleState.scenario = msg.scenario
@@ -230,6 +244,80 @@ function BattleState.isOwn(f: { faction: string }): boolean
 	return f.faction == BattleState.viewerFaction
 end
 
+-- ------------------------------------------------------------------ co-op
+
+-- More than one player in the match: co-op UI shows; otherwise it stays inert.
+function BattleState.coop(): boolean
+	return #BattleState.players > 1
+end
+
+-- May this client give orders at all (commander or officer)?
+function BattleState.canOrder(): boolean
+	return BattleState.role == "commander" or BattleState.role == "officer"
+end
+
+function BattleState.controllerOf(id: number): number?
+	return BattleState.controllers[tostring(id)]
+end
+
+-- Own faction and in this player's wing. Solo, or no wings sent: every own formation.
+function BattleState.isMine(id: number): boolean
+	local f = BattleState.formations[id]
+	if not f or f.faction ~= BattleState.viewerFaction then
+		return false
+	end
+	if not BattleState.coop() or next(BattleState.controllers) == nil then
+		return true
+	end
+	local c = BattleState.controllerOf(id)
+	if c == nil then
+		return BattleState.role == "commander" -- unassigned stays with the commander
+	end
+	return c == BattleState.userId
+end
+
+-- Selectable / orderable: your wing, or any own formation for the commander.
+function BattleState.canCommand(id: number): boolean
+	if BattleState.isMine(id) then
+		return true
+	end
+	local f = BattleState.formations[id]
+	return BattleState.role == "commander" and f ~= nil and f.faction == BattleState.viewerFaction
+end
+
+function BattleState.player(userId: number?): any
+	for _, p in BattleState.players do
+		if p.userId == userId then
+			return p
+		end
+	end
+	return nil
+end
+
+-- The ally commanding a formation that is not ours (nil when it is ours or solo).
+function BattleState.allyOf(id: number): any
+	if not BattleState.coop() or BattleState.isMine(id) then
+		return nil
+	end
+	return BattleState.player(BattleState.controllerOf(id))
+end
+
+-- Pause button text in co-op ("Vote pause (1/2)"); nil solo.
+function BattleState.pauseLabel(): string?
+	local n = 0
+	for _, p in BattleState.players do
+		if p.role ~= "spectator" then
+			n += 1
+		end
+	end
+	if n <= 1 then
+		return nil
+	end
+	local need = if BattleState.pauseNeeded > 0 then BattleState.pauseNeeded else math.ceil(n / 2)
+	local verb = if BattleState.state == "paused" then "resume" else "pause"
+	return string.format("Vote %s (%d/%d)", verb, BattleState.pauseVotes, need)
+end
+
 function BattleState.ownFormations(): { Formation }
 	local out = {}
 	for _, f in BattleState.formations do
@@ -267,10 +355,7 @@ function BattleState.validateContext(): any
 		state = BattleState.state,
 		mapWidth = if BattleState.map then BattleState.map.width else 1600,
 		mapDepth = if BattleState.map then BattleState.map.depth else 1200,
-		isOwned = function(id: number): boolean
-			local f = BattleState.formations[id]
-			return f ~= nil and f.faction == BattleState.viewerFaction
-		end,
+		isOwned = BattleState.canCommand,
 		classOf = function(id: number): string?
 			local f = BattleState.formations[id]
 			return if f then f.class else nil

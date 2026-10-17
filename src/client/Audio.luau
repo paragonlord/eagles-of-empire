@@ -17,6 +17,7 @@ local REGISTRY: { [string]: Entry } = {
 	rally = { id = "", category = "sfx", volume = 0.5, pool = 2 },
 	capture = { id = "", category = "sfx", volume = 0.6, pool = 2 },
 	click = { id = "", category = "sfx", volume = 0.4, pool = 2 },
+	ping = { id = "", category = "sfx", volume = 0.5, pool = 2 }, -- co-op map ping
 	battleMusic = { id = "", category = "music", volume = 0.5, pool = 1 },
 }
 

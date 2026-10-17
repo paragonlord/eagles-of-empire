@@ -38,10 +38,13 @@ function Selection.isSelected(id: number): boolean
 	return selected[id] == true
 end
 
+-- Only formations this player may command (co-op: own wing; the commander: all of ours).
 function Selection.set(ids: { number })
 	table.clear(selected)
 	for _, id in ids do
-		selected[id] = true
+		if BattleState.canCommand(id) then
+			selected[id] = true
+		end
 	end
 	fire()
 end
@@ -49,7 +52,7 @@ end
 function Selection.toggle(id: number)
 	if selected[id] then
 		selected[id] = nil
-	else
+	elseif BattleState.canCommand(id) then
 		selected[id] = true
 	end
 	fire()
@@ -57,7 +60,9 @@ end
 
 function Selection.add(ids: { number })
 	for _, id in ids do
-		selected[id] = true
+		if BattleState.canCommand(id) then
+			selected[id] = true
+		end
 	end
 	fire()
 end
@@ -74,8 +79,7 @@ end
 function Selection.prune()
 	local changed = false
 	for id in selected do
-		local f = BattleState.formations[id]
-		if not f or f.faction ~= BattleState.viewerFaction then
+		if not BattleState.canCommand(id) then
 			selected[id] = nil
 			changed = true
 		end

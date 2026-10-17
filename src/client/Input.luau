@@ -34,6 +34,7 @@ local box: Frame? = nil
 local left: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local right: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local deployHeading: { [number]: number } = {}
+local middleAt: Vector2? = nil -- middle-button press point: a click (not a rotate drag) pings
 local armed: string? = nil -- "Charge": the next right-click charges instead of moving
 
 -- ------------------------------------------------------------------ picking
@@ -87,7 +88,7 @@ local function pickAt(p: Vec): (number?, string?)
 		end
 	end
 	for _, f in BattleState.formations do
-		test(f, if f.faction == BattleState.viewerFaction then "own" else "enemy")
+		test(f, if f.faction ~= BattleState.viewerFaction then "enemy" elseif BattleState.canCommand(f.id) then "own" else "ally")
 	end
 	if bestId == nil then
 		for _, lk in BattleState.lastKnown do
@@ -332,7 +333,23 @@ local function cancelDrags()
 	Figures.setPreview(nil)
 end
 
+-- Co-op ping: G look, Shift+G attack, Ctrl+G defend (middle click: look). Inert solo.
+local function ping(): boolean
+	if not BattleState.coop() then
+		return false
+	end
+	local g = groundUnderMouse()
+	if g then
+		local kind = if shift() then "attack" elseif ctrl() then "defend" else "look"
+		Net.control("ping", { x = g.x, z = g.z, kind = kind })
+	end
+	return true
+end
+
 local function onLeftDown()
+	if UserInputService:IsKeyDown(Enum.KeyCode.G) and ping() then
+		return
+	end
 	local m = mousePos()
 	left.down = true
 	left.dragging = false
@@ -583,6 +600,8 @@ function Input.init()
 			onLeftDown()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightDown()
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
+			middleAt = mousePos()
 		end
 	end))
 	table.insert(connections, UserInputService.InputEnded:Connect(function(input: InputObject, _gp: boolean)
@@ -594,6 +613,12 @@ function Input.init()
 			onLeftUp()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightUp()
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 and middleAt then
+			local m, a = mousePos(), middleAt :: Vector2
+			middleAt = nil
+			if math.abs(m.X - a.X) <= DRAG_PX and math.abs(m.Y - a.Y) <= DRAG_PX then
+				ping()
+			end
 		end
 	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, _gp: boolean)

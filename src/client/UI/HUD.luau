@@ -44,6 +44,8 @@ local objectiveChips: { [string]: { frame: Frame, pennant: Frame, label: TextLab
 -- ticker
 local tickerLines: { { label: TextLabel, t0: number, base: number } } = {}
 local tickerFrame: Frame? = nil
+local playerList: Frame? = nil -- co-op roster under the top bar (hidden solo)
+local playersKey = ""
 local tickerOrder = 0
 local TICKER_LIFE = 9
 
@@ -297,9 +299,11 @@ local function updateTopBar()
 		Kit.setEnabled(b, BattleState.isCommander, "Only the commander sets the speed")
 	end
 	if pauseButton then
-		pauseButton.Text = if paused then ">" else "II"
+		local vote = BattleState.pauseLabel() -- co-op only
+		pauseButton.Text = vote or (if paused then ">" else "II")
+		pauseButton.Size = UDim2.fromOffset(if vote then 140 else 34, 26)
 		Kit.setActiveLook(pauseButton, paused)
-		Kit.setEnabled(pauseButton, BattleState.isCommander, "Only the commander may pause")
+		Kit.setEnabled(pauseButton, BattleState.isCommander or (vote ~= nil and BattleState.canOrder()), "Only the commander may pause")
 	end
 	updateBalance()
 end
@@ -314,6 +318,63 @@ local function buildTicker(sg: ScreenGui)
 	f.Parent = sg
 	Kit.list(f, 3)
 	tickerFrame = f
+	local pl = Instance.new("Frame") :: Frame
+	pl.Size = UDim2.fromOffset(220, 0)
+	pl.AutomaticSize = Enum.AutomaticSize.Y
+	pl.Position = UDim2.new(0, 12, 0, 44)
+	pl.BackgroundTransparency = 1
+	pl.Visible = false
+	pl.Parent = sg
+	Kit.list(pl, 2)
+	playerList = pl
+end
+
+-- Co-op roster: slot colour, name, ready tick; the ticker moves down beneath it.
+local function updatePlayers()
+	local pl, tf = playerList, tickerFrame
+	if not pl or not tf then
+		return
+	end
+	local rows = {}
+	if BattleState.coop() then
+		for _, p in BattleState.players do
+			if p.role ~= "spectator" then
+				table.insert(rows, p)
+			end
+		end
+	end
+	local parts = {}
+	for _, p in rows do
+		table.insert(parts, string.format("%s|%s|%s|%s", tostring(p.slot), tostring(p.name), tostring(p.role), tostring(p.ready)))
+	end
+	local key = table.concat(parts, ";")
+	if key == playersKey then
+		return
+	end
+	playersKey = key
+	for _, c in pl:GetChildren() do
+		if not c:IsA("UIListLayout") then
+			c:Destroy()
+		end
+	end
+	pl.Visible = #rows > 0
+	for i, p in rows do
+		local row = Instance.new("Frame") :: Frame
+		row.Size = UDim2.new(1, 0, 0, 18)
+		row.BackgroundTransparency = 1
+		row.LayoutOrder = i
+		row.Parent = pl
+		local chip = Instance.new("Frame") :: Frame
+		chip.Size = UDim2.fromOffset(10, 10)
+		chip.Position = UDim2.fromOffset(0, 4)
+		chip.BackgroundColor3 = Kit.slotColour(p.slot)
+		chip.BorderSizePixel = 0
+		chip.Parent = row
+		local text = tostring(p.name) .. (if p.role == "commander" then " ★" else "") .. (if p.ready then "  ✓" else "")
+		local l = Kit.label(row, text, { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(16, 0), textSize = 14, colour = if p.userId == BattleState.userId then Kit.GILT_BRIGHT else Kit.IVORY })
+		l.TextStrokeTransparency = 0.5
+	end
+	tf.Position = UDim2.new(0, 12, 0, 44 + (if #rows > 0 then #rows * 20 + 6 else 0))
 end
 
 local function escape(s: string): string
@@ -664,9 +725,9 @@ local function refreshAbility()
 	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, Generals.displayName(g, f.name))
 	b:SetAttribute("tip", ab.name .. ": " .. ab.text)
 	local left = abilityLeft(f)
-	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")
+	local commander = BattleState.canOrder() and (BattleState.state == "running" or BattleState.state == "paused")
 	if not commander then
-		Kit.setEnabled(b, false, if BattleState.isCommander then "Not during this phase" else "Spectators cannot give orders")
+		Kit.setEnabled(b, false, if BattleState.canOrder() then "Not during this phase" else "Spectators cannot give orders")
 	elseif f.state == "routing" or f.state == "rallying" then
 		Kit.setEnabled(b, false, "The staff is in flight")
 	elseif left > 0 then
@@ -685,7 +746,7 @@ local function animateAbility()
 	local g = Generals.byId[f.general]
 	local left = abilityLeft(f)
 	sweep.Size = UDim2.fromScale(if g then math.clamp(left / g.ability.cooldown, 0, 1) else 0, 1)
-	if left <= 0 and abilityButton and abilityButton:GetAttribute("disabled") == true and BattleState.isCommander and BattleState.state == "running" then
+	if left <= 0 and abilityButton and abilityButton:GetAttribute("disabled") == true and BattleState.canOrder() and BattleState.state == "running" then
 		refreshAbility()
 	end
 end
@@ -750,7 +811,7 @@ end
 
 function HUD.refreshCommands()
 	local forms = selectedFormations()
-	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")
+	local commander = BattleState.canOrder() and (BattleState.state == "running" or BattleState.state == "paused")
 	local has: { [string]: boolean } = {}
 	local allRouting = #forms > 0
 	for _, f in forms do
@@ -761,7 +822,7 @@ function HUD.refreshCommands()
 	end
 	local function why(classes: { string }): (boolean, string?)
 		if not commander then
-			return false, if BattleState.isCommander then "Not during this phase" else "Spectators cannot give orders"
+			return false, if BattleState.canOrder() then "Not during this phase" else "Spectators cannot give orders"
 		end
 		if #forms == 0 then
 			return false, "Select a formation"
@@ -815,6 +876,7 @@ end
 
 local function refreshAll()
 	updateTopBar()
+	updatePlayers()
 	updateObjectives()
 	CardBar.update()
 	updateInspector()
@@ -913,6 +975,8 @@ function HUD.destroy()
 	balanceOwn = nil
 	objectiveStrip = nil
 	tickerFrame = nil
+	playerList = nil
+	playersKey = ""
 	inspector = nil
 	inspectorBarFill = nil
 	rallyBar = nil

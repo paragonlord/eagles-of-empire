@@ -19,6 +19,7 @@ local Effects = require(script.Parent.Effects)
 local Terrain = require(script.Parent.World.Terrain)
 local Props = require(script.Parent.World.Props)
 local WorldLighting = require(script.Parent.World.Lighting)
+local Kit = require(script.Parent.UI.Kit)
 local Menu = require(script.Parent.UI.Menu)
 local HUD = require(script.Parent.UI.HUD)
 local Deployment = require(script.Parent.UI.Deployment)
@@ -263,12 +264,20 @@ local function onMatchState(msg: any)
 	local prevState = BattleState.state
 	local sameMatch = msg.matchId == lastMatchId and msg.matchId ~= ""
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
+	local wasCoop = BattleState.coop()
 	BattleState.applyMatchState(msg)
+	-- co-op: votes, ready ticks, joins and wing changes resend the same state; refresh in place
+	local s = BattleState.state
+	local coopRefresh = sameMatch and s == prevState and (wasCoop or BattleState.coop()) and (s == "deployment" or s == "running" or s == "paused")
 	WorldLighting.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
 	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
-	if pauseToggle then
+	if pauseToggle or coopRefresh then
 		-- keep figures, selection and HUD; just reflect the new state
+		if coopRefresh then
+			Input.setMode(if not BattleState.canOrder() then "off" elseif s == "deployment" then "deploy" else "battle")
+			Deployment.refresh()
+		end
 		BattleState.updated:Fire(nil)
 		return
 	end
@@ -315,11 +324,21 @@ local function onMatchState(msg: any)
 		Deployment.show({
 			ready = function()
 				Net.control("ready")
-				Deployment.setWaiting("Forming up…")
+				if BattleState.coop() and BattleState.role == "commander" then
+					Deployment.setWaiting("Start now", true) -- a second ready forces the start
+				else
+					Deployment.setWaiting("Forming up…")
+				end
+			end,
+			assign = function(userId: number)
+				local ids = Selection.ids()
+				if #ids > 0 then
+					Net.control("assign", { ids = ids, userId = userId })
+				end
 			end,
 			settings = openSettings,
 		})
-		Input.setMode(if BattleState.isCommander then "deploy" else "off")
+		Input.setMode(if BattleState.canOrder() then "deploy" else "off")
 		Camera.setEnabled(true)
 		if zone then
 			Camera.reset((zone.x0 + zone.x1) / 2, (zone.z0 + zone.z1) / 2)
@@ -333,7 +352,7 @@ local function onMatchState(msg: any)
 		Figures.init()
 		Effects.init()
 		HUD.show(hudCallbacks)
-		Input.setMode(if BattleState.isCommander then "battle" else "off")
+		Input.setMode(if BattleState.canOrder() then "battle" else "off")
 		Camera.setEnabled(true)
 		if msg.reason then
 			HUD.message(tostring(msg.reason))
@@ -399,6 +418,27 @@ local function wire()
 		task.spawn(onMatchState, msg)
 	end))
 	table.insert(conns, Net.onSnapshot:Connect(onSnapshot))
+	table.insert(conns, Net.onPing:Connect(function(msg: any)
+		if type(msg) ~= "table" or type(msg.x) ~= "number" or type(msg.z) ~= "number" then
+			return
+		end
+		local p = BattleState.player(msg.userId)
+		local slot = if p and type(p.slot) == "number" then p.slot else 0
+		local now = os.clock()
+		local keep = {}
+		for _, pg in BattleState.pings do
+			if now - pg.t0 < 6 then
+				table.insert(keep, pg)
+			end
+		end
+		local kind = if msg.kind == "attack" or msg.kind == "defend" then msg.kind else "look"
+		table.insert(keep, { x = msg.x, z = msg.z, slot = slot, kind = kind, t0 = now })
+		BattleState.pings = keep
+		Effects.ping(msg.x, msg.z, Kit.slotColour(slot))
+		Audio.play("ping")
+		local word = if kind == "attack" then "attack here!" elseif kind == "defend" then "hold here." else "look here."
+		HUD.message(string.format("%s: %s", tostring(msg.name or (p and p.name) or "An officer"), word), Kit.slotColour(slot))
+	end))
 	table.insert(conns, Net.onCampaign:Connect(onCampaign))
 	table.insert(conns, Net.onResult:Connect(function(res: any)
 		if type(res) == "table" then
@@ -468,6 +508,7 @@ end
 -- Morning light, haze and post effects (World/Lighting); re-applied when quality changes.
 WorldLighting.apply(Settings.get().quality)
 
+BattleState.userId = ((game:GetService("Players") :: Players).LocalPlayer :: Player).UserId
 Audio.init()
 Camera.init()
 Input.init()

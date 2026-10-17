@@ -58,6 +58,12 @@ Kit.MORALE = {
 Kit.ITALIC = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Regular, Enum.FontStyle.Italic)
 Kit.BOLD = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Bold)
 
+-- Co-op player slots: 1 gold, 2 sky blue, 3 crimson, 4 ivory green.
+Kit.SLOT = { Kit.GILT_BRIGHT, hex(0x6FA8DC), Kit.CRIMSON_LIGHT, hex(0xB8CFA0) }
+function Kit.slotColour(slot: number?): Color3
+	return Kit.SLOT[slot or 0] or Kit.MUTED
+end
+
 function Kit.factionColour(faction: string?): Color3
 	if faction == nil or faction == "" then
 		return Kit.MUTED

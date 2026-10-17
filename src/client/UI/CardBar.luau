@@ -41,6 +41,7 @@ type Card = {
 	morale: Frame,
 	icons: { [string]: Frame },
 	reloadFill: Frame,
+	dim: Frame, -- co-op: veils an ally's card
 	view: any, -- last FormationView table seen (identity changes when the server resends it)
 	seenAt: number,
 	lastClick: number,
@@ -180,6 +181,10 @@ local function tipFor(id: number): string
 			end
 		end
 	end
+	local ally = BattleState.allyOf(id)
+	if ally then
+		table.insert(lines, "Commanded by " .. tostring(ally.name))
+	end
 	return table.concat(lines, "\n")
 end
 
@@ -269,6 +274,14 @@ local function newCard(f: any): Card
 	local general = iconSlot(row, "general", 6) -- gilt diamond: a general's trait or ability applies
 	rect(general, 6, 6, 5, 5, 45, Kit.GILT_BRIGHT)
 	icons.general = general
+	local dim = Instance.new("Frame") :: Frame
+	dim.Size = UDim2.fromScale(1, 1)
+	dim.BackgroundColor3 = Kit.INSET
+	dim.BackgroundTransparency = 0.45
+	dim.BorderSizePixel = 0
+	dim.ZIndex = 4
+	dim.Visible = false
+	dim.Parent = b
 
 	local card: Card = {
 		root = b,
@@ -279,6 +292,7 @@ local function newCard(f: any): Card
 		morale = morale,
 		icons = icons,
 		reloadFill = reloadFill,
+		dim = dim,
 		view = nil,
 		seenAt = 0,
 		lastClick = 0,
@@ -292,7 +306,7 @@ local function newCard(f: any): Card
 			if cur then
 				Camera.focusOn(cur.x, cur.z)
 			end
-		elseif Input.mode() ~= "off" then
+		elseif Input.mode() ~= "off" and BattleState.canCommand(id) then
 			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
 				Selection.toggle(id)
 			else
@@ -347,6 +361,7 @@ local function paint(c: Card, f: any)
 	c.icons.general.Visible = type(f.tags) == "string" and f.tags ~= ""
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
+	c.dim.Visible = BattleState.allyOf(f.id) ~= nil
 	local sel = Selection.isSelected(f.id)
 	c.stroke.Color = if sel then Kit.GILT_BRIGHT else Kit.GILT_DARK
 	c.stroke.Thickness = if sel then 2 else 1
@@ -455,10 +470,13 @@ local function relayout(forms: { any })
 			c = newCard(f)
 			cards[f.id] = c
 		end
-		c.root.LayoutOrder = rank * 100000 + f.id * 2
-		if rank > 0 and not spaced[rank] then
-			spaced[rank] = true
-			spacer(rank * 100000)
+		-- co-op: your wing first, allies' cards after it
+		local wing = if BattleState.isMine(f.id) then 0 else 500000000
+		c.root.LayoutOrder = wing + rank * 100000 + f.id * 2
+		local key = wing + rank * 100000
+		if key > 0 and not spaced[key] then
+			spaced[key] = true
+			spacer(key)
 		end
 	end
 	for id, c in cards do
@@ -571,7 +589,7 @@ function CardBar.update()
 	local forms = BattleState.ownFormations()
 	local ids = {}
 	for _, f in forms do
-		table.insert(ids, f.id)
+		table.insert(ids, if BattleState.isMine(f.id) then f.id else -f.id - 0.5) -- wing changes relayout
 	end
 	for _, r in BattleState.reinforcements do
 		table.insert(ids, -r.id)

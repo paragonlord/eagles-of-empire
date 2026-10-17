@@ -111,7 +111,8 @@ showNext = function()
 	local reduced = Settings.get().reducedEffects == true
 	local card = build(ev, not reduced)
 	current = card
-	if BattleState.isCommander and BattleState.state == "running" and #Players:GetPlayers() == 1 then
+	-- co-op: pause is a vote, so moment cards pause only a solo match
+	if BattleState.isCommander and BattleState.state == "running" and #BattleState.players <= 1 and #Players:GetPlayers() == 1 then
 		card.paused = Net.control("pause") ~= nil
 	end
 	tween(card.group, FADE, { GroupTransparency = 0 })
