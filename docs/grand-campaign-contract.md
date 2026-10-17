@@ -40,3 +40,38 @@ Owner of this file: main session. Change it only by agreement.
 `diplomacy {nation, kind = "peace"|"alliance"|"war"|"accept"|"reject", offerId?}`,
 `eventChoice {eventId, choice}`, `endTurn`, `fight`, `autoResolve`, `retreat`.
 Errors come back as `{ kind = "error", requestId, reason }`.
+
+## Additions (agreed with the client, as implemented)
+
+1. Opening: `{action = "grand", data = {kind = "view"}}` → `grandView` if a grand campaign exists,
+   otherwise `{kind = "error", reason = "noCampaign"}`; the client then sends `newCampaign {nation}`.
+2. `move {armyId, path}`: `path` excludes the army's current province (max 8 steps). The army goes as
+   far as the rules allow; the call fails only if the first step is impossible.
+3. `movesLeft` counts provinces; armies of the player also carry `movesMax`. Army ids are strings
+   (`"a12"`), so `armies` is a string-keyed table.
+4. `recruitment = { options = { [provinceId] = { {unitType, name, class, cost, manpower, turns, upkeep,
+   available, reason?} } }, queue = { {provinceId, unitType, name, turnsLeft} } }`.
+5. `pendingBattle.attacker/defender` are army ids (the strongest army of each leading nation), with
+   `attackerNation`/`defenderNation` and the full `attackers`/`defenders` nation lists.
+6. `view.events` holds unread events; `eventChoice {eventId}` without `choice` acknowledges a
+   choiceless event and drops it. Unanswered choices take the first (historical) choice at end of turn.
+7. `view.log` entries are strings (`"May 1805: …"`).
+8. `diplomacy {nation, action = "peace"|"alliance"|"war"|"accept"|"reject", offerId?}`: the
+   diplomatic verb is in `action` (data.kind is the action family "diplomacy"). A refused proposal
+   comes back as `{kind = "error", reason = "refused"}` (also `truce`, `notAtWar`, `alreadyAtWar`).
+9. `victory.outcome` is `"victory" | "defeat" | "draw"`.
+10. Extra view fields: `campaignId, phase ("player"|"battle"|"ended"), endTurn, flags (navalSupremacy,
+    continentalSystem, guerrilla, confederation, abdicated, …)`; per nation `adjective, capital, major,
+    alive, truceUntil?, warScore?` (player's view, at war only) and, for the player only, `income,
+    manpowerIncome, upkeep`; per army `rating, men, unitCount`; `objectives = { {id, text, done} }`;
+    offers carry `terms = {winner, loser, score, provinces, dictated}` for peace.
+11. Colour palette keys used by `Nations[*].colour` and battle units that the palette may lack:
+    `Spain, Portugal, Italy, Naples, Wurttemberg, Sweden, Denmark, Ottoman`.
+12. Tactical hand-off: in a generic battle the scenario's `factions` are the province map's two
+    deploy-zone keys (e.g. `france`/`prussia` on `jena`) whatever the nations are; each unit carries
+    its nation's `colour`, and `factionNames` gives the real side names ("Austria & allies"). Set
+    pieces use the historical scenario's factions and OOB (strengths scaled to the campaign armies,
+    keys `h:<side>:<n>`); `factions.player` is the side of the player's nation. Results commit with
+    survivors `{strength, experience, destroyed, initial}` per unit key (CampaignService does this).
+13. Persistence: the grand campaign is stored in its own DataStore (`EoEGrand/<scope>`) with its own
+    session claim; the small campaign's `view` envelope now carries `name = "Thuringian Campaign"`.
