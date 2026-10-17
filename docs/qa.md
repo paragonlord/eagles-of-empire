@@ -33,10 +33,10 @@ Roblox Studio; not run in this environment). Source checks are not in-engine che
 
 | Check | Status |
 | --- | --- |
-| Launch → menu → deployment → battle → results → restart without duplicate HUD/connections | blocked |
+| Launch → menu → deployment → battle → results → restart without duplicate HUD/connections | pass (Studio run log, round 2) |
 | Second Studio client cannot control or pause the commander's battle | blocked |
 | Reconnect receives complete state without duplicate units/effects | blocked |
-| Group selection, queued march, formation change, volley, artillery, cavalry charge, rout, full battle, one victory and one defeat | blocked |
+| Group selection, queued march, formation change, volley, artillery, cavalry charge, rout, full battle, one victory and one defeat | partial: volley, cannon, charge, rout, rally, capture, full battle, one defeat pass; victory and UI-driven orders not yet run |
 | Campaign turn → battle → casualties return → save → continue | blocked |
 | 1920×1080, 1366×768, ultrawide layouts; label overlap; click-through; camera clipping | blocked |
 | Frame rate with normal roster and stress fixture; instance counts; restart leak check | blocked |
@@ -57,6 +57,28 @@ Roblox Studio; not run in this environment). Source checks are not in-engine che
   Cobblestone roads read as rubble walls up close; olive-gold Grass reads brown at ClockTime 8.4;
   the camera can see past the map edge into the sky; the diagnostic beacon covers the date in
   the top bar.
+
+**2026-10-17 round 2, build after eb34c7a (weather, reinforcements, battle select).**
+- Pass: menu → Choose a battle → Fight → deployment → Start Battle → full battle at ×4 → Defeat
+  ("The enemy holds every objective · 16:44") → Restart → deployment → running. One EoEHUD
+  after restart, results/menu screens gone, workspace instance count steady (9458 → 9428).
+  Totals reconcile (France 7700 − 1964 = 5736, Prussia 6880 − 752 = 6128). No EoE errors or
+  warnings on client or server. Events seen: volley, cannon, charge, rout, rally, capture,
+  destroyed, message.
+- Fixed: a square only fired inside the 60° front arc, so cavalry on its side or rear was never
+  shot at. Seen live: IR Nr. 20 in square next to the 1er Cuirassiers for 8 game minutes, no
+  volleys, both at full strength. Reproduced with the real Sim in Studio (square vs cavalry at
+  40 studs): before, volleys only at bearing 0; after, at 0/90/180/270. `fireBlockReason` now
+  skips the arc for squares; assertion added to the "Volleys need range…" test. **Not run in
+  the Luau CLI here (none on this Mac): please run `tools/check.sh`.**
+- Fixed: on the battle card the difficulty note was pinned to the card bottom and overlapped the
+  last line of a 4-line summary. Summary and note now stack in a list.
+- Open (for the cloud): cavalry given AttackMove onto an enemy halts inside its footprint and
+  stays idle (no charge, no melee) until given a Charge order. Routed units that rally at the
+  home edge pile on top of each other at odd angles. The beacon (bottom-left) touches the
+  bottom of the order bar. One message "44e de Ligne: route blocked" during the battle (unit
+  had routed and rallied at the edge; no error).
+- Round 1 notes now handled by the cloud: beacon moved off the date.
 
 ## Known failures
 
