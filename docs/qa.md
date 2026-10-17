@@ -233,6 +233,15 @@ errors. Shots in `docs/shots/`.
   province names on the board are too small to read at the default zoom; the board's corner
   shows the edge of the table and sky.
 
+**2026-10-17 round 6b (grand campaign AI), build 61a1c76.** Boots clean. As France, ended 8 turns
+without moving (Jan 1805 → May 1806) through the Campaign remote, answering events with the
+default and one battle with auto-resolve: no refusals, no client or server errors, treasury
++223/turn, armies on the board 22 → 27. With France idle, Austria beat Bavaria, Württemberg and
+the Kingdom of Italy and dictated peace on the first two by Jan 1806; plausible, but France's
+allies fold fast if the player does not move (`grand-dispatches.jpg`). Notes: the event line
+"Sep 1805: Trafalgar." has no text after the name; a long dispatch list is one tall parchment,
+fine at 12 lines, may need a scroll after a busy year.
+
 ## Known failures
 
 None recorded yet.
