@@ -1,5 +1,6 @@
 --!strict
--- Pooled one-shot visual effects driven by snapshot events only (smoke, flashes, dust).
+-- Pooled one-shot visual effects driven by snapshot events only: lingering volley smoke banks,
+-- muzzle flashes, cannon plumes and shot strikes, charge dust, routing markers.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Grid = require(Shared.Grid)
@@ -19,18 +20,26 @@ type Active = {
 	x: number,
 	y: number,
 	z: number,
+	vx: number,
+	vz: number,
 	alpha0: number,
 }
 
-local BASE_POOL = { [1] = 60, [2] = 140, [3] = 260 }
+-- Lingering smoke needs a deep pool; reduced effects halves it (and the puffs per event).
+local BASE_POOL = { [1] = 120, [2] = 260, [3] = 420 }
+local WIND_X, WIND_Z = 0.9, 0.35 -- studs/s drift, light breeze from the south-west
+
 local folder: Folder? = nil
 local free: { Part } = {}
 local active: { Active } = {}
 local capacity = 0
+local density = 1
 local rng = Random.new(1806)
 
-local SMOKE = Color3.fromRGB(236, 232, 224)
-local DUST = Color3.fromRGB(190, 170, 130)
+local SMOKE = Color3.fromRGB(236, 234, 228)
+local SMOKE_GREY = Color3.fromRGB(200, 198, 192)
+local DUST = Color3.fromRGB(184, 166, 124)
+local EARTH = Color3.fromRGB(110, 92, 64)
 local FLASH = Color3.fromRGB(255, 214, 120)
 local ROUT = Color3.fromRGB(150, 60, 50)
 
@@ -67,12 +76,18 @@ end
 function Effects.applySettings()
 	local s = Settings.get()
 	capacity = BASE_POOL[math.clamp(s.quality, 1, 3)]
+	density = 1
 	if s.reducedEffects then
 		capacity = capacity // 2
+		density = 0.5
 	end
 end
 
-local function spawn(x: number, z: number, y: number, color: Color3, size0: number, size1: number, life: number, rise: number, alpha0: number)
+local function count(n: number): number
+	return math.max(1, math.round(n * density))
+end
+
+local function spawn(x: number, y: number, z: number, color: Color3, size0: number, size1: number, life: number, rise: number, alpha0: number, vx: number?, vz: number?)
 	if not folder or #active >= capacity then
 		return
 	end
@@ -82,45 +97,53 @@ local function spawn(x: number, z: number, y: number, color: Color3, size0: numb
 	p.Transparency = alpha0
 	p.CFrame = CFrame.new(x, y, z)
 	p.Parent = folder
-	table.insert(active, { part = p, t0 = os.clock(), life = life, size0 = size0, size1 = size1, rise = rise, x = x, y = y, z = z, alpha0 = alpha0 })
+	table.insert(active, { part = p, t0 = os.clock(), life = life, size0 = size0, size1 = size1, rise = rise, x = x, y = y, z = z, vx = vx or 0, vz = vz or 0, alpha0 = alpha0 })
 end
 
-local function puffs(x: number, z: number, n: number, spread: number, color: Color3, size: number, life: number)
-	local y = groundY(x, z) + 2
-	for _ = 1, n do
+local function puffs(x: number, z: number, n: number, spread: number, color: Color3, size: number, life: number, rise: number)
+	local y = groundY(x, z) + 1.5
+	for _ = 1, count(n) do
 		local ox = (rng:NextNumber() - 0.5) * spread
 		local oz = (rng:NextNumber() - 0.5) * spread
-		spawn(x + ox, z + oz, y + rng:NextNumber() * 1.5, color, size * 0.6, size * (1.4 + rng:NextNumber() * 0.6), life, 2.5, 0.25)
+		spawn(x + ox, y + rng:NextNumber() * 1.5, z + oz, color, size * 0.6, size * (1.4 + rng:NextNumber() * 0.6), life, rise, 0.3, ox * 0.4, oz * 0.4)
 	end
 end
 
--- Musket smoke along the firing front of the formation (falls back to a point).
+-- A bank of overlapping smoke along the firing front: flashes first, then smoke that swells,
+-- drifts with the breeze and fades over ~6 s.
 local function volley(ev: any)
 	local f = BattleState.formations[ev.id or -1]
-	if f then
-		local fx, fz = math.cos(f.heading), math.sin(f.heading)
-		local rx, rz = -fz, fx
-		local frontX = f.x + fx * f.depth / 2
-		local frontZ = f.z + fz * f.depth / 2
-		local n = math.clamp(math.floor(f.width / 5), 3, 16)
-		local y = groundY(f.x, f.z) + 2.2
-		for i = 1, n do
-			local t = (i - 0.5) / n - 0.5
-			local px = frontX + rx * f.width * t + fx * 1.5
-			local pz = frontZ + rz * f.width * t + fz * 1.5
-			spawn(px, pz, y, FLASH, 0.8, 0.2, 0.12, 0, 0.1)
-			spawn(px + fx * 2, pz + fz * 2, y + 0.5, SMOKE, 1.5, 4.5 + rng:NextNumber(), 1.5, 2.0, 0.3)
+	if not f then
+		if ev.x then
+			puffs(ev.x, ev.z, 5, 14, SMOKE, 4, 5, 2)
 		end
-	elseif ev.x then
-		puffs(ev.x, ev.z, 4, 12, SMOKE, 3, 1.5)
+		return
 	end
+	local fx, fz = math.cos(f.heading), math.sin(f.heading)
+	local rx, rz = -fz, fx
+	local frontX = f.x + fx * (f.depth / 2 + 1.5)
+	local frontZ = f.z + fz * (f.depth / 2 + 1.5)
+	local n = count(math.clamp(math.floor(f.width / 3.5), 4, 22))
+	for i = 1, n do
+		local t = (i - 0.5) / n - 0.5 + (rng:NextNumber() - 0.5) / n
+		local px = frontX + rx * f.width * t
+		local pz = frontZ + rz * f.width * t
+		local y = groundY(px, pz) + 1.9
+		spawn(px, y, pz, FLASH, 0.9, 0.3, 0.1, 0, 0.05)
+		-- muzzle puff thrown forward, then the bank behind it
+		spawn(px + fx * 1.5, y + 0.3, pz + fz * 1.5, SMOKE, 1.6, 5 + rng:NextNumber() * 2, 6 + rng:NextNumber() * 1.5, 3, 0.25, fx * 1.2 + WIND_X, fz * 1.2 + WIND_Z)
+		if rng:NextNumber() < 0.6 then
+			spawn(px + fx * 3, y + 1.2, pz + fz * 3, SMOKE_GREY, 2.5, 6.5, 5.5, 4, 0.45, fx * 0.6 + WIND_X, fz * 0.6 + WIND_Z)
+		end
+	end
+	Camera.shake(0.2)
 end
 
 local function cannon(ev: any)
 	if not ev.x then
 		return
 	end
-	local y = groundY(ev.x, ev.z) + 2.5
+	local y = groundY(ev.x, ev.z) + 1.6
 	local dx, dz = 0, 0
 	if ev.tx then
 		local l = math.sqrt((ev.tx - ev.x) ^ 2 + (ev.tz - ev.z) ^ 2)
@@ -128,14 +151,39 @@ local function cannon(ev: any)
 			dx, dz = (ev.tx - ev.x) / l, (ev.tz - ev.z) / l
 		end
 	end
-	spawn(ev.x + dx * 4, ev.z + dz * 4, y, FLASH, 2.5, 0.5, 0.15, 0, 0.05)
-	for i = 1, 4 do
-		spawn(ev.x + dx * (4 + i * 3), ev.z + dz * (4 + i * 3), y + 1, SMOKE, 2 + i, 7 + i, 2.2, 1.5, 0.25)
+	spawn(ev.x + dx * 3.5, y, ev.z + dz * 3.5, FLASH, 2.5, 0.6, 0.14, 0, 0.05)
+	-- a thick plume rolling out of the muzzle
+	for i = 1, count(6) do
+		local d = 3 + i * 2.2
+		spawn(ev.x + dx * d, y + 0.5 + i * 0.3, ev.z + dz * d, if i % 2 == 0 then SMOKE_GREY else SMOKE, 2.5 + i * 0.6, 8 + i * 1.2, 6.5, 4, 0.2, dx * 1.5 + WIND_X, dz * 1.5 + WIND_Z)
 	end
 	if ev.tx then
-		puffs(ev.tx, ev.tz, 3, 10, DUST, 2.5, 1.0)
+		-- round shot strikes: a spray of earth and a dust puff
+		local ty = groundY(ev.tx, ev.tz)
+		for _ = 1, count(4) do
+			spawn(ev.tx + (rng:NextNumber() - 0.5) * 3, ty + 0.5, ev.tz + (rng:NextNumber() - 0.5) * 3, EARTH, 1.2, 2.5, 0.9, 4, 0.1, dx * 3, dz * 3)
+		end
+		puffs(ev.tx, ev.tz, 3, 6, DUST, 3, 2.2, 1.5)
 	end
 	Camera.shake(1.2)
+end
+
+-- Dust thrown up behind a charging formation.
+local function charge(ev: any)
+	local f = BattleState.formations[ev.id or -1]
+	if f then
+		local fx, fz = math.cos(f.heading), math.sin(f.heading)
+		local rx, rz = -fz, fx
+		local n = count(10)
+		for i = 1, n do
+			local t = (i - 0.5) / n - 0.5
+			local px = f.x - fx * f.depth / 2 + rx * f.width * t
+			local pz = f.z - fz * f.depth / 2 + rz * f.width * t
+			spawn(px, groundY(px, pz) + 1, pz, DUST, 2, 6, 3, 2, 0.35, -fx * 2 + WIND_X, -fz * 2 + WIND_Z)
+		end
+	elseif ev.x then
+		puffs(ev.x, ev.z, 8, 26, DUST, 3.5, 2.5, 2)
+	end
 end
 
 function Effects.onEvent(ev: any)
@@ -149,16 +197,14 @@ function Effects.onEvent(ev: any)
 		cannon(ev)
 	elseif kind == "melee" then
 		if ev.x then
-			puffs(ev.x, ev.z, 5, 18, DUST, 3, 1.2)
+			puffs(ev.x, ev.z, 5, 18, DUST, 3, 1.6, 1.5)
 		end
 	elseif kind == "charge" then
-		if ev.x then
-			puffs(ev.x, ev.z, 8, 26, DUST, 3.5, 1.6)
-		end
+		charge(ev)
 	elseif kind == "rout" then
 		if ev.x then
-			puffs(ev.x, ev.z, 3, 14, DUST, 2.5, 1.2)
-			spawn(ev.x, ev.z, groundY(ev.x, ev.z) + 6, ROUT, 3, 1, 2.5, 6, 0.3)
+			puffs(ev.x, ev.z, 3, 14, DUST, 2.5, 1.4, 1)
+			spawn(ev.x, groundY(ev.x, ev.z) + 6, ev.z, ROUT, 3, 1, 2.5, 6, 0.3)
 		end
 	end
 end
@@ -168,7 +214,8 @@ function Effects.update(_dt: number)
 	local i = 1
 	while i <= #active do
 		local a = active[i]
-		local t = (now - a.t0) / a.life
+		local age = now - a.t0
+		local t = age / a.life
 		if t >= 1 then
 			a.part.Parent = nil
 			table.insert(free, a.part)
@@ -176,9 +223,11 @@ function Effects.update(_dt: number)
 			active[#active] = nil
 		else
 			local s = a.size0 + (a.size1 - a.size0) * math.sqrt(t)
-			a.part.Size = Vector3.new(s, s, s)
-			a.part.Transparency = a.alpha0 + (1 - a.alpha0) * t * t
-			a.part.CFrame = CFrame.new(a.x, a.y + a.rise * t, a.z)
+			a.part.Size = Vector3.new(s, s * 0.85, s)
+			-- hold density for the first third, then thin out
+			local fade = math.clamp((t - 0.3) / 0.7, 0, 1)
+			a.part.Transparency = a.alpha0 + (1 - a.alpha0) * fade * fade
+			a.part.CFrame = CFrame.new(a.x + a.vx * age, a.y + a.rise * t, a.z + a.vz * age)
 			i += 1
 		end
 	end
