@@ -373,6 +373,9 @@ Audio.init()
 Camera.init()
 Input.init()
 Net.init()
+-- The server announced the match state when we joined, possibly before we were listening:
+-- ask for it again now that the remotes are hooked.
+Net.control("spectate")
 wire()
 
 RunService.RenderStepped:Connect(function(dt: number)
@@ -390,6 +393,8 @@ end)
 -- Until the server speaks, show the menu over the default battlefield.
 task.spawn(function()
 	task.wait(1)
+	Net.control("spectate")
+	task.wait(1.5)
 	if BattleState.matchId == "" and builtMapId == nil then
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end

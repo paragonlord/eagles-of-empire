@@ -1380,11 +1380,12 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 	if type(msg.requestId) ~= "string" or #msg.requestId == 0 or #msg.requestId > MAX_REQUEST_ID then
 		return false, Protocol.Reasons.badRequest
 	end
-	if msg.matchId ~= nil and msg.matchId ~= ctx.matchId then
-		return false, Protocol.Reasons.wrongMatch
-	end
 	if type(msg.action) ~= "string" or not Protocol.ControlActions[msg.action] then
 		return false, Protocol.Reasons.badKind
+	end
+	-- spectate / quit are state requests that do not depend on knowing the current match id
+	if msg.action ~= "spectate" and msg.action ~= "quit" and msg.matchId ~= nil and msg.matchId ~= ctx.matchId then
+		return false, Protocol.Reasons.wrongMatch
 	end
 	if msg.action == "speed" then
 		local ok = false
@@ -10832,6 +10833,9 @@ Audio.init()
 Camera.init()
 Input.init()
 Net.init()
+-- The server announced the match state when we joined, possibly before we were listening:
+-- ask for it again now that the remotes are hooked.
+Net.control("spectate")
 wire()
 
 RunService.RenderStepped:Connect(function(dt: number)
@@ -10849,6 +10853,8 @@ end)
 -- Until the server speaks, show the menu over the default battlefield.
 task.spawn(function()
 	task.wait(1)
+	Net.control("spectate")
+	task.wait(1.5)
 	if BattleState.matchId == "" and builtMapId == nil then
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end

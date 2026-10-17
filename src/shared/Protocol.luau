@@ -258,11 +258,12 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 	if type(msg.requestId) ~= "string" or #msg.requestId == 0 or #msg.requestId > MAX_REQUEST_ID then
 		return false, Protocol.Reasons.badRequest
 	end
-	if msg.matchId ~= nil and msg.matchId ~= ctx.matchId then
-		return false, Protocol.Reasons.wrongMatch
-	end
 	if type(msg.action) ~= "string" or not Protocol.ControlActions[msg.action] then
 		return false, Protocol.Reasons.badKind
+	end
+	-- spectate / quit are state requests that do not depend on knowing the current match id
+	if msg.action ~= "spectate" and msg.action ~= "quit" and msg.matchId ~= nil and msg.matchId ~= ctx.matchId then
+		return false, Protocol.Reasons.wrongMatch
 	end
 	if msg.action == "speed" then
 		local ok = false
