@@ -6,6 +6,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Vec = require(Shared.Vec)
 local RNG = require(Shared.RNG)
+local Grid = require(Shared.Grid)
 
 local Terrain = {}
 
@@ -20,6 +21,8 @@ local pickFolder: Folder? = nil
 local SKIRT = 160 -- cells (640 studs) of continuing country around every map
 local SKIRT_FADE = 420 -- studs over which the skirt relaxes to a gentle plain
 local bounds: { minY: number, maxY: number } = { minY = 0, maxY = 0 }
+local skirtColumn: ((cx: number, cz: number) -> (number, EnumMaterial, number?))? = nil
+local skirtCell = 4
 
 local function rgb(t: { number }): Color3
 	return Color3.fromRGB(t[1], t[2], t[3])
@@ -60,17 +63,204 @@ local function materialFor(cls: number, isBank: boolean): EnumMaterial
 	return Enum.Material.Grass
 end
 
-local function applyPalette()
+-- Farmland. Fields are open-field strips: the country is cut into Voronoi blocks (~FIELD studs),
+-- each block ploughed in parallel strips of one crop, the strips laid along the nearest road.
+-- Block borders are hedges, walls, fences, cart tracks or nothing (Props builds the solid ones).
+-- Cosmetic only: never read by the sim. Materials: Grass = meadow (the olive-gold base),
+-- LeafyGrass = green pasture / gardens / woods floor, Limestone = wheat or stubble, Mud = plough.
+local FIELD = 165
+local KIND_MEADOW, KIND_PASTURE, KIND_WHEAT, KIND_PLOUGH = 1, 2, 3, 4
+Terrain.KIND = { meadow = KIND_MEADOW, pasture = KIND_PASTURE, wheat = KIND_WHEAT, plough = KIND_PLOUGH }
+Terrain.FIELD = FIELD
+
+type Season = {
+	crops: { number }, -- cumulative weights meadow, pasture, wheat, plough
+	borders: { number }, -- cumulative weights hedge, wall, fence, track, (open)
+	grass: { number },
+	leafy: { number },
+	wheat: { number },
+	plough: { number },
+}
+-- Jena/Auerstedt mid-October: stubble and fresh plough; Austerlitz December: plough and pale
+-- winter grass, few hedges (open Moravian fields); Waterloo June: tall rye, green, hedged.
+local SEASONS: { [string]: Season } = {
+	autumn = {
+		crops = { 0.30, 0.44, 0.70, 1.0 },
+		borders = { 0.34, 0.44, 0.54, 0.76 },
+		grass = { 126, 136, 62 },
+		leafy = { 84, 106, 44 },
+		wheat = { 178, 162, 104 },
+		plough = { 98, 76, 54 },
+	},
+	winter = {
+		crops = { 0.36, 0.50, 0.60, 1.0 },
+		borders = { 0.10, 0.15, 0.25, 0.62 },
+		grass = { 122, 126, 70 },
+		leafy = { 86, 102, 52 },
+		wheat = { 168, 158, 118 },
+		plough = { 90, 72, 56 },
+	},
+	summer = {
+		crops = { 0.24, 0.44, 0.84, 1.0 },
+		borders = { 0.46, 0.51, 0.66, 0.82 },
+		grass = { 116, 136, 58 },
+		leafy = { 76, 108, 42 },
+		wheat = { 170, 160, 90 },
+		plough = { 104, 82, 58 },
+	},
+}
+local MAP_SEASON: { [string]: string } = { austerlitz = "winter", waterloo = "summer" }
+local season: Season = SEASONS.autumn
+local fieldSeed = 1
+local seedCache: { [number]: { number } } = {}
+local angleCache: { [number]: number } = {}
+local blockInfo: { [number]: { number } } = {} -- seed x, z, strip normal x, z, strip width, meadow
+local fieldRoads: { any } = {}
+
+function Terrain.seasonOf(mapId: string?): string
+	return MAP_SEASON[mapId or ""] or "autumn"
+end
+
+local function blockKey(i: number, j: number): number
+	return (i + 512) * 2048 + (j + 512)
+end
+
+-- Jittered lattice point of block (i, j).
+local function blockSeed(i: number, j: number): (number, number)
+	local k = blockKey(i, j)
+	local c = seedCache[k]
+	if not c then
+		c = {
+			(i + 0.5 + (RNG.hash(i, j, fieldSeed) - 0.5) * 0.7) * FIELD,
+			(j + 0.5 + (RNG.hash(j, i, fieldSeed + 3) - 0.5) * 0.7) * FIELD,
+		}
+		seedCache[k] = c
+	end
+	return c[1], c[2]
+end
+Terrain.blockSeed = blockSeed
+
+-- Strip direction of a block: along the nearest road within 260 studs, else random.
+local function blockAngle(i: number, j: number): number
+	local k = blockKey(i, j)
+	local a = angleCache[k]
+	if a then
+		return a
+	end
+	local sx, sz = blockSeed(i, j)
+	local p = { x = sx, z = sz }
+	local best = 260
+	a = RNG.hash(i, j, fieldSeed + 9) * math.pi
+	for _, road in fieldRoads do
+		local pts = road.points
+		for n = 1, #pts - 1 do
+			local d = Vec.distToSegment(p, pts[n], pts[n + 1])
+			if d < best then
+				best = d
+				a = math.atan2(pts[n + 1].z - pts[n].z, pts[n + 1].x - pts[n].x)
+			end
+		end
+	end
+	angleCache[k] = a
+	return a
+end
+
+-- Border kind between two blocks: 1 hedge, 2 wall, 3 fence, 4 track, 5 open.
+function Terrain.borderKind(i1: number, j1: number, i2: number, j2: number): number
+	local a, b = blockKey(i1, j1), blockKey(i2, j2)
+	local r = RNG.hash(math.min(a, b), math.max(a, b), fieldSeed + 21)
+	for n, w in season.borders do
+		if r < w then
+			return n
+		end
+	end
+	return 5
+end
+
+-- Nearest two blocks at (x, z) and the distance to their shared border. Consecutive calls
+-- mostly fall in the same lattice cell, so its 3x3 seed neighbourhood is kept.
+local lastCi, lastCj = math.huge, math.huge
+local nbX: { number } = table.create(9, 0)
+local nbZ: { number } = table.create(9, 0)
+local function nearestBlocks(x: number, z: number): (number, number, number, number, number)
+	local ci, cj = math.floor(x / FIELD), math.floor(z / FIELD)
+	if ci ~= lastCi or cj ~= lastCj then
+		lastCi, lastCj = ci, cj
+		local n = 0
+		for di = -1, 1 do
+			for dj = -1, 1 do
+				n += 1
+				nbX[n], nbZ[n] = blockSeed(ci + di, cj + dj)
+			end
+		end
+	end
+	local b1, b2 = math.huge, math.huge
+	local n1, n2 = 5, 5
+	for n = 1, 9 do
+		local d = (x - nbX[n]) ^ 2 + (z - nbZ[n]) ^ 2
+		if d < b1 then
+			b2, n2 = b1, n1
+			b1, n1 = d, n
+		elseif d < b2 then
+			b2, n2 = d, n
+		end
+	end
+	local sep = math.sqrt((nbX[n1] - nbX[n2]) ^ 2 + (nbZ[n1] - nbZ[n2]) ^ 2)
+	-- n = (di + 1) * 3 + (dj + 1) + 1
+	local i1, j1 = ci + (n1 - 1) // 3 - 1, cj + (n1 - 1) % 3 - 1
+	local i2, j2 = ci + (n2 - 1) // 3 - 1, cj + (n2 - 1) % 3 - 1
+	return i1, j1, i2, j2, (b2 - b1) / (2 * sep)
+end
+
+-- Crop kind at (x, z), plus whether it is a cart track on a block border.
+function Terrain.fieldAt(x: number, z: number): (number, boolean)
+	local i1, j1, i2, j2, edge = nearestBlocks(x, z)
+	if edge < 4.5 then
+		local kind = Terrain.borderKind(i1, j1, i2, j2)
+		if kind == 4 and edge < 2.2 then
+			return KIND_MEADOW, true
+		elseif kind ~= 5 then
+			return KIND_MEADOW, false -- grass headland under hedges, walls and fences
+		end
+	end
+	local key = blockKey(i1, j1)
+	local blk = blockInfo[key]
+	if not blk then
+		local sx, sz = blockSeed(i1, j1)
+		local a = blockAngle(i1, j1)
+		-- whole-block meadows keep the patchwork from getting busy
+		blk = { sx, sz, -math.sin(a), math.cos(a), 15 + RNG.hash(key, 11, fieldSeed + 31) * 16, if RNG.hash(key, 7, fieldSeed + 30) < 0.2 then 1 else 0 }
+		blockInfo[key] = blk
+	end
+	if blk[6] == 1 then
+		return KIND_MEADOW, false
+	end
+	-- across-strip coordinate
+	local strip = math.floor(((x - blk[1]) * blk[3] + (z - blk[2]) * blk[4]) / blk[5])
+	local r = RNG.hash(key, strip, fieldSeed + 32)
+	for n, w in season.crops do
+		if r < w then
+			return n, false
+		end
+	end
+	return KIND_MEADOW, false
+end
+
+local FIELD_MATERIAL = { Enum.Material.Grass, Enum.Material.LeafyGrass, Enum.Material.Limestone, Enum.Material.Mud }
+
+local function applyPalette(mapId: string?)
 	local P = Config.Visual.Palette
 	local t = workspace.Terrain
-	-- Studio showed the palette olive reading brown under warm low light; these are tuned with
-	-- World/Lighting (ClockTime 10.2) toward the reference's olive-gold and green.
-	-- olive-gold with green (Studio: 162,150,58 read orange/desert under the low warm sun)
-	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(126, 136, 62))
-	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(52, 74, 30))
-	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads and village lanes
+	season = SEASONS[Terrain.seasonOf(mapId)]
+	-- Grass stays olive-gold with green (Studio: 162,150,58 read orange/desert under a low warm sun).
+	t:SetMaterialColor(Enum.Material.Grass, rgb(season.grass))
+	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(season.leafy))
+	t:SetMaterialColor(Enum.Material.Limestone, rgb(season.wheat))
+	t:SetMaterialColor(Enum.Material.Mud, rgb(season.plough))
+	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads, tracks, yards
+	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(122, 112, 98)) -- village streets
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
-	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(176, 162, 120)) -- pale but not white banks
+	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(160, 150, 112)) -- pale but not white banks
 	t.WaterColor = rgb(P.Water)
 	t.WaterTransparency = 0.35
 	t.WaterWaveSize = 0.05
@@ -113,18 +303,35 @@ local function roadCore(map: any, x: number, z: number): boolean
 	return false
 end
 
-local function analyse(map: any): ({ [number]: number }, { [number]: boolean }, { [number]: boolean })
+type Marks = { [number]: boolean }
+local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Marks)
 	local g = map.grid
 	local cols, rows = g.cols, g.rows
 	local water: { [number]: number } = {}
-	local bank: { [number]: boolean } = {}
-	local roadOff: { [number]: boolean } = {}
+	local bank: Marks = {}
+	local roadOff: Marks = {}
+	local verge: Marks = {} -- grass verges along roads and around villages: no crops there
+	local street: Marks = {} -- road cores through villages, cobbled
 	for cz = 0, rows - 1 do
 		for cx = 0, cols - 1 do
 			local idx = cz * cols + cx + 1
 			local cls = g.class[idx]
 			if cls == IDS.road and not roadCore(map, (cx + 0.5) * g.cell, (cz + 0.5) * g.cell) then
 				roadOff[idx] = true
+			end
+			if cls == IDS.village and roadCore(map, (cx + 0.5) * g.cell, (cz + 0.5) * g.cell) then
+				street[idx] = true
+			end
+			if cls == IDS.road or cls == IDS.village then
+				local r = if cls == IDS.road then 2 else 3
+				for dz = -r, r do
+					for dx = -r, r do
+						local nx, nz = cx + dx, cz + dz
+						if nx >= 0 and nz >= 0 and nx < cols and nz < rows then
+							verge[nz * cols + nx + 1] = true
+						end
+					end
+				end
 			end
 			if cls == IDS.water or cls == IDS.bridge then
 				local c = { x = (cx + 0.5) * g.cell, z = (cz + 0.5) * g.cell }
@@ -148,7 +355,7 @@ local function analyse(map: any): ({ [number]: number }, { [number]: boolean }, 
 			end
 		end
 	end
-	return water, bank, roadOff
+	return water, bank, roadOff, verge, street
 end
 
 local function clearPickPlanes()
@@ -203,13 +410,77 @@ function Terrain.bounds()
 	return bounds
 end
 
+-- Ground height anywhere the last build wrote terrain, inside or outside the map (props use it
+-- for the distant country; inside the map it equals the grid height).
+function Terrain.heightAt(x: number, z: number): (number, boolean)
+	local col = skirtColumn
+	if not col then
+		return 0, false
+	end
+	local h, _, lvl = col(math.floor(x / skirtCell), math.floor(z / skirtCell))
+	return h, lvl ~= nil
+end
+
+-- Orchard plots beside the villages of the last build: { x, z, angle, hx, hz } (grass under the
+-- trees here; Props plants them).
+export type Orchard = { x: number, z: number, a: number, hx: number, hz: number }
+local orchards: { Orchard } = {}
+function Terrain.orchards(): { Orchard }
+	return orchards
+end
+
+local function inOrchard(x: number, z: number): boolean
+	for _, o in orchards do
+		local dx, dz = x - o.x, z - o.z
+		if math.abs(dx) < 40 and math.abs(dz) < 40 then
+			local c, s = math.cos(o.a), math.sin(o.a)
+			if math.abs(dx * c + dz * s) < o.hx + 3 and math.abs(-dx * s + dz * c) < o.hz + 3 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function planOrchards(map: any)
+	table.clear(orchards)
+	local g = map.grid
+	for vi, v in map.villages do
+		local n = if v.count >= 14 then 2 else 1
+		for k = 1, n do
+			local ang = RNG.hash(vi, k, fieldSeed + 50) * math.pi * 2
+			local d = v.radius + 34
+			local x, z = v.pos.x + math.cos(ang) * d, v.pos.z + math.sin(ang) * d
+			if x > 30 and z > 30 and x < map.width - 30 and z < map.depth - 30 then
+				local ok = true
+				for _, off in { { 0, 0 }, { 18, 0 }, { -18, 0 }, { 0, 12 }, { 0, -12 } } do
+					local cls = Grid.classAt(g, x + off[1], z + off[2])
+					if cls ~= IDS.open then
+						ok = false
+					end
+				end
+				if ok then
+					table.insert(orchards, { x = x, z = z, a = ang, hx = 22, hz = 15 })
+				end
+			end
+		end
+	end
+end
+
 -- Builds the whole map. Yields. Returns false if cleared/superseded mid-build.
 function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boolean
 	generation += 1
 	local myGen = generation
 	local terrain = workspace.Terrain
 	terrain:Clear()
-	applyPalette()
+	applyPalette(map.id)
+	fieldSeed = (map.seed or 1) + 313
+	fieldRoads = map.roads
+	table.clear(seedCache)
+	table.clear(angleCache)
+	table.clear(blockInfo)
+	lastCi, lastCj = math.huge, math.huge
+	planOrchards(map)
 
 	local g = map.grid
 	local cols, rows = g.cols, g.rows
@@ -218,7 +489,7 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	for i = 1, cols * rows do
 		minH = math.min(minH, g.height[i])
 	end
-	local water, bank, roadOff = analyse(map)
+	local water, bank, roadOff, verge, street = analyse(map)
 	-- the skirt relaxes toward the mean height of the map border
 	local edgeSum, edgeN = 0, 0
 	for cx = 0, cols - 1 do
@@ -271,6 +542,21 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 			if roadOff[idx] then
 				cls = IDS.open
 			end
+			local x, z = (cx + 0.5) * cell, (cz + 0.5) * cell
+			if cls == IDS.open and not bank[idx] and not verge[idx] then
+				if inOrchard(x, z) then
+					return h, Enum.Material.LeafyGrass, lvl
+				end
+				local kind, track = Terrain.fieldAt(x, z)
+				return h, if track then Enum.Material.Ground else FIELD_MATERIAL[kind], lvl
+			elseif cls == IDS.village then
+				if street[idx] then
+					return h, Enum.Material.Cobblestone, lvl
+				end
+				-- yards and kitchen gardens in ~12-stud plots
+				local garden = RNG.hash(x // 12, z // 12, fieldSeed + 40) < 0.55
+				return h, if garden then Enum.Material.LeafyGrass else Enum.Material.Ground, lvl
+			end
 			return h, materialFor(cls, bank[idx] == true), lvl
 		end
 		-- skirt: continue the edge, roughen it with noise, relax to a plain
@@ -283,8 +569,13 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 		local rough = math.min(1, d / 120)
 		local h = g.height[eidx] + (plain - g.height[eidx]) * s
 			+ ((noise(x, z, 150, seed) - 0.5) * 18 + (noise(x, z, 44, seed + 1) - 0.5) * 5) * rough
-		-- rivers run on past the edge along their end segments; banks rise above the water
 		local rd, rlvl, rhalf = riverOut(x, z)
+		-- a ring of low hills crests ~480 studs out and dips again, so the cut edge of the
+		-- terrain sits behind a skyline instead of ending in a visible slab; valleys stay open
+		local crest = smooth((d - 200) / 280) * (1 - 0.45 * smooth((d - 500) / 140))
+		local damp = if rlvl then smooth((rd - rhalf) / 220) else 1
+		h += crest * damp * (14 + noise(x, z, 240, seed + 5) ^ 1.6 * 46)
+		-- rivers run on past the edge along their end segments; banks rise above the water
 		if rlvl then
 			if rd < rhalf then
 				return math.min(h, rlvl - 3), Enum.Material.Sand, rlvl
@@ -298,9 +589,15 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 		if d < 40 and g.class[eidx] == IDS.road and not roadOff[eidx] then
 			return h, Enum.Material.Ground, nil
 		end
-		-- one continuous field colour: copy the edge's ground only where it is plain grass
-		return h, Enum.Material.Grass, nil
+		-- the patchwork runs on outside the map; the far hills are pasture and meadow
+		local kind, track = Terrain.fieldAt(x, z)
+		if crest > 0.6 and kind ~= KIND_PASTURE then
+			kind = KIND_MEADOW
+		end
+		return h, if track then Enum.Material.Ground else FIELD_MATERIAL[kind], nil
 	end
+	skirtColumn = column
+	skirtCell = cell
 
 	local AIR = Enum.Material.Air
 	local WATER = Enum.Material.Water
