@@ -26,7 +26,7 @@ local TREE_PRIORITY = { [1] = 0.55, [2] = 0.25, [3] = 0.0 } -- keep trees with p
 local CROWNS = { [1] = 2, [2] = 3, [3] = 3 }
 local CROWN = Color3.fromRGB(52, 74, 36) -- dense dark green (reference), not the lighter palette crown
 local ROOF = Color3.fromRGB(58, 40, 30) -- very dark brown pitched roofs
-local WALL = Color3.fromRGB(104, 78, 58)
+local WALL = Color3.fromRGB(150, 128, 96)
 
 local function part(parent: Instance, shape: EnumPartType?, size: Vector3, cf: CFrame, color: Color3, material: EnumMaterial?): Part
 	local p = Instance.new("Part") :: Part
@@ -90,16 +90,34 @@ local function buildTree(parent: Instance, t: any, crowns: number)
 	end
 end
 
-local function buildBuilding(parent: Instance, b: any)
-	local y = groundY(b.pos.x, b.pos.z)
-	local base = yaw(b.pos.x, y + b.h / 2 - 0.5, b.pos.z, b.heading)
-	part(parent, nil, Vector3.new(b.w, b.h, b.d), base, WALL)
-	local roofH = b.h * 0.55
-	local roofColor = if (b.w * 3 + b.d) % 2 < 1 then ROOF else ROOF:Lerp(Color3.fromRGB(28, 22, 18), 0.4)
-	local roofBase = yaw(b.pos.x, y + b.h - 0.5 + roofH / 2, b.pos.z, b.heading)
+-- Small cottages about 1.5x a soldier's height (walls 2.4 + roof ~2): a MapGen building
+-- footprint becomes one or two of them side by side, so villages read as dense clusters of
+-- dark pitched roofs rather than a few big boxes.
+local WALL_H = 2.4
+
+local function cottage(parent: Instance, x: number, z: number, heading: number, w: number, d: number, shade: number)
+	local y = groundY(x, z)
+	part(parent, nil, Vector3.new(w, WALL_H + 0.6, d), yaw(x, y + WALL_H / 2 - 0.3, z, heading), WALL:Lerp(Color3.fromRGB(110, 92, 70), shade))
+	local roofH = d * 0.42
+	local roofColor = ROOF:Lerp(Color3.fromRGB(24, 18, 14), shade)
+	local roofBase = yaw(x, y + WALL_H + roofH / 2, z, heading)
 	-- two wedges back to back along local Z form a gable with the ridge along local X
-	wedge(parent, Vector3.new(b.w + 0.6, roofH, b.d / 2 + 0.3), roofBase * CFrame.new(0, 0, -b.d / 4), roofColor)
-	wedge(parent, Vector3.new(b.w + 0.6, roofH, b.d / 2 + 0.3), roofBase * CFrame.new(0, 0, b.d / 4) * CFrame.Angles(0, math.pi, 0), roofColor)
+	wedge(parent, Vector3.new(w + 0.5, roofH, d / 2 + 0.35), roofBase * CFrame.new(0, 0, -d / 4), roofColor)
+	wedge(parent, Vector3.new(w + 0.5, roofH, d / 2 + 0.35), roofBase * CFrame.new(0, 0, d / 4) * CFrame.Angles(0, math.pi, 0), roofColor)
+end
+
+local function buildBuilding(parent: Instance, b: any)
+	local w = math.clamp(b.w * 0.55, 3.8, 6.5)
+	local d = math.clamp(b.d * 0.62, 3.4, 5)
+	local shade = ((b.pos.x * 13 + b.pos.z * 7) % 10) / 10
+	if b.w >= 9 then
+		local ux, uz = math.cos(b.heading), math.sin(b.heading)
+		local off = w / 2 + 0.5
+		cottage(parent, b.pos.x - ux * off, b.pos.z - uz * off, b.heading, w, d, shade)
+		cottage(parent, b.pos.x + ux * off, b.pos.z + uz * off, b.heading + 0.08, w * 0.9, d, 1 - shade)
+	else
+		cottage(parent, b.pos.x, b.pos.z, b.heading, w, d, shade)
+	end
 end
 
 local function buildBridge(parent: Instance, br: any)
@@ -140,13 +158,17 @@ local function maxGroundUnder(x: number, z: number, hl: number, hd: number): (nu
 	return hi, lo
 end
 
-local function buildLabel(parent: Instance, l: any)
-	local size = 20 * l.size -- modest, mixed case, cream serif
+local function buildLabel(parent: Instance, l: any, isVillage: boolean)
+	-- Villages are the names players navigate by: larger and steadier than terrain features,
+	-- which no longer dwarf them (Landgrafenberg vs Closewitz in Studio).
+	local size = if isVillage then 24 else math.clamp(17 * l.size, 13, 22)
+	-- plate length follows the name so long names keep their letter height
+	local len = size * math.max(3, 0.56 * #l.text)
 	-- Shorten the plate on steep ground (it clipped at the ends on slopes in Studio), then lift it
 	-- above the highest terrain under its largest scaled footprint.
-	local len = size * 4
 	local hi, lo = maxGroundUnder(l.pos.x, l.pos.z, len * LABEL_MAX_K / 2, size * LABEL_MAX_K / 2)
-	while hi - lo > LABEL_MAX_RISE and len > size * 2.2 do
+	local minLen = len * 0.55
+	while hi - lo > LABEL_MAX_RISE and len > minLen do
 		len *= 0.85
 		hi, lo = maxGroundUnder(l.pos.x, l.pos.z, len * LABEL_MAX_K / 2, size * LABEL_MAX_K / 2)
 	end
@@ -158,7 +180,7 @@ local function buildLabel(parent: Instance, l: any)
 	p.CastShadow = false
 	local gui = Instance.new("SurfaceGui") :: SurfaceGui
 	gui.Face = Enum.NormalId.Top
-	gui.CanvasSize = Vector2.new(400, 100) -- TextScaled stops at 100 px, so the canvas is 100 tall
+	gui.CanvasSize = Vector2.new(math.floor(100 * len / size), 100) -- TextScaled stops at 100 px, so the canvas is 100 tall
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
 	gui.Parent = p
@@ -169,7 +191,9 @@ local function buildLabel(parent: Instance, l: any)
 	text.TextScaled = true
 	text.Text = l.text
 	text.TextColor3 = rgb(P.Cream)
-	text.TextTransparency = 0.4
+	text.TextTransparency = 0.12
+	text.TextStrokeColor3 = Color3.fromRGB(40, 34, 24)
+	text.TextStrokeTransparency = 0.6
 	text.Parent = gui
 	table.insert(labelParts, { part = p, size = size, len = len })
 end
@@ -232,9 +256,13 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 			buildBridge(f, br)
 		end)
 	end
+	local villageNames: { [string]: boolean } = {}
+	for _, v in map.villages do
+		villageNames[v.name] = true
+	end
 	for _, l in map.labels do
 		table.insert(jobs, function()
-			buildLabel(f, l)
+			buildLabel(f, l, villageNames[l.text] == true)
 		end)
 	end
 	for _, o in map.objectives do
