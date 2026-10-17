@@ -44,6 +44,8 @@ export type MapData = {
 type MapDef = {
 	name: string,
 	seed: number,
+	width: number?, -- studs, multiple of 16; defaults to Config.Map.Width
+	depth: number?,
 	baseHeight: number,
 	hills: { Hill },
 	villages: { { name: string, pos: Vec, radius: number, count: number } },
@@ -69,15 +71,28 @@ local function smooth(t: number): number
 	return t * t * (3 - 2 * t)
 end
 
+-- Lattice hashes are memoised per generate() call: neighbouring cells share corners, and the
+-- hash dominates pass 1 otherwise. Keys are exact integers so results stay deterministic.
+local memo: { [number]: number } = {}
+local function corner(ix: number, iz: number, seed: number): number
+	local key = (seed * 8192 + iz + 4096) * 8192 + ix + 4096
+	local h = memo[key]
+	if h == nil then
+		h = RNG.hash(ix, iz, seed)
+		memo[key] = h
+	end
+	return h
+end
+
 -- Value noise in [0,1).
 local function noise(x: number, z: number, scale: number, seed: number): number
 	local fx, fz = x / scale, z / scale
 	local ix, iz = math.floor(fx), math.floor(fz)
 	local tx, tz = smooth(fx - ix), smooth(fz - iz)
-	local a = RNG.hash(ix, iz, seed)
-	local b = RNG.hash(ix + 1, iz, seed)
-	local c = RNG.hash(ix, iz + 1, seed)
-	local d = RNG.hash(ix + 1, iz + 1, seed)
+	local a = corner(ix, iz, seed)
+	local b = corner(ix + 1, iz, seed)
+	local c = corner(ix, iz + 1, seed)
+	local d = corner(ix + 1, iz + 1, seed)
 	local top = a + (b - a) * tx
 	local bottom = c + (d - c) * tx
 	return top + (bottom - top) * tz
@@ -89,17 +104,6 @@ local function blobDistance(p: Vec, pos: Vec, rx: number, rz: number, seed: numb
 	local d = math.sqrt(dx * dx + dz * dz)
 	local wobble = (noise(p.x, p.z, 48, seed) - 0.5) * 0.5
 	return d + wobble
-end
-
-local function polylineDistance(p: Vec, points: { Vec }): number
-	local best = math.huge
-	for i = 1, #points - 1 do
-		local d = Vec.distToSegment(p, points[i], points[i + 1])
-		if d < best then
-			best = d
-		end
-	end
-	return best
 end
 
 local function bbox(points: { Vec }, pad: number): Rect
@@ -189,6 +193,234 @@ MAPS.jena = {
 	valley = { x0 = 1340, x1 = 1460, floor = 3 },
 }
 
+-- Auerstedt: Davout's III Corps on the Hassenhausen plateau, Prussians arriving from the west
+-- over the Lissbach, the Kösen bridge over the Saale in the French rear (south-east).
+MAPS.auerstedt = {
+	name = "Auerstedt, 14 October 1806 (condensed)",
+	seed = 1406,
+	width = 2000,
+	depth = 1500,
+	baseHeight = 20,
+	hills = {
+		{ name = "Eckartsberg", pos = v(280, 950), rx = 300, rz = 260, h = 28, k = 0.6 },
+		{ name = "Sonnenkuppe", pos = v(480, 420), rx = 220, rz = 170, h = 24, k = 0.55 },
+		{ name = "Hassenhausen plateau", pos = v(1150, 700), rx = 420, rz = 300, h = 10, k = 0.8 },
+		{ name = "Spielberg rise", pos = v(1300, 1150), rx = 220, rz = 150, h = 12, k = 0.7 },
+		{ pos = v(1450, 250), rx = 180, rz = 160, h = 14, k = 0.6 },
+	},
+	villages = {
+		{ name = "Hassenhausen", pos = v(1150, 700), radius = 55, count = 20 },
+		{ name = "Poppel", pos = v(690, 1060), radius = 45, count = 14 },
+		{ name = "Spielberg", pos = v(1280, 1130), radius = 42, count = 12 },
+		{ name = "Taugwitz", pos = v(690, 470), radius = 40, count = 12 },
+		{ name = "Kösen", pos = v(1830, 200), radius = 45, count = 14 },
+		{ name = "Rehausen", pos = v(1520, 980), radius = 38, count = 10 },
+		{ name = "Eckartsberga", pos = v(250, 1300), radius = 50, count = 18 },
+		{ name = "Gernstedt", pos = v(1050, 1350), radius = 36, count = 10 },
+	},
+	woods = {
+		{ pos = v(420, 700), rx = 120, rz = 90 },
+		{ pos = v(1500, 1250), rx = 130, rz = 90 },
+		{ pos = v(1750, 600), rx = 110, rz = 80 },
+		{ pos = v(900, 1250), rx = 90, rz = 60 },
+		{ pos = v(1350, 150), rx = 120, rz = 70 },
+		{ pos = v(150, 300), rx = 100, rz = 80 },
+	},
+	roads = {
+		{ points = { v(2000, 180), v(1830, 200), v(1750, 240), v(1650, 340), v(1400, 540), v(1150, 700), v(900, 760), v(750, 760), v(450, 820), v(0, 860) }, width = 6 },
+		{ points = { v(1150, 700), v(1280, 1130), v(1050, 1350), v(1000, 1500) }, width = 5 },
+		{ points = { v(690, 470), v(700, 760), v(690, 1060), v(250, 1300) }, width = 5 },
+		{ points = { v(690, 1060), v(750, 1000), v(1150, 700) }, width = 5 },
+		{ points = { v(690, 470), v(750, 520), v(1150, 700) }, width = 5 },
+		{ points = { v(1150, 700), v(1520, 980), v(2000, 1050) }, width = 5 },
+	},
+	rivers = {
+		{ name = "Saale", points = { v(1560, 0), v(1620, 200), v(1780, 380), v(2000, 520) }, width = 50, level = 2 },
+		{ name = "Lissbach", points = { v(740, 0), v(750, 520), v(750, 760), v(750, 1000), v(770, 1500) }, width = 12, level = 15 },
+	},
+	bridges = {
+		{ a = v(1650, 340), b = v(1750, 240), width = 24 },
+		{ a = v(720, 760), b = v(780, 760), width = 28 },
+		{ a = v(720, 1000), b = v(780, 1000), width = 28 },
+		{ a = v(720, 520), b = v(780, 520), width = 28 },
+	},
+	labels = {
+		{ text = "Sonnenkuppe", pos = v(480, 420), size = 1.2 },
+		{ text = "Eckartsberg", pos = v(280, 950), size = 1.2 },
+		{ text = "Saale", pos = v(1700, 440), size = 1.0 },
+		{ text = "Lissbach", pos = v(760, 900), size = 0.9 },
+	},
+	objectives = {
+		{ id = "hassenhausen", name = "Hassenhausen", pos = v(1150, 700), radius = 60 },
+		{ id = "poppel", name = "Poppel", pos = v(690, 1060), radius = 60 },
+		{ id = "koesen", name = "Kösen bridge", pos = v(1700, 290), radius = 60 },
+	},
+	deployZones = {
+		france = { x0 = 900, z0 = 320, x1 = 1760, z1 = 950 },
+		prussia = { x0 = 60, z0 = 250, x1 = 620, z1 = 1350 },
+	},
+	valley = nil,
+}
+
+-- Austerlitz: the Goldbach and its villages west of centre, the Pratzen plateau in the middle,
+-- the Santon in the north-west, the frozen Satschan ponds in the south.
+MAPS.austerlitz = {
+	name = "Austerlitz, 2 December 1805 (condensed)",
+	seed = 1205,
+	width = 2400,
+	depth = 1800,
+	baseHeight = 18,
+	hills = {
+		{ name = "Pratzen Heights", pos = v(1450, 900), rx = 400, rz = 520, h = 30, k = 0.45 },
+		{ name = "Staré Vinohrady", pos = v(1480, 1250), rx = 150, rz = 110, h = 10, k = 0.6 },
+		{ name = "Pratzeberg", pos = v(1420, 600), rx = 150, rz = 110, h = 9, k = 0.6 },
+		{ name = "Santon", pos = v(600, 1600), rx = 100, rz = 90, h = 22, k = 0.6 },
+		{ name = "Zuran", pos = v(450, 1250), rx = 200, rz = 160, h = 18, k = 0.6 },
+		{ pos = v(300, 600), rx = 350, rz = 300, h = 10, k = 0.7 },
+		{ pos = v(1900, 1200), rx = 300, rz = 250, h = 12, k = 0.7 },
+		{ pos = v(1300, 450), rx = 200, rz = 120, h = 8, k = 0.7 },
+	},
+	villages = {
+		{ name = "Pratzen", pos = v(1330, 880), radius = 48, count = 16 },
+		{ name = "Sokolnitz", pos = v(870, 450), radius = 52, count = 18 },
+		{ name = "Telnitz", pos = v(940, 170), radius = 45, count = 14 },
+		{ name = "Kobelnitz", pos = v(830, 760), radius = 42, count = 12 },
+		{ name = "Puntowitz", pos = v(800, 1050), radius = 42, count = 12 },
+		{ name = "Girzikowitz", pos = v(690, 1310), radius = 40, count = 12 },
+		{ name = "Bosenitz", pos = v(650, 1480), radius = 38, count = 10 },
+		{ name = "Augezd", pos = v(1250, 300), radius = 44, count = 14 },
+		{ name = "Blasowitz", pos = v(1500, 1450), radius = 44, count = 14 },
+		{ name = "Krzenowitz", pos = v(1800, 1300), radius = 46, count = 16 },
+		{ name = "Holubitz", pos = v(1250, 1600), radius = 36, count = 10 },
+		{ name = "Austerlitz", pos = v(2250, 760), radius = 70, count = 30 },
+		{ name = "Schlapanitz", pos = v(350, 1050), radius = 44, count = 14 },
+	},
+	woods = {
+		{ name = "Sokolnitz pheasantry", pos = v(930, 560), rx = 60, rz = 70 },
+		{ pos = v(380, 1450), rx = 120, rz = 80 },
+		{ pos = v(1900, 500), rx = 140, rz = 100 },
+		{ pos = v(2100, 1500), rx = 150, rz = 100 },
+		{ pos = v(1050, 1700), rx = 120, rz = 60 },
+		{ pos = v(150, 300), rx = 120, rz = 90 },
+		{ pos = v(1700, 150), rx = 110, rz = 70 },
+	},
+	roads = {
+		{ points = { v(0, 1480), v(450, 1500), v(735, 1550), v(1000, 1580), v(1250, 1600), v(1700, 1650), v(2400, 1700) }, width = 6 },
+		{ points = { v(0, 1100), v(350, 1050), v(745, 1050), v(800, 1050), v(1330, 880), v(1800, 820), v(2250, 760), v(2400, 740) }, width = 6 },
+		{ points = { v(800, 1050), v(830, 760), v(870, 450), v(940, 170), v(1000, 0) }, width = 5 },
+		{ points = { v(870, 450), v(1250, 300), v(1700, 350), v(2250, 760) }, width = 5 },
+		{ points = { v(1330, 880), v(1500, 1450), v(1800, 1300), v(2400, 1250) }, width = 5 },
+		{ points = { v(350, 1050), v(450, 1500) }, width = 5 },
+		{ points = { v(0, 520), v(350, 620), v(777, 750), v(830, 760) }, width = 5 },
+		{ points = { v(0, 150), v(500, 160), v(878, 180), v(940, 170) }, width = 5 },
+		{ points = { v(650, 1480), v(690, 1310), v(730, 1300), v(800, 1050) }, width = 5 },
+	},
+	rivers = {
+		{ name = "Goldbach", points = { v(740, 1800), v(730, 1300), v(745, 1050), v(777, 750), v(817, 450), v(878, 180), v(940, 0) }, width = 16, level = 12 },
+		{ name = "Satschan pond", points = { v(1300, 110), v(1500, 90) }, width = 170, level = 1 },
+		{ name = "Mönitz pond", points = { v(1000, 40), v(1150, 60) }, width = 110, level = 1 },
+	},
+	bridges = {
+		{ a = v(703, 1550), b = v(767, 1550), width = 26 },
+		{ a = v(698, 1300), b = v(762, 1300), width = 26 },
+		{ a = v(713, 1050), b = v(777, 1050), width = 26 },
+		{ a = v(745, 750), b = v(809, 750), width = 26 },
+		{ a = v(785, 450), b = v(849, 450), width = 26 },
+		{ a = v(846, 180), b = v(910, 180), width = 26 },
+	},
+	labels = {
+		{ text = "Pratzen Heights", pos = v(1450, 960), size = 1.4 },
+		{ text = "Staré Vinohrady", pos = v(1480, 1250), size = 0.9 },
+		{ text = "Santon", pos = v(600, 1600), size = 1.0 },
+		{ text = "Zuran", pos = v(450, 1250), size = 1.0 },
+		{ text = "Goldbach", pos = v(760, 900), size = 0.9 },
+		{ text = "Satschan ponds", pos = v(1400, 100), size = 1.0 },
+	},
+	objectives = {
+		{ id = "pratzen", name = "Pratzen Heights", pos = v(1450, 900), radius = 70 },
+		{ id = "sokolnitz", name = "Sokolnitz", pos = v(870, 450), radius = 60 },
+		{ id = "santon", name = "Santon", pos = v(600, 1600), radius = 60 },
+	},
+	deployZones = {
+		france = { x0 = 60, z0 = 120, x1 = 660, z1 = 1700 },
+		russia = { x0 = 1000, z0 = 200, x1 = 2330, z1 = 1720 },
+	},
+	valley = nil,
+}
+
+-- Waterloo: two east-west ridges, the Brussels road through the middle, Hougoumont and La Haye
+-- Sainte in front of the Anglo-allied line, Plancenoit and the Bois de Paris in the south-east.
+MAPS.waterloo = {
+	name = "Waterloo, 18 June 1815 (condensed)",
+	seed = 1815,
+	width = 2400,
+	depth = 1600,
+	baseHeight = 20,
+	hills = {
+		{ name = "Mont-Saint-Jean ridge", pos = v(1200, 1060), rx = 1100, rz = 170, h = 20, k = 0.6 },
+		{ pos = v(1200, 1080), rx = 250, rz = 120, h = 6, k = 0.8 },
+		{ name = "La Belle Alliance ridge", pos = v(1200, 440), rx = 1000, rz = 160, h = 14, k = 0.6 },
+		{ name = "Rossomme", pos = v(1200, 200), rx = 500, rz = 140, h = 8, k = 0.7 },
+		{ pos = v(2100, 1300), rx = 300, rz = 200, h = 8, k = 0.7 },
+	},
+	villages = {
+		{ name = "La Haye Sainte", pos = v(1200, 920), radius = 32, count = 7 },
+		{ name = "Hougoumont", pos = v(760, 790), radius = 52, count = 14 },
+		{ name = "Papelotte", pos = v(1760, 950), radius = 38, count = 10 },
+		{ name = "La Haye", pos = v(1860, 990), radius = 28, count = 6 },
+		{ name = "Frichermont", pos = v(2080, 900), radius = 36, count = 10 },
+		{ name = "Plancenoit", pos = v(1650, 290), radius = 50, count = 18 },
+		{ name = "La Belle Alliance", pos = v(1200, 470), radius = 26, count = 5 },
+		{ name = "Rossomme", pos = v(1200, 190), radius = 28, count = 6 },
+		{ name = "Mont-Saint-Jean", pos = v(1200, 1320), radius = 44, count = 14 },
+		{ name = "Braine-l'Alleud", pos = v(280, 1330), radius = 64, count = 24 },
+		{ name = "Merbe-Braine", pos = v(560, 1260), radius = 36, count = 10 },
+		{ name = "Smohain", pos = v(1920, 1050), radius = 28, count = 6 },
+	},
+	woods = {
+		{ name = "Hougoumont wood", pos = v(770, 680), rx = 95, rz = 65 },
+		{ name = "Bois de Paris", pos = v(2150, 480), rx = 170, rz = 190 },
+		{ pos = v(2080, 760), rx = 70, rz = 60 },
+		{ name = "Forêt de Soignes", pos = v(1200, 1575), rx = 1300, rz = 55 },
+		{ pos = v(400, 500), rx = 90, rz = 60 },
+		{ pos = v(1500, 150), rx = 80, rz = 50 },
+	},
+	roads = {
+		{ points = { v(1200, 0), v(1200, 190), v(1200, 470), v(1200, 920), v(1200, 1060), v(1200, 1320), v(1200, 1600) }, width = 8 },
+		{ points = { v(150, 1010), v(560, 1040), v(900, 1060), v(1200, 1060), v(1500, 1050), v(1760, 1010), v(1980, 960), v(2250, 920) }, width = 8 },
+		{ points = { v(1200, 1060), v(900, 1200), v(560, 1260), v(280, 1330), v(0, 1380) }, width = 6 },
+		{ points = { v(760, 790), v(900, 1060) }, width = 4 },
+		{ points = { v(760, 790), v(560, 1040) }, width = 4 },
+		{ points = { v(1200, 470), v(1650, 290), v(2000, 200), v(2400, 150) }, width = 5 },
+		{ points = { v(1760, 950), v(1860, 990), v(1950, 950), v(2080, 900), v(2400, 850) }, width = 5 },
+		{ points = { v(1650, 290), v(2050, 800), v(2150, 1300) }, width = 4 },
+	},
+	rivers = {
+		{ name = "Smohain brook", points = { v(1900, 1150), v(1950, 950), v(2050, 800), v(2250, 650), v(2400, 560) }, width = 10, level = 14 },
+	},
+	bridges = {
+		{ a = v(1915, 950), b = v(1985, 950), width = 24 },
+		{ a = v(2015, 790), b = v(2085, 810), width = 24 },
+	},
+	labels = {
+		{ text = "Mont-Saint-Jean ridge", pos = v(1200, 1130), size = 1.4 },
+		{ text = "Chemin d'Ohain", pos = v(900, 1080), size = 0.9 },
+		{ text = "La Belle Alliance ridge", pos = v(1000, 420), size = 1.1 },
+		{ text = "Bois de Paris", pos = v(2150, 480), size = 1.0 },
+		{ text = "Forêt de Soignes", pos = v(1200, 1560), size = 1.0 },
+	},
+	objectives = {
+		{ id = "lahayesainte", name = "La Haye Sainte", pos = v(1200, 920), radius = 60 },
+		{ id = "hougoumont", name = "Hougoumont", pos = v(760, 790), radius = 60 },
+		{ id = "crossroads", name = "Mont-Saint-Jean crossroads", pos = v(1200, 1060), radius = 60 },
+	},
+	deployZones = {
+		france = { x0 = 150, z0 = 120, x1 = 2250, z1 = 640 },
+		britain = { x0 = 150, z0 = 720, x1 = 2250, z1 = 1440 },
+	},
+	valley = nil,
+}
+
 -- Compact variants for the campaign (Release B) reuse the same generator with smaller feature sets.
 MAPS.bridge = {
 	name = "Camsdorf bridge approach",
@@ -241,19 +473,21 @@ MAPS.village = {
 }
 
 function MapGen.list(): { string }
-	return { "jena", "bridge", "village" }
+	return { "jena", "auerstedt", "austerlitz", "waterloo", "bridge", "village" }
 end
 
 function MapGen.generate(mapId: string): MapData
 	local def = MAPS[mapId]
 	assert(def, "unknown map " .. tostring(mapId))
 	local cell = Config.Map.CellSize
-	local cols = Config.Map.Width // cell
-	local rows = Config.Map.Depth // cell
+	local cols = (def.width or Config.Map.Width) // cell
+	local rows = (def.depth or Config.Map.Depth) // cell
 	local g = Grid.new(cols, rows, cell)
 	local seed = def.seed
+	memo = {}
 
-	-- Precomputed bounding boxes for feature culling.
+	-- Precomputed bounding boxes for feature culling. Polylines are culled per segment so a
+	-- road or river crossing the whole map does not cost a distance test on every cell.
 	local hillBox: { Rect } = {}
 	for i, h in def.hills do
 		hillBox[i] = { x0 = h.pos.x - h.rx, z0 = h.pos.z - h.rz, x1 = h.pos.x + h.rx, z1 = h.pos.z + h.rz }
@@ -262,13 +496,33 @@ function MapGen.generate(mapId: string): MapData
 	for i, w in def.woods do
 		woodBox[i] = { x0 = w.pos.x - w.rx * 1.3, z0 = w.pos.z - w.rz * 1.3, x1 = w.pos.x + w.rx * 1.3, z1 = w.pos.z + w.rz * 1.3 }
 	end
-	local roadBox: { Rect } = {}
-	for i, r in def.roads do
-		roadBox[i] = bbox(r.points, r.width)
+	type Seg = { a: Vec, b: Vec, box: Rect }
+	local function segments(points: { Vec }, pad: number): { Seg }
+		local out: { Seg } = {}
+		for i = 1, #points - 1 do
+			out[i] = { a = points[i], b = points[i + 1], box = bbox({ points[i], points[i + 1] }, pad) }
+		end
+		return out
 	end
-	local riverBox: { Rect } = {}
+	local function nearest(segs: { Seg }, p: Vec): number
+		local best = math.huge
+		for _, s in segs do
+			if inRect(s.box, p.x, p.z) then
+				local d = Vec.distToSegment(p, s.a, s.b)
+				if d < best then
+					best = d
+				end
+			end
+		end
+		return best
+	end
+	local roadSegs: { { Seg } } = {}
+	for i, r in def.roads do
+		roadSegs[i] = segments(r.points, r.width)
+	end
+	local riverSegs: { { Seg } } = {}
 	for i, r in def.rivers do
-		riverBox[i] = bbox(r.points, r.width / 2 + 30)
+		riverSegs[i] = segments(r.points, r.width / 2 + 30)
 	end
 	local bridgeBox: { Rect } = {}
 	for i, b in def.bridges do
@@ -322,23 +576,19 @@ function MapGen.generate(mapId: string): MapData
 				end
 			end
 			for i, river in def.rivers do
-				if inRect(riverBox[i], x, z) then
-					local d = polylineDistance(p, river.points)
-					local half = river.width / 2
-					if d < half then
-						cls = IDS.water
-						h = math.min(h, river.level - 3)
-					elseif d < half + 24 then
-						local t = smooth((d - half) / 24)
-						h = math.min(h, (river.level + 0.5) + (h - (river.level + 0.5)) * t)
-					end
+				local d = nearest(riverSegs[i], p)
+				local half = river.width / 2
+				if d < half then
+					cls = IDS.water
+					h = math.min(h, river.level - 3)
+				elseif d < half + 24 then
+					local t = smooth((d - half) / 24)
+					h = math.min(h, (river.level + 0.5) + (h - (river.level + 0.5)) * t)
 				end
 			end
 			for i, road in def.roads do
-				if inRect(roadBox[i], x, z) and cls ~= IDS.village and cls ~= IDS.water then
-					if polylineDistance(p, road.points) < road.width / 2 then
-						cls = IDS.road
-					end
+				if cls ~= IDS.village and cls ~= IDS.water and nearest(roadSegs[i], p) < road.width / 2 then
+					cls = IDS.road
 				end
 			end
 			for i, bridge in def.bridges do
@@ -355,12 +605,15 @@ function MapGen.generate(mapId: string): MapData
 	end
 
 	-- Bridges sit at bank height: resample now that heights exist.
-	for _, bridge in def.bridges do
+	for i, bridge in def.bridges do
 		local ha = Grid.heightAt(g, bridge.a.x, bridge.a.z)
 		local hb = Grid.heightAt(g, bridge.b.x, bridge.b.z)
 		local deck = math.max(ha, hb)
-		for cz = 0, rows - 1 do
-			for cx = 0, cols - 1 do
+		local box = bridgeBox[i]
+		local cx0, cz0 = Grid.cellOf(g, box.x0, box.z0)
+		local cx1, cz1 = Grid.cellOf(g, box.x1, box.z1)
+		for cz = cz0, cz1 do
+			for cx = cx0, cx1 do
 				local idx = cz * cols + cx + 1
 				if classArr[idx] == IDS.bridge then
 					local p = Grid.cellCenter(g, cx, cz)

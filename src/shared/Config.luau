@@ -76,6 +76,11 @@ Config.Visual = {
 		France = { 44, 79, 166 },
 		Prussia = { 58, 61, 66 },
 		Saxony = { 108, 113, 128 },
+		Russia = { 40, 72, 52 }, -- dark green coat
+		Austria = { 214, 208, 190 }, -- off-white
+		Britain = { 160, 52, 44 }, -- brick red
+		Bavaria = { 96, 128, 200 }, -- cornflower
+		Netherlands = { 150, 112, 80 }, -- orange-tinged slate
 		Select = { 240, 226, 180 },
 		Hostile = { 170, 60, 48 },
 	},
