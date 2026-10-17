@@ -39,6 +39,10 @@ type Marker = {
 	gui: BillboardGui,
 	pxW: number, -- billboard size in screen pixels (for label deconfliction)
 	pxH: number,
+	frame: Frame, -- the ivory plate inside the billboard
+	texts: { TextLabel }, -- name/corps lines (hidden in banner mode)
+	curW: number, -- current on-screen plate width (px)
+	curH: number,
 	nameLabel: TextLabel,
 	statusLabel: TextLabel,
 	bar: Frame,
@@ -539,17 +543,20 @@ local function buildMarker(g: Group, f: any): Marker
 		end
 	end
 	local nameLabel: TextLabel
+	local texts: { TextLabel } = {}
 	if g.ghost then
 		nameLabel = text(0.9, 0.05, "?", Enum.Font.Garamond, Color3.fromRGB(246, 241, 226), plate)
 	else
 		nameLabel = text(0.56, 0.06, nameText, Enum.Font.Garamond, INK, plate)
 		local corps = text(0.32, 0.62, corpsText, Enum.Font.Garamond, INK, plate)
 		corps.TextTransparency = 0.15
+		texts = { nameLabel, corps }
 	end
 	-- status line under the plate (selected/hovered, or the age of a sighting)
 	local statusLabel = text(0, 0, "", Enum.Font.GothamBold, IVORY, gui)
 	statusLabel.Size = UDim2.new(1, 0, 0, 14)
-	statusLabel.Position = UDim2.new(0, 0, 0, pxH + 2)
+	statusLabel.Position = UDim2.new(1, 0, 1, -14)
+	statusLabel.AnchorPoint = Vector2.new(1, 0)
 	statusLabel.TextStrokeTransparency = 0.3
 	statusLabel.TextStrokeColor3 = INK
 	local bar = Instance.new("Frame") :: Frame
@@ -571,6 +578,10 @@ local function buildMarker(g: Group, f: any): Marker
 		gui = gui,
 		pxW = pxW,
 		pxH = pxH,
+		frame = plate,
+		texts = texts,
+		curW = pxW,
+		curH = pxH,
 		nameLabel = nameLabel,
 		statusLabel = statusLabel,
 		bar = bar,
@@ -886,9 +897,30 @@ end
 
 -- ------------------------------------------------------------------ labels
 
+-- Plates scale with distance between a floor and their design size (so they never cover the
+-- field at the deployment zoom). Far away, only HQs, the selection and the hovered unit keep a
+-- full plate; the rest shrink to a small blank banner.
+local PLATE_STUDS = 24 -- world width a plate represents before clamping
+local PLATE_MIN_W = 84
+local BANNER_W, BANNER_H = 34, 10
+local FULL_PLATE_DEPTH = 560 -- camera depth beyond which ordinary plates become banners
+
+local function sizePlate(m: Marker, w: number, h: number, banner: boolean)
+	if math.abs(m.curW - w) < 2 and math.abs(m.curH - h) < 1 then
+		return
+	end
+	m.curW, m.curH = w, h
+	m.gui.Size = UDim2.fromOffset(w, h + 16)
+	m.frame.Size = UDim2.new(1, 0, 0, h)
+	for _, l in m.texts do
+		l.Visible = not banner
+	end
+end
+
 local function deconflictLabels(cam: Camera)
 	local list: { { g: Group, x: number, y: number, w: number, h: number, pri: number } } = {}
 	local hovered = Selection.hovered()
+	local pxPerStudAt1 = cam.ViewportSize.Y / (2 * math.tan(math.rad(cam.FieldOfView) / 2))
 	for id, g in groups do
 		local m = g.marker
 		local pri = m.priority
@@ -900,7 +932,17 @@ local function deconflictLabels(cam: Camera)
 		local world = Vector3.new(g.rx, groundY(g.rx, g.rz) + m.height, g.rz)
 		local sp, onScreen = cam:WorldToViewportPoint(world)
 		if onScreen and sp.Z > 0 then
-			table.insert(list, { g = g, x = sp.X, y = sp.Y - m.pxH / 2, w = m.pxW, h = m.pxH, pri = pri })
+			local w, h
+			local banner = not g.ghost and pri < 2 and sp.Z > FULL_PLATE_DEPTH
+			if banner then
+				w, h = BANNER_W, BANNER_H
+			else
+				local scale = if m.priority >= 4 then 1.3 else 1
+				w = math.clamp(PLATE_STUDS * scale * pxPerStudAt1 / sp.Z, math.min(PLATE_MIN_W, m.pxW), m.pxW)
+				h = w * m.pxH / m.pxW
+			end
+			sizePlate(m, w, h, banner)
+			table.insert(list, { g = g, x = sp.X, y = sp.Y - h / 2, w = w, h = h, pri = pri })
 		else
 			m.gui.Enabled = false
 		end
