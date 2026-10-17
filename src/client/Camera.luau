@@ -34,6 +34,8 @@ local shakeAmount = 0
 local connections: { RBXScriptConnection } = {}
 local bound = false
 local enabled = true
+local rotating = false -- middle-mouse drag in progress
+local ROTATE_DRAG = 0.006 -- radians per pixel
 -- cinematic intro: sweeps from `from` to `to` over INTRO_SECONDS; any input skips it
 type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
@@ -198,6 +200,27 @@ function Camera.init()
 		cam.FieldOfView = 55
 	end
 	RunService:BindToRenderStep("EoECamera", Enum.RenderPriority.Camera.Value, step)
+	-- Middle-mouse drag rotates (yaw) and tilts (pitch), Total War style.
+	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
+		if input.UserInputType == Enum.UserInputType.MouseButton3 and not gp and enabled then
+			rotating = true
+		end
+	end))
+	table.insert(connections, UserInputService.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton3 then
+			rotating = false
+		end
+	end))
+	table.insert(connections, UserInputService.WindowFocusReleased:Connect(function()
+		rotating = false
+	end))
+	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject)
+		if rotating and enabled and not intro and input.UserInputType == Enum.UserInputType.MouseMovement then
+			target.yaw -= input.Delta.X * ROTATE_DRAG
+			target.pitch += input.Delta.Y * ROTATE_DRAG
+			clampTarget()
+		end
+	end))
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject)
 		local t = input.UserInputType
 		if intro and (t == Enum.UserInputType.Keyboard or t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.Touch or t == Enum.UserInputType.Gamepad1) then
@@ -298,6 +321,7 @@ function Camera.destroy()
 	bound = false
 	RunService:UnbindFromRenderStep("EoECamera")
 	intro = nil
+	rotating = false
 	for _, c in connections do
 		c:Disconnect()
 	end
