@@ -373,6 +373,20 @@ function Movement.update(sim: SimLike, f: Formation)
 		if not waiting then
 			routeToHome(sim, f)
 			followPath(sim, f, 1)
+			-- A flight that has gone nowhere for 20 s (hemmed in, path lost) leaves the field
+			-- rather than freezing in place forever.
+			local check = f.routCheckPos
+			if check == nil or Vec.dist(check, f.pos) > 5 then
+				f.routCheckPos = { x = f.pos.x, z = f.pos.z }
+				f.timers.routStill = 0
+			else
+				f.timers.routStill += Config.Sim.DT
+				if f.timers.routStill >= 20 then
+					f.state = "exited"
+					sim.emit(sim, { kind = "destroyed", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. " has scattered" })
+					return
+				end
+			end
 		end
 		-- At the home edge a routing formation waits in the rear and may still rally; only a
 		-- shattered formation (or one hopelessly stuck / off the map) leaves the field for good.

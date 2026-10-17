@@ -48,7 +48,8 @@ Config.Slope = {
 Config.Vision = {
 	EyeHeight = 4.0, -- mounted officers / colour party; sees over small bulges of a slope
 	SightTolerance = 0.5, -- studs the terrain may rise above the sight line before it blocks
-	WoodsReveal = 60, -- a formation inside woods/village is only spotted within this distance
+	WoodsReveal = 90, -- a formation inside woods/village is only spotted within this distance
+	ContactReveal = 15, -- footprints this close (beyond touching) always see each other
 	LastKnownForgetSeconds = 180,
 }
 

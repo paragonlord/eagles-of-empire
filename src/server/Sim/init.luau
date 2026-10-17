@@ -777,11 +777,12 @@ end
 function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Results
 	local sides: { [string]: any } = {}
 	for _, faction in self.factions do
-		local s = { deployed = self.deployed[faction] or 0, casualties = 0, remaining = 0, surviving = 0, routed = 0, shattered = 0, destroyed = 0, exited = 0, formations = 0 }
+		local s = { deployed = self.deployed[faction] or 0, casualties = 0, remaining = 0, surviving = 0, routed = 0, shattered = 0, destroyed = 0, exited = 0, formations = 0, routEvents = 0 }
 		for _, id in self.order do
 			local f = self.formations[id]
 			if f and f.faction == faction then
 				s.formations += 1
+				s.routEvents += f.routCount -- every rout during the battle, including those that rallied
 				if f.state == "offmap" then
 					s.remaining += f.strength
 					s.surviving += 1

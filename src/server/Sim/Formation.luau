@@ -60,6 +60,7 @@ export type Formation = {
 		chargeRecover: number,
 		rallyCd: number,
 		routing: number,
+		routStill: number, -- seconds a routing formation has made no progress
 		rallying: number,
 		bayonet: number,
 		noDamage: number,
@@ -92,6 +93,7 @@ export type Formation = {
 	visibleTo: { [string]: boolean },
 	inWoods: boolean,
 	arrivalTick: number?, -- reinforcements: tick at which the formation enters the field
+	routCheckPos: Vec?, -- where a routing formation was last seen making progress
 	mods: Mods,
 }
 
@@ -170,6 +172,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 			chargeRecover = 0,
 			rallyCd = 0,
 			routing = 0,
+			routStill = 0,
 			rallying = 0,
 			bayonet = 0,
 			noDamage = 999,
@@ -202,6 +205,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		visibleTo = {},
 		inWoods = false,
 		arrivalTick = nil,
+		routCheckPos = nil,
 		mods = Formation.neutralMods(),
 	}
 	-- Off-map reinforcements: `arrival = { seconds, pos }` on the unit definition.

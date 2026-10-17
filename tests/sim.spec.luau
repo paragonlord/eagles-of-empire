@@ -570,3 +570,48 @@ test("Home edges follow the deployment: Austerlitz armies flee west and east, Je
 		assertTrue(p ~= e, entry.id .. ": both armies share the " .. p .. " edge")
 	end
 end)
+
+test("Contact reveals hidden defenders; frozen routers leave the field; chronicle uses display names", function()
+	local village = MAP.villages[1].pos
+	local sim = newSim({
+		unit("france", "infantry", "F", village.x, village.z - 150, math.pi / 2),
+		unit("prussia", "infantry", "Hidden", village.x, village.z, -math.pi / 2),
+	})
+	local hidden = sim.formations[2]
+	hidden.inWoods = true
+	local f = sim.formations[1]
+	f.pos = { x = village.x, z = village.z - (f.halfRadius + hidden.halfRadius + 10) }
+	run(sim, 0.5)
+	assertTrue(sim.views.france.visible[2], "touching enemy is visible even in cover")
+	-- frozen router
+	local sim2 = newSim({ unit("france", "infantry", "Stuck", 700, 600, 0) })
+	local s = sim2.formations[1]
+	s.state = "routing"
+	s.timers.routing = 0
+	s.morale = 0
+	for _ = 1, 20 * 30 do
+		s.pos = { x = 700, z = 600 } -- held in place
+		s.path = nil
+		sim2:step()
+		if s.state ~= "routing" then
+			break
+		end
+	end
+	assertEq(s.state, "exited", "a router going nowhere for 20 s leaves the field")
+	-- chronicle
+	local obj = MAP.objectives[1].pos
+	local sim3 = Sim.new({ matchId = "m", scenario = (function()
+		local sc = scenario({ unit("france", "infantry", "F", obj.x, obj.z, 0), FAR_ENEMY, FAR_FRIEND })
+		sc.factionNames = { france = "France", prussia = "Prussia" }
+		return sc
+	end)(), map = MAP, seed = 1 })
+	sim3:start()
+	run(sim3, Config.Objectives.CaptureSeconds + 1)
+	local found = false
+	for _, line in sim3.logLines do
+		if string.find(line, "France captured", 1, true) then
+			found = true
+		end
+	end
+	assertTrue(found, "log uses display names")
+end)

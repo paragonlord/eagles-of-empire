@@ -133,7 +133,8 @@ takes no voluntary action, accepts no orders. Rally: after ≥ 20 s routing, mor
 enemy within 120 → `rallying` (5 s) → idle, shaken. HQ `Rally` order: formations within 100
 that have routed ≥ 5 s get + 30 morale and rally immediately; cooldown 90 s.
 Shattered: routing with strength < 30 % of start, or a third rout → never rallies. Exited:
-centre crosses the map edge + 20 → removed from play, counted as lost.
+centre crosses the map edge + 20 → removed from play, counted as lost. A routing formation
+that moves less than 5 in 20 s (hemmed in) scatters: exited, counted as lost.
 
 ## Fatigue
 
@@ -144,7 +145,8 @@ centre crosses the map edge + 20 → removed from play, counted as lost.
 
 A formation sees enemies within its spot radius (infantry 260, cavalry 320, artillery 240, HQ
 300) with clear LOS (heightmap + woods/village sight height, eye height 4, tolerance 0.5). Enemies inside woods or villages
-are only seen within 60. Visible set per faction is the union; last-known entries remember
+are only seen within 90. Formations whose footprints come within 15 of each other always see
+each other (contact reveals). Visible set per faction is the union; last-known entries remember
 position, heading, shape and class with an age, and are forgotten after 180 s. AI receives the
 same observation set as the player. Snapshots to a client contain only that faction's view.
 
@@ -167,7 +169,7 @@ checked first, then the enemy, then objectives, then timeout.
 ## Results
 
 Per side: deployed, casualties, remaining, surviving/routed/shattered/destroyed/exited
-formations. Totals reconcile with the sim: `deployed = remaining + casualties` where casualties
+formations, and `routEvents` (every rout in the battle, including those that rallied). Totals reconcile with the sim: `deployed = remaining + casualties` where casualties
 include the strength of exited formations. Feedback lines are generated from the match log
 (e.g. "Your cavalry charged a formed square twice.").
 
