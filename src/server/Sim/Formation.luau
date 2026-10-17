@@ -75,6 +75,7 @@ export type Formation = {
 	casualtiesThisTick: number,
 	visibleTo: { [string]: boolean },
 	inWoods: boolean,
+	arrivalTick: number?, -- reinforcements: tick at which the formation enters the field
 }
 
 local Formation = {}
@@ -179,13 +180,23 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		casualtiesThisTick = 0,
 		visibleTo = {},
 		inWoods = false,
+		arrivalTick = nil,
 	}
+	-- Off-map reinforcements: `arrival = { seconds, pos }` on the unit definition.
+	local arrival = (def :: any).arrival
+	if type(arrival) == "table" and type(arrival.seconds) == "number" and arrival.seconds > 0 then
+		f.state = "offmap"
+		f.arrivalTick = math.floor(arrival.seconds / Config.Sim.DT)
+		if type(arrival.pos) == "table" then
+			f.pos = { x = arrival.pos.x, z = arrival.pos.z }
+		end
+	end
 	Formation.refreshFootprint(f)
 	return f
 end
 
 function Formation.isActive(f: Formation): boolean
-	return f.state ~= "destroyed" and f.state ~= "exited"
+	return f.state ~= "destroyed" and f.state ~= "exited" and f.state ~= "offmap"
 end
 
 function Formation.isBroken(f: Formation): boolean
@@ -193,6 +204,9 @@ function Formation.isBroken(f: Formation): boolean
 end
 
 function Formation.canTakeOrders(f: Formation): (boolean, string?)
+	if f.state == "offmap" then
+		return false, "badState"
+	end
 	if not Formation.isActive(f) then
 		return false, "destroyed"
 	end

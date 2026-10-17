@@ -7,7 +7,7 @@ export type Vec = Vec.Vec
 
 export type UnitClass = "infantry" | "cavalry" | "artillery" | "hq"
 export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff"
-export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited"
+export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited" | "offmap"
 export type MoraleBand = "steady" | "shaken" | "routing" | "shattered"
 
 export type Order = {
@@ -133,6 +133,7 @@ export type Snapshot = {
 	simLag: number,
 	viewer: string,
 	removed: { number }?,
+	reinforcements: { { id: number, name: string, corps: string, eta: number } }?, -- own side, not yet arrived
 }
 
 export type Results = {

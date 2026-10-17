@@ -191,6 +191,9 @@ function Sim.deploy(self: Sim, id: number, pos: Vec, heading: number): (boolean,
 	if not f then
 		return false, "destroyed"
 	end
+	if f.state == "offmap" then
+		return false, "badState"
+	end
 	if not MapGen.inZone(self.map, f.faction, pos) then
 		return false, "deployZone"
 	end
@@ -466,6 +469,16 @@ function Sim.step(self: Sim)
 	self.tick += 1
 	self.clock = self.tick * DT
 	local s: any = self
+	-- 0. reinforcements entering the field
+	for _, id in self.order do
+		local f = self.formations[id]
+		if f and f.state == "offmap" and f.arrivalTick and f.arrivalTick <= self.tick then
+			f.state = "idle"
+			f.arrivalTick = nil
+			self:emit({ kind = "message", tick = self.tick, id = f.id, faction = f.faction, x = f.pos.x, z = f.pos.z, text = f.name .. " arrives on the field" })
+			self:log(f.name .. " arrived")
+		end
+	end
 	-- 1. commands
 	applyQueuedCommands(self)
 	-- 2. AI
@@ -619,6 +632,14 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 			return a.id < b.id
 		end)
 	end
+	-- Own reinforcements still off the map.
+	local reinforcements = {}
+	for _, id in self.order do
+		local f = self.formations[id]
+		if f and f.faction == viewer and f.state == "offmap" and f.arrivalTick then
+			reinforcements[#reinforcements + 1] = { id = f.id, name = f.name, corps = f.corps, eta = math.max(0, (f.arrivalTick - self.tick) * DT) }
+		end
+	end
 	-- Events: hide positions of unseen enemy actors.
 	local events: { Types.Event } = {}
 	for _, ev in self.events do
@@ -650,6 +671,7 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 		simLag = self.simLag,
 		viewer = viewer,
 		removed = if #removed > 0 then removed else nil,
+		reinforcements = if #reinforcements > 0 then reinforcements else nil,
 	}
 end
 
@@ -668,7 +690,10 @@ function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Resu
 			local f = self.formations[id]
 			if f and f.faction == faction then
 				s.formations += 1
-				if f.state == "destroyed" then
+				if f.state == "offmap" then
+					s.remaining += f.strength
+					s.surviving += 1
+				elseif f.state == "destroyed" then
 					s.destroyed += 1
 					s.casualties += f.startStrength
 				elseif f.state == "exited" then

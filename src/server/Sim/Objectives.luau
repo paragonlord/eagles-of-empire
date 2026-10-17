@@ -132,7 +132,7 @@ local function sideStats(sim: SimLike, faction: string)
 	local total, broken, strength = 0, 0, 0
 	for _, id in sim.order do
 		local f = sim.formations[id]
-		if f and f.faction == faction then
+		if f and f.faction == faction and f.state ~= "offmap" then
 			total += 1
 			if f.state == "routing" or f.state == "rallying" or f.shattered or not Formation.isActive(f) then
 				broken += 1

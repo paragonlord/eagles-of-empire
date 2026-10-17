@@ -364,3 +364,31 @@ test("Engage on an unseen enemy becomes an attack-move to its last-known positio
 	local ok2, reason2 = sim:precheck(far)
 	assertTrue(not ok2 and reason2 == "badTarget", "never-seen target refused")
 end)
+
+test("Reinforcements stay off the map until their arrival time and never count as broken", function()
+	local late = unit("france", "infantry", "Late", 800, 100, math.pi / 2)
+	late.arrival = { seconds = 30, pos = { x = 800, z = 100 } }
+	local sim = newSim({ unit("france", "infantry", "F", A.x, A.z, 0), late })
+	run(sim, 1)
+	local lateF = sim.formations[2]
+	assertEq(lateF.state, "offmap")
+	local snap = sim:snapshot("france", true)
+	for _, v in snap.formations do
+		assertTrue(v.id ~= 2, "off-map unit hidden from the snapshot")
+	end
+	assertTrue(snap.reinforcements ~= nil and snap.reinforcements[1].id == 2 and snap.reinforcements[1].eta > 25, "listed as arriving")
+	local okDeploy = sim:deploy(2, { x = 800, z = 200 }, 0)
+	assertTrue(not okDeploy, "cannot be deployed")
+	local c = { matchId = "m", requestId = "late", kind = "Move", ids = { 2 }, data = { pos = { x = 800, z = 300 } } }
+	assertTrue(not sim:precheck(c), "cannot be ordered")
+	-- the rest of the army collapses: the off-map unit does not make it "70% broken" earlier or later
+	run(sim, 31)
+	assertEq(lateF.state, "idle", "arrived")
+	local seen = false
+	for _, v in sim:snapshot("france", true).formations do
+		if v.id == 2 then
+			seen = true
+		end
+	end
+	assertTrue(seen, "visible after arrival")
+end)
