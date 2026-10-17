@@ -456,6 +456,13 @@ local function clampTo(z: MapGen.Rect, x: number, y: number): (number, number)
 	return math.clamp(x, z.x0 + m, z.x1 - m), math.clamp(y, z.z0 + m, z.z1 - m)
 end
 
+-- Battle map for a province: the province's own generated map (`"province:<id>"`, villages and
+-- river named from EuropeData towns/river, landscape from `terrain`) once MapGen provides it
+-- (`MapGen.provinceMaps`); until then the authored map named by `terrain`.
+function Battles.mapId(p: EuropeData.Province): string
+	return if (MapGen :: any).provinceMaps == true then "province:" .. p.id else p.terrain
+end
+
 -- Zone key (the map's deploy-zone faction id) used for each side.
 function Battles.zoneKeys(s: State, b: Battle, map: MapGen.MapData): { [string]: string }
 	local keys = State.sortedKeys(map.deployZones)
@@ -589,7 +596,7 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 		id = b.battleId,
 		name = base.name,
 		map = base.map,
-		briefing = base.briefing .. string.format(" (Grand campaign, %s: the historical order of battle, scaled to the armies present.)", EuropeData.dateOf(b.turn)),
+		briefing = base.briefing .. string.format(" (Grand campaign, %s: the historical order of battle, scaled to the armies present.)", EuropeData.dateOf(s.turn)),
 		factions = { player = playerFaction, enemy = enemyFaction },
 		factionNames = base.factionNames,
 		units = units,
@@ -619,7 +626,8 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 		end
 	end
 	local p = State.province(battle.provinceId)
-	local map = mapFor(p.terrain)
+	local mapId = Battles.mapId(p)
+	local map = mapFor(mapId)
 	local zk = Battles.zoneKeys(s, battle, map)
 	local units: { Scenarios.UnitDef } = {}
 	local names: { [string]: string } = {}
@@ -700,14 +708,14 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 	return {
 		id = battle.battleId,
 		name = "Battle of " .. p.name,
-		map = p.terrain,
-		briefing = string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(battle.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
+		map = mapId,
+		briefing = string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
 		factions = { player = zk[ps], enemy = zk[enemySide] },
 		factionNames = names,
 		units = units,
 		timeLimit = nil,
-		date = EuropeData.dateOf(battle.turn),
-		year = EuropeData.StartYear + ((battle.turn - 1) * 2) // 12,
+		date = EuropeData.dateOf(s.turn),
+		year = EuropeData.StartYear + ((s.turn - 1) * 2) // 12,
 	}
 end
 

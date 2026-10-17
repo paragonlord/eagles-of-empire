@@ -52,7 +52,9 @@ Errors come back as `{ kind = "error", requestId, reason }`.
 4. `recruitment = { options = { [provinceId] = { {unitType, name, class, cost, manpower, turns, upkeep,
    available, reason?} } }, queue = { {provinceId, unitType, name, turnsLeft} } }`.
 5. `pendingBattle.attacker/defender` are army ids (the strongest army of each leading nation), with
-   `attackerNation`/`defenderNation` and the full `attackers`/`defenders` nation lists.
+   `attackerNation`/`defenderNation`, the full `attackers`/`defenders` nation lists, every army in
+   the battle as `armies = { attacker = {ids}, defender = {ids} }`, and `attackerMen`/`defenderMen`
+   (all of them; `odds` is computed over all of them too).
 6. `view.events` holds unread events; `eventChoice {eventId}` without `choice` acknowledges a
    choiceless event and drops it. Unanswered choices take the first (historical) choice at end of turn.
 7. `view.log` entries are strings (`"May 1805: …"`).

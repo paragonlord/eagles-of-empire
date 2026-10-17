@@ -92,7 +92,20 @@ major and two per minor. Recruits join an army of the nation in that province or
   Britain or her allies). The historical scenario is offered with its own OOB, strengths scaled by
   campaign men / historical men (0.5–1.5); each set piece is used once.
 - Otherwise the battle uses the province's map: up to 24 strongest units a side plus one HQ for the
-  best general, placed in the map's deploy zones.
+  best general, placed in the map's deploy zones. Briefing and date are the campaign turn the
+  battle is fought in.
+- Province maps (requested from MapGen; `Battles.mapId` switches to them when `MapGen.provinceMaps`
+  is true, until then the authored map named by `terrain` is used, which carries that map's own
+  place names): `MapGen.generate("province:<id>")`, deterministic from the province id, 1600 × 1200,
+  landscape by the province's `terrain` (bridge → a river with one or two bridges, jena → hills
+  with villages, auerstedt → a plateau with a stream, austerlitz → central heights, waterloo → two
+  parallel ridges, village → open plain round a large village); villages and objectives named from
+  `EuropeData.Provinces[*].towns` (3 real towns, the first the main village), the river from
+  `river`; no labels from any other battle; two deploy zones on opposite edges with any keys
+  (the campaign maps its sides onto whatever two keys the map has).
+- Contacts resolve after every nation has moved. An army that shares a province with a hostile
+  army may still march off on its own turn (refusing battle); the log says so ("… withdraws from
+  Tyrol before the enemy, refusing battle").
 - Auto-resolve: strength = Σ men × type power (line 1, light 1.1, guard 1.5, cavalry 1.3, heavy 1.6,
   artillery 3) × (1 + 0.1 experience) × (1 + 0.05 general rating) × nation quality (gameplay:
   France 1.15 for the corps system, Britain 1.1, others 1); defenders holding the province

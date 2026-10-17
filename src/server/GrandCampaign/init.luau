@@ -498,7 +498,17 @@ function GrandCampaign.view(s: State): { [string]: any }
 	local pending: { [string]: any }? = nil
 	local b = firstPlayerBattle(s)
 	if b then
+		local ids: { [string]: { string } } = { attackers = {}, defenders = {} }
+		local men: { [string]: number } = { attackers = 0, defenders = 0 }
+		for _, a in Battles.armies(s, b) do
+			local side = Battles.sideOf(b, a.nation) :: string
+			table.insert(ids[side], a.id)
+			men[side] += State.men(a)
+		end
 		pending = {
+			armies = { attacker = ids.attackers, defender = ids.defenders },
+			attackerMen = men.attackers,
+			defenderMen = men.defenders,
 			battleId = b.battleId,
 			provinceId = b.provinceId,
 			attacker = strongestArmy(s, b.provinceId, b.attacker),

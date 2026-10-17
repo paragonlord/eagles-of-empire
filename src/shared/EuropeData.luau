@@ -39,6 +39,8 @@ export type Province = {
 	isCapital: boolean,
 	isPort: boolean,
 	fort: number, -- 0..2
+	towns: { string }, -- real places in the province, for the battle map's villages and labels
+	river: string?, -- the river a battle there is fought over, if any
 }
 
 export type UnitClass = {
@@ -151,6 +153,8 @@ local function prov(id: string, name: string, lon: number, lat: number, owner: s
 		isCapital = opts.capital == true,
 		isPort = opts.port == true,
 		fort = opts.fort or 0,
+		towns = {},
+		river = nil,
 	}
 end
 
@@ -212,6 +216,63 @@ EuropeData.Provinces = {
 	prov("constantinople", "Rumelia", 26.5, 41.6, "ottoman", "austerlitz", 140, 1000, { "serbia" }, { capital = true, port = true, fort = 2 }),
 	prov("serbia", "Serbia & the Danube", 21.5, 44.3, "ottoman", "bridge", 50, 600, { "dalmatia", "hungary", "constantinople", "ukraine" }),
 }
+
+-- Real places for province battle maps (`MapGen.generate("province:<id>")`, docs/campaign.md):
+-- three towns each (first = main village) and the river, if the landscape has one.
+local PLACES: { [string]: { any } } = {
+	paris = { { "Meaux", "Saint-Denis", "Versailles" }, "Seine" },
+	normandy = { { "Caen", "Rouen", "Rennes" }, "Orne" },
+	aquitaine = { { "Bordeaux", "Bayonne", "Agen" }, "Garonne" },
+	provence = { { "Lyon", "Avignon", "Toulon" }, "Rhône" },
+	champagne = { { "Reims", "Metz", "Nancy" }, "Moselle" },
+	belgium = { { "Ligny", "Wavre", "Quatre-Bras" }, "Dyle" },
+	rhineland = { { "Mainz", "Koblenz", "Cologne" }, "Rhine" },
+	piedmont = { { "Marengo", "Alessandria", "Turin" }, "Bormida" },
+	holland = { { "Utrecht", "Arnhem", "Haarlem" }, "Waal" },
+	lombardy = { { "Lodi", "Mantua", "Milan" }, "Adda" },
+	england = { { "Canterbury", "Maidstone", "Dover" }, "Medway" },
+	ireland = { { "Wexford", "Kilkenny", "Athlone" }, "Shannon" },
+	hanover = { { "Celle", "Stade", "Hanover" }, "Leine" },
+	vienna = { { "Aspern", "Essling", "Wagram" }, "Danube" },
+	venetia = { { "Caldiero", "Verona", "Vicenza" }, "Adige" },
+	dalmatia = { { "Knin", "Zara", "Spalato" }, "Krka" },
+	tyrol = { { "Innsbruck", "Brixen", "Wörgl" }, "Inn" },
+	bohemia = { { "Kulm", "Pilsen", "Prague" }, "Elbe" },
+	moravia = { { "Znaim", "Olmütz", "Brünn" }, "Thaya" },
+	hungary = { { "Raab", "Komorn", "Pest" }, "Raab" },
+	galicia = { { "Tarnów", "Cracow", "Lemberg" }, "Vistula" },
+	brandenburg = { { "Potsdam", "Spandau", "Küstrin" }, "Havel" },
+	silesia = { { "Schweidnitz", "Glogau", "Breslau" }, "Oder" },
+	eastprussia = { { "Eylau", "Friedland", "Königsberg" }, "Alle" },
+	westphalia = { { "Minden", "Paderborn", "Münster" }, "Weser" },
+	warsaw = { { "Pultusk", "Golymin", "Praga" }, "Narew" },
+	saxony = { { "Lützen", "Bautzen", "Dresden" }, "Elbe" },
+	thuringia = { { "Saalfeld", "Schleiz", "Erfurt" }, "Saale" },
+	bavaria = { { "Eckmühl", "Abensberg", "Landshut" }, "Isar" },
+	wurttemberg = { { "Elchingen", "Ulm", "Stuttgart" }, "Danube" },
+	stpetersburg = { { "Narva", "Pskov", "Novgorod" }, "Luga" },
+	lithuania = { { "Kovno", "Vilna", "Riga" }, "Niemen" },
+	smolensk = { { "Krasnoi", "Valutino", "Smolensk" }, "Dnieper" },
+	moscow = { { "Borodino", "Mozhaisk", "Maloyaroslavets" }, "Kolocha" },
+	ukraine = { { "Dubno", "Brody", "Kiev" }, "Styr" },
+	madrid = { { "Talavera", "Ocaña", "Somosierra" }, "Tagus" },
+	catalonia = { { "Gerona", "Saragossa", "Barcelona" }, "Ebro" },
+	andalusia = { { "Bailén", "Seville", "Cádiz" }, "Guadalquivir" },
+	lisbon = { { "Vimeiro", "Roliça", "Oporto" }, "Douro" },
+	naples = { { "Maida", "Capua", "Gaeta" }, "Volturno" },
+	sicily = { { "Messina", "Palermo", "Syracuse" } },
+	stockholm = { { "Uppsala", "Norrköping", "Örebro" } },
+	denmark = { { "Køge", "Kiel", "Copenhagen" }, "Eider" },
+	constantinople = { { "Adrianople", "Philippopolis", "Sofia" }, "Maritsa" },
+	serbia = { { "Nish", "Rustchuk", "Belgrade" }, "Morava" },
+}
+for _, p in EuropeData.Provinces do
+	local pl = PLACES[p.id]
+	if pl then
+		p.towns = pl[1]
+		p.river = pl[2]
+	end
+end
 
 -- Port-to-port crossings (also listed in both provinces' neighbours). Only ports may use them.
 EuropeData.SeaLanes = {

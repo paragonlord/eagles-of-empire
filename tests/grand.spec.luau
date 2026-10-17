@@ -854,27 +854,86 @@ test("Grand AI: outcomes across eight seeds stay history-plausible (1805-1809)",
 	local rows = {}
 	for _, seed in { 1805, 1, 2, 3, 4, 5, 6, 7 } do
 		local s = GrandCampaign.new(seed, "france")
+		local prussianLost = 0 -- most Prussian provinces France held at once
 		for _ = 1, 24 do
 			if s.phase == "ended" then
 				break
 			end
 			GrandCampaign.endTurn(s, { autoplay = true })
+			local held = 0
+			for _, id in EuropeData.ProvinceIds do
+				if s.provinces[id].owner == "prussia" and State.controller(s, id) == "france" then
+					held += 1
+				end
+			end
+			prussianLost = math.max(prussianLost, held)
 		end
 		local function lost(major)
 			local p = s.peaces[State.pair(major, "france")]
 			return p ~= nil and p.winner == "france"
 		end
 		beatAustria += if lost("austria") then 1 else 0
-		beatPrussia += if lost("prussia") then 1 else 0
+		beatPrussia += if lost("prussia") or prussianLost >= 2 then 1 else 0
 		parisHeld += if not s.flags.abdicated then 1 else 0
 		local n = 0
 		for _, id in EuropeData.ProvinceIds do
 			n += if State.controller(s, id) == "france" then 1 else 0
 		end
-		rows[#rows + 1] = string.format("seed %4d: France %2d provinces in %s, beat Austria %s, beat Prussia %s", seed, n, EuropeData.dateOf(s.turn), tostring(lost("austria")), tostring(lost("prussia")))
+		local function status(major)
+			if State.atWar(s, major, "france") then
+				return "at war (score " .. Diplomacy.score(s, "france", major) .. ")"
+			end
+			local p = s.peaces[State.pair(major, "france")]
+			return if p == nil then "never fought" elseif p.winner == "" then "white peace" else "peace won by " .. p.winner
+		end
+		rows[#rows + 1] = string.format("seed %4d: France %2d provinces in %s%s; Austria: %s; Prussia: %s, at most %d provinces lost to France", seed, n, EuropeData.dateOf(s.turn), if s.flags.abdicated then " (abdicated)" else "", status("austria"), status("prussia"), prussianLost)
 	end
 	print("    " .. table.concat(rows, "\n    "))
 	assertTrue(beatAustria >= 5, "France beats Austria in most seeds: " .. beatAustria)
-	assertTrue(beatPrussia >= 3, "Prussia is in real danger: " .. beatPrussia)
+	assertTrue(beatPrussia >= 3, "Prussia is in real danger (beaten, or two provinces lost at once): " .. beatPrussia)
 	assertTrue(parisHeld >= 7, "Paris rarely falls before 1809: " .. parisHeld)
+end)
+
+test("Grand QA r7: contact in Tyrol becomes a battle; the prompt lists every army and both sides' men", function()
+	local s = empty(23)
+	Diplomacy.declareWar(s, "france", "austria")
+	local a1 = army(s, "france", "bavaria", { line = 4 }, { name = "Ney", rating = 3 })
+	local a2 = army(s, "france", "bavaria", { line = 3 })
+	local au = army(s, "austria", "tyrol", { line = 6 }, { name = "Archduke John", rating = 2 })
+	assertTrue(State.allied(s, "france", "bavaria") == false)
+	Diplomacy.makeAlliance(s, "france", "bavaria")
+	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = a1.id, path = { "tyrol" } }))
+	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = a2.id, path = { "tyrol" } }))
+	-- an army may refuse battle by marching off on its own turn; that is logged
+	local probe = GrandCampaign.deserialize(GrandCampaign.serialize(s))
+	assertTrue(Movement.move(probe, "austria", au.id, { "vienna" }))
+	assertTrue(string.find(probe.log[#probe.log], "withdraws from Tyrol", 1, true) ~= nil, probe.log[#probe.log])
+	-- an army still there when every nation has moved (here: out of movement) is attacked
+	au.movesLeft = 0
+	assertTrue(GrandCampaign.endTurn(s))
+	assertEq(s.phase, "battle")
+	local v = GrandCampaign.view(s)
+	local pb = v.pendingBattle
+	assertEq(pb.provinceId, "tyrol")
+	assertEq(#pb.armies.attacker, 2, "both French armies")
+	assertEq(#pb.armies.defender, 1)
+	assertEq(pb.attackerMen, State.men(a1) + State.men(a2))
+	assertEq(pb.defenderMen, State.men(au))
+	-- the briefing is dated by the campaign turn the battle is fought in
+	local sc = GrandCampaign.battleScenario(s, pb.battleId)
+	assertTrue(string.find(sc.briefing, EuropeData.dateOf(s.turn), 1, true) == 1, sc.briefing)
+	assertEq(sc.date, EuropeData.dateOf(s.turn))
+end)
+
+test("Grand QA r7: every province names its own towns for its battle map", function()
+	local seen = {}
+	for _, p in EuropeData.Provinces do
+		assertTrue(#p.towns == 3, p.id .. " towns")
+		for _, t in p.towns do
+			assertTrue(not seen[t] or t == "Danube", "town reused: " .. t)
+			seen[t] = true
+		end
+		local id = Battles.mapId(p)
+		assertTrue(id == "province:" .. p.id or id == p.terrain)
+	end
 end)

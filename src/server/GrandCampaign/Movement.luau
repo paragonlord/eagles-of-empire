@@ -4,7 +4,9 @@
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
 -- (battle) or that a nation at war with the mover controls (siege / occupation). Sea lanes join two
 -- ports, need a full allowance and use all of it; after Trafalgar no nation at war with Britain
--- may use them. Armies may enter only their own, allied or enemy (at war) provinces.
+-- may use them. Armies may enter only their own, allied or enemy (at war) provinces. Contacts are
+-- resolved at the end of the turn, after every nation has moved: an army that shares its province
+-- with a hostile army may still march off before then (refusing battle), and that is logged.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local EuropeData = require(Shared.EuropeData)
@@ -114,6 +116,8 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 		return false, "badPath", nil
 	end
 	local army = a :: Army
+	local from = army.provinceId
+	local contact = State.hostileArmyIn(s, from, nation)
 	local entered: { string } = {}
 	local maxMoves = State.maxMoves(army)
 	for i, to in path do
@@ -137,6 +141,9 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 		if army.movesLeft <= 0 then
 			break
 		end
+	end
+	if contact and #entered > 0 then
+		State.log(s, string.format("%s withdraws from %s before the enemy, refusing battle.", army.name, State.province(from).name))
 	end
 	return true, nil, entered
 end
