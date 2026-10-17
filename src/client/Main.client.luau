@@ -185,12 +185,12 @@ local beacon: TextLabel? = nil
 local function diag(text: string)
 	print("[EoE client] " .. text)
 	if not beacon then
-		local sg = Instance.new("ScreenGui")
+		local sg = Instance.new("ScreenGui") :: ScreenGui
 		sg.Name = "EoEDiag"
 		sg.DisplayOrder = 100
 		sg.ResetOnSpawn = false
 		sg.Parent = (game:GetService("Players") :: Players).LocalPlayer:WaitForChild("PlayerGui")
-		local l = Instance.new("TextLabel")
+		local l = Instance.new("TextLabel") :: TextLabel
 		l.Size = UDim2.new(0, 900, 0, 18)
 		l.Position = UDim2.new(0, 8, 0, 4)
 		l.BackgroundTransparency = 0.4
