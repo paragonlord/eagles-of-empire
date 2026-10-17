@@ -107,7 +107,7 @@ export type ObjectiveView = {
 }
 
 export type Event = {
-	kind: string, -- volley | cannon | melee | charge | rout | rally | capture | destroyed | message
+	kind: string, -- volley | cannon | melee | charge | rout | rally | capture | destroyed | message | moment
 	x: number?,
 	z: number?,
 	id: number?,
@@ -118,6 +118,9 @@ export type Event = {
 	tx: number?,
 	tz: number?,
 	n: number?,
+	momentId: string?, -- moment: scenario moment id (src/shared/Moments.luau)
+	title: string?, -- moment: title card heading
+	height: number?, -- moment: camera height for the pan, if the moment asks for one
 }
 
 export type Snapshot = {

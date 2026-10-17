@@ -20,6 +20,7 @@ local Combat = require(script.Combat)
 local Morale = require(script.Morale)
 local Visibility = require(script.Visibility)
 local Objectives = require(script.Objectives)
+local Moments = require(script.Moments)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -81,7 +82,8 @@ export type Sim = {
 	isVisibleTo: (Sim, string, number) -> boolean,
 	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
-	weather: string, -- key into Config.Weather, may change once at weatherUntil
+	weather: string, -- key into Config.Weather, may change once at weatherUntil (or by a moment)
+	momentsFired: { [string]: boolean }, -- scenario moments already fired (Sim/Moments)
 	aiStep: ((Sim) -> ())?, -- per-instance AI hook (preferred over the module-level Sim.aiStep)
 	-- methods
 	deploy: (Sim, number, Vec, number) -> (boolean, string?),
@@ -134,6 +136,7 @@ function Sim.new(opts: Options): Sim
 	self.difficulty = opts.difficulty or "normal"
 	self.simLag = 0
 	self.aiStep = nil
+	self.momentsFired = {}
 	self.weather = if (Config.Weather :: any)[(opts.scenario :: any).weather] then (opts.scenario :: any).weather else "clear"
 	for i, def in opts.scenario.units do
 		local f = Formation.fromDef(i, def)
@@ -589,6 +592,7 @@ function Sim.step(self: Sim)
 	end
 	-- 9. objectives
 	Objectives.update(s)
+	Moments.update(s) -- historical moments, every Moments.EveryTicks
 	-- 10. victory
 	local winner, reason = Objectives.evaluate(s)
 	if winner then
@@ -721,8 +725,8 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 	local events: { Types.Event } = {}
 	for _, ev in self.events do
 		local copy: Types.Event = table.clone(ev)
-		if ev.kind == "message" and ev.faction and ev.faction ~= viewer then
-			continue -- the enemy's own order/route messages are never shown to us
+		if (ev.kind == "message" or ev.kind == "moment") and ev.faction and ev.faction ~= viewer then
+			continue -- the enemy's own order/route messages (and its own moments) are never shown to us
 		end
 		if ev.id and ev.faction and ev.faction ~= viewer and not self:isVisibleTo(viewer, ev.id) then
 			if ev.targetId and self.formations[ev.targetId] and self.formations[ev.targetId].faction == viewer then
