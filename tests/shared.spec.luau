@@ -7,6 +7,7 @@ local MapGen = require(Shared.MapGen)
 local Protocol = require(Shared.Protocol)
 local Config = require(Shared.Config)
 local Scenarios = require(Shared.Scenarios)
+local Nav = require(game:GetService("ServerScriptService").EoE.Sim.Nav)
 
 test("Vec.attackSide classifies front/flank/rear from geometry", function()
 	local pos = Vec.new(0, 0)
@@ -121,6 +122,82 @@ test("Scenario units start inside their deployment zones on passable ground", fu
 		end
 	end
 end)
+
+-- The four battles: map well-formedness, deployment, bridges, objectives and reachability.
+local BATTLES = { "jena", "auerstedt", "austerlitz", "waterloo" }
+
+test("Scenarios.list is the four battles in display order with display fields", function()
+	local list = Scenarios.list()
+	assertEq(#list, 4)
+	for i, id in BATTLES do
+		assertEq(list[i].id, id)
+		local s = Scenarios.get(id)
+		assertTrue(s ~= nil, id .. " exists")
+		assert(s)
+		assertEq(list[i].map, s.map)
+		assertTrue(type(list[i].date) == "string" and type(list[i].summary) == "string" and type(list[i].difficultyNote) == "string", id .. " display fields")
+		assertTrue(type(s.briefing) == "string" and #s.briefing > 100, id .. " briefing")
+		assertTrue(type(s.year) == "number", id .. " year")
+		assertTrue(s.weather == nil or Config.Weather[s.weather] ~= nil, id .. " weather key")
+		assertTrue(s.factions.player == "france", id .. " player is France")
+		assertTrue(Config.Visual.Palette[string.upper(string.sub(s.factions.enemy, 1, 1)) .. string.sub(s.factions.enemy, 2)] ~= nil, id .. " enemy faction has a palette colour")
+	end
+	assertTrue(Scenarios.get("stress") ~= nil and Scenarios.get("skirmish") ~= nil, "fixtures still reachable")
+end)
+
+for _, id in BATTLES do
+	test("Battle " .. id .. ": map is deterministic, bridges wide, objectives and deployment sound", function()
+		local scenario = Scenarios.get(id)
+		assert(scenario)
+		local t0 = os.clock()
+		local map = MapGen.generate(scenario.map)
+		local genMs = (os.clock() - t0) * 1000
+		local again = MapGen.generate(scenario.map)
+		local g = map.grid
+		assertEq(map.width % 16, 0, "width multiple of 16")
+		assertEq(map.depth % 16, 0, "depth multiple of 16")
+		assertEq(#g.height, g.cols * g.rows)
+		for i = 1, #g.height, 991 do
+			assertEq(g.height[i], again.grid.height[i], "height " .. i)
+			assertEq(g.class[i], again.grid.class[i], "class " .. i)
+		end
+		local ids = Config.TerrainIds
+		for _, br in map.bridges do
+			local mid = Vec.lerp(br.a, br.b, 0.5)
+			assertEq(Grid.classAt(g, mid.x, mid.z), ids.bridge, id .. " bridge midpoint is bridge class")
+			assertTrue(br.width >= 24, id .. " bridge >= 24 wide")
+			assertTrue(Grid.clearanceAt(g, mid.x, mid.z) >= 8, id .. " bridge fits a travel column")
+		end
+		for _, o in map.objectives do
+			assertTrue(Grid.terrainAt(g, o.pos.x, o.pos.z).passable, id .. " objective " .. o.id .. " passable")
+		end
+		-- Units: inside their zone, on passable ground, clearance >= 8 (Sim.deploy's own rule).
+		local seen = {}
+		for _, unit in scenario.units do
+			assertTrue(not seen[unit.name], id .. " duplicate unit name " .. unit.name)
+			seen[unit.name] = true
+			assertTrue(unit.colour == nil or Config.Visual.Palette[unit.colour] ~= nil, id .. " palette key " .. tostring(unit.colour))
+			local p = if unit.arrival then unit.arrival.pos else unit.pos
+			if not unit.arrival then
+				assertTrue(MapGen.inZone(map, unit.faction, p), id .. ": " .. unit.name .. " in zone")
+			end
+			assertTrue(Grid.inBounds(g, p.x, p.z), id .. ": " .. unit.name .. " on the map")
+			assertTrue(Grid.terrainAt(g, p.x, p.z).passable, id .. ": " .. unit.name .. " on passable ground")
+			assertTrue(Grid.clearanceAt(g, p.x, p.z) >= 8, id .. ": " .. unit.name .. " has clearance")
+		end
+		-- Reachability: from the player's zone centre to every objective, as a column.
+		local nav = Nav.build(g)
+		local zone = map.deployZones[scenario.factions.player]
+		local from = { x = (zone.x0 + zone.x1) / 2, z = (zone.z0 + zone.z1) / 2 }
+		for _, o in map.objectives do
+			local path = Nav.findPath(nav, from, o.pos, 8)
+			assertTrue(path ~= nil and #path > 0, id .. ": path to " .. o.id)
+			assert(path)
+			assertTrue(Vec.dist(path[#path], o.pos) < Config.Map.NavCellSize * 2, id .. ": path reaches " .. o.id)
+		end
+		print(string.format("   (%s %dx%d generated in %.0f ms, %d units, %d bridges)", scenario.map, map.width, map.depth, genMs, #scenario.units, #map.bridges))
+	end)
+end
 
 test("Protocol.validateCommand rejects bad input and accepts good", function()
 	local owned = { [1] = "infantry", [2] = "cavalry", [3] = "artillery", [4] = "hq" }

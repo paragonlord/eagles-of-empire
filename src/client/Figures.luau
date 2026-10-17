@@ -11,6 +11,7 @@ local BattleState = require(script.Parent.BattleState)
 local Selection = require(script.Parent.Selection)
 local Settings = require(script.Parent.Settings)
 local Factions = require(script.Parent.Factions)
+local Soldiers = require(script.Parent.World.Soldiers)
 
 local Figures = {}
 
@@ -30,7 +31,7 @@ local SNAP_DT = 0.1
 local MAX_EXTRAP = 0.15
 local LABEL_INTERVAL = 0.15
 
-type Slot = { x: number, z: number, sx: number, sz: number, phase: number } -- local offset + scatter
+type Slot = { x: number, z: number, sx: number, sz: number, phase: number } -- local offset + scatter (routing spread)
 type Marker = {
 	parts: { BasePart },
 	locals: { CFrame },
@@ -54,7 +55,8 @@ type Group = {
 	locals: { CFrame },
 	slots: { Slot },
 	partSlot: { number }, -- part index -> slot index (0 = formation-relative, no bob)
-	musketIdx: { number }, -- part indices of muskets (pose changes)
+	anim: { number }, -- part index -> Soldiers anim code
+	pivot: { number }, -- part index -> swing pivot height
 	layoutKey: string,
 	p0x: number,
 	p0z: number,
@@ -219,59 +221,60 @@ end
 -- ------------------------------------------------------------------ builders
 -- Each builder appends parts + local CFrames (relative to the figure origin at ground level).
 
-local function addPart(g: Group, p: BasePart, cf: CFrame, slot: number)
+local function addPart(g: Group, p: BasePart, cf: CFrame, slot: number, anim: number?, pivot: number?)
 	table.insert(g.parts, p)
 	table.insert(g.locals, cf)
 	table.insert(g.partSlot, slot)
+	table.insert(g.anim, anim or 0)
+	table.insert(g.pivot, pivot or 0)
 	p.Parent = folder
 end
 
-local function buildInfantryFigure(g: Group, slot: number, legs: Color3)
-	local s = figureHeight / 3.2
-	addPart(g, mk("Part", Vector3.new(0.6 * s, 1.0 * s, 0.8 * s), legs), CFrame.new(0, 0.5 * s, 0), slot)
-	addPart(g, mk("Part", Vector3.new(0.65 * s, 1.3 * s, 1.0 * s), g.colour), CFrame.new(0, 1.65 * s, 0), slot)
-	addPart(g, ball(0.6 * s, SKIN), CFrame.new(0, 2.55 * s, 0), slot)
-	addPart(g, mk("Part", Vector3.new(0.55 * s, 0.6 * s, 0.55 * s), INK), CFrame.new(0, 3.05 * s, 0), slot)
-	-- musket shouldered: vertical rod at the right shoulder; firing pose swaps this CFrame
-	local m = mk("Part", Vector3.new(0.12 * s, 2.6 * s, 0.12 * s), WOOD)
-	addPart(g, m, CFrame.new(0.1 * s, 2.2 * s, 0.45 * s) * CFrame.Angles(0, 0, math.rad(10)), slot)
-	table.insert(g.musketIdx, #g.parts)
-end
-
-local function buildCavalryFigure(g: Group, slot: number)
-	local s = figureHeight / 3.2
-	addPart(g, mk("Part", Vector3.new(2.4 * s, 1.1 * s, 0.9 * s), HORSE), CFrame.new(0, 1.25 * s, 0), slot)
-	addPart(g, mk("Part", Vector3.new(0.7 * s, 0.6 * s, 0.5 * s), HORSE), CFrame.new(1.3 * s, 1.9 * s, 0), slot)
-	addPart(g, mk("Part", Vector3.new(0.6 * s, 1.2 * s, 0.9 * s), g.colour), CFrame.new(0, 2.4 * s, 0), slot)
-	addPart(g, ball(0.55 * s, SKIN), CFrame.new(0, 3.25 * s, 0), slot)
-	addPart(g, mk("Part", Vector3.new(0.5 * s, 0.5 * s, 0.5 * s), INK), CFrame.new(0, 3.7 * s, 0), slot)
-end
-
-local function buildGun(g: Group, slot: number)
-	local s = figureHeight / 3.2
-	addPart(g, cylinder(3.2 * s, 0.22 * s, INK), CFrame.new(0.4 * s, 1.1 * s, 0) * CFrame.Angles(0, 0, math.rad(-4)), slot)
-	for side = -1, 1, 2 do
-		local w = cylinder(0.25 * s, 0.9 * s, rgb(P.Roof))
-		addPart(g, w, CFrame.new(-0.3 * s, 0.9 * s, side * 0.9 * s) * CFrame.Angles(math.pi / 2, 0, 0) * CFrame.Angles(0, 0, math.pi / 2), slot)
+-- Battalion extras: a mounted officer in front, colour-bearer and drummer at the front centre
+-- (inside a square they stand in the middle). Never thinned.
+local function specialSlots(f: any): { { x: number, z: number, role: string } }
+	if f.shape == "square" then
+		return { { x = 0, z = 0, role = "officer" }, { x = 0.6, z = -1.4, role = "colour" }, { x = 0.6, z = 1.4, role = "drummer" } }
 	end
-	addPart(g, mk("Part", Vector3.new(1.6 * s, 0.4 * s, 1.2 * s), WOOD), CFrame.new(-1.0 * s, 0.6 * s, 0), slot)
-	for side = -1, 1, 2 do
-		addPart(g, mk("Part", Vector3.new(0.6 * s, 2.2 * s, 0.8 * s), g.colour), CFrame.new(-1.2 * s, 1.1 * s, side * 1.8 * s), slot)
-		addPart(g, ball(0.55 * s, SKIN), CFrame.new(-1.2 * s, 2.5 * s, side * 1.8 * s), slot)
-	end
+	local front = f.depth / 2
+	return { { x = front + 3.6, z = 0, role = "officer" }, { x = front + 1.3, z = -0.6, role = "colour" }, { x = front + 1.3, z = 1.4, role = "drummer" } }
 end
 
 local function buildNear(g: Group, f: any)
 	local n = figureCount(g.class, f.strength)
 	g.slots = layoutSlots(g.class, f.shape, n, f.width, f.depth, thinK, g.id * 7919)
-	local legs = if g.faction == "france" then Color3.fromRGB(225, 220, 205) else Color3.fromRGB(120, 118, 112)
-	for i = 1, #g.slots do
+	local detail = Settings.get().quality >= 2
+	local slotIndex = 0
+	local function adder(): Soldiers.Add
+		local si = slotIndex
+		return function(p: BasePart, cf: CFrame, anim: number, pivot: number)
+			addPart(g, p, cf, si, anim, pivot)
+		end
+	end
+	local base = #g.slots
+	for i = 1, base do
+		slotIndex = i
+		local add = adder()
 		if g.class == "infantry" then
-			buildInfantryFigure(g, i, legs)
-		elseif g.class == "cavalry" or g.class == "hq" then
-			buildCavalryFigure(g, i)
+			Soldiers.infantry(add, g.faction, g.colour, detail, "line")
+		elseif g.class == "cavalry" then
+			Soldiers.rider(add, g.faction, g.colour, Soldiers.riderKind(f.name), detail, g.id + i)
+		elseif g.class == "hq" then
+			Soldiers.rider(add, g.faction, g.colour, "officer", detail, g.id + i)
 		elseif g.class == "artillery" then
-			buildGun(g, i)
+			Soldiers.gun(add, g.faction, g.colour, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
+		end
+	end
+	if g.class == "infantry" then
+		for _, s in specialSlots(f) do
+			table.insert(g.slots, { x = s.x, z = s.z, sx = 0, sz = 0, phase = #g.slots * 1.7 })
+			slotIndex = #g.slots
+			local add = adder()
+			if s.role == "officer" then
+				Soldiers.rider(add, g.faction, g.colour, "officer", detail, g.id)
+			else
+				Soldiers.infantry(add, g.faction, g.colour, detail, if s.role == "colour" then "colour" else "drummer")
+			end
 		end
 	end
 end
@@ -490,7 +493,8 @@ local function rebuildBody(g: Group, f: any)
 	destroyParts(g.parts)
 	table.clear(g.locals)
 	table.clear(g.partSlot)
-	table.clear(g.musketIdx)
+	table.clear(g.anim)
+	table.clear(g.pivot)
 	table.clear(g.slots)
 	if g.lod == "near" and not g.ghost then
 		buildNear(g, f)
@@ -501,7 +505,7 @@ local function rebuildBody(g: Group, f: any)
 end
 
 local function layoutKeyOf(g: Group, f: any): string
-	return string.format("%s|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), figureCount(g.class, f.strength), thinK, if g.lod == "near" then 1 else 0)
+	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), figureCount(g.class, f.strength), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
 end
 
 local function newGroup(id: number, f: any, ghost: boolean): Group
@@ -517,7 +521,8 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		locals = {},
 		slots = {},
 		partSlot = {},
-		musketIdx = {},
+		anim = {},
+		pivot = {},
 		layoutKey = "",
 		p0x = f.x,
 		p0z = f.z,
@@ -907,41 +912,60 @@ function Figures.update(dt: number)
 				rebuildBody(g, f)
 			end
 
-			local animating = not g.ghost and g.lod == "near" and (f.state == "moving" or f.state == "charging" or f.state == "routing" or f.state == "retreating" or f.state == "melee")
+			local state = f.state
+			local animating = not g.ghost and g.lod == "near" and (state == "moving" or state == "charging" or state == "routing" or state == "retreating" or state == "melee")
 			if animating then
-				g.phase += dt * (if f.state == "charging" or f.state == "routing" then 9 else 5)
+				g.phase += dt * (if state == "charging" or state == "routing" then 9 else 5.5)
 				g.dirty = true
 			end
-			local firing = f.state == "firing"
 			if g.dirty then
 				g.dirty = false
 				local baseY = groundY(g.rx, g.rz)
 				local cf = frame(g.rx, baseY, g.rz, g.rh)
-				local routing = f.state == "routing"
+				local routing = state == "routing"
+				local charging = state == "charging"
+				-- muskets come down for volleys and bayonet charges
+				local armed = state == "firing" or (charging and g.class == "infantry")
+				local amp = if routing or charging then 0.75 else 0.45
 				local slotCf: { CFrame } = {}
+				local swing: { number } = {}
 				for si, s in g.slots do
 					local sx, sz = s.x, s.z
 					if routing then
-						sx += s.sx
-						sz += s.sz
+						-- running back with a ragged spread
+						sx += s.sx * 2.5
+						sz += s.sz * 2.5
 					end
 					local wp = cf * Vector3.new(sx, 0, sz)
 					local y = groundY(wp.X, wp.Z)
+					local sw = 0
 					if animating then
-						y += math.abs(math.sin(g.phase + s.phase)) * 0.3
+						local ph = g.phase + s.phase
+						sw = math.sin(ph) * amp
+						y += math.abs(math.cos(ph)) * 0.12
 					end
-					slotCf[si] = frame(wp.X, y, wp.Z, g.rh + (if routing then (s.phase - math.pi) * 0.25 else 0))
+					swing[si] = sw
+					local h = g.rh
+					if routing then
+						h += math.pi + (s.phase - math.pi) * 0.35
+					end
+					local scf = frame(wp.X, y, wp.Z, h)
+					if charging then
+						scf *= CFrame.Angles(0, 0, if g.class == "cavalry" then -0.1 else -0.22) -- lean into the charge
+					end
+					slotCf[si] = scf
 				end
-				local isMusket: { [number]: boolean } = {}
-				for _, mi in g.musketIdx do
-					isMusket[mi] = true
-				end
+				local anims, pivots, slots = g.anim, g.pivot, g.partSlot
 				for i, p in g.parts do
-					local slot = g.partSlot[i]
-					local base = if slot > 0 then slotCf[slot] else cf
+					local slot = slots[i]
 					local lc = g.locals[i]
-					if firing and isMusket[i] then
-						lc = CFrame.new(0.9, 2.3, 0.4) * CFrame.Angles(0, 0, math.rad(-90))
+					local base = cf
+					if slot > 0 then
+						base = slotCf[slot]
+						local a = anims[i]
+						if a ~= 0 then
+							lc = Soldiers.partCFrame(a, lc, pivots[i], swing[slot], armed and not routing)
+						end
 					end
 					table.insert(moveParts, p)
 					table.insert(moveCfs, base * lc)

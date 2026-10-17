@@ -199,14 +199,13 @@ MAPS.auerstedt = {
 	name = "Auerstedt, 14 October 1806 (condensed)",
 	seed = 1406,
 	width = 2000,
-	depth = 1500,
+	depth = 1504, -- 1500 rounded to the nav grid
 	baseHeight = 20,
 	hills = {
 		{ name = "Eckartsberg", pos = v(280, 950), rx = 300, rz = 260, h = 28, k = 0.6 },
 		{ name = "Sonnenkuppe", pos = v(480, 420), rx = 220, rz = 170, h = 24, k = 0.55 },
 		{ name = "Hassenhausen plateau", pos = v(1150, 700), rx = 420, rz = 300, h = 10, k = 0.8 },
 		{ name = "Spielberg rise", pos = v(1300, 1150), rx = 220, rz = 150, h = 12, k = 0.7 },
-		{ pos = v(1450, 250), rx = 180, rz = 160, h = 14, k = 0.6 },
 	},
 	villages = {
 		{ name = "Hassenhausen", pos = v(1150, 700), radius = 55, count = 20 },
@@ -235,8 +234,8 @@ MAPS.auerstedt = {
 		{ points = { v(1150, 700), v(1520, 980), v(2000, 1050) }, width = 5 },
 	},
 	rivers = {
-		{ name = "Saale", points = { v(1560, 0), v(1620, 200), v(1780, 380), v(2000, 520) }, width = 50, level = 2 },
-		{ name = "Lissbach", points = { v(740, 0), v(750, 520), v(750, 760), v(750, 1000), v(770, 1500) }, width = 12, level = 15 },
+		{ name = "Saale", points = { v(1560, 0), v(1620, 200), v(1780, 380), v(2000, 520) }, width = 50, level = 10 },
+		{ name = "Lissbach", points = { v(740, 0), v(750, 520), v(750, 760), v(750, 1000), v(770, 1500) }, width = 12, level = 17 },
 	},
 	bridges = {
 		{ a = v(1650, 340), b = v(1750, 240), width = 24 },
@@ -268,7 +267,7 @@ MAPS.austerlitz = {
 	name = "Austerlitz, 2 December 1805 (condensed)",
 	seed = 1205,
 	width = 2400,
-	depth = 1800,
+	depth = 1792, -- 1800 rounded to the nav grid
 	baseHeight = 18,
 	hills = {
 		{ name = "Pratzen Heights", pos = v(1450, 900), rx = 400, rz = 520, h = 30, k = 0.45 },
@@ -316,9 +315,9 @@ MAPS.austerlitz = {
 		{ points = { v(650, 1480), v(690, 1310), v(730, 1300), v(800, 1050) }, width = 5 },
 	},
 	rivers = {
-		{ name = "Goldbach", points = { v(740, 1800), v(730, 1300), v(745, 1050), v(777, 750), v(817, 450), v(878, 180), v(940, 0) }, width = 16, level = 12 },
-		{ name = "Satschan pond", points = { v(1300, 110), v(1500, 90) }, width = 170, level = 1 },
-		{ name = "Mönitz pond", points = { v(1000, 40), v(1150, 60) }, width = 110, level = 1 },
+		{ name = "Goldbach", points = { v(740, 1800), v(730, 1300), v(745, 1050), v(777, 750), v(817, 450), v(878, 180), v(940, 0) }, width = 16, level = 14 },
+		{ name = "Satschan pond", points = { v(1300, 110), v(1500, 90) }, width = 170, level = 9 },
+		{ name = "Mönitz pond", points = { v(1000, 40), v(1150, 60) }, width = 110, level = 9 },
 	},
 	bridges = {
 		{ a = v(703, 1550), b = v(767, 1550), width = 26 },
@@ -396,7 +395,7 @@ MAPS.waterloo = {
 		{ points = { v(1650, 290), v(2050, 800), v(2150, 1300) }, width = 4 },
 	},
 	rivers = {
-		{ name = "Smohain brook", points = { v(1900, 1150), v(1950, 950), v(2050, 800), v(2250, 650), v(2400, 560) }, width = 10, level = 14 },
+		{ name = "Smohain brook", points = { v(1900, 1150), v(1950, 950), v(2050, 800), v(2250, 650), v(2400, 560) }, width = 10, level = 17 },
 	},
 	bridges = {
 		{ a = v(1915, 950), b = v(1985, 950), width = 24 },

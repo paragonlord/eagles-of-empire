@@ -23,6 +23,13 @@ Kit.FRANCE = rgb(P.France)
 Kit.PRUSSIA = rgb(P.Prussia)
 Kit.MUTED = Color3.fromRGB(120, 108, 96)
 Kit.PANEL_DARK = Color3.fromRGB(224, 214, 190)
+Kit.GOLD = Color3.fromRGB(184, 148, 62)
+Kit.MORALE: { [string]: Color3 } = {
+	steady = Color3.fromRGB(88, 128, 64),
+	shaken = Color3.fromRGB(206, 160, 52),
+	routing = Color3.fromRGB(178, 58, 44),
+	shattered = Color3.fromRGB(70, 60, 54),
+}
 
 function Kit.factionColour(faction: string?): Color3
 	if faction == nil or faction == "" then
@@ -53,7 +60,36 @@ export type PanelProps = {
 	transparency: number?,
 	padding: number?,
 	dark: boolean?,
+	plain: boolean?, -- no inner border or gold corners (small chips, cards)
 }
+
+-- Period trim: an inner hairline border 3 px inside the outer stroke and gold corner studs.
+-- Added first so content drawn later sits on top; never Active, never in a layout (panels hold
+-- layouts only in child frames).
+local function trim(f: Frame, pad: number)
+	local inner = Instance.new("Frame") :: Frame
+	inner.Name = "Trim"
+	inner.BackgroundTransparency = 1
+	inner.Position = UDim2.fromOffset(3 - pad, 3 - pad)
+	inner.Size = UDim2.new(1, 2 * pad - 6, 1, 2 * pad - 6)
+	inner.Parent = f
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = Kit.GOLD
+	s.Thickness = 1
+	s.Transparency = 0.35
+	s.Parent = inner
+	for _, c in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
+		local d = Instance.new("Frame") :: Frame
+		d.Name = "Stud"
+		d.Size = UDim2.fromOffset(6, 6)
+		d.AnchorPoint = Vector2.new(0.5, 0.5)
+		d.Position = UDim2.fromScale(c.X, c.Y)
+		d.Rotation = 45
+		d.BackgroundColor3 = Kit.GOLD
+		d.BorderSizePixel = 0
+		d.Parent = inner
+	end
+end
 
 function Kit.panel(parent: Instance, props: PanelProps): Frame
 	local f = Instance.new("Frame") :: Frame
@@ -65,14 +101,14 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 	f.BorderSizePixel = 0
 	f.Active = true
 	f.Parent = parent
-	local corner = Instance.new("UICorner") :: UICorner
-	corner.CornerRadius = UDim.new(0, 4)
-	corner.Parent = f
 	local stroke = Instance.new("UIStroke") :: UIStroke
 	stroke.Color = Kit.INK
 	stroke.Thickness = 1
-	stroke.Transparency = 0.5
+	stroke.Transparency = if props.plain then 0.5 else 0.2
 	stroke.Parent = f
+	if not props.plain then
+		trim(f, props.padding or 0)
+	end
 	if props.padding then
 		local pad = Instance.new("UIPadding") :: UIPadding
 		pad.PaddingTop = UDim.new(0, props.padding)
@@ -310,6 +346,27 @@ function Kit.toggle(parent: Instance, labelText: string, value: boolean, onChang
 	end, { size = UDim2.new(1, 0, 0, 28) })
 	b.TextXAlignment = Enum.TextXAlignment.Left
 	return b
+end
+
+-- Horizontal bar: dark track with a fill sized by `frac` (0..1). Returns the fill.
+function Kit.bar(parent: Instance, size: UDim2, position: UDim2, colour: Color3): Frame
+	local track = Instance.new("Frame") :: Frame
+	track.Size = size
+	track.Position = position
+	track.BackgroundColor3 = Kit.INK
+	track.BackgroundTransparency = 0.65
+	track.BorderSizePixel = 0
+	track.Parent = parent
+	local fill = Instance.new("Frame") :: Frame
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = colour
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+	return fill
+end
+
+function Kit.setBar(fill: Frame, frac: number)
+	fill.Size = UDim2.fromScale(math.clamp(frac, 0, 1), 1)
 end
 
 function Kit.formatClock(seconds: number): string
