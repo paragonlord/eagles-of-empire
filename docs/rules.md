@@ -170,3 +170,14 @@ Per side: deployed, casualties, remaining, surviving/routed/shattered/destroyed/
 formations. Totals reconcile with the sim: `deployed = remaining + casualties` where casualties
 include the strength of exited formations. Feedback lines are generated from the match log
 (e.g. "Your cavalry charged a formed square twice.").
+
+## Weather and reinforcements
+
+`scenario.weather` (clear | rain | mud | fog | snow) multiplies musket accuracy, artillery hit
+chance, movement speed and spotting distance (`Config.Weather`); `scenario.weatherUntil` clears it
+at that simulation second with a message. Fog: spotting ×0.45. Mud: cannon ×0.7, speed ×0.8.
+
+A unit definition with `arrival = { seconds, pos }` starts **off the map**: hidden, unorderable,
+not deployable, not counted toward collapse or objectives. At `seconds` it appears at `pos`
+(a passable point near the map edge) with a message. Off-map units count as surviving in the
+results and their strength as deployed.
