@@ -459,6 +459,56 @@ local function applyQueuedCommands(self: Sim)
 	self.commands = remaining
 end
 
+-- Attack-move: engage visible enemies met on the way, then resume the march.
+-- Infantry halts once a target is in musket range and fires; cavalry charges a target that is not
+-- in square (or a battery / routing unit) within its charge reach.
+local CAV_REACH = 180
+local function autoEngage(self: Sim)
+	for _, id in self.order do
+		local f = self.formations[id]
+		local o = f and f.order
+		if f and o and o.kind == "AttackMove" and Formation.isActive(f) and (f.state == "moving" or f.state == "idle" or f.state == "firing") then
+			local best: Formation? = nil
+			local bestD = math.huge
+			for _, eid in self.order do
+				local e = self.formations[eid]
+				if e and e.faction ~= f.faction and Formation.isActive(e) and self:isVisibleTo(f.faction, eid) then
+					local d = Vec.dist(f.pos, e.pos)
+					if d < bestD then
+						best = e
+						bestD = d
+					end
+				end
+			end
+			if f.class == "cavalry" then
+				if best and bestD <= CAV_REACH and best.shape ~= "square" and f.timers.chargeRecover <= 0 and not f.inWoods then
+					local resume = table.clone(o)
+					f.order = { kind = "Charge", targetId = best.id, issuedTick = self.tick, anchor = { x = f.pos.x, z = f.pos.z } }
+					f.queue = { resume }
+					f.path = nil
+					f.state = "charging"
+					f.runUp = 0
+					f.chargeReady = true
+				end
+			elseif f.class == "infantry" then
+				local range = Formation.unitConfig(f).musket.range
+				if best and bestD <= range * 0.95 then
+					if f.state == "moving" then
+						f.path = nil
+						f.state = "idle"
+						f.targetId = best.id
+						-- face the target; the line wheels in place
+						f.heading = f.heading + Vec.angleDiff(f.heading, Vec.heading(Vec.sub(best.pos, f.pos))) * 0.5
+					end
+				elseif f.state == "idle" or f.state == "firing" then
+					f.state = "moving" -- nothing in range any more: resume the march
+					f.targetId = nil
+				end
+			end
+		end
+	end
+end
+
 -- Tick ----------------------------------------------------------------------------------------
 
 -- AI hook: assigned by the match layer; called on schedule with the sim.
@@ -489,6 +539,9 @@ function Sim.step(self: Sim)
 	end
 	-- 1. commands
 	applyQueuedCommands(self)
+	if self.tick % 5 == 0 then
+		autoEngage(self)
+	end
 	-- 2. AI
 	local ai: ((Sim) -> ())? = (self :: any).aiStep or (Sim :: any).aiStep
 	if ai and self.tick % Config.AI.DecisionTicks == 0 then

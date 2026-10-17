@@ -18,6 +18,8 @@ export type SimLike = {
 	log: (sim: any, text: string) -> (),
 	hqOf: (sim: any, faction: string) -> Formation?,
 	stats: { [string]: any },
+	homeEdge: ((sim: any, faction: string) -> { x: number, z: number })?,
+	grid: { width: number, depth: number }?,
 }
 
 local Morale = {}
@@ -102,6 +104,20 @@ function Morale.rally(sim: SimLike, f: Formation, by: string)
 	f.morale = math.max(f.morale, M.RallyMorale)
 	f.moraleBand = "shaken"
 	f.path = nil
+	-- Rallied at the rear edge: walk back onto the field to a slot spread by id, so rallied
+	-- formations do not pile on top of each other.
+	local home = if sim.homeEdge then sim.homeEdge(sim, f.faction) else nil
+	local grid = sim.grid
+	if home and grid then
+		local edgeZ = if home.z < 0 then 0 else grid.depth
+		if math.abs(f.pos.z - edgeZ) < 80 then
+			local inward = if home.z < 0 then 1 else -1
+			local x = math.clamp(f.pos.x + ((f.id % 5) - 2) * 45, 30, grid.width - 30)
+			local z = edgeZ + inward * (110 + (f.id % 3) * 30)
+			f.order = { kind = "Move", pos = { x = x, z = z }, heading = if inward > 0 then math.pi / 2 else -math.pi / 2, issuedTick = sim.tick }
+			f.queue = {}
+		end
+	end
 	sim.emit(sim, { kind = "rally", tick = sim.tick, id = f.id, faction = f.faction, x = f.pos.x, z = f.pos.z, text = f.name .. " rallies" .. by })
 end
 
@@ -213,7 +229,7 @@ function Morale.update(sim: SimLike, f: Formation)
 	if f.state == "rallying" then
 		t.rallying -= DT
 		if t.rallying <= 0 then
-			f.state = "idle"
+			f.state = if f.order and f.order.pos then "moving" else "idle"
 		end
 		return
 	end

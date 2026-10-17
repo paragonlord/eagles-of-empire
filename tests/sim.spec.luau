@@ -422,3 +422,72 @@ test("Weather: fog shortens spotting and clears at weatherUntil; mud slows the m
 	end
 	assertTrue(clear.formations[1].pos.z < mud.formations[1].pos.z - 5, "mud is slower")
 end)
+
+test("Cavalry on attack-move charges an enemy it meets; contact without orders becomes melee", function()
+	local sim = newSim({
+		unit("france", "cavalry", "Horse", 600, 300, math.pi / 2),
+		unit("prussia", "infantry", "Line", 600, 470, -math.pi / 2),
+	})
+	sim.formations[2].fireAtWill = false
+	cmd(sim, "AttackMove", { 1 }, { pos = { x = 600, z = 700 } })
+	local charged, meleed = false, false
+	for _ = 1, 20 * 40 do
+		sim:step()
+		for _, ev in sim.events do
+			if ev.kind == "charge" and ev.id == 1 then
+				charged = true
+			end
+		end
+		sim:clearEvents()
+		if sim.formations[1].state == "melee" then
+			meleed = true
+		end
+	end
+	assertTrue(charged, "charged on contact")
+	assertTrue(meleed, "fought in melee")
+	assertTrue(sim.formations[2].strength < 600, "the line took losses")
+end)
+
+test("Infantry on attack-move halts in musket range and fires, then resumes", function()
+	local sim = newSim({
+		unit("france", "infantry", "F", 600, 300, math.pi / 2),
+		unit("prussia", "infantry", "P", 600, 420, -math.pi / 2, 200),
+	})
+	sim.formations[2].fireAtWill = false
+	cmd(sim, "AttackMove", { 1 }, { pos = { x = 600, z = 700 } })
+	local volleys = 0
+	for _ = 1, 20 * 30 do
+		sim:step()
+		for _, ev in sim.events do
+			if ev.kind == "volley" and ev.id == 1 then
+				volleys += 1
+			end
+		end
+		sim:clearEvents()
+	end
+	assertTrue(volleys >= 1, "fired")
+	assertTrue(sim.formations[1].pos.z < 420 - 20, "stopped short of the enemy instead of walking into it")
+end)
+
+test("Rallied formations at the rear edge walk back in to separate slots", function()
+	-- extra steady formations so three routing ones do not count as an army collapse
+	local sim = newSim({
+		unit("france", "infantry", "A", 600, 20, math.pi / 2),
+		unit("france", "infantry", "B", 610, 22, math.pi / 2),
+		unit("france", "infantry", "C", 620, 24, math.pi / 2),
+		unit("france", "infantry", "S1", 900, 250, math.pi / 2),
+		unit("france", "infantry", "S2", 1000, 250, math.pi / 2),
+		unit("france", "infantry", "S3", 1100, 250, math.pi / 2),
+		unit("france", "infantry", "S4", 1200, 250, math.pi / 2),
+	})
+	for i = 1, 3 do
+		local f = sim.formations[i]
+		f.state = "routing"
+		f.timers.routing = 999
+		f.morale = 60
+	end
+	run(sim, 40)
+	local p1, p2, p3 = sim.formations[1].pos, sim.formations[2].pos, sim.formations[3].pos
+	assertTrue(p1.z > 80 and p2.z > 80 and p3.z > 80, "moved back onto the field")
+	assertTrue(Vec.dist(p1, p2) > 30 and Vec.dist(p2, p3) > 30 and Vec.dist(p1, p3) > 30, "not piled up")
+end)

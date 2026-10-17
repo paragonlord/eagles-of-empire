@@ -368,6 +368,27 @@ function Combat.gather(sim: SimLike): { Attack }
 			end
 		end
 	end
+	-- Contact without an attack order (attack-move, a move that ran into the enemy, an enemy that
+	-- walked into us): touching footprints fight. Guns and staff never start a melee themselves.
+	for _, id in sim.order do
+		local f = sim.formations[id]
+		if f and Formation.isActive(f) and f.class ~= "artillery" and f.class ~= "hq" and (f.state == "idle" or f.state == "moving" or f.state == "firing") then
+			for _, oid in sim.order do
+				local o = sim.formations[oid]
+				if o and o.faction ~= f.faction and Formation.isActive(o) and o.state ~= "routing" and o.state ~= "rallying" and Combat.inContact(f, o) then
+					f.state = "melee"
+					f.path = nil
+					f.meleeWith[o.id] = true
+					o.meleeWith[f.id] = true
+					if o.state ~= "melee" then
+						o.state = "melee"
+						o.path = nil
+					end
+					break
+				end
+			end
+		end
+	end
 	-- Melee damage for every engaged pair (each side attacks the other).
 	for _, id in sim.order do
 		local f = sim.formations[id]
