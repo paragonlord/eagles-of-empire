@@ -6,6 +6,7 @@
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
+local Generals = require(Shared.Generals)
 local Kit = require(script.Parent.Kit)
 local Minimap = require(script.Parent.Minimap)
 local CardBar = require(script.Parent.CardBar)
@@ -50,6 +51,7 @@ local TICKER_LIFE = 9
 local inspector: Frame? = nil
 local inspectorFields: { [string]: TextLabel } = {}
 local inspectorBarFill: Frame? = nil
+local inspectorTip: () -> string -- defined after updateInspector
 
 -- command panel
 local commandButtons: { [string]: TextButton } = {}
@@ -400,6 +402,9 @@ local function buildInspector(sg: ScreenGui)
 	end
 	p.Visible = false
 	inspector = p
+	Kit.hoverTip(p, function(): string
+		return inspectorTip()
+	end)
 end
 
 local function updateInspector()
@@ -442,6 +447,45 @@ local function updateInspector()
 		status ..= " · reloading"
 	end
 	F.status.Text = status
+	-- the HQ's general: his traits replace the (empty) ammunition field; hover for the details
+	local ammoKey = p:FindFirstChild("ammoKey") :: TextLabel?
+	local g = if f.class == "hq" and f.general then Generals.byId[f.general] else nil
+	if ammoKey then
+		ammoKey.Text = if g then g.rank .. " " .. g.name else "Ammunition"
+	end
+	if g then
+		local names = {}
+		for _, tr in g.traits do
+			table.insert(names, tr.name)
+		end
+		F.ammo.Text = if #names > 0 then table.concat(names, " · ") else "No traits"
+	end
+end
+
+-- Inspector hover: every trait / ability modifier on the first selected formation, in full.
+inspectorTip = function(): string
+	local f = selectedFormations()[1]
+	if not f then
+		return ""
+	end
+	local lines = {}
+	local g = if f.class == "hq" and f.general then Generals.byId[f.general] else nil
+	if g then
+		for _, tr in g.traits do
+			table.insert(lines, Generals.describe(tr))
+		end
+		table.insert(lines, g.ability.name .. ": " .. g.ability.text)
+	end
+	if type(f.tags) == "string" and f.tags ~= "" then
+		table.insert(lines, "Now affecting this formation:")
+		for id in string.gmatch(f.tags, "[^,]+") do
+			local name, text = Generals.tagInfo(id)
+			if name then
+				table.insert(lines, "• " .. name .. ": " .. tostring(text))
+			end
+		end
+	end
+	return table.concat(lines, "\n")
 end
 
 -- ------------------------------------------------------------------ command panel
@@ -550,6 +594,98 @@ local function buildCommandPanel(sg: ScreenGui)
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
+end
+
+-- ------------------------------------------------------------------ general's ability
+-- One large button above the inspector while an own HQ with a general is selected: ability
+-- and general's name, the exact effect on hover, and a dark sweep that drains as it recharges.
+
+local abilityButton: TextButton? = nil
+local abilitySweep: Frame? = nil
+local abilityHQ: any = nil
+
+local function selectedHQ(): any
+	for _, f in selectedFormations() do
+		if f.class == "hq" and f.general and Generals.byId[f.general] and f.faction == BattleState.viewerFaction then
+			return f
+		end
+	end
+	return nil
+end
+
+-- Seconds until ready, run forward between snapshots.
+local function abilityLeft(f: any): number
+	local now = BattleState.clock
+	if BattleState.state == "running" then
+		now += (os.clock() - BattleState.lastSnapshotAt) * BattleState.speed
+	end
+	return math.max(0, (f.abilityReadyAt or 0) - now)
+end
+
+local function buildAbility(sg: ScreenGui)
+	local b = Kit.button(sg, "", function()
+		local f = abilityHQ
+		local g = if f then Generals.byId[f.general] else nil
+		if f and g then
+			Input.sendOrder("Ability", { f.id }, { abilityId = g.ability.id })
+		end
+	end, { size = UDim2.fromOffset(CMD_W, 46), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
+	b.RichText = true
+	b.Visible = false
+	b.ClipsDescendants = true
+	local sweep = Instance.new("Frame") :: Frame
+	sweep.Name = "Sweep"
+	sweep.Size = UDim2.fromScale(0, 1)
+	sweep.BackgroundColor3 = Kit.INSET
+	sweep.BackgroundTransparency = 0.35
+	sweep.BorderSizePixel = 0
+	sweep.ZIndex = b.ZIndex + 1
+	sweep.Parent = b
+	abilityButton = b
+	abilitySweep = sweep
+end
+
+-- Selection / snapshot refresh: which HQ, its text, enabled state and tooltip.
+local function refreshAbility()
+	local b = abilityButton
+	if not b then
+		return
+	end
+	local f = selectedHQ()
+	abilityHQ = f
+	b.Visible = f ~= nil
+	if not f then
+		return
+	end
+	local g = Generals.byId[f.general]
+	local ab = g.ability
+	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, g.name)
+	b:SetAttribute("tip", ab.name .. ": " .. ab.text)
+	local left = abilityLeft(f)
+	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")
+	if not commander then
+		Kit.setEnabled(b, false, if BattleState.isCommander then "Not during this phase" else "Spectators cannot give orders")
+	elseif f.state == "routing" or f.state == "rallying" then
+		Kit.setEnabled(b, false, "The staff is in flight")
+	elseif left > 0 then
+		Kit.setEnabled(b, false, string.format("Recharging (%ds)\n%s: %s", math.ceil(left), ab.name, ab.text))
+	else
+		Kit.setEnabled(b, true)
+	end
+end
+
+-- Every frame: the sweep covers the share of the cooldown still to run.
+local function animateAbility()
+	local f, sweep = abilityHQ, abilitySweep
+	if not f or not sweep then
+		return
+	end
+	local g = Generals.byId[f.general]
+	local left = abilityLeft(f)
+	sweep.Size = UDim2.fromScale(if g then math.clamp(left / g.ability.cooldown, 0, 1) else 0, 1)
+	if left <= 0 and abilityButton and abilityButton:GetAttribute("disabled") == true and BattleState.isCommander and BattleState.state == "running" then
+		refreshAbility()
+	end
 end
 
 -- Which classes each command needs (any one of them, not routing).
@@ -681,6 +817,7 @@ local function refreshAll()
 	CardBar.update()
 	updateInspector()
 	HUD.refreshCommands()
+	refreshAbility()
 end
 
 function HUD.show(callbacks: Callbacks)
@@ -692,6 +829,7 @@ function HUD.show(callbacks: Callbacks)
 	buildTicker(sg)
 	buildInspector(sg)
 	buildCommandPanel(sg)
+	buildAbility(sg)
 	CardBar.create(sg)
 	buildMinimap(sg)
 	gui = sg
@@ -705,6 +843,7 @@ function HUD.show(callbacks: Callbacks)
 		CardBar.update()
 		updateInspector()
 		HUD.refreshCommands()
+		refreshAbility()
 	end))
 	table.insert(conns, BattleState.orderRejected:Connect(function(reason: string)
 		HUD.toast(reason)
@@ -738,6 +877,8 @@ function HUD.onEvent(ev: any)
 		HUD.message(if ev.text then tostring(ev.text) .. "." else tostring(name) .. " is destroyed.", nil, true, if ours then Kit.CRIMSON else Kit.INSET)
 	elseif kind == "charge" and name then
 		HUD.message(name .. " charges!")
+	elseif kind == "ability" and ev.text then
+		HUD.message(tostring(ev.text), if ours then Kit.GILT_BRIGHT else Kit.HOSTILE, true)
 	end
 end
 
@@ -747,6 +888,7 @@ function HUD.update(_dt: number)
 	end
 	updateTicker()
 	CardBar.animate()
+	animateAbility()
 	Minimap.update()
 end
 
@@ -772,6 +914,9 @@ function HUD.destroy()
 	inspector = nil
 	inspectorBarFill = nil
 	rallyBar = nil
+	abilityButton = nil
+	abilitySweep = nil
+	abilityHQ = nil
 	toast = nil
 	table.clear(speedButtons)
 	table.clear(objectiveChips)

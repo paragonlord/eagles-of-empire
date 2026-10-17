@@ -228,6 +228,21 @@ function Generals.describe(tr: Trait): string
 	return string.format("%s: %s (Applies to %s.)", tr.name, tr.text, reach)
 end
 
+-- Name and plain-text effect for a snapshot tag (a trait id or an ability id), for tooltips.
+function Generals.tagInfo(id: string): (string?, string?)
+	for _, g in LIST do
+		for _, tr in g.traits do
+			if tr.id == id then
+				return string.format("%s (%s)", tr.name, g.name), Generals.describe(tr)
+			end
+		end
+		if g.ability.id == id then
+			return string.format("%s (%s)", g.ability.name, g.name), g.ability.text
+		end
+	end
+	return nil, nil
+end
+
 function Generals.trait(id: string): Trait?
 	for _, g in LIST do
 		for _, tr in g.traits do

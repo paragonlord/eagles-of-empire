@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService") :: TweenService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
+local Generals = require(Shared.Generals)
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 local Selection = require(script.Parent.Parent.Selection)
@@ -169,6 +170,15 @@ local function tipFor(id: number): string
 	if f.status and f.status ~= "" then
 		lines[4] ..= " · " .. f.status
 	end
+	-- generals' traits and abilities acting on it now (the gilt star on the card)
+	if type(f.tags) == "string" then
+		for tag in string.gmatch(f.tags, "[^,]+") do
+			local name, text = Generals.tagInfo(tag)
+			if name then
+				table.insert(lines, "★ " .. name .. ": " .. tostring(text))
+			end
+		end
+	end
 	return table.concat(lines, "\n")
 end
 
@@ -255,6 +265,9 @@ local function newCard(f: any): Card
 	rect(holdFire, 2, 11, 5, 5, 45, Kit.HOSTILE)
 	rect(holdFire, 2, 11, 5, 5, -45, Kit.HOSTILE)
 	icons.holdFire = holdFire
+	local general = iconSlot(row, "general", 6) -- gilt diamond: a general's trait or ability applies
+	rect(general, 6, 6, 5, 5, 45, Kit.GILT_BRIGHT)
+	icons.general = general
 
 	local card: Card = {
 		root = b,
@@ -330,6 +343,7 @@ local function paint(c: Card, f: any)
 	c.icons.square.Visible = f.shape == "square"
 	c.icons.limbered.Visible = f.class == "artillery" and (f.limbered == true or f.shape == "limbered")
 	c.icons.holdFire.Visible = shoots and f.fireAtWill == false
+	c.icons.general.Visible = type(f.tags) == "string" and f.tags ~= ""
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
 	local sel = Selection.isSelected(f.id)
