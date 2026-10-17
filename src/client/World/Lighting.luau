@@ -35,21 +35,45 @@ local function setTechnology()
 	end
 end
 
+local currentQuality = 2
+local currentWeather: string? = nil
+
+-- Weather tints only the distance: fog is a pale warm grey that thickens far away.
+local function applyHaze(L: Lighting, atmo: Atmosphere?)
+	local foggy = currentWeather == "fog"
+	if atmo then
+		atmo.Density = if foggy then 0.32 else 0.1
+		atmo.Offset = if foggy then 0.05 else 0.25
+		atmo.Color = if foggy then Color3.fromRGB(214, 206, 190) else Color3.fromRGB(232, 216, 182)
+		atmo.Decay = if foggy then Color3.fromRGB(196, 188, 170) else Color3.fromRGB(206, 182, 140)
+		atmo.Glare = 0
+		atmo.Haze = if foggy then 1.4 else 0.3
+	end
+	L.FogColor = Color3.fromRGB(214, 206, 188)
+	L.FogStart = if foggy then 500 else 1600
+	L.FogEnd = if foggy then 2200 else 4200
+end
+
+local atmosphere: Atmosphere? = nil
+
 function Lighting.apply(quality: number)
+	currentQuality = quality
 	clearOwned()
+	atmosphere = nil
 	setTechnology()
 	local L = LightingService
-	-- ~10:12, latitude 50: the sun stands in the south-east, so north/west slopes read darker
-	L.ClockTime = 10.2
+	-- Low morning sun from the south-east: long shadows so north/west slopes read dark.
+	L.ClockTime = 8.9
 	L.GeographicLatitude = 50
-	L.Brightness = 2.4
-	L.ShadowSoftness = 0.2
+	L.Brightness = 2.8
+	L.ShadowSoftness = 0.12
 	L.GlobalShadows = true
-	L.EnvironmentDiffuseScale = 0.5
-	L.EnvironmentSpecularScale = 0.25
-	L.Ambient = Color3.fromRGB(88, 92, 82)
-	L.OutdoorAmbient = Color3.fromRGB(126, 128, 112)
-	L.ExposureCompensation = 0.1
+	-- low ambient keeps the shaded side of a ridge dark, as in the reference
+	L.EnvironmentDiffuseScale = 0.25
+	L.EnvironmentSpecularScale = 0.1
+	L.Ambient = Color3.fromRGB(64, 60, 50)
+	L.OutdoorAmbient = Color3.fromRGB(104, 98, 82)
+	L.ExposureCompensation = 0.15
 
 	local sky = own(Instance.new("Sky") :: Sky, L)
 	sky.CelestialBodiesShown = true
@@ -57,39 +81,42 @@ function Lighting.apply(quality: number)
 	sky.SunAngularSize = 14
 
 	local cc = own(Instance.new("ColorCorrectionEffect") :: ColorCorrectionEffect, L)
-	cc.TintColor = Color3.fromRGB(255, 248, 236) -- slight warmth
-	cc.Contrast = 0.08
-	cc.Saturation = 0.04
-	cc.Brightness = 0.0
+	cc.TintColor = Color3.fromRGB(255, 244, 222) -- warm, never cyan
+	cc.Contrast = 0.18
+	cc.Saturation = 0.22
+	cc.Brightness = 0.02
 
 	local bloom = own(Instance.new("BloomEffect") :: BloomEffect, L)
-	bloom.Intensity = 0.15
+	bloom.Intensity = 0.12
 	bloom.Size = 18
-	bloom.Threshold = 1.6
+	bloom.Threshold = 1.8
 
 	if quality >= 2 then
-		local atmo = own(Instance.new("Atmosphere") :: Atmosphere, L)
-		atmo.Density = 0.28
-		atmo.Offset = 0.12
-		atmo.Color = Color3.fromRGB(214, 206, 186)
-		atmo.Decay = Color3.fromRGB(120, 118, 104)
-		atmo.Glare = 0.15
-		atmo.Haze = 1.2
+		atmosphere = own(Instance.new("Atmosphere") :: Atmosphere, L)
 
 		local rays = own(Instance.new("SunRaysEffect") :: SunRaysEffect, L)
-		rays.Intensity = 0.04
-		rays.Spread = 0.6
+		rays.Intensity = 0.03
+		rays.Spread = 0.5
 
 		local clouds = own(Instance.new("Clouds") :: Clouds, workspace.Terrain)
-		clouds.Cover = 0.45
-		clouds.Density = 0.25
-		clouds.Color = Color3.fromRGB(246, 242, 232)
-	else
-		-- without Atmosphere, plain distance fog hides the horizon past the map edge
-		L.FogColor = Color3.fromRGB(200, 198, 182)
-		L.FogStart = 1400
-		L.FogEnd = 3400
+		clouds.Cover = 0.4
+		clouds.Density = 0.2
+		clouds.Color = Color3.fromRGB(248, 244, 234)
 	end
+	applyHaze(L, atmosphere)
+end
+
+-- Scenario weather (`fog`, `rain`, ... or nil). Only fog changes the light.
+function Lighting.setWeather(weather: string?)
+	if weather == currentWeather then
+		return
+	end
+	currentWeather = weather
+	applyHaze(LightingService, atmosphere)
+end
+
+function Lighting.quality(): number
+	return currentQuality
 end
 
 function Lighting.destroy()
