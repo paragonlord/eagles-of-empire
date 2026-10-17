@@ -80,6 +80,40 @@ Roblox Studio; not run in this environment). Source checks are not in-engine che
   had routed and rallied at the edge; no error).
 - Round 1 notes now handled by the cloud: beacon moved off the date.
 
+**2026-10-17 round 3 (visual pass), build 243f5f8.** Screenshots in `docs/shots/` (overwritten
+each round): `deploy.jpg` (end of the intro sweep), `hud.jpg` (battle start, ×4), `troops.jpg`
+(zoomed on the Landgrafenberg), `fight.jpg` (Closewitz fight). Compared with
+`docs/reference/epic-history-jena-2.jpg`. Ranked by how much each hurts the look:
+1. **Teal wash and no relief.** Everything sits under a cyan-teal haze; colours are grey-olive
+   and contrast is low, so the ridges and valleys barely read. The reference is saturated
+   olive-gold with dark shaded slopes. (Lighting at the time: Atmosphere density 0.28, haze 1.2,
+   ColorCorrection saturation 0.04, contrast 0.08, ClockTime 10.2, Jena weather fog.)
+2. **Map floats in a void.** The deployment camera sits south of the map (z = -165) and shows the
+   slab's cut edge with flat teal below and around it (`deploy.jpg`, bottom; all four corners).
+   The reference fills the frame with terrain.
+3. **Roads read as snow.** Roads are a dotted trail of pale blotches far from the villages and a
+   wide, bright, noisy white strip on the Landgrafenberg (`troops.jpg`), wider than a battalion.
+   The reference roads are thin, faint lines.
+4. **Smoke is solid white balls.** Volley smoke shows as rows of opaque white spheres, like a
+   string of pearls along each line (`fight.jpg`). It should be soft and see-through.
+5. **French and Prussians look alike up close.** Both read as dark blue figures; only the flags
+   tell them apart. The reference: French cobalt, Prussians near-black charcoal.
+6. **Name plates unreadable.** The plates above units are too small to read at any useful zoom
+   (`troops.jpg`); the reference plates are big, framed, dark serif capitals.
+7. **Small place names unreadable.** Closewitz, Vierzehnheiligen, Krippendorf and Cospeda are tiny
+   and faint from the deployment camera while Landgrafenberg is huge (`deploy.jpg`).
+8. **Villages are a few big grey boxes.** The reference villages are dense clusters of many small
+   dark-brown roofs.
+9. **Fog-of-war markers look like placeholders.** Last-known enemies show as flat grey slabs and
+   white X plates (`fight.jpg`, top).
+10. Ticker: red "is routing!" text on the dark-brown chip is hard to read (`troops.jpg`).
+11. Command grid: "Auto ammo" wraps onto two lines in its cell (`hud.jpg`, bottom left).
+- Good: new HUD layout, card bar (routing cards turn red), framed minimap, battle select with four
+  battles, intro sweep, figures with horses and guns, objective rings change colour on capture.
+- Incident: builds 0871170 to 67ad183 did not boot. `Kit.luau:27: Expected identifier when
+  parsing method name, got '{'` (a type annotation on `Kit.MORALE`). Fixed in 243f5f8. A parse
+  check before each push (`tools/check.sh`) would catch this class.
+
 ## Known failures
 
 None recorded yet.
