@@ -90,7 +90,7 @@ end
 -- Class glyph centred in a CARD_W x 26 area.
 local function glyph(parent: Frame, class: string)
 	local cx, cy = CARD_W / 2, 13
-	local ink = Kit.INK
+	local ink = Kit.IVORY
 	if class == "infantry" then -- crossed muskets
 		rect(parent, 2, 26, cx, cy, 35, ink)
 		rect(parent, 2, 26, cx, cy, -35, ink)
@@ -107,7 +107,7 @@ local function glyph(parent: Frame, class: string)
 	elseif class == "hq" then -- eight-point star
 		rect(parent, 14, 14, cx, cy, 0, Kit.GOLD)
 		rect(parent, 14, 14, cx, cy, 45, Kit.GOLD)
-		ring(parent, 5, cx, cy, ink, 1.5)
+		ring(parent, 5, cx, cy, Kit.INSET, 1.5)
 	end
 end
 
@@ -174,7 +174,7 @@ local function newCard(f: any): Card
 	local b = Instance.new("TextButton") :: TextButton
 	b.Name = "Card" .. id
 	b.Size = UDim2.fromOffset(CARD_W, CARD_H)
-	b.BackgroundColor3 = Kit.CREAM
+	b.BackgroundColor3 = Kit.WALNUT_LIGHT
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
 	b.Text = ""
@@ -182,15 +182,26 @@ local function newCard(f: any): Card
 	b.Active = true
 	b.Parent = s
 	local stroke = Instance.new("UIStroke") :: UIStroke
-	stroke.Color = Kit.INK
+	stroke.Color = Kit.GILT_DARK
 	stroke.Thickness = 1
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = b
 	local header = Instance.new("Frame") :: Frame
-	header.Size = UDim2.new(1, 0, 0, 5)
+	header.Size = UDim2.new(1, 0, 0, 6)
 	header.BackgroundColor3 = Factions.colour(f.faction, f.colour)
 	header.BorderSizePixel = 0
 	header.Parent = b
+	-- enamel: a bright glaze over the top half, a gilt edge beneath
+	local glaze = Instance.new("UIGradient") :: UIGradient
+	glaze.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 150))
+	glaze.Rotation = 90
+	glaze.Parent = header
+	local edge = Instance.new("Frame") :: Frame
+	edge.Size = UDim2.new(1, 0, 0, 1)
+	edge.Position = UDim2.fromOffset(0, 6)
+	edge.BackgroundColor3 = Kit.GILT_DARK
+	edge.BorderSizePixel = 0
+	edge.Parent = b
 	local g = Instance.new("Frame") :: Frame
 	g.Size = UDim2.fromOffset(CARD_W, 26)
 	g.Position = UDim2.fromOffset(0, 7)
@@ -213,7 +224,7 @@ local function newCard(f: any): Card
 	Kit.list(row, 2, true)
 	local icons: { [string]: Frame } = {}
 	local reload = iconSlot(row, "reload", 1) -- cartridge box filling as the volley reloads
-	box(reload, 8, 5, 5, Kit.INK)
+	box(reload, 8, 5, 5, Kit.IVORY)
 	local reloadFill = Instance.new("Frame") :: Frame
 	reloadFill.AnchorPoint = Vector2.new(0, 1)
 	reloadFill.Position = UDim2.fromOffset(2, 8)
@@ -227,12 +238,12 @@ local function newCard(f: any): Card
 	rect(noAmmo, 2, 11, 5, 5, 45, Kit.HOSTILE)
 	icons.noAmmo = noAmmo
 	local square = iconSlot(row, "square", 3) -- hollow square
-	box(square, 8, 5, 5, Kit.INK)
-	box(square, 4, 5, 5, Kit.INK)
+	box(square, 8, 5, 5, Kit.IVORY)
+	box(square, 4, 5, 5, Kit.IVORY)
 	icons.square = square
 	local limbered = iconSlot(row, "limbered", 4) -- wheel and trail
-	ring(limbered, 7, 4, 5, Kit.INK, 1.5)
-	rect(limbered, 5, 2, 8, 6, 20, Kit.INK)
+	ring(limbered, 7, 4, 5, Kit.IVORY, 1.5)
+	rect(limbered, 5, 2, 8, 6, 20, Kit.IVORY)
 	icons.limbered = limbered
 	local holdFire = iconSlot(row, "holdFire", 5) -- red cross
 	rect(holdFire, 2, 11, 5, 5, 45, Kit.HOSTILE)
@@ -316,11 +327,11 @@ local function paint(c: Card, f: any)
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
 	local sel = Selection.isSelected(f.id)
-	c.stroke.Color = if sel then Kit.GOLD else Kit.INK
+	c.stroke.Color = if sel then Kit.GILT_BRIGHT else Kit.GILT_DARK
 	c.stroke.Thickness = if sel then 2 else 1
 	c.stroke.Transparency = if sel then 0 else 0.4
 	if not c.routing then
-		c.root.BackgroundColor3 = if c.shattered then Kit.MUTED elseif sel then Kit.SELECT else Kit.CREAM
+		c.root.BackgroundColor3 = if c.shattered then Kit.SLATE elseif sel then Kit.BLUE_LIGHT else Kit.WALNUT_LIGHT
 	end
 end
 
@@ -328,8 +339,8 @@ end
 local function retire(c: Card)
 	local cover = Instance.new("Frame") :: Frame
 	cover.Size = UDim2.fromScale(1, 1)
-	cover.BackgroundColor3 = Kit.MUTED
-	cover.BackgroundTransparency = 0.25
+	cover.BackgroundColor3 = Kit.INSET
+	cover.BackgroundTransparency = 0.3
 	cover.BorderSizePixel = 0
 	cover.ZIndex = 5
 	cover.Parent = c.root
@@ -462,7 +473,7 @@ function CardBar.create(sg: ScreenGui)
 	s.AutomaticCanvasSize = Enum.AutomaticSize.X
 	s.CanvasSize = UDim2.new()
 	s.ScrollBarThickness = 4
-	s.ScrollBarImageColor3 = Kit.INK
+	s.ScrollBarImageColor3 = Kit.GILT
 	s.Active = true
 	s.Parent = p
 	local layout = Kit.list(s, GAP, true)
@@ -516,7 +527,7 @@ function CardBar.animate()
 	local pulse = (math.sin(os.clock() * 8) + 1) / 2
 	for id, c in cards do
 		if c.routing then
-			c.root.BackgroundColor3 = Kit.CREAM:Lerp(Kit.MORALE.routing, 0.25 + 0.6 * pulse)
+			c.root.BackgroundColor3 = Kit.WALNUT_LIGHT:Lerp(Kit.MORALE.routing, 0.25 + 0.6 * pulse)
 		end
 		if c.icons.reload.Visible then
 			local f = BattleState.formations[id]

@@ -86,7 +86,20 @@ end
 -- ------------------------------------------------------------------ top bar
 
 local function buildTopBar(sg: ScreenGui)
-	local bar = Kit.panel(sg, { size = UDim2.new(1, 0, 0, 36), position = UDim2.new(0, 0, 0, 0), transparency = 0.08 })
+	-- dark band: no frame, a crimson hairline over a gold lower rule
+	local bar = Kit.panel(sg, { size = UDim2.new(1, 0, 0, 36), position = UDim2.new(0, 0, 0, 0), transparency = 0.04, plain = true })
+	local bs = bar:FindFirstChildOfClass("UIStroke") :: UIStroke?
+	if bs then
+		bs.Enabled = false
+	end
+	for _, r in { { 2, -2, Kit.GILT }, { 1, -3, Kit.CRIMSON } } do
+		local line = Instance.new("Frame") :: Frame
+		line.Size = UDim2.new(1, 0, 0, r[1] :: number)
+		line.Position = UDim2.new(0, 0, 1, r[2] :: number)
+		line.BackgroundColor3 = r[3] :: Color3
+		line.BorderSizePixel = 0
+		line.Parent = bar
+	end
 	local sc = BattleState.scenario
 	local name = Kit.title(bar, if sc then sc.name else "", { size = UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
@@ -152,10 +165,14 @@ local function buildTopBar(sg: ScreenGui)
 
 	-- balance of power: own strength against the enemy strength we can see
 	local bal = Kit.panel(sg, { size = UDim2.fromOffset(320, 12), position = UDim2.new(0.5, 0, 0, 42), anchor = Vector2.new(0.5, 0), transparency = 0, plain = true })
+	local bg = bal:FindFirstChildOfClass("UIGradient")
+	if bg then
+		bg:Destroy()
+	end
 	bal.BackgroundColor3 = Kit.factionColour(BattleState.enemyFaction)
 	local own = Instance.new("Frame") :: Frame
 	own.Size = UDim2.fromScale(0.5, 1)
-	own.BackgroundColor3 = Kit.factionColour(BattleState.viewerFaction)
+	own.BackgroundColor3 = Kit.BLUE_LIGHT
 	own.BorderSizePixel = 0
 	own.Parent = bal
 	local tick = Instance.new("Frame") :: Frame
@@ -228,7 +245,7 @@ local function updateObjectives()
 			pennant.Size = UDim2.new(0, 7, 1, 0)
 			pennant.BorderSizePixel = 0
 			pennant.Parent = f
-			local lbl = Kit.title(f, o.name, { size = UDim2.new(1, -14, 1, -3), position = UDim2.new(0, 11, 0, 0), textSize = 15, align = Enum.TextXAlignment.Center })
+			local lbl = Kit.title(f, o.name, { size = UDim2.new(1, -14, 1, -3), position = UDim2.new(0, 11, 0, 0), textSize = 15, align = Enum.TextXAlignment.Center, caps = false })
 			lbl.TextTruncate = Enum.TextTruncate.AtEnd
 			local bar = Instance.new("Frame") :: Frame
 			bar.Size = UDim2.new(0, 0, 0, 3)
@@ -243,7 +260,7 @@ local function updateObjectives()
 			objectiveChips[o.id] = chip
 		end
 		chip.pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.PANEL_DARK
-		chip.label.TextColor3 = if o.contested then Kit.HOSTILE else Kit.INK
+		chip.label.TextColor3 = if o.contested then Kit.HOSTILE else Kit.IVORY
 		chip.bar.BackgroundColor3 = Kit.factionColour(o.capturing or o.owner)
 		chip.bar.Size = UDim2.new(math.clamp(o.progress or 0, 0, 1), -7, 0, 3)
 	end
@@ -309,8 +326,8 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?)
 	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = colour or Kit.CREAM, rich = true })
 	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
 	l.AutomaticSize = Enum.AutomaticSize.X
-	l.BackgroundColor3 = Kit.INK
-	l.BackgroundTransparency = 0.5
+	l.BackgroundColor3 = Kit.INSET
+	l.BackgroundTransparency = 0.45
 	l.TextStrokeTransparency = 0.5
 	l.TextStrokeColor3 = Kit.INK
 	local pad = Instance.new("UIPadding") :: UIPadding
@@ -358,7 +375,7 @@ local INSPECTOR_FIELDS = { "corps", "class", "strength", "morale", "fatigue", "a
 
 local function buildInspector(sg: ScreenGui)
 	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
-	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21 })
+	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21, caps = false })
 	inspectorFields.name.TextTruncate = Enum.TextTruncate.AtEnd
 	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
 	inspectorBarFill = Kit.bar(p, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0, 30), Kit.FRANCE)
@@ -399,7 +416,7 @@ local function updateInspector()
 		inspectorBarFill.BackgroundColor3 = Kit.factionColour(f.faction)
 	end
 	F.morale.Text = string.format("%s%s", MORALE_WORD[f.moraleBand] or f.moraleBand, if f.morale then string.format(" (%d)", math.floor(f.morale)) else "")
-	F.morale.TextColor3 = if f.moraleBand == "steady" then Kit.INK else Kit.HOSTILE
+	F.morale.TextColor3 = if f.moraleBand == "steady" then Kit.IVORY else Kit.HOSTILE
 	F.fatigue.Text = if f.fatigue then (if f.fatigue < 30 then "Fresh" elseif f.fatigue < 70 then "Tired" else "Exhausted") .. string.format(" (%d)", math.floor(f.fatigue)) else "—"
 	if f.class == "artillery" then
 		F.ammo.Text = string.format("%s rounds · %s", if f.ammo then tostring(math.floor(f.ammo)) else "?", tostring(f.ammoMode or "auto"))
@@ -507,17 +524,13 @@ local function buildCommandPanel(sg: ScreenGui)
 		local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
 		tc.MaxTextSize = 11
 		tc.Parent = b
-		local pad = Instance.new("UIPadding") :: UIPadding
-		pad.PaddingLeft = UDim.new(0, 2)
-		pad.PaddingRight = UDim.new(0, 2)
-		pad.Parent = b
 		commandButtons[c.key] = b
 	end
 	-- rally cooldown: a gold bar along the bottom of the button that shrinks to nothing
 	local rb = commandButtons.rally
 	local bar = Instance.new("Frame") :: Frame
 	bar.AnchorPoint = Vector2.new(0, 1)
-	bar.Position = UDim2.new(0, -2, 1, 0)
+	bar.Position = UDim2.new(0, -3, 1, 0)
 	bar.Size = UDim2.new(0, 0, 0, 3)
 	bar.BackgroundColor3 = Kit.GOLD
 	bar.BorderSizePixel = 0
@@ -579,7 +592,7 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 		end
 		if rallyBar then
 			local frac = math.clamp(cd / Config.Units.hq.rally.cooldown, 0, 1)
-			rallyBar.Size = UDim2.new(frac, math.round(4 * frac), 0, 3)
+			rallyBar.Size = UDim2.new(frac, math.round(6 * frac), 0, 3)
 		end
 		if cd > 0 then
 			return string.format("Recharging (%ds)", math.ceil(cd))
@@ -645,7 +658,8 @@ local function buildMinimap(sg: ScreenGui)
 	Minimap.create(frame, UDim2.fromScale(1, 1), UDim2.new(), Vector2.new(0, 0))
 	local n = Kit.title(frame, "N", { size = UDim2.fromOffset(14, 14), position = UDim2.new(0.5, 0, 0, -6), anchor = Vector2.new(0.5, 0.5), textSize = 14, align = Enum.TextXAlignment.Center })
 	n.BackgroundTransparency = 0
-	n.BackgroundColor3 = Kit.CREAM
+	n.BackgroundColor3 = Kit.INSET
+	n.TextColor3 = Kit.GILT
 	n.ZIndex = 10
 	if m then
 		task.spawn(Minimap.paint, m)
@@ -702,13 +716,13 @@ function HUD.onEvent(ev: any)
 	if kind == "message" and ev.text then
 		HUD.message(ev.text)
 	elseif kind == "rout" and name then
-		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.SELECT, true)
+		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.GILT_BRIGHT, true)
 	elseif kind == "rally" and name then
 		HUD.message(name .. " has rallied.")
 	elseif kind == "capture" then
 		local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
 		local who = if ev.faction then (names[ev.faction] or Kit.factionName(ev.faction)) else "Someone"
-		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.SELECT else Kit.HOSTILE, true)
+		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.GILT_BRIGHT else Kit.HOSTILE, true)
 	elseif kind == "destroyed" and name then
 		HUD.message(name .. " is destroyed.", Kit.HOSTILE)
 	elseif kind == "charge" and name then

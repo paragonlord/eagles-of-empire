@@ -469,10 +469,10 @@ local function buildSide()
 
 	local obj = section(s, "Objectives", next())
 	for i, o in view.objectives.regions do
-		row(obj, (if o.held then "■  " else "□  ") .. o.name, i, { colour = if o.held then Kit.INK else Kit.MUTED })
+		row(obj, (if o.held then "■  " else "□  ") .. o.name, i, { colour = if o.held then Kit.IVORY else Kit.MUTED })
 	end
 	local ok = view.objectives.armyStrength >= view.objectives.minArmyStrength
-	row(obj, string.format("Army strength %d / %d required", view.objectives.armyStrength, view.objectives.minArmyStrength), 20, { colour = if ok then Kit.INK else Kit.MUTED })
+	row(obj, string.format("Army strength %d / %d required", view.objectives.armyStrength, view.objectives.minArmyStrength), 20, { colour = if ok then Kit.IVORY else Kit.MUTED })
 
 	local lg = section(s, "Dispatches", next())
 	local lines = view.log or {}
@@ -551,7 +551,8 @@ local function build()
 	back.Parent = sg
 	local mapPanel = Kit.panel(sg, { size = UDim2.new(1, -420, 1, -32), position = UDim2.new(0, 16, 0, 16), transparency = 0 })
 	mapPanel.BackgroundColor3 = OLIVE
-	local grad = Instance.new("UIGradient") :: UIGradient
+	local grad = (mapPanel:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")) :: UIGradient
+	mapPanel.BackgroundColor3 = Color3.new(1, 1, 1)
 	grad.Color = ColorSequence.new(OLIVE, OLIVE_DARK)
 	grad.Rotation = 60
 	grad.Parent = mapPanel

@@ -38,7 +38,7 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local f = Kit.panel(parent, { size = UDim2.new(0.5, -6, 1, 0), position = UDim2.new(), dark = true, padding = 10 })
 	f.LayoutOrder = order
 	local colour = Kit.factionColour(faction)
-	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 24, colour = colour })
+	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 22, spaced = true, colour = Kit.GILT })
 	t.Name = "Title"
 	local deployed = math.max(s.deployed or 0, 1)
 	local lost = s.casualties or 0
@@ -46,12 +46,11 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local track = Instance.new("Frame") :: Frame
 	track.Size = UDim2.new(1, 0, 0, 14)
 	track.Position = UDim2.fromOffset(0, 32)
-	track.BackgroundColor3 = colour
+	track.BackgroundColor3 = if faction == BattleState.viewerFaction then Kit.BLUE_LIGHT else colour
 	track.BorderSizePixel = 0
 	track.Parent = f
 	local ts = Instance.new("UIStroke") :: UIStroke
-	ts.Color = Kit.INK
-	ts.Transparency = 0.3
+	ts.Color = Kit.GILT_DARK
 	ts.Parent = track
 	local fallen = Instance.new("Frame") :: Frame
 	fallen.AnchorPoint = Vector2.new(1, 0)
@@ -79,7 +78,7 @@ local function objectiveChip(parent: Instance, o: any, names: { [string]: string
 	f.LayoutOrder = order
 	local pennant = Instance.new("Frame") :: Frame
 	pennant.Size = UDim2.new(0, 8, 1, 0)
-	pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.PANEL_DARK
+	pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.SLATE
 	pennant.BorderSizePixel = 0
 	pennant.Parent = f
 	local owner = if o.owner then (names[o.owner] or Kit.factionName(o.owner)) else "unclaimed"
@@ -90,7 +89,7 @@ end
 function Results.show(results: any, cb: Callbacks)
 	Results.destroy()
 	local sg = Kit.screen("EoEResults", 38)
-	local panel = Kit.panel(sg, { size = UDim2.fromOffset(760, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 22 })
+	local panel = Kit.panel(sg, { size = UDim2.fromOffset(760, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 22, parchment = true })
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(760, 640)
 	cap.Parent = panel
@@ -99,15 +98,27 @@ function Results.show(results: any, cb: Callbacks)
 	local own, enemy = sides[BattleState.viewerFaction], sides[BattleState.enemyFaction]
 	local outcome = results.outcome or "draw"
 	local word = Results.verdict(results, own, enemy)
-	Kit.title(panel, word, { size = UDim2.new(1, 0, 0, 52), textSize = 50, align = Enum.TextXAlignment.Center, colour = if outcome == "victory" then Kit.GOLD elseif outcome == "defeat" then Kit.HOSTILE else Kit.INK })
+	-- the verdict on a ribbon: gold on crimson for victory, ivory on black for defeat
+	local ribbon = Instance.new("Frame") :: Frame
+	ribbon.Size = UDim2.new(1, 20, 0, 54)
+	ribbon.Position = UDim2.fromOffset(-10, -4)
+	ribbon.BackgroundColor3 = if outcome == "victory" then Kit.CRIMSON elseif outcome == "defeat" then Kit.INSET else Kit.BLUE
+	ribbon.BorderSizePixel = 0
+	ribbon.Parent = panel
+	ribbon:SetAttribute("parchment", false)
+	Kit.gradient(ribbon, Color3.new(1, 1, 1), Color3.fromRGB(170, 170, 170))
+	local rs = Instance.new("UIStroke") :: UIStroke
+	rs.Color = Kit.GILT
+	rs.Thickness = 2
+	rs.Parent = ribbon
+	for _, x in { 0, 1 } do
+		Kit.rosette(ribbon, UDim2.fromScale(x, 0.5), 12)
+	end
+	Kit.title(ribbon, word, { size = UDim2.fromScale(1, 1), textSize = 34, align = Enum.TextXAlignment.Center, spaced = true, colour = if outcome == "victory" then Kit.GILT_BRIGHT else Kit.IVORY })
 	local sub = BattleState.scenario and BattleState.scenario.name or ""
-	Kit.title(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 54), textSize = 17, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
-	local rule = Instance.new("Frame") :: Frame
-	rule.Size = UDim2.new(0.6, 0, 0, 1)
-	rule.Position = UDim2.new(0.2, 0, 0, 82)
-	rule.BackgroundColor3 = Kit.GOLD
-	rule.BorderSizePixel = 0
-	rule.Parent = panel
+	local subLine = Kit.label(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 56), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+	subLine.FontFace = Kit.ITALIC
+	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
 
 	local sidesRow = Instance.new("Frame") :: Frame
 	sidesRow.Size = UDim2.new(1, 0, 0, 160)
@@ -124,7 +135,7 @@ function Results.show(results: any, cb: Callbacks)
 		end
 	end
 
-	Kit.title(panel, "Objectives", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 264), textSize = 21 })
+	Kit.title(panel, "Objectives", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 264), textSize = 19, spaced = true })
 	local objRow = Instance.new("Frame") :: Frame
 	objRow.Size = UDim2.new(1, 0, 0, 26)
 	objRow.Position = UDim2.new(0, 0, 0, 290)
@@ -140,7 +151,7 @@ function Results.show(results: any, cb: Callbacks)
 		Kit.label(objRow, "None on this field.", { size = UDim2.new(1, 0, 1, 0), textSize = 12, colour = Kit.MUTED })
 	end
 
-	Kit.title(panel, "Notes from the field", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 326), textSize = 21 })
+	Kit.title(panel, "Notes from the field", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 326), textSize = 19, spaced = true })
 	local fb = Instance.new("ScrollingFrame") :: ScrollingFrame
 	fb.Size = UDim2.new(1, 0, 1, -352 - 52)
 	fb.Position = UDim2.new(0, 0, 0, 352)
@@ -157,7 +168,7 @@ function Results.show(results: any, cb: Callbacks)
 		lines = { "No particular lessons this time." }
 	end
 	for i, line in lines do
-		local l = Kit.label(fb, "· " .. tostring(line), { size = UDim2.new(1, -8, 0, 20), textSize = 13, wrap = true })
+		local l = Kit.label(fb, "· " .. tostring(line), { size = UDim2.new(1, -8, 0, 20), textSize = 17, font = Enum.Font.Garamond, wrap = true })
 		l.AutomaticSize = Enum.AutomaticSize.Y
 		l.LayoutOrder = i
 	end
