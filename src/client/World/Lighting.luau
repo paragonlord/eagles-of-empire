@@ -1,8 +1,13 @@
 --!strict
--- Morning battlefield light: warm sun from the south-east, light haze, soft clouds, slight
--- warmth and contrast. Built-in defaults only (no asset ids). Quality 1 drops the costly bits.
+-- Battlefield light, graded like a painted campaign map: a warm late-afternoon sun by default,
+-- a pale morning fog that lifts into clear sun (the Sun of Austerlitz), and a soft wet overcast
+-- for rain and mud (Waterloo). Built-in sky and post effects only (no asset ids).
+-- Studio history: Atmosphere haze with the default blue decay turned the field teal, and a warm
+-- grade on olive-gold grass read orange; decay colours here stay neutral-warm grey and the
+-- colour correction only nudges warmth. Quality 1 drops the costly bits.
 
 local LightingService = game:GetService("Lighting") :: Lighting
+local TweenService = game:GetService("TweenService") :: TweenService
 
 local Lighting = {}
 
@@ -35,87 +40,276 @@ local function setTechnology()
 	end
 end
 
-local currentQuality = 2
-local currentWeather: string? = nil
-
--- Weather tints only the distance. Atmosphere haze turned the whole field teal in Studio
--- under fog, so fog weather switches the Atmosphere off and uses plain distance fog in a pale
--- warm grey, which leaves the near ground untouched.
-local function applyHaze(L: Lighting, atmo: Atmosphere?)
-	local foggy = currentWeather == "fog"
-	if atmo then
-		atmo.Parent = if foggy then nil else L
-		atmo.Density = 0.08
-		atmo.Offset = 0.3
-		atmo.Color = Color3.fromRGB(226, 216, 190)
-		atmo.Decay = Color3.fromRGB(196, 184, 150)
-		atmo.Glare = 0
-		atmo.Haze = 0.2
-	end
-	L.FogColor = Color3.fromRGB(206, 200, 186)
-	L.FogStart = if foggy then 380 else 1800
-	L.FogEnd = if foggy then 1700 else 4600
+local function c3(r: number, g: number, b: number): Color3
+	return Color3.fromRGB(r, g, b)
 end
 
+type Grade = {
+	clock: number,
+	brightness: number,
+	shadowSoftness: number,
+	ambient: Color3,
+	outdoor: Color3,
+	shiftTop: Color3,
+	exposure: number,
+	tint: Color3,
+	contrast: number,
+	saturation: number,
+	bloom: number,
+	atmoDensity: number,
+	atmoOffset: number,
+	atmoColor: Color3,
+	atmoDecay: Color3,
+	atmoHaze: number,
+	atmoGlare: number,
+	cloudCover: number,
+	cloudDensity: number,
+	cloudColor: Color3,
+	rays: number,
+	fogStart: number, -- quality 1 (no Atmosphere) uses plain distance fog
+	fogEnd: number,
+	fogColor: Color3,
+}
+
+local GRADES: { [string]: Grade } = {
+	-- Low sun from the south-west, long soft shadows, a golden but not orange cast; the horizon
+	-- melts into a warm pale haze so the country beyond the map has no hard edge.
+	afternoon = {
+		clock = 15.7,
+		brightness = 2.6,
+		shadowSoftness = 0.3,
+		ambient = c3(66, 62, 56),
+		outdoor = c3(112, 110, 104),
+		shiftTop = c3(255, 244, 226),
+		exposure = 0.1,
+		tint = c3(255, 248, 236),
+		contrast = 0.14,
+		saturation = 0.06,
+		bloom = 0.3,
+		atmoDensity = 0.3,
+		atmoOffset = 0.2,
+		atmoColor = c3(214, 206, 188),
+		atmoDecay = c3(176, 166, 146),
+		atmoHaze = 0.9,
+		atmoGlare = 0.2,
+		cloudCover = 0.48,
+		cloudDensity = 0.3,
+		cloudColor = c3(250, 244, 232),
+		rays = 0.04,
+		fogStart = 1400,
+		fogEnd = 3800,
+		fogColor = c3(206, 198, 180),
+	},
+	-- Dawn fog: pale, colourless, flat light; distance dissolves.
+	fog = {
+		clock = 8.4,
+		brightness = 1.5,
+		shadowSoftness = 0.6,
+		ambient = c3(96, 94, 90),
+		outdoor = c3(130, 128, 122),
+		shiftTop = c3(240, 236, 228),
+		exposure = 0.2,
+		tint = c3(252, 250, 246),
+		contrast = 0.04,
+		saturation = -0.12,
+		bloom = 0.2,
+		atmoDensity = 0.45,
+		atmoOffset = 0,
+		atmoColor = c3(208, 204, 194),
+		atmoDecay = c3(180, 176, 166),
+		atmoHaze = 0.4,
+		atmoGlare = 0,
+		cloudCover = 0.75,
+		cloudDensity = 0.4,
+		cloudColor = c3(232, 230, 224),
+		rays = 0,
+		fogStart = 300,
+		fogEnd = 1500,
+		fogColor = c3(206, 202, 192),
+	},
+	-- The fog has burnt off: a bright, crisp morning sun from the south-east.
+	sunrise = {
+		clock = 10.1,
+		brightness = 3.0,
+		shadowSoftness = 0.22,
+		ambient = c3(64, 62, 58),
+		outdoor = c3(110, 110, 106),
+		shiftTop = c3(255, 244, 222),
+		exposure = 0.12,
+		tint = c3(255, 250, 240),
+		contrast = 0.16,
+		saturation = 0.08,
+		bloom = 0.35,
+		atmoDensity = 0.24,
+		atmoOffset = 0.2,
+		atmoColor = c3(220, 216, 204),
+		atmoDecay = c3(178, 172, 158),
+		atmoHaze = 0.6,
+		atmoGlare = 0.3,
+		cloudCover = 0.3,
+		cloudDensity = 0.25,
+		cloudColor = c3(252, 250, 244),
+		rays = 0.06,
+		fogStart = 1600,
+		fogEnd = 4200,
+		fogColor = c3(214, 210, 198),
+	},
+	-- Rain and sodden ground: low grey cloud, no hard shadows, cooler and less saturated.
+	overcast = {
+		clock = 14.2,
+		brightness = 1.6,
+		shadowSoftness = 0.75,
+		ambient = c3(84, 84, 82),
+		outdoor = c3(124, 124, 120),
+		shiftTop = c3(226, 228, 228),
+		exposure = 0.15,
+		tint = c3(250, 250, 248),
+		contrast = 0.1,
+		saturation = -0.1,
+		bloom = 0.15,
+		atmoDensity = 0.38,
+		atmoOffset = 0.1,
+		atmoColor = c3(190, 190, 186),
+		atmoDecay = c3(152, 150, 144),
+		atmoHaze = 1.2,
+		atmoGlare = 0,
+		cloudCover = 0.88,
+		cloudDensity = 0.6,
+		cloudColor = c3(184, 184, 182),
+		rays = 0,
+		fogStart = 700,
+		fogEnd = 2600,
+		fogColor = c3(178, 178, 174),
+	},
+}
+
+local currentQuality = 2
+local currentWeather: string? = nil
+local currentGrade = "afternoon"
+local fogLifted = false -- the battle opened in fog: the clear light after it is morning, not afternoon
+
 local atmosphere: Atmosphere? = nil
+local cc: ColorCorrectionEffect? = nil
+local bloom: BloomEffect? = nil
+local rays: SunRaysEffect? = nil
+local clouds: Clouds? = nil
+
+local function gradeFor(weather: string?): string
+	if weather == "fog" then
+		return "fog"
+	elseif weather == "rain" or weather == "mud" or weather == "snow" then
+		return "overcast"
+	elseif fogLifted then
+		return "sunrise"
+	end
+	return "afternoon"
+end
+
+-- Applies grade `name`, tweened over `seconds` (0 = at once). A newer tween on the same
+-- properties replaces an older one.
+local function setGrade(name: string, seconds: number)
+	currentGrade = name
+	local g = GRADES[name]
+	local L = LightingService
+	local info = TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	local function to(inst: Instance?, props: { [string]: any })
+		if not inst then
+			return
+		end
+		if seconds <= 0 then
+			for k, v in props do
+				(inst :: any)[k] = v
+			end
+		else
+			TweenService:Create(inst, info, props):Play()
+		end
+	end
+	to(L, {
+		ClockTime = g.clock,
+		Brightness = g.brightness,
+		ShadowSoftness = g.shadowSoftness,
+		Ambient = g.ambient,
+		OutdoorAmbient = g.outdoor,
+		ColorShift_Top = g.shiftTop,
+		ExposureCompensation = g.exposure,
+		FogStart = g.fogStart,
+		FogEnd = g.fogEnd,
+		FogColor = g.fogColor,
+	})
+	to(cc, { TintColor = g.tint, Contrast = g.contrast, Saturation = g.saturation })
+	to(bloom, { Intensity = g.bloom })
+	to(rays, { Intensity = g.rays })
+	to(atmosphere, {
+		Density = g.atmoDensity,
+		Offset = g.atmoOffset,
+		Color = g.atmoColor,
+		Decay = g.atmoDecay,
+		Haze = g.atmoHaze,
+		Glare = g.atmoGlare,
+	})
+	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
+end
 
 function Lighting.apply(quality: number)
 	currentQuality = quality
 	clearOwned()
-	atmosphere = nil
+	atmosphere, cc, bloom, rays, clouds = nil, nil, nil, nil, nil
 	setTechnology()
 	local L = LightingService
-	-- Low morning sun from the south-east: long shadows so north/west slopes read dark.
-	L.ClockTime = 8.9
 	L.GeographicLatitude = 50
-	L.Brightness = 2.8
-	L.ShadowSoftness = 0.12
 	L.GlobalShadows = true
-	-- low ambient keeps the shaded side of a ridge dark, as in the reference
-	L.EnvironmentDiffuseScale = 0.25
-	L.EnvironmentSpecularScale = 0.1
-	L.Ambient = Color3.fromRGB(64, 60, 50)
-	L.OutdoorAmbient = Color3.fromRGB(104, 98, 82)
-	L.ExposureCompensation = 0.15
+	-- low environment light keeps the shaded side of a ridge dark, as in the reference
+	L.EnvironmentDiffuseScale = 0.2
+	L.EnvironmentSpecularScale = 0.08
+	L.ColorShift_Bottom = c3(0, 0, 0)
 
 	local sky = own(Instance.new("Sky") :: Sky, L)
 	sky.CelestialBodiesShown = true
 	sky.StarCount = 0
-	sky.SunAngularSize = 14
+	sky.SunAngularSize = 12
 
-	local cc = own(Instance.new("ColorCorrectionEffect") :: ColorCorrectionEffect, L)
-	cc.TintColor = Color3.fromRGB(255, 250, 240) -- a touch warm, never cyan or orange
-	cc.Contrast = 0.16
-	cc.Saturation = 0.08
-	cc.Brightness = 0.02
+	local colour = own(Instance.new("ColorCorrectionEffect") :: ColorCorrectionEffect, L)
+	colour.Brightness = 0.01
+	cc = colour
 
-	local bloom = own(Instance.new("BloomEffect") :: BloomEffect, L)
-	bloom.Intensity = 0.12
-	bloom.Size = 18
-	bloom.Threshold = 1.8
+	local b = own(Instance.new("BloomEffect") :: BloomEffect, L)
+	b.Size = 24
+	b.Threshold = 1.5
+	bloom = b
 
 	if quality >= 2 then
 		atmosphere = own(Instance.new("Atmosphere") :: Atmosphere, L)
-
-		local rays = own(Instance.new("SunRaysEffect") :: SunRaysEffect, L)
-		rays.Intensity = 0.03
-		rays.Spread = 0.5
-
-		local clouds = own(Instance.new("Clouds") :: Clouds, workspace.Terrain)
-		clouds.Cover = 0.4
-		clouds.Density = 0.2
-		clouds.Color = Color3.fromRGB(248, 244, 234)
+		local r = own(Instance.new("SunRaysEffect") :: SunRaysEffect, L)
+		r.Spread = 0.45
+		rays = r
+		clouds = own(Instance.new("Clouds") :: Clouds, workspace.Terrain)
 	end
-	applyHaze(L, atmosphere)
+	setGrade(gradeFor(currentWeather), 0)
 end
 
--- Scenario weather (`fog`, `rain`, ... or nil). Only fog changes the light.
+-- A new map starts from the default light until its scenario weather arrives.
+function Lighting.setMap(_mapId: string?)
+	fogLifted = false
+end
+
+-- Scenario weather (`fog`, `rain`, `mud`, ... or nil for clear). Fog arrives at once; when it
+-- lifts the sun comes through over twenty seconds; other changes take a few seconds.
 function Lighting.setWeather(weather: string?)
 	if weather == currentWeather then
 		return
 	end
+	local was = currentWeather
 	currentWeather = weather
-	applyHaze(LightingService, atmosphere)
+	if was == "fog" and weather ~= "fog" then
+		fogLifted = true
+	elseif weather ~= nil and weather ~= "clear" then
+		fogLifted = false
+	end
+	local name = gradeFor(weather)
+	if name == currentGrade then
+		return
+	end
+	setGrade(name, if name == "fog" then 0 elseif was == "fog" then 20 else 3)
 end
 
 function Lighting.quality(): number
