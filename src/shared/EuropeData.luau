@@ -22,6 +22,7 @@ export type Nation = {
 	treasury: number, -- start
 	manpower: number, -- start
 	peaceResolve: number, -- AI accepts a losing peace at war score <= -peaceResolve
+	quality: number, -- army fighting value multiplier (gameplay: French corps system, British infantry)
 }
 
 export type Province = {
@@ -103,7 +104,7 @@ end
 -- Nations -----------------------------------------------------------------------------------------
 
 local function nation(id: string, name: string, adjective: string, colour: string, capital: string, major: boolean, treasury: number, manpower: number, peaceResolve: number?): Nation
-	return { id = id, name = name, adjective = adjective, colour = colour, capital = capital, playable = major, major = major, treasury = treasury, manpower = manpower, peaceResolve = peaceResolve or 20 }
+	return { id = id, name = name, adjective = adjective, colour = colour, capital = capital, playable = major, major = major, treasury = treasury, manpower = manpower, peaceResolve = peaceResolve or 20, quality = if id == "france" then 1.15 elseif id == "britain" then 1.1 else 1 }
 end
 
 -- Turn order: majors first, then minors, in this order.

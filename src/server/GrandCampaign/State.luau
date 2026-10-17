@@ -248,7 +248,7 @@ function State.armyStrength(a: Army): number
 	for _, u in a.units do
 		s += State.unitPower(u)
 	end
-	return s * (1 + 0.05 * (if a.general then a.general.rating else 0))
+	return s * (1 + 0.05 * (if a.general then a.general.rating else 0)) * EuropeData.Nations[a.nation].quality
 end
 
 function State.men(a: Army): number

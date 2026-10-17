@@ -17,8 +17,26 @@ local Movement = {}
 
 Movement.MAX_PATH = 8
 
--- Static hop distances over the province graph (land and sea), all pairs.
+-- Static hop distances over the province graph, all pairs: `hops` by land and sea, `landHops` by land.
 local hops: { [string]: { [string]: number } } = {}
+local landHops: { [string]: { [string]: number } } = {}
+for _, from in EuropeData.ProvinceIds do
+	local d: { [string]: number } = { [from] = 0 }
+	local queue = { from }
+	local head = 1
+	while head <= #queue do
+		local id = queue[head]
+		head += 1
+		for _, n in State.province(id).neighbours do
+			if d[n] == nil and not EuropeData.isSeaLane(id, n) then
+				d[n] = d[id] + 1
+				queue[#queue + 1] = n
+			end
+		end
+	end
+	landHops[from] = d
+end
+Movement.landHops = landHops
 for _, from in EuropeData.ProvinceIds do
 	local d: { [string]: number } = { [from] = 0 }
 	local queue = { from }
@@ -123,13 +141,14 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 	return true, nil, entered
 end
 
--- BFS over provinces `nation` may enter (sea lanes only when open to it). Returns parent map.
-function Movement.search(s: State, nation: string, from: string): ({ [string]: number }, { [string]: string })
+-- BFS over provinces `nation` may enter. Sea lanes only when open to it; `sea` = "none" skips them,
+-- "friendly" allows them only into provinces its side controls (ferrying, not landings).
+function Movement.search(s: State, nation: string, from: string, sea: string?): ({ [string]: number }, { [string]: string })
 	local dist: { [string]: number } = { [from] = 0 }
 	local parent: { [string]: string } = {}
 	local queue = { from }
 	local head = 1
-	local seaOk = not Movement.seaBlocked(s, nation)
+	local seaOk = sea ~= "none" and not Movement.seaBlocked(s, nation)
 	while head <= #queue do
 		local id = queue[head]
 		head += 1
@@ -137,7 +156,8 @@ function Movement.search(s: State, nation: string, from: string): ({ [string]: n
 		local passable = id == from or not (State.hostileArmyIn(s, id, nation) or State.atWar(s, nation, State.controller(s, id)))
 		if passable then
 			for _, n in State.province(id).neighbours do
-				if dist[n] == nil and Movement.canEnter(s, nation, n) and (seaOk or not EuropeData.isSeaLane(id, n)) then
+				local lane = EuropeData.isSeaLane(id, n)
+				if dist[n] == nil and Movement.canEnter(s, nation, n) and (not lane or (seaOk and (sea ~= "friendly" or State.friendly(s, nation, State.controller(s, n))))) then
 					dist[n] = dist[id] + 1
 					parent[n] = id
 					queue[#queue + 1] = n

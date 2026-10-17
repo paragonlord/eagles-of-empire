@@ -128,7 +128,7 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 	s.offers = {}
 	for _, n in EuropeData.NationOrder do
 		if n ~= s.playerNation or autoplay then
-			AI.turn(s, n)
+			AI.turn(s, n, autoplay)
 		end
 	end
 	local battles = Battles.detect(s, autoplay)

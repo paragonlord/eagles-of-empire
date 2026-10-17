@@ -3,9 +3,10 @@
 --
 -- War score per pair (-100..100): battle won +8 (+4 if an enemy army is destroyed), province
 -- taken +5, capital taken +20. Peace: the side ahead by >= 20 takes floor(score / 20) of the
--- loser's provinces it occupies (never the capital, richest first); everything else occupied
--- reverts. A peace at >= 50, or with the loser's capital in the winner's hands, is dictated.
--- Truce afterwards: 6 turns, 10 after a dictated peace (scripted events may break it).
+-- loser's provinces it occupies (never the capital, richest first, each bordering by land the
+-- winner's land (a major's: or its allies') or a province already ceded); the rest reverts. A peace at >= 50, or with the loser's capital in the winner's hands, is dictated.
+-- Truce afterwards: 6 turns, 10 after a dictated peace (scripted events may break it). A major's
+-- minor allies make peace with the same enemy (on their own war score).
 -- Declaring war brings the target's allies in against the aggressor (minors only when their capital
 -- is within four marches of the aggressor's).
 
@@ -133,9 +134,30 @@ function Diplomacy.terms(s: State, a: string, b: string): (string?, string?, num
 		end
 		return x < y
 	end)
+	-- contiguous with the winner's or its allies' land (or with provinces already ceded): no exclaves
 	local transfers = {}
-	for i = 1, math.min(n, #candidates) do
-		transfers[i] = candidates[i]
+	local taken: { [string]: boolean } = {}
+	local progress = true
+	while #transfers < n and progress do
+		progress = false
+		for _, id in candidates do
+			if not taken[id] then
+				local touches = false
+				for _, nb in State.province(id).neighbours do
+					local o = s.provinces[nb].owner
+					local mine = if EuropeData.Nations[winner].major then State.friendly(s, winner, o) else o == winner
+					if not EuropeData.isSeaLane(id, nb) and (taken[nb] or mine) then
+						touches = true
+					end
+				end
+				if touches then
+					transfers[#transfers + 1] = id
+					taken[id] = true
+					progress = true
+					break
+				end
+			end
+		end
 	end
 	if sc < Diplomacy.PER_PROVINCE and not dictated then
 		return nil, nil, sc, transfers, false
@@ -187,6 +209,17 @@ function Diplomacy.makePeace(s: State, a: string, b: string, forceWinner: string
 		State.log(s, string.format("%s %s peace on %s%s.", State.nationName(winner), if dictated then "dictates" else "makes", State.nationName(loser :: string), if #names > 0 then " and takes " .. table.concat(names, ", ") else ""))
 	else
 		State.log(s, string.format("%s and %s make peace on the old borders.", State.nationName(a), State.nationName(b)))
+	end
+	-- a major's minor allies follow it out of the war with the same enemy
+	for _, pairing in { { a, b }, { b, a } } do
+		local major, enemy = pairing[1], pairing[2]
+		if EuropeData.Nations[major].major then
+			for _, m in State.alliesOf(s, major) do
+				if not EuropeData.Nations[m].major and State.atWar(s, m, enemy) then
+					Diplomacy.makePeace(s, m, enemy)
+				end
+			end
+		end
 	end
 	Movement.relocateStrays(s)
 	return transfers
@@ -317,10 +350,11 @@ function Diplomacy.frenchShare(s: State): number
 end
 
 -- AI diplomacy for one nation's turn.
-function Diplomacy.aiTurn(s: State, nation: string)
+-- With `autoplay` the player's nation is an AI too and answers offers at once.
+function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 	for _, other in State.enemiesOf(s, nation) do
 		if Diplomacy.aiAccepts(s, nation, other) then
-			if other == s.playerNation then
+			if other == s.playerNation and not autoplay then
 				offer(s, nation, other, "peace")
 			elseif Diplomacy.aiAccepts(s, other, nation) or Diplomacy.score(s, nation, other) <= -EuropeData.Nations[nation].peaceResolve then
 				Diplomacy.makePeace(s, nation, other)
@@ -337,7 +371,7 @@ function Diplomacy.aiTurn(s: State, nation: string)
 	end
 	-- alliance offers to the player from friends with a common enemy
 	local player = s.playerNation
-	if nation ~= player and Diplomacy.aiAcceptsAlliance(s, nation, player) and State.relation(s, nation, player) >= 50 then
+	if not autoplay and nation ~= player and Diplomacy.aiAcceptsAlliance(s, nation, player) and State.relation(s, nation, player) >= 50 then
 		offer(s, nation, player, "alliance")
 	end
 end

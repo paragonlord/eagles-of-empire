@@ -94,7 +94,8 @@ major and two per minor. Recruits join an army of the nation in that province or
 - Otherwise the battle uses the province's map: up to 24 strongest units a side plus one HQ for the
   best general, placed in the map's deploy zones.
 - Auto-resolve: strength = Σ men × type power (line 1, light 1.1, guard 1.5, cavalry 1.3, heavy 1.6,
-  artillery 3) × (1 + 0.1 experience) × (1 + 0.05 general rating); defenders holding the province
+  artillery 3) × (1 + 0.1 experience) × (1 + 0.05 general rating) × nation quality (gameplay:
+  France 1.15 for the corps system, Britain 1.1, others 1); defenders holding the province
   × (1.15 + 0.1 fort). p(attacker wins) = A^1.5 / (A^1.5 + D^1.5). Loser loses 25–40 %, winner
   8–18 %; units under 15 % of authorised strength are gone. Winners gain 1 experience (max 3).
 - Tactical results: survivors by unit key; set-piece units and undeployed units take their side's
@@ -115,7 +116,10 @@ Occupation changes control, not ownership: ownership moves only by treaty.
 - War score per pair, −100..100: battle won +8 (+4 if an enemy army is destroyed), province taken
   +5, capital taken +20.
 - Peace: the side ahead by ≥ 20 takes floor(score / 20) of the loser's provinces it occupies,
-  richest first, never the capital; everything else occupied reverts. ≥ 50, or the loser's capital
+  richest first, never the capital, and each bordering by land the winner's own land (a major's:
+  or its allies') or a province already ceded, so treaties make no exclaves; everything else
+  occupied reverts. When a major makes peace, its minor allies at war with the same enemy make
+  peace too. ≥ 50, or the loser's capital
   in the winner's hands, makes it a dictated peace. Truce 6 turns (10 after a dictated peace);
   scripted events may break it. Armies left in now-closed territory march to the nearest friendly
   province.
@@ -131,16 +135,37 @@ Occupation changes control, not ownership: ownership moves only by treaty.
 
 ## AI
 
-Per nation: diplomacy (above), replenish when the treasury allows, merge small armies in the same
-province, then each army scores provinces within three marches (minors only within three of their
-capital): hold 20 (+50 threatened capital, +35 besieging, +40 garrison of the capital in wartime);
-defend a threatened own/allied province 30 (+40 capital) if it can face the threat; attack an
-enemy-held province 45 + income / 10 (+30 capital, +10 undefended) when 1.3 : 1 stronger;
-go home 15 at peace; −8 per march, up to +5 seeded noise. When hostile armies are within two
-marches of the capital, armies within four rally to it until it is covered 1.2 : 1. Recruitment
-follows a cycle (line, line, cavalry, line, artillery, light, line, heavy) while treasury exceeds a
-reserve (300 majors, 150 minors) and income still covers the new upkeep; at peace only up to 12
-units (4 for minors). Event choices: AIs take the first (historical) option.
+Per nation, in turn order: diplomacy (above; under autoplay the player's nation answers offers like
+any AI), replenish when the treasury allows, merge small armies in the same province, then move.
+
+- **Theatre**: no army considers a province more than 4 marches from land its nation controls
+  (allied land does not extend this), so armies stay at their front. Ordinary attacks reach at most
+  2 marches beyond that land. Only Britain's AI uses sea lanes, and only into friendly ports (it
+  ferries troops; it never makes opposed landings).
+- **Strategic target** (majors): the enemy capital within the theatre of the enemy whose field
+  strength is at most 1.25 × ours, a major's before any minor's, then ours / (theirs + 5000) per
+  march. Field armies (a general or 6+ units) score every reachable province nearer to it,
+  70 − 4 × marches still to go, wherever the stack they march with (plus our troops already there)
+  is not outnumbered 1 : 1.25; an assault on a defended province takes the whole stack along.
+  In 1806 this sends France at Berlin once the Fourth Coalition fires.
+- **Main army** (majors): the strongest army with a general; other field armies within 3 marches
+  follow it (50 − 6 per march), so a major fights in one stack.
+- Other scores per army, for provinces within 3 marches: hold 20 (+50 at a capital threatened
+  beyond the other troops there, +35 while besieging, +40 for a garrison of the capital in wartime,
+  or for any army there while the garrison cannot cover the threat 1.2 : 1); defend a threatened
+  own/allied province 30 (+40 capital) if it can face the threat; clear a hostile army inside our
+  side's land that we outnumber 1.3 : 1, 60 (+80 next to the capital); attack an enemy-held province
+  45 + income / 10 (+30 capital, +10 undefended) when 1.3 : 1 stronger (detachments without a
+  general and under 4 units never attack); go home 15 at peace. −8 per march, up to +5 seeded noise.
+  Minors only look within 3 marches of their capital.
+- **Capital defence**: when hostile armies are within two land marches of the capital, armies within
+  four land marches rally to it until it is covered 1.2 : 1.
+- **Recruitment** follows a cycle (line, line, cavalry, line, artillery, light, line, heavy) while the
+  treasury exceeds a reserve (300 majors, 150 minors) and income still covers the new upkeep; at
+  peace only up to 12 units (4 for minors). Event choices: AIs take the first (historical) option.
+
+Outcomes across eight seeds of autoplay to Jan 1809 are printed by the test suite: France beats
+Austria in most seeds (dictated peace in 1806 in several), Prussia falls in about half, Paris holds.
 
 ## Events
 

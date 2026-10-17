@@ -349,9 +349,9 @@ test("Grand peace: the winner keeps floor(score/20) occupied provinces, never th
 	assertTrue(Diplomacy.aiAccepts(s, "austria", "france"), "losing and the capital is occupied")
 	local transfers = Diplomacy.makePeace(s, "france", "austria")
 	assertEq(#transfers, 2)
-	assertEq(transfers[1], "bohemia", "richest first (120)")
-	assertEq(transfers[2], "venetia")
-	assertEq(s.provinces.bohemia.owner, "france")
+	assertEq(transfers[1], "venetia", "richest bordering allied land (Italian Lombardy)")
+	assertEq(transfers[2], "tyrol", "Bohemia (richer) would be an exclave")
+	assertEq(s.provinces.bohemia.owner, "austria")
 	assertEq(s.provinces.venetia.owner, "france")
 	assertEq(s.provinces.vienna.owner, "austria")
 	assertEq(s.provinces.vienna.occupiedBy, nil, "capital returned")
@@ -735,9 +735,58 @@ local function holdings(s)
 	return table.concat(lines, "\n")
 end
 
+test("Grand AI: strategic target is the reachable enemy capital; armies stay in their theatre", function()
+	local s = GrandCampaign.new(21, "france")
+	Diplomacy.coalition(s, { "prussia", "russia" }, "france")
+	s.flags.navalSupremacy = true
+	assertEq(GrandCampaign.AI.strategicTarget(s, "france"), "brandenburg", "Berlin, next to French-held Hanover")
+	-- a lone Russian army in Lithuania has no business in Holland
+	table.clear(s.armies)
+	Diplomacy.declareWar(s, "russia", "netherlands")
+	local r = army(s, "russia", "lithuania", { line = 10 }, { name = "Bagration", rating = 3 })
+	for _ = 1, 4 do
+		r.movesLeft = 3
+		GrandCampaign.AI.turn(s, "russia", true)
+		assertTrue((Movement.hops[r.provinceId].lithuania or 99) <= 4, "wandered to " .. r.provinceId)
+	end
+end)
+
+test("Grand AI: Prussia sues for peace and cedes provinces when Berlin falls (autoplay France)", function()
+	local s = empty(22, "france")
+	Diplomacy.declareWar(s, "prussia", "france")
+	for _, id in { "brandenburg", "silesia", "westphalia" } do
+		s.provinces[id].occupiedBy = "france"
+	end
+	Diplomacy.addScore(s, "france", "prussia", 50)
+	GrandCampaign.AI.turn(s, "prussia", true)
+	assertTrue(not State.atWar(s, "prussia", "france"), "peace signed")
+	assertEq(s.provinces.westphalia.owner, "france", "borders French Rhineland")
+	assertEq(s.provinces.silesia.owner, "prussia", "no exclaves: Silesia does not border French land")
+	assertEq(s.provinces.silesia.occupiedBy, nil)
+	assertEq(s.provinces.brandenburg.owner, "prussia", "the capital is returned")
+	assertTrue(s.peaces[State.pair("prussia", "france")].dictated)
+end)
+
+local function holdings(s)
+	local held = {}
+	for _, id in EuropeData.ProvinceIds do
+		local c = State.controller(s, id)
+		held[c] = held[c] or {}
+		table.insert(held[c], id)
+	end
+	local lines = {}
+	for _, n in EuropeData.NationOrder do
+		if held[n] then
+			lines[#lines + 1] = string.format("    %-12s %2d  %s", n, #held[n], table.concat(held[n], " "))
+		end
+	end
+	return table.concat(lines, "\n")
+end
+
 test("Grand: 30 turns of AI-vs-AI with France on autoplay end cleanly and plausibly", function()
 	local s = GrandCampaign.new(1805, "france")
 	local t0 = os.clock()
+	local prussiaHurt = false
 	for _ = 1, 30 do
 		if s.phase == "ended" then
 			break
@@ -750,9 +799,24 @@ test("Grand: 30 turns of AI-vs-AI with France on autoplay end cleanly and plausi
 		for _, n in EuropeData.NationOrder do
 			assertTrue(s.nations[n].treasury >= 0, n .. " treasury negative")
 		end
+		for k in s.wars do
+			assertTrue(not s.alliances[k], "allied and at war: " .. k)
+		end
+		if not s.fired.peninsularWar then
+			assertTrue(not State.atWar(s, "spain", "france"), "Spain fights France before Dos de Mayo")
+		end
+		for _, id in EuropeData.ProvinceIds do
+			local c = State.controller(s, id)
+			if s.provinces[id].owner == "prussia" and c ~= "prussia" then
+				prussiaHurt = true
+			end
+		end
+		if s.turn == T(1, 1807) or s.turn == T(1, 1810) then
+			print("  " .. EuropeData.dateOf(s.turn) .. ":")
+			print(holdings(s))
+		end
 	end
 	print(string.format("  grand 30-turn run: %s, %.2f s, %d battles applied (last %d kept)", EuropeData.dateOf(s.turn), os.clock() - t0, #s.appliedBattles, State.APPLIED_MAX))
-	print(holdings(s))
 	local fired = {}
 	for _, e in EuropeData.Events do
 		if s.fired[e.id] then
@@ -760,10 +824,45 @@ test("Grand: 30 turns of AI-vs-AI with France on autoplay end cleanly and plausi
 		end
 	end
 	print("    events: " .. table.concat(fired, ", "))
+	for _, l in s.log do
+		if string.find(l, "peace") then
+			print("    " .. l)
+		end
+	end
 	assertTrue(s.fired.thirdCoalition and s.fired.trafalgar, "1805 happened")
 	assertEq(State.controller(s, "england"), "britain", "no crossing after Trafalgar")
+	assertTrue(prussiaHurt, "Prussia lost ground to France after 1806")
 	assertTrue(s.turn >= 25 or s.phase == "ended")
-	-- the view stays buildable and serialisable at the end
 	ProfileStore.clone(GrandCampaign.view(s))
 	assertTrue(GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s))) ~= nil)
+end)
+
+test("Grand AI: outcomes across eight seeds stay history-plausible (1805-1809)", function()
+	local beatAustria, beatPrussia, parisHeld = 0, 0, 0
+	local rows = {}
+	for _, seed in { 1805, 1, 2, 3, 4, 5, 6, 7 } do
+		local s = GrandCampaign.new(seed, "france")
+		for _ = 1, 24 do
+			if s.phase == "ended" then
+				break
+			end
+			GrandCampaign.endTurn(s, { autoplay = true })
+		end
+		local function lost(major)
+			local p = s.peaces[State.pair(major, "france")]
+			return p ~= nil and p.winner == "france"
+		end
+		beatAustria += if lost("austria") then 1 else 0
+		beatPrussia += if lost("prussia") then 1 else 0
+		parisHeld += if not s.flags.abdicated then 1 else 0
+		local n = 0
+		for _, id in EuropeData.ProvinceIds do
+			n += if State.controller(s, id) == "france" then 1 else 0
+		end
+		rows[#rows + 1] = string.format("seed %4d: France %2d provinces in %s, beat Austria %s, beat Prussia %s", seed, n, EuropeData.dateOf(s.turn), tostring(lost("austria")), tostring(lost("prussia")))
+	end
+	print("    " .. table.concat(rows, "\n    "))
+	assertTrue(beatAustria >= 5, "France beats Austria in most seeds: " .. beatAustria)
+	assertTrue(beatPrussia >= 3, "Prussia is in real danger: " .. beatPrussia)
+	assertTrue(parisHeld >= 7, "Paris rarely falls before 1809: " .. parisHeld)
 end)
