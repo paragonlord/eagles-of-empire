@@ -602,7 +602,8 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		heading = f.heading,
 		shape = f.shape,
 		state = f.state,
-		strength = if own then f.strength else math.floor(f.strength / 50 + 0.5) * 50,
+		-- Enemy strength is an estimate: nearest 50, but small bodies never show as zero.
+		strength = if own then f.strength elseif f.strength < 75 then math.max(10, math.floor(f.strength / 10 + 0.5) * 10) else math.floor(f.strength / 50 + 0.5) * 50,
 		startStrength = f.startStrength,
 		moraleBand = Formation.moraleBandOf(f),
 		width = f.width,
@@ -705,6 +706,9 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 	local events: { Types.Event } = {}
 	for _, ev in self.events do
 		local copy: Types.Event = table.clone(ev)
+		if ev.kind == "message" and ev.faction and ev.faction ~= viewer then
+			continue -- the enemy's own order/route messages are never shown to us
+		end
 		if ev.id and ev.faction and ev.faction ~= viewer and not self:isVisibleTo(viewer, ev.id) then
 			if ev.targetId and self.formations[ev.targetId] and self.formations[ev.targetId].faction == viewer then
 				copy.x = nil

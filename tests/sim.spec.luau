@@ -491,3 +491,61 @@ test("Rallied formations at the rear edge walk back in to separate slots", funct
 	assertTrue(p1.z > 80 and p2.z > 80 and p3.z > 80, "moved back onto the field")
 	assertTrue(Vec.dist(p1, p2) > 30 and Vec.dist(p2, p3) > 30 and Vec.dist(p1, p3) > 30, "not piled up")
 end)
+
+test("No map lets a path cross a brook outside its bridges; a unit standing in water steps out", function()
+	local Nav = require(Server.Sim.Nav)
+	for _, mapId in { "jena", "auerstedt", "austerlitz", "waterloo", "tutorial" } do
+		local map = MapGen.generate(mapId)
+		local nav = Nav.build(map.grid)
+		-- every walkable node that contains water must also contain a bridge
+		local cell = map.grid.cell
+		local sub = nav.size // cell
+		local bad = 0
+		for nz = 0, nav.rows - 1 do
+			for nx = 0, nav.cols - 1 do
+				if nav.walk[nz * nav.cols + nx + 1] then
+					local water, bridge = false, false
+					for sz = 0, sub - 1 do
+						for sx = 0, sub - 1 do
+							local c = map.grid.class[(nz * sub + sz) * map.grid.cols + nx * sub + sx + 1]
+							if c == Config.TerrainIds.water then
+								water = true
+							elseif c == Config.TerrainIds.bridge then
+								bridge = true
+							end
+						end
+					end
+					if water and not bridge then
+						bad += 1
+					end
+				end
+			end
+		end
+		assertEq(bad, 0, mapId .. ": walkable nodes over water without a bridge")
+	end
+	-- the round-5 reproduction on the tutorial map
+	local tmap = MapGen.generate("tutorial")
+	local sc = { id = "t", name = "t", map = "tutorial", briefing = "", factions = { player = "france", enemy = "prussia" }, factionNames = {}, units = {
+		unit("france", "infantry", "F", 400, 480, math.pi / 2),
+		unit("france", "infantry", "Reserve", 150, 100, math.pi / 2),
+		unit("prussia", "infantry", "P", 900, 750, -math.pi / 2),
+	} }
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = tmap, seed = 1 })
+	sim:start()
+	local f = sim.formations[1]
+	f.fireAtWill = false
+	sim:queueCommand({ matchId = "m", requestId = "x", kind = "Move", ids = { 1 }, data = { pos = { x = 400, z = 640 } } }, "france")
+	for _ = 1, 20 * 240 do
+		sim:step()
+		assertTrue(Grid.terrainAt(tmap.grid, f.pos.x, f.pos.z).passable, string.format("never in water (%.0f, %.0f)", f.pos.x, f.pos.z))
+		if f.order == nil then
+			break
+		end
+	end
+	assertTrue(f.pos.z > 600, string.format("crossed by the bridge, z=%.0f", f.pos.z))
+	-- standing in water (e.g. an old save) then ordered back: steps out and moves
+	f.pos = { x = 408, z = 548 }
+	sim:queueCommand({ matchId = "m", requestId = "y", kind = "Move", ids = { 1 }, data = { pos = { x = 400, z = 470 } } }, "france")
+	run(sim, 60)
+	assertTrue(f.pos.z < 500, string.format("left the brook, z=%.0f", f.pos.z))
+end)

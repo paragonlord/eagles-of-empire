@@ -117,6 +117,34 @@ end
 
 -- Request a route for the formation's current order destination.
 function Movement.plan(sim: SimLike, f: Formation, dest: Vec): boolean
+	-- A formation standing somewhere the navigation grid cannot route from (water, old saves,
+	-- scripted placement) steps out to the nearest walkable ground first.
+	if not Nav.isWalkable(sim.nav, f.pos) or not Grid.terrainAt(sim.grid, f.pos.x, f.pos.z).passable then
+		-- Prefer the bank on the destination's side: score = distance out + half the remaining way.
+		local nav = sim.nav
+		local cx, cz = math.floor(f.pos.x / nav.size), math.floor(f.pos.z / nav.size)
+		local best: Vec? = nil
+		local bestScore = math.huge
+		for dz = -4, 4 do
+			for dx = -4, 4 do
+				local x, z = cx + dx, cz + dz
+				if x >= 0 and z >= 0 and x < nav.cols and z < nav.rows and nav.walk[z * nav.cols + x + 1] then
+					local c = { x = (x + 0.5) * nav.size, z = (z + 0.5) * nav.size }
+					if Grid.terrainAt(sim.grid, c.x, c.z).passable then
+						local score = Vec.dist(f.pos, c) + 0.5 * Vec.dist(c, dest)
+						if score < bestScore then
+							best = c
+							bestScore = score
+						end
+					end
+				end
+			end
+		end
+		local out = best or Nav.nearestWalkable(nav, f.pos, 6)
+		if out then
+			f.pos = out
+		end
+	end
 	local path = Nav.findPath(sim.nav, f.pos, dest, f.halfRadius)
 	if not path then
 		f.path = nil

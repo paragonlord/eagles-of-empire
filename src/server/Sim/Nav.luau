@@ -43,6 +43,7 @@ function Nav.build(grid: Grid): NavGrid
 			local speedSum = 0
 			local count = 0
 			local passable = true
+			local hasBridge = false
 			for sz = 0, sub - 1 do
 				for sx = 0, sub - 1 do
 					local cx = nx * sub + sx
@@ -52,6 +53,9 @@ function Nav.build(grid: Grid): NavGrid
 					if not t.passable then
 						passable = false
 					end
+					if grid.class[idx] == Config.TerrainIds.bridge then
+						hasBridge = true
+					end
 					speedSum += t.speed
 					count += 1
 					if grid.clearance[idx] > maxClear then
@@ -60,8 +64,9 @@ function Nav.build(grid: Grid): NavGrid
 				end
 			end
 			local i = nz * cols + nx + 1
-			-- Some cell in the node must leave room for a travel column (bridges, defiles).
-			walk[i] = passable or maxClear >= TRAVEL_HALF
+			-- A node with impassable cells is walkable only when it carries a bridge wide enough for a
+			-- travel column. (Dry bank cells next to a brook must not link the two banks.)
+			walk[i] = passable or (hasBridge and maxClear >= TRAVEL_HALF)
 			clear[i] = maxClear
 			local avg = speedSum / count
 			cost[i] = if avg > 0.05 then 1 / avg else 20
