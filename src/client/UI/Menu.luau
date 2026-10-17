@@ -1,5 +1,6 @@
 --!strict
--- Main menu over the live battlefield. Buttons call back into Main.
+-- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
+-- text entries) over the live battlefield. Entries call back into Main.
 
 local Kit = require(script.Parent.Kit)
 
@@ -13,6 +14,53 @@ export type Callbacks = {
 }
 
 local gui: ScreenGui? = nil
+
+-- Imperial badge: a gold laurel wreath (two branches of leaves open at the top) around an "N".
+local function badge(parent: Instance, centre: UDim2)
+	local holder = Instance.new("Frame") :: Frame
+	holder.Size = UDim2.fromOffset(120, 120)
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = centre
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+	local R = 46
+	for side = -1, 1, 2 do
+		for i = 0, 8 do
+			-- from the bottom (90 deg) up each side to about 35 deg short of the top
+			local deg = 90 + side * (14 + i * 17)
+			local th = math.rad(deg)
+			for _, off in { -1, 1 } do
+				local leaf = Instance.new("Frame") :: Frame
+				leaf.Size = UDim2.fromOffset(6, 13)
+				leaf.AnchorPoint = Vector2.new(0.5, 0.5)
+				local r = R + off * 5
+				leaf.Position = UDim2.fromOffset(60 + math.cos(th) * r, 60 + math.sin(th) * r)
+				leaf.Rotation = deg + off * side * 28
+				leaf.BackgroundColor3 = if off < 0 then Kit.GILT else Kit.GILT_DARK
+				leaf.BorderSizePixel = 0
+				leaf.Parent = holder
+				local c = Instance.new("UICorner") :: UICorner
+				c.CornerRadius = UDim.new(1, 0)
+				c.Parent = leaf
+			end
+		end
+	end
+	local n = Kit.title(holder, "N", { size = UDim2.fromScale(1, 1), textSize = 64, colour = Kit.GILT_BRIGHT, align = Enum.TextXAlignment.Center })
+	n.FontFace = Kit.BOLD
+	n.TextStrokeColor3 = Kit.GILT_DARK
+	n.TextStrokeTransparency = 0.4
+	-- a crowning star of three small diamonds
+	for i = -1, 1 do
+		local d = Instance.new("Frame") :: Frame
+		d.Size = UDim2.fromOffset(6, 6)
+		d.AnchorPoint = Vector2.new(0.5, 0.5)
+		d.Position = UDim2.fromOffset(60 + i * 11, 8 + math.abs(i) * 3)
+		d.Rotation = 45
+		d.BackgroundColor3 = Kit.GILT
+		d.BorderSizePixel = 0
+		d.Parent = holder
+	end
+end
 local campaignBtn: TextButton? = nil
 local playBtn: TextButton? = nil
 local note: TextLabel? = nil
@@ -20,20 +68,56 @@ local note: TextLabel? = nil
 function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boolean)
 	if not gui then
 		local sg = Kit.screen("EoEMenu", 30)
-		local panel = Kit.panel(sg, { size = UDim2.fromOffset(380, 400), position = UDim2.new(0, 48, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = 24 })
-		Kit.title(panel, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 48), textSize = 40 })
-		Kit.label(panel, "Napoleonic real-time tactics · Jena, 1806", { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 50), colour = Kit.MUTED })
+		-- full-height column on the left; the live battlefield stays visible on the right
+		local col = Instance.new("Frame") :: Frame
+		col.Size = UDim2.new(0, 400, 1, 0)
+		col.BackgroundColor3 = Color3.new(1, 1, 1)
+		col.BackgroundTransparency = 0.04
+		col.BorderSizePixel = 0
+		col.Active = true
+		col.Parent = sg
+		Kit.gradient(col, Kit.BLUE, Kit.INSET)
+		for _, e in { { 2, 0, Kit.GILT }, { 1, 3, Kit.CRIMSON }, { 1, 5, Kit.GILT_DARK } } do
+			local edge = Instance.new("Frame") :: Frame
+			edge.Size = UDim2.new(0, e[1] :: number, 1, 0)
+			edge.Position = UDim2.new(1, -(e[2] :: number) - (e[1] :: number), 0, 0)
+			edge.BackgroundColor3 = e[3] :: Color3
+			edge.BorderSizePixel = 0
+			edge.Parent = col
+		end
+		badge(col, UDim2.new(0.5, 0, 0, 96))
+		local t = Kit.title(col, "Eagles of Empire", { size = UDim2.new(1, -40, 0, 36), position = UDim2.new(0, 20, 0, 170), spaced = true, textSize = 30, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
+		t.TextScaled = true
+		local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+		tc.MaxTextSize = 30
+		tc.Parent = t
+		Kit.tricolour(col, UDim2.fromOffset(150, 6), UDim2.new(0.5, 0, 0, 214), Vector2.new(0.5, 0))
+		local sub = Kit.label(col, "Napoleonic real-time tactics", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0, 226), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		sub.FontFace = Kit.ITALIC
 		local list = Instance.new("Frame") :: Frame
-		list.Size = UDim2.new(1, 0, 0, 200)
-		list.Position = UDim2.new(0, 0, 0, 90)
+		list.Size = UDim2.new(1, -80, 0, 260)
+		list.Position = UDim2.new(0, 40, 0, 280)
 		list.BackgroundTransparency = 1
-		list.Parent = panel
-		Kit.list(list, 8)
-		playBtn = Kit.button(list, "Play Battle", cb.play, { size = UDim2.new(1, 0, 0, 40), primary = true, order = 1, textSize = 16 })
-		campaignBtn = Kit.button(list, "Campaign", cb.campaign, { size = UDim2.new(1, 0, 0, 40), order = 2, textSize = 16 })
-		Kit.button(list, "How to Command", cb.help, { size = UDim2.new(1, 0, 0, 40), order = 3, textSize = 16 })
-		Kit.button(list, "Settings", cb.settings, { size = UDim2.new(1, 0, 0, 40), order = 4, textSize = 16 })
-		note = Kit.label(panel, "", { size = UDim2.new(1, 0, 0, 40), position = UDim2.new(0, 0, 1, -44), wrap = true, colour = Kit.MUTED, textSize = 13 })
+		list.Parent = col
+		local ll = Kit.list(list, 6)
+		ll.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		local function item(text: string, fn: () -> (), order: number): TextButton
+			if order > 1 then
+				local sep = Instance.new("Frame") :: Frame
+				sep.Size = UDim2.fromOffset(80, 6)
+				sep.BackgroundTransparency = 1
+				sep.LayoutOrder = order * 2 - 1
+				sep.Parent = list
+				Kit.rule(sep, UDim2.fromScale(0, 0.5))
+			end
+			local b = Kit.button(list, Kit.spaced(text), fn, { size = UDim2.new(1, 0, 0, 40), flat = true, order = order * 2, textSize = 22 })
+			return b
+		end
+		playBtn = item("Play Battle", cb.play, 1)
+		campaignBtn = item("Campaign", cb.campaign, 2)
+		item("How to Command", cb.help, 3)
+		item("Settings", cb.settings, 4)
+		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
 		gui = sg
 	end
 	if campaignBtn then
