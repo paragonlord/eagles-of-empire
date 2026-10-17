@@ -134,9 +134,9 @@ test("Moments fire once, emit an event to both sides (or one faction) and enter 
 	assertTrue(sim.momentsFired.dawn and sim.momentsFired.secret, "recorded")
 	local logged = false
 	for _, line in sim.logLines do
-		logged = logged or string.find(line, "Dawn", 1, true) ~= nil
+		logged = logged or line == "00:01 Dawn"
 	end
-	assertTrue(logged, "in the results chronicle")
+	assertTrue(logged, "in the results chronicle as 'MM:SS title'")
 	-- the faction-only moment reaches France, not Prussia
 	local function titles(viewer)
 		local t = {}

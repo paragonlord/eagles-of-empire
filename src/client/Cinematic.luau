@@ -1,26 +1,31 @@
 --!strict
 -- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
 -- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
--- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~4 s.
+-- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~6 s.
+-- In a solo battle the commander's client pauses the match while the card is up (and resumes it
+-- after, unless it was already paused), so no game time passes at x4 while the player reads.
 -- Any key, click or touch skips it (the camera snaps back at once). The card never takes input:
 -- nothing here is Active, so clicks fall through to the field. No pan while a mouse button is
 -- held (the player is dragging) or while the intro plays; with reduced effects, only the card.
 
+local Players = game:GetService("Players") :: Players
 local TweenService = game:GetService("TweenService") :: TweenService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Kit = require(script.Parent.UI.Kit)
 local HUD = require(script.Parent.UI.HUD)
 local Camera = require(script.Parent.Camera)
 local Settings = require(script.Parent.Settings)
+local Net = require(script.Parent.Net)
+local BattleState = require(script.Parent.BattleState)
 
 local Cinematic = {}
 
 local FADE = 0.45
-local HOLD = 4 -- seconds the card stays up (the pan's length)
-local PAN_BACK_AT = 3 -- seconds into the hold the camera starts back
+local HOLD = 6 -- seconds the card stays up (the pan's length)
+local PAN_BACK_AT = 4.5 -- seconds into the hold the camera starts back
 local BAR = 0.085 -- letterbox bar height, fraction of the screen
 
-type Card = { gui: ScreenGui, group: CanvasGroup, bars: { Frame }, back: ((snap: boolean) -> ())? }
+type Card = { gui: ScreenGui, group: CanvasGroup, bars: { Frame }, back: ((snap: boolean) -> ())?, paused: boolean? }
 
 local queue: { any } = {}
 local current: Card? = nil
@@ -40,6 +45,9 @@ local function close(card: Card, fast: boolean)
 	if card.back then
 		card.back(fast) -- skipped: snap back so a drag starting now sees a still camera
 		card.back = nil
+	end
+	if card.paused and BattleState.state == "paused" then
+		Net.control("resume")
 	end
 	local t = if fast then 0.2 else FADE
 	tween(card.group, t, { GroupTransparency = 1 })
@@ -72,7 +80,7 @@ local function build(ev: any, letterbox: boolean): Card
 	g.Position = UDim2.fromScale(0.5, 0.62)
 	g.Size = UDim2.new(1, 0, 0, 118)
 	g.BackgroundColor3 = Kit.INSET
-	g.BackgroundTransparency = 0.3
+	g.BackgroundTransparency = 0.1
 	g.BorderSizePixel = 0
 	g.GroupTransparency = 1
 	g.Active = false
@@ -103,6 +111,9 @@ showNext = function()
 	local reduced = Settings.get().reducedEffects == true
 	local card = build(ev, not reduced)
 	current = card
+	if BattleState.isCommander and BattleState.state == "running" and #Players:GetPlayers() == 1 then
+		card.paused = Net.control("pause") ~= nil
+	end
 	tween(card.group, FADE, { GroupTransparency = 0 })
 	for i, b in card.bars do
 		tween(b, FADE, { Position = if i == 1 then UDim2.fromScale(0, 0) else UDim2.fromScale(0, 1 - BAR) })

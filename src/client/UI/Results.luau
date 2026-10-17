@@ -2,6 +2,8 @@
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Scenarios = require(Shared.Scenarios)
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 
@@ -68,7 +70,7 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local rows = {
 		{ "Remaining", thousands(s.remaining or 0) },
 		{ "Formations surviving", tostring(s.surviving or 0) },
-		{ "Routed / shattered", string.format("%d / %d", s.routed or 0, s.shattered or 0) },
+		{ "Routed at the end / shattered", string.format("%d / %d", s.routed or 0, s.shattered or 0) },
 		{ "Destroyed / exited", string.format("%d / %d", s.destroyed or 0, s.exited or 0) },
 	}
 	for i, r in rows do
@@ -97,8 +99,19 @@ notes = function(results: any): { string }
 	if c.ownCharges + c.enemyCharges > 0 then
 		table.insert(out, string.format("You launched %s; the enemy %d.", plural(c.ownCharges, "charge", "charges"), c.enemyCharges))
 	end
-	if c.ownRouts + c.enemyRouts > 0 then
-		table.insert(out, string.format("Your formations broke %s and rallied %s; the enemy broke %s that you saw.", plural(c.ownRouts, "time", "times"), plural(c.ownRallies, "time", "times"), plural(c.enemyRouts, "time", "times")))
+	local re = results.routEvents
+	if type(re) == "table" then
+		-- the server's count per faction, which also covers routs we never saw
+		local parts = {}
+		for faction, k in re do
+			table.insert(parts, string.format("%s %d", Kit.factionName(faction), tonumber(k) or 0))
+		end
+		table.sort(parts)
+		table.insert(out, "Routs during the battle: " .. table.concat(parts, ", ") .. ".")
+	elseif type(re) == "number" then
+		table.insert(out, if re > 0 then string.format("Routs during the battle: %d on both sides.", re) else "No formation on either side broke: the lines never came to a decision.")
+	elseif c.ownRouts + c.enemyRouts > 0 then
+		table.insert(out, string.format("Routs during the battle: yours %d (rallied %d), the enemy's %d that you saw. The table shows who was still routed at the end.", c.ownRouts, c.ownRallies, c.enemyRouts))
 	else
 		table.insert(out, "No formation on either side broke: the lines never came to a decision.")
 	end
@@ -145,6 +158,15 @@ formationTable = function(parent: Instance, order: number)
 	if #recs == 0 then
 		row({ "No formations recorded", "", "", "", "" }, 1, false)
 	end
+end
+
+-- Server log lines name factions by id ("prussia captured …"): show the display names.
+local function displayNames(line: string): string
+	local sc = BattleState.scenario
+	for id in (if sc and type(sc.factionNames) == "table" then sc.factionNames else {}) :: { [string]: any } do
+		line = string.gsub(line, "%f[%w]" .. id .. "%f[%W]", Kit.factionName(id))
+	end
+	return line
 end
 
 local function objectiveChip(parent: Instance, o: any, names: { [string]: string }, order: number)
@@ -262,10 +284,16 @@ function Results.show(results: any, cb: Callbacks)
 		para("· " .. line)
 	end
 
+	-- historical moments are logged as "MM:SS <title>" (Sim/Moments)
+	local momentTitles: { [string]: boolean } = {}
+	local sc = BattleState.scenario and Scenarios.get(tostring(BattleState.scenario.id))
+	for _, m in (sc and sc.moments) or {} do
+		momentTitles[m.title] = true
+	end
 	local chronicle: { string } = {}
 	for _, line in results.log or {} do
-		local l = tostring(line)
-		if string.find(l, " broke ", 1, true) or string.find(l, "abandoned", 1, true) or string.find(l, "destroyed", 1, true) or string.find(l, "captured", 1, true) or string.find(l, " fell", 1, true) then
+		local l = displayNames(tostring(line))
+		if momentTitles[string.sub(l, 7)] or string.find(l, " broke ", 1, true) or string.find(l, "abandoned", 1, true) or string.find(l, "destroyed", 1, true) or string.find(l, "captured", 1, true) or string.find(l, " fell", 1, true) then
 			table.insert(chronicle, l)
 		end
 	end
