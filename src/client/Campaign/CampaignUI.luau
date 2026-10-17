@@ -227,7 +227,15 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	text(p, string.format("General %s · %s", tostring(a.general or "unknown"), tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
 	local moves = if a.movesLeft ~= nil then " · " .. plural(a.movesLeft, "march") .. " left" else ""
 	text(p, string.format("%s men%s", fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
-	local units = a.units
+	local units: any = a.units
+	if type(units) == "table" and next(units) ~= nil and type(select(2, next(units))) ~= "table" then
+		local list = {}
+		for k, n in units do
+			local c = Data.Europe.UnitClasses[k]
+			table.insert(list, { key = k, name = string.format("%s × %s", if c then c.name else tostring(k), tostring(n)) })
+		end
+		units = list
+	end
 	if type(units) == "table" then
 		for i, u in units do
 			local k = unitKey(u, i)
@@ -244,10 +252,12 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 			local name = Kit.label(r, tostring(u.name or u.type or "Unit"), { size = UDim2.new(1, -x - 50, 0, 16), position = UDim2.fromOffset(x, 0), textSize = 13 })
 			name.TextTruncate = Enum.TextTruncate.AtEnd
 			Kit.label(r, string.rep("›", math.clamp(math.floor(tonumber(u.experience) or 0), 0, 3)), { size = UDim2.fromOffset(46, 16), position = UDim2.new(1, -46, 0, 0), textSize = 16, colour = Kit.GILT, align = Enum.TextXAlignment.Right })
-			local s, m = tonumber(u.strength) or 0, tonumber(u.maxStrength) or tonumber(u.strength) or 1
-			local fill = Kit.bar(r, UDim2.new(1, -x - 64, 0, 6), UDim2.fromOffset(x, 21), Data.colour(a.nation):Lerp(Kit.IVORY, 0.2))
-			Kit.setBar(fill, s / math.max(m, 1))
-			Kit.label(r, string.format("%s/%s", fmt(s), fmt(m)), { size = UDim2.fromOffset(60, 14), position = UDim2.new(1, -60, 0, 17), textSize = 11, colour = Kit.MUTED, align = Enum.TextXAlignment.Right })
+			if u.strength ~= nil then
+				local s, m = tonumber(u.strength) or 0, tonumber(u.maxStrength) or tonumber(u.strength) or 1
+				local fill = Kit.bar(r, UDim2.new(1, -x - 64, 0, 6), UDim2.fromOffset(x, 21), Data.colour(a.nation):Lerp(Kit.IVORY, 0.2))
+				Kit.setBar(fill, s / math.max(m, 1))
+				Kit.label(r, string.format("%s/%s", fmt(s), fmt(m)), { size = UDim2.fromOffset(60, 14), position = UDim2.new(1, -60, 0, 17), textSize = 11, colour = Kit.MUTED, align = Enum.TextXAlignment.Right })
+			end
 		end
 	end
 	if not own then
@@ -304,6 +314,13 @@ local function recruitOptions(view: any, provinceId: string): { any }
 	for k, o in src do
 		if type(o) == "table" then
 			table.insert(out, { unitType = o.unitType or o.key or k, o = o })
+		end
+	end
+	if #out == 0 then
+		local names = Data.Europe.UnitNames[view.playerNation] or {}
+		for _, k in Data.Europe.UnitTypeOrder do
+			local c = Data.Europe.UnitClasses[k]
+			table.insert(out, { unitType = k, o = { name = names[k] or c.name, cost = c.cost, manpower = c.manpower, turns = c.turns, requires = if c.needs == "any" then nil else c.needs, majorOnly = c.majorOnly } })
 		end
 	end
 	table.sort(out, function(x: any, y: any): boolean
@@ -384,6 +401,10 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 			why = "Needs a port"
 		elseif o.requires == "capital" and not p.isCapital then
 			why = "Only raised in a capital"
+		elseif o.requires == "fort" and (p.fort or 0) == 0 then
+			why = "Needs a fortress"
+		elseif o.majorOnly and not (Data.Nations[ctx.player] and Data.Nations[ctx.player].major) then
+			why = "Only the great powers raise these"
 		elseif treasury < cost then
 			why = string.format("Not enough treasury (%s needed)", fmt(cost))
 		elseif manpower < men then

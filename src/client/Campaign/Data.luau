@@ -1,15 +1,15 @@
 --!strict
--- Grand-campaign static data (shared EuropeData, or the local stub until it lands) and the
--- nation look-ups the board and panels share: colour, name, flag.
+-- Grand-campaign static data (shared EuropeData) and the nation look-ups the board and panels
+-- share: colour, name, flag.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Factions = require(script.Parent.Parent.Factions)
 
-local mod = Shared:FindFirstChild("EuropeData")
-local Europe: any = if mod then (require :: any)(mod) else require(script.Parent.EuropeStub)
+local Europe = require(Shared.EuropeData)
 
 local Data = {}
 
+Data.Europe = Europe
 Data.Nations = Europe.Nations :: { [string]: any }
 Data.Provinces = Europe.Provinces :: { any }
 Data.byId = {} :: { [string]: any }

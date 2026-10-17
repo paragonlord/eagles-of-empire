@@ -24,13 +24,15 @@ local WALL = Color3.fromRGB(196, 178, 146)
 local ROOF = Color3.fromRGB(122, 66, 46)
 local RED = Color3.fromRGB(196, 58, 44)
 
--- Mountain chains in map units (Alps, Pyrenees, Carpathians, Balkans, Scandinavian spine).
+-- Mountain chains in map units, from EuropeData's projection x = (lon + 10) * 40,
+-- z = (lat - 36) * 62.5: Alps, Pyrenees, Carpathians, Balkans, Apennines, Norway.
 local CHAINS: { { snow: boolean, pts: { { number } } } } = {
-	{ snow = true, pts = { { 600, 560 }, { 680, 600 }, { 760, 610 }, { 840, 620 }, { 920, 600 }, { 990, 590 } } },
-	{ snow = true, pts = { { 300, 400 }, { 360, 395 }, { 420, 392 }, { 490, 395 } } },
-	{ snow = false, pts = { { 1140, 760 }, { 1230, 790 }, { 1320, 760 }, { 1390, 700 }, { 1410, 620 }, { 1370, 560 } } },
-	{ snow = false, pts = { { 1200, 420 }, { 1300, 410 }, { 1400, 420 } } },
-	{ snow = true, pts = { { 900, 1180 }, { 940, 1260 }, { 990, 1340 }, { 1040, 1420 } } },
+	{ snow = true, pts = { { 660, 560 }, { 700, 625 }, { 760, 650 }, { 840, 675 }, { 920, 690 }, { 990, 705 } } },
+	{ snow = true, pts = { { 340, 420 }, { 400, 415 }, { 460, 418 }, { 520, 415 } } },
+	{ snow = false, pts = { { 1120, 844 }, { 1240, 831 }, { 1360, 769 }, { 1420, 688 }, { 1420, 594 }, { 1320, 588 } } },
+	{ snow = false, pts = { { 1320, 425 }, { 1400, 420 }, { 1480, 425 } } },
+	{ snow = false, pts = { { 800, 519 }, { 870, 460 }, { 920, 406 }, { 1020, 281 } } },
+	{ snow = true, pts = { { 660, 1380 }, { 700, 1430 }, { 740, 1480 } } },
 }
 
 local folder: Folder? = nil
