@@ -10683,7 +10683,8 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		heading = f.heading,
 		shape = f.shape,
 		state = f.state,
-		strength = if own then f.strength else math.floor(f.strength / 50 + 0.5) * 50,
+		-- Enemy strength is an estimate: nearest 50, but small bodies never show as zero.
+		strength = if own then f.strength elseif f.strength < 75 then math.max(10, math.floor(f.strength / 10 + 0.5) * 10) else math.floor(f.strength / 50 + 0.5) * 50,
 		startStrength = f.startStrength,
 		moraleBand = Formation.moraleBandOf(f),
 		width = f.width,
@@ -10786,6 +10787,9 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 	local events: { Types.Event } = {}
 	for _, ev in self.events do
 		local copy: Types.Event = table.clone(ev)
+		if ev.kind == "message" and ev.faction and ev.faction ~= viewer then
+			continue -- the enemy's own order/route messages are never shown to us
+		end
 		if ev.id and ev.faction and ev.faction ~= viewer and not self:isVisibleTo(viewer, ev.id) then
 			if ev.targetId and self.formations[ev.targetId] and self.formations[ev.targetId].faction == viewer then
 				copy.x = nil
@@ -12057,6 +12061,34 @@ end
 
 -- Request a route for the formation's current order destination.
 function Movement.plan(sim: SimLike, f: Formation, dest: Vec): boolean
+	-- A formation standing somewhere the navigation grid cannot route from (water, old saves,
+	-- scripted placement) steps out to the nearest walkable ground first.
+	if not Nav.isWalkable(sim.nav, f.pos) or not Grid.terrainAt(sim.grid, f.pos.x, f.pos.z).passable then
+		-- Prefer the bank on the destination's side: score = distance out + half the remaining way.
+		local nav = sim.nav
+		local cx, cz = math.floor(f.pos.x / nav.size), math.floor(f.pos.z / nav.size)
+		local best: Vec? = nil
+		local bestScore = math.huge
+		for dz = -4, 4 do
+			for dx = -4, 4 do
+				local x, z = cx + dx, cz + dz
+				if x >= 0 and z >= 0 and x < nav.cols and z < nav.rows and nav.walk[z * nav.cols + x + 1] then
+					local c = { x = (x + 0.5) * nav.size, z = (z + 0.5) * nav.size }
+					if Grid.terrainAt(sim.grid, c.x, c.z).passable then
+						local score = Vec.dist(f.pos, c) + 0.5 * Vec.dist(c, dest)
+						if score < bestScore then
+							best = c
+							bestScore = score
+						end
+					end
+				end
+			end
+		end
+		local out = best or Nav.nearestWalkable(nav, f.pos, 6)
+		if out then
+			f.pos = out
+		end
+	end
 	local path = Nav.findPath(sim.nav, f.pos, dest, f.halfRadius)
 	if not path then
 		f.path = nil
@@ -12395,6 +12427,7 @@ function Nav.build(grid: Grid): NavGrid
 			local speedSum = 0
 			local count = 0
 			local passable = true
+			local hasBridge = false
 			for sz = 0, sub - 1 do
 				for sx = 0, sub - 1 do
 					local cx = nx * sub + sx
@@ -12404,6 +12437,9 @@ function Nav.build(grid: Grid): NavGrid
 					if not t.passable then
 						passable = false
 					end
+					if grid.class[idx] == Config.TerrainIds.bridge then
+						hasBridge = true
+					end
 					speedSum += t.speed
 					count += 1
 					if grid.clearance[idx] > maxClear then
@@ -12412,8 +12448,9 @@ function Nav.build(grid: Grid): NavGrid
 				end
 			end
 			local i = nz * cols + nx + 1
-			-- Some cell in the node must leave room for a travel column (bridges, defiles).
-			walk[i] = passable or maxClear >= TRAVEL_HALF
+			-- A node with impassable cells is walkable only when it carries a bridge wide enough for a
+			-- travel column. (Dry bank cells next to a brook must not link the two banks.)
+			walk[i] = passable or (hasBridge and maxClear >= TRAVEL_HALF)
 			clear[i] = maxClear
 			local avg = speedSum / count
 			cost[i] = if avg > 0.05 then 1 / avg else 20
@@ -13020,7 +13057,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000084"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000083"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000082"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000085"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000084"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000083"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -15932,8 +15969,9 @@ end
 
 return Logic
 ]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
--- Pooled one-shot visual effects driven by snapshot events only: lingering volley smoke banks,
--- muzzle flashes, cannon plumes and shot strikes, charge dust, routing markers.
+-- Pooled one-shot visual effects driven by snapshot events only. Smoke and dust are soft
+-- translucent particles (built-in smoke texture, no asset ids) burst from a small round-robin
+-- pool of emitter parts; flashes, earth spray and rout markers are short-lived pooled parts.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Grid = require(Shared.Grid)
@@ -15958,9 +15996,18 @@ type Active = {
 	alpha0: number,
 }
 
--- Lingering smoke needs a deep pool; reduced effects halves it (and the puffs per event).
-local BASE_POOL = { [1] = 120, [2] = 260, [3] = 420 }
-local WIND_X, WIND_Z = 0.9, 0.35 -- studs/s drift, light breeze from the south-west
+-- Part pool for short-lived effects; reduced effects halves it and the particles per event.
+local BASE_POOL = { [1] = 40, [2] = 80, [3] = 140 } -- flashes, earth, rout markers only
+
+-- Built-in client texture used by Roblox's own Smoke instance (rbxasset content, not an asset id).
+local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
+local WIND = Vector3.new(0.7, 0.35, 0.3) -- drift and a slow rise
+
+type EmitterKind = "smoke" | "plume" | "dust"
+local EMITTERS: { [EmitterKind]: number } = { smoke = 10, plume = 4, dust = 6 }
+local emitters: { [EmitterKind]: { { part: Part, pe: ParticleEmitter } } } = { smoke = {}, plume = {}, dust = {} }
+local cursor: { [EmitterKind]: number } = { smoke = 0, plume = 0, dust = 0 }
+local qualityScale = 1
 
 local folder: Folder? = nil
 local free: { Part } = {}
@@ -15969,9 +16016,6 @@ local capacity = 0
 local density = 1
 local rng = Random.new(1806)
 
-local SMOKE = Color3.fromRGB(236, 234, 228)
-local SMOKE_GREY = Color3.fromRGB(200, 198, 192)
-local DUST = Color3.fromRGB(184, 166, 124)
 local EARTH = Color3.fromRGB(110, 92, 64)
 local FLASH = Color3.fromRGB(255, 214, 120)
 local ROUT = Color3.fromRGB(150, 60, 50)
@@ -15995,6 +16039,69 @@ local function makePart(): Part
 	return p
 end
 
+local function makeEmitter(kind: EmitterKind, parent: Instance): { part: Part, pe: ParticleEmitter }
+	local part = Instance.new("Part") :: Part
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Transparency = 1
+	part.Size = Vector3.new(4, 1, 1)
+	part.Parent = parent
+	local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+	pe.Texture = SMOKE_TEXTURE
+	pe.Rate = 0
+	pe.Enabled = true
+	pe.LockedToPart = false
+	pe.EmissionDirection = Enum.NormalId.Front
+	pe.Rotation = NumberRange.new(0, 360)
+	pe.RotSpeed = NumberRange.new(-12, 12)
+	pe.LightEmission = 0
+	pe.LightInfluence = 1
+	pe.Acceleration = WIND
+	pe.Drag = 0.9
+	if kind == "smoke" then
+		pe.Lifetime = NumberRange.new(4.5, 7)
+		pe.Speed = NumberRange.new(1, 3)
+		pe.SpreadAngle = Vector2.new(25, 25)
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(0.25, 4), NumberSequenceKeypoint.new(1, 7.5) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(0.3, 0.68), NumberSequenceKeypoint.new(1, 1) })
+		pe.Color = ColorSequence.new(Color3.fromRGB(236, 234, 228), Color3.fromRGB(196, 194, 188))
+	elseif kind == "plume" then
+		pe.Lifetime = NumberRange.new(5.5, 8)
+		pe.Speed = NumberRange.new(3, 7)
+		pe.SpreadAngle = Vector2.new(18, 18)
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(0.25, 6.5), NumberSequenceKeypoint.new(1, 11) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(0.3, 0.62), NumberSequenceKeypoint.new(1, 1) })
+		pe.Color = ColorSequence.new(Color3.fromRGB(230, 228, 222), Color3.fromRGB(184, 182, 176))
+	else
+		pe.Lifetime = NumberRange.new(1.8, 3)
+		pe.Speed = NumberRange.new(1, 4)
+		pe.SpreadAngle = Vector2.new(60, 60)
+		pe.EmissionDirection = Enum.NormalId.Top
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(1, 5.5) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1) })
+		pe.Color = ColorSequence.new(Color3.fromRGB(176, 158, 116))
+	end
+	pe.Parent = part
+	return { part = part, pe = pe }
+end
+
+-- Burst `n` particles from a box at `cf` (-Z = emission direction for smoke/plume).
+local function emit(kind: EmitterKind, cf: CFrame, size: Vector3, n: number)
+	local list = emitters[kind]
+	if #list == 0 then
+		return
+	end
+	local i = cursor[kind] % #list + 1
+	cursor[kind] = i
+	local e = list[i]
+	e.part.Size = size
+	e.part.CFrame = cf
+	e.pe:Emit(math.max(1, math.round(n * density * qualityScale)))
+end
+
 function Effects.init()
 	if folder then
 		return
@@ -16003,12 +16110,18 @@ function Effects.init()
 	f.Name = "EoEEffects"
 	f.Parent = workspace
 	folder = f
+	for kind, n in EMITTERS do
+		for _ = 1, n do
+			table.insert(emitters[kind], makeEmitter(kind, f))
+		end
+	end
 	Effects.applySettings()
 end
 
 function Effects.applySettings()
 	local s = Settings.get()
 	capacity = BASE_POOL[math.clamp(s.quality, 1, 3)]
+	qualityScale = ({ 0.6, 1, 1.4 })[math.clamp(s.quality, 1, 3)]
 	density = 1
 	if s.reducedEffects then
 		capacity = capacity // 2
@@ -16033,42 +16146,29 @@ local function spawn(x: number, y: number, z: number, color: Color3, size0: numb
 	table.insert(active, { part = p, t0 = os.clock(), life = life, size0 = size0, size1 = size1, rise = rise, x = x, y = y, z = z, vx = vx or 0, vz = vz or 0, alpha0 = alpha0 })
 end
 
-local function puffs(x: number, z: number, n: number, spread: number, color: Color3, size: number, life: number, rise: number)
-	local y = groundY(x, z) + 1.5
-	for _ = 1, count(n) do
-		local ox = (rng:NextNumber() - 0.5) * spread
-		local oz = (rng:NextNumber() - 0.5) * spread
-		spawn(x + ox, y + rng:NextNumber() * 1.5, z + oz, color, size * 0.6, size * (1.4 + rng:NextNumber() * 0.6), life, rise, 0.3, ox * 0.4, oz * 0.4)
-	end
-end
-
--- A bank of overlapping smoke along the firing front: flashes first, then smoke that swells,
--- drifts with the breeze and fades over ~6 s.
+-- Flashes along the firing front, then a soft bank of smoke that swells, drifts and fades (~6 s).
 local function volley(ev: any)
 	local f = BattleState.formations[ev.id or -1]
 	if not f then
 		if ev.x then
-			puffs(ev.x, ev.z, 5, 14, SMOKE, 4, 5, 2)
+			local y = groundY(ev.x, ev.z) + 2
+			emit("smoke", CFrame.new(ev.x, y, ev.z), Vector3.new(12, 1, 2), 10)
 		end
 		return
 	end
-	local fx, fz = math.cos(f.heading), math.sin(f.heading)
-	local rx, rz = -fz, fx
-	local frontX = f.x + fx * (f.depth / 2 + 1.5)
-	local frontZ = f.z + fz * (f.depth / 2 + 1.5)
-	local n = count(math.clamp(math.floor(f.width / 3.5), 4, 22))
+	local fwd = Vector3.new(math.cos(f.heading), 0, math.sin(f.heading))
+	local rx, rz = -fwd.Z, fwd.X
+	local cx = f.x + fwd.X * (f.depth / 2 + 1.5)
+	local cz = f.z + fwd.Z * (f.depth / 2 + 1.5)
+	local n = count(math.clamp(math.floor(f.width / 3), 3, 14))
 	for i = 1, n do
 		local t = (i - 0.5) / n - 0.5 + (rng:NextNumber() - 0.5) / n
-		local px = frontX + rx * f.width * t
-		local pz = frontZ + rz * f.width * t
-		local y = groundY(px, pz) + 1.9
-		spawn(px, y, pz, FLASH, 0.9, 0.3, 0.1, 0, 0.05)
-		-- muzzle puff thrown forward, then the bank behind it
-		spawn(px + fx * 1.5, y + 0.3, pz + fz * 1.5, SMOKE, 1.6, 5 + rng:NextNumber() * 2, 6 + rng:NextNumber() * 1.5, 3, 0.25, fx * 1.2 + WIND_X, fz * 1.2 + WIND_Z)
-		if rng:NextNumber() < 0.6 then
-			spawn(px + fx * 3, y + 1.2, pz + fz * 3, SMOKE_GREY, 2.5, 6.5, 5.5, 4, 0.45, fx * 0.6 + WIND_X, fz * 0.6 + WIND_Z)
-		end
+		local px, pz = cx + rx * f.width * t, cz + rz * f.width * t
+		spawn(px, groundY(px, pz) + 1.9, pz, FLASH, 0.8, 0.25, 0.09, 0, 0.1)
 	end
+	local y = groundY(cx, cz) + 2.2
+	local origin = Vector3.new(cx, y, cz)
+	emit("smoke", CFrame.lookAt(origin, origin + fwd), Vector3.new(f.width, 1.2, 1.5), math.clamp(f.width * 0.9, 8, 40))
 	Camera.shake(0.2)
 end
 
@@ -16077,26 +16177,23 @@ local function cannon(ev: any)
 		return
 	end
 	local y = groundY(ev.x, ev.z) + 1.6
-	local dx, dz = 0, 0
+	local dx, dz = 1, 0
 	if ev.tx then
 		local l = math.sqrt((ev.tx - ev.x) ^ 2 + (ev.tz - ev.z) ^ 2)
 		if l > 1 then
 			dx, dz = (ev.tx - ev.x) / l, (ev.tz - ev.z) / l
 		end
 	end
-	spawn(ev.x + dx * 3.5, y, ev.z + dz * 3.5, FLASH, 2.5, 0.6, 0.14, 0, 0.05)
-	-- a thick plume rolling out of the muzzle
-	for i = 1, count(6) do
-		local d = 3 + i * 2.2
-		spawn(ev.x + dx * d, y + 0.5 + i * 0.3, ev.z + dz * d, if i % 2 == 0 then SMOKE_GREY else SMOKE, 2.5 + i * 0.6, 8 + i * 1.2, 6.5, 4, 0.2, dx * 1.5 + WIND_X, dz * 1.5 + WIND_Z)
-	end
+	spawn(ev.x + dx * 3.5, y, ev.z + dz * 3.5, FLASH, 2.2, 0.5, 0.12, 0, 0.1)
+	local muzzle = Vector3.new(ev.x + dx * 4, y + 0.4, ev.z + dz * 4)
+	emit("plume", CFrame.lookAt(muzzle, muzzle + Vector3.new(dx, 0.1, dz)), Vector3.new(2, 1.5, 1.5), 14)
 	if ev.tx then
-		-- round shot strikes: a spray of earth and a dust puff
+		-- round shot strikes: a short spray of earth and a dust puff
 		local ty = groundY(ev.tx, ev.tz)
 		for _ = 1, count(4) do
-			spawn(ev.tx + (rng:NextNumber() - 0.5) * 3, ty + 0.5, ev.tz + (rng:NextNumber() - 0.5) * 3, EARTH, 1.2, 2.5, 0.9, 4, 0.1, dx * 3, dz * 3)
+			spawn(ev.tx + (rng:NextNumber() - 0.5) * 3, ty + 0.5, ev.tz + (rng:NextNumber() - 0.5) * 3, EARTH, 0.8, 1.6, 0.8, 4, 0.1, dx * 3, dz * 3)
 		end
-		puffs(ev.tx, ev.tz, 3, 6, DUST, 3, 2.2, 1.5)
+		emit("dust", CFrame.new(ev.tx, ty + 0.5, ev.tz), Vector3.new(3, 1, 3), 6)
 	end
 	Camera.shake(1.2)
 end
@@ -16105,17 +16202,11 @@ end
 local function charge(ev: any)
 	local f = BattleState.formations[ev.id or -1]
 	if f then
-		local fx, fz = math.cos(f.heading), math.sin(f.heading)
-		local rx, rz = -fz, fx
-		local n = count(10)
-		for i = 1, n do
-			local t = (i - 0.5) / n - 0.5
-			local px = f.x - fx * f.depth / 2 + rx * f.width * t
-			local pz = f.z - fz * f.depth / 2 + rz * f.width * t
-			spawn(px, groundY(px, pz) + 1, pz, DUST, 2, 6, 3, 2, 0.35, -fx * 2 + WIND_X, -fz * 2 + WIND_Z)
-		end
+		local bx = f.x - math.cos(f.heading) * f.depth / 2
+		local bz = f.z - math.sin(f.heading) * f.depth / 2
+		emit("dust", CFrame.new(bx, groundY(bx, bz) + 0.8, bz) * CFrame.Angles(0, -f.heading, 0), Vector3.new(4, 1, f.width), math.clamp(f.width * 0.5, 6, 20))
 	elseif ev.x then
-		puffs(ev.x, ev.z, 8, 26, DUST, 3.5, 2.5, 2)
+		emit("dust", CFrame.new(ev.x, groundY(ev.x, ev.z) + 0.8, ev.z), Vector3.new(20, 1, 20), 14)
 	end
 end
 
@@ -16130,13 +16221,13 @@ function Effects.onEvent(ev: any)
 		cannon(ev)
 	elseif kind == "melee" then
 		if ev.x then
-			puffs(ev.x, ev.z, 5, 18, DUST, 3, 1.6, 1.5)
+			emit("dust", CFrame.new(ev.x, groundY(ev.x, ev.z) + 0.8, ev.z), Vector3.new(16, 1, 16), 8)
 		end
 	elseif kind == "charge" then
 		charge(ev)
 	elseif kind == "rout" then
 		if ev.x then
-			puffs(ev.x, ev.z, 3, 14, DUST, 2.5, 1.4, 1)
+			emit("dust", CFrame.new(ev.x, groundY(ev.x, ev.z) + 0.8, ev.z), Vector3.new(12, 1, 12), 5)
 			spawn(ev.x, groundY(ev.x, ev.z) + 6, ev.z, ROUT, 3, 1, 2.5, 6, 0.3)
 		end
 	end
@@ -16175,6 +16266,9 @@ function Effects.clear()
 		p:Destroy()
 	end
 	table.clear(free)
+	for kind in EMITTERS do
+		table.clear(emitters[kind])
+	end
 	if folder then
 		folder:Destroy()
 		folder = nil
@@ -16241,9 +16335,11 @@ end
 
 export type Flag = {
 	bands: { Color3 }?, -- vertical bands, left to right
+	stripes: { Color3 }?, -- horizontal bands, top to bottom (drawn over field/mark when supported)
 	field: Color3?, -- plain field when there are no bands
 	mark: string?, -- "diamond" | "x" | "plus" | "double" | "diagonal"
 	markColour: Color3,
+	cross: Color3?, -- an upright cross over the mark (Union flag: red cross over a white saltire)
 }
 
 local WHITE = Color3.fromRGB(242, 240, 232)
@@ -16252,10 +16348,12 @@ local GOLD = Color3.fromRGB(205, 168, 62)
 
 local FLAGS: { [string]: Flag } = {
 	france = { bands = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }, mark = "diamond", markColour = GOLD },
-	prussia = { field = WHITE, mark = "x", markColour = BLACK },
+	-- black-white-black; renderers without `stripes` fall back to white with two black bars
+	prussia = { stripes = { BLACK, WHITE, BLACK }, field = WHITE, mark = "double", markColour = BLACK },
 	russia = { field = Color3.fromRGB(40, 96, 56), mark = "diamond", markColour = GOLD },
 	austria = { field = WHITE, mark = "double", markColour = BLACK },
-	britain = { field = Color3.fromRGB(178, 36, 42), mark = "plus", markColour = WHITE },
+	-- Union flag approximation: blue field, white saltire, red upright cross
+	britain = { field = Color3.fromRGB(28, 44, 110), mark = "x", markColour = WHITE, cross = Color3.fromRGB(190, 34, 44) },
 }
 
 function Factions.flag(faction: string?): Flag
@@ -16304,12 +16402,14 @@ local LABEL_INTERVAL = 0.15
 
 -- x/z: slot offset in the formation; sx/sz: routing scatter; ox/oz + vx/vz: personal flocking
 -- offset and velocity; tx/tz: decaying slide from the previous layout; left/right: rank neighbours.
-type Slot = { x: number, z: number, sx: number, sz: number, phase: number, ox: number, oz: number, vx: number, vz: number, tx: number, tz: number, left: number, right: number }
+type Slot = { x: number, z: number, sx: number, sz: number, phase: number, ox: number, oz: number, vx: number, vz: number, tx: number, tz: number, left: number, right: number, face: number? }
 type Marker = {
 	parts: { BasePart },
 	locals: { CFrame },
-	plate: Part,
-	gui: SurfaceGui,
+	plate: Part, -- invisible anchor for the billboard
+	gui: BillboardGui,
+	pxW: number, -- billboard size in screen pixels (for label deconfliction)
+	pxH: number,
 	nameLabel: TextLabel,
 	statusLabel: TextLabel,
 	bar: Frame,
@@ -16396,11 +16496,6 @@ local function factionColour(faction: string, colourKey: string?): Color3
 	return Factions.colour(faction, colourKey)
 end
 
-local function desaturate(c: Color3): Color3
-	local g = (c.R + c.G + c.B) / 3
-	return Color3.new(g, g, g):Lerp(c, 0.25):Lerp(Color3.new(0.75, 0.72, 0.68), 0.3)
-end
-
 local function figureCount(class: string, strength: number?): number
 	strength = strength or 0
 	if class == "hq" then
@@ -16413,8 +16508,90 @@ end
 
 -- ------------------------------------------------------------------ layout
 
+-- Infantry draws shoulder to shoulder: files every FILE_W studs across the real frontage, so a
+-- line reads as a solid block of three ranks (Studio showed thin files with wide gaps). The
+-- budget factor k widens the files and drops a line to two ranks instead of punching holes.
+local FILE_W = 0.8
+
+local function denseInfantry(shape: string, width: number, depth: number, k: number): { { x: number, z: number, face: number } }
+	local out = {}
+	local fw = FILE_W * math.sqrt(k)
+	if shape == "square" then
+		local side = math.max(width, depth)
+		for ring = 0, (if k >= 2 then 0 else 1) do
+			local half = side / 2 - 0.5 - ring * 1.1
+			local n = math.max(2, math.floor(2 * half / fw))
+			for i = 0, n - 1 do
+				local u = -half + (i + 0.5) * 2 * half / n
+				table.insert(out, { x = half, z = u, face = 0 }) -- front face looks forward
+				table.insert(out, { x = -half, z = -u, face = math.pi })
+				table.insert(out, { x = -u, z = half, face = math.pi / 2 })
+				table.insert(out, { x = u, z = -half, face = -math.pi / 2 })
+			end
+		end
+		return out
+	end
+	local shapeDef = (Config.Shapes :: any)[shape]
+	local ranks = if shapeDef and shapeDef.ranks > 0 then shapeDef.ranks else 3
+	if shape == "line" and k >= 2 then
+		ranks = 2
+	end
+	ranks = math.max(1, math.min(ranks, math.floor(depth / 0.9)))
+	local files = math.max(2, math.floor(width / fw))
+	for r = 0, ranks - 1 do
+		for f = 0, files - 1 do
+			table.insert(out, { x = depth / 2 - (r + 0.5) * depth / ranks, z = (f + 0.5) * width / files - width / 2, face = 0 })
+		end
+	end
+	return out
+end
+
+-- Figures the near LOD will draw for a formation (budget accounting).
+local function visualCount(f: any): number
+	if f.class == "infantry" then
+		return #denseInfantry(f.shape, f.width, f.depth, 1)
+	end
+	return figureCount(f.class, f.strength)
+end
+
+local function linkRanks(slots: { Slot })
+	-- rank neighbours: slots sharing x, ordered by z (O(n log n) once per layout)
+	local order = {}
+	for i = 1, #slots do
+		order[i] = i
+	end
+	table.sort(order, function(a: number, b: number)
+		local sa, sb = slots[a], slots[b]
+		if math.abs(sa.x - sb.x) > 0.01 then
+			return sa.x < sb.x
+		end
+		return sa.z < sb.z
+	end)
+	for j = 2, #order do
+		local a, b = order[j - 1], order[j]
+		if math.abs(slots[a].x - slots[b].x) <= 0.01 then
+			slots[a].right = b
+			slots[b].left = a
+		end
+	end
+end
+
 -- Returns local (x forward, z right) offsets for n figures in the formation footprint.
 local function layoutSlots(class: string, shape: string, n: number, width: number, depth: number, k: number, seed: number): { Slot }
+	if class == "infantry" then
+		local rng = Random.new(seed)
+		local slots: { Slot } = {}
+		for _, c in denseInfantry(shape, width, depth, k) do
+			table.insert(slots, {
+				x = c.x, z = c.z, face = c.face,
+				sx = (rng:NextNumber() - 0.5) * 6, sz = (rng:NextNumber() - 0.5) * 6,
+				phase = rng:NextNumber() * math.pi * 2,
+				ox = 0, oz = 0, vx = 0, vz = 0, tx = 0, tz = 0, left = 0, right = 0,
+			})
+		end
+		linkRanks(slots)
+		return slots
+	end
 	local cells: { { number } } = {} -- {file, rank, files, ranks}
 	local shapeDef = (Config.Shapes :: any)[shape]
 	local ranks = if shapeDef then shapeDef.ranks else 3
@@ -16482,25 +16659,7 @@ local function layoutSlots(class: string, shape: string, n: number, width: numbe
 			})
 		end
 	end
-	-- rank neighbours: slots sharing x, ordered by z (O(n log n) once per layout)
-	local order = {}
-	for i = 1, #slots do
-		order[i] = i
-	end
-	table.sort(order, function(a: number, b: number)
-		local sa, sb = slots[a], slots[b]
-		if math.abs(sa.x - sb.x) > 0.01 then
-			return sa.x < sb.x
-		end
-		return sa.z < sb.z
-	end)
-	for j = 2, #order do
-		local a, b = order[j - 1], order[j]
-		if math.abs(slots[a].x - slots[b].x) <= 0.01 then
-			slots[a].right = b
-			slots[b].left = a
-		end
-	end
+	linkRanks(slots)
 	return slots
 end
 
@@ -16537,18 +16696,19 @@ local function buildNear(g: Group, f: any)
 			addPart(g, p, cf, si, anim, pivot)
 		end
 	end
+	local coat = Soldiers.coat(g.faction, f.colour, g.colour)
 	local base = #g.slots
 	for i = 1, base do
 		slotIndex = i
 		local add = adder()
 		if g.class == "infantry" then
-			Soldiers.infantry(add, g.faction, g.colour, detail, "line")
+			Soldiers.infantry(add, g.faction, coat, detail, "line")
 		elseif g.class == "cavalry" then
-			Soldiers.rider(add, g.faction, g.colour, Soldiers.riderKind(f.name), detail, g.id + i)
+			Soldiers.rider(add, g.faction, coat, Soldiers.riderKind(f.name), detail, g.id + i)
 		elseif g.class == "hq" then
-			Soldiers.rider(add, g.faction, g.colour, "officer", detail, g.id + i)
+			Soldiers.rider(add, g.faction, coat, "officer", detail, g.id + i)
 		elseif g.class == "artillery" then
-			Soldiers.gun(add, g.faction, g.colour, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
+			Soldiers.gun(add, g.faction, coat, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
 		end
 	end
 	if g.class == "infantry" then
@@ -16557,9 +16717,9 @@ local function buildNear(g: Group, f: any)
 			slotIndex = #g.slots
 			local add = adder()
 			if s.role == "officer" then
-				Soldiers.rider(add, g.faction, g.colour, "officer", detail, g.id)
+				Soldiers.rider(add, g.faction, coat, "officer", detail, g.id)
 			else
-				Soldiers.infantry(add, g.faction, g.colour, detail, if s.role == "colour" then "colour" else "drummer")
+				Soldiers.infantry(add, g.faction, coat, detail, if s.role == "colour" then "colour" else "drummer")
 			end
 		end
 	end
@@ -16572,8 +16732,7 @@ local SLAB_H = 1.2
 
 -- Reference look: French deep cobalt, Prussian near-black charcoal; ghosts desaturated.
 local function slabColour(g: Group): Color3
-	local c = g.colour:Lerp(BLACK, Factions.slabDarken(g.faction))
-	return if g.ghost then desaturate(c) else c
+	return g.colour:Lerp(BLACK, Factions.slabDarken(g.faction))
 end
 
 -- Flat slab: thin dark edge, body colour, slightly lighter top face.
@@ -16585,7 +16744,7 @@ local function slab(g: Group, cx: number, cz: number, sx: number, sz: number)
 	top.CastShadow = false
 	for _, part in { edge, body, top } do
 		if g.ghost then
-			part.Transparency = 0.4
+			part.Transparency = 0.62 -- a translucent sighting, not a unit
 		end
 	end
 	addPart(g, edge, CFrame.new(cx, SLAB_H / 2, cz), 0)
@@ -16614,7 +16773,31 @@ local function stripes(g: Group, sx: number, sz: number)
 	end
 end
 
+-- Dashed outline round a last-known footprint.
+local function dashedOutline(g: Group, w: number, d: number)
+	local hw, hd = w / 2 + 1.2, d / 2 + 1.2
+	local function edge(ax: number, az: number, bx: number, bz: number)
+		local len = math.sqrt((bx - ax) ^ 2 + (bz - az) ^ 2)
+		local n = math.max(1, math.floor(len / 3.2))
+		local ang = math.atan2(bz - az, bx - ax)
+		for i = 0, n - 1 do
+			local t = (i + 0.5) / n
+			local dash = mk("Part", Vector3.new(len / n * 0.55, 0.2, 0.35), g.colour:Lerp(Color3.new(1, 1, 1), 0.55))
+			dash.CastShadow = false
+			dash.Transparency = 0.2
+			addPart(g, dash, CFrame.new(ax + (bx - ax) * t, 0.35, az + (bz - az) * t) * CFrame.Angles(0, -ang, 0), 0)
+		end
+	end
+	edge(hd, -hw, hd, hw)
+	edge(-hd, -hw, -hd, hw)
+	edge(-hd, -hw, hd, -hw)
+	edge(-hd, hw, hd, hw)
+end
+
 local function buildFar(g: Group, f: any)
+	if g.ghost then
+		dashedOutline(g, f.width, f.depth)
+	end
 	if g.class == "cavalry" then
 		slab(g, 0, 0, f.depth, f.width)
 		stripes(g, f.depth, f.width)
@@ -16653,81 +16836,68 @@ local POLE = Color3.fromRGB(150, 150, 150)
 local IVORY = Color3.fromRGB(246, 241, 226)
 local GOLD = Color3.fromRGB(205, 168, 62)
 
--- Marker: pole (formation space), then camera-facing parts whose locals are offsets from the
--- plate centre: frame, plate, square flag. parts[1] is always the pole.
+-- Commander marker: a grey pole, a framed ivory name plate (screen-size BillboardGui, readable
+-- at any zoom) and the faction flag beneath it. Last-known ghosts get a small "?" banner.
+-- parts[1] is the pole (formation space); parts[2] the plate anchor; the rest (flag) are
+-- camera-facing with locals relative to the plate centre.
 local function buildMarker(g: Group, f: any): Marker
 	local hq = g.class == "hq"
 	local scale = if hq then 1.5 else 1
-	local poleH = 13 * scale
-	local plateW = if hq then 12 else 8
-	local plateH = if hq then 4.2 else 2.8
+	local poleH = if g.ghost then 7 else 13 * scale
 	local parts: { BasePart } = {}
 	local locals: { CFrame } = {}
-	local function face(p: BasePart, cf: CFrame)
-		p.CastShadow = false
-		table.insert(parts, p)
-		table.insert(locals, cf)
-	end
 	local pole = cylinder(poleH, 0.1, POLE)
 	pole.CastShadow = false
 	table.insert(parts, pole)
 	table.insert(locals, CFrame.new(0, poleH / 2, 0) * CFrame.Angles(0, 0, math.pi / 2))
-	local framePart = mk("Part", Vector3.new(plateW + 0.4, plateH + 0.4, 0.2), if hq then GOLD else INK)
-	face(framePart, CFrame.new(0, 0, 0.12))
-	local plate = mk("Part", Vector3.new(plateW, plateH, 0.3), IVORY) :: Part
-	face(plate, CFrame.new())
-	-- square flag below the plate, beside the pole; design per faction
-	local s = 2.4 * scale
-	local fx = s / 2 + 0.2
-	local fy = -(plateH / 2 + s / 2 + 0.3)
-	local flag = Factions.flag(g.faction)
-	if flag.bands then
-		local n = #flag.bands
-		for i, c in flag.bands do
-			face(mk("Part", Vector3.new(s / n, s, 0.12), c), CFrame.new(fx + (i - (n + 1) / 2) * s / n, fy, 0))
-		end
-	else
-		face(mk("Part", Vector3.new(s, s, 0.12), flag.field or g.colour), CFrame.new(fx, fy, 0))
-	end
-	local mc = flag.markColour
-	local markCf = CFrame.new(fx, fy, -0.08)
-	if flag.mark == "diamond" then
-		face(mk("Part", Vector3.new(0.55 * scale, 0.55 * scale, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
-	elseif flag.mark == "x" then
-		for _, a in { 45, -45 } do
-			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(a)))
-		end
-	elseif flag.mark == "plus" then
-		face(mk("Part", Vector3.new(s, 0.3, 0.14), mc), markCf)
-		face(mk("Part", Vector3.new(0.3, s, 0.14), mc), markCf)
-	elseif flag.mark == "double" then
-		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, s * 0.18, 0))
-		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, -s * 0.18, 0))
-	elseif flag.mark == "diagonal" then
-		face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
+	local anchor = mk("Part", Vector3.new(0.2, 0.2, 0.2), IVORY) :: Part
+	anchor.Transparency = 1
+	anchor.CastShadow = false
+	table.insert(parts, anchor)
+	table.insert(locals, CFrame.new())
+	if not g.ghost then
+		local s = 2.4 * scale
+		Soldiers.flag(function(p: BasePart, cf: CFrame)
+			p.CastShadow = false
+			table.insert(parts, p)
+			table.insert(locals, cf)
+		end, g.faction, CFrame.new(0.2, -(s / 2 + 1.6), 0) * CFrame.Angles(0, math.pi, 0), s, s * 0.75)
 	end
 	for _, p in parts do
-		if g.ghost then
-			p.Transparency = 0.35
-		end
 		p.Parent = folder
 	end
 
-	local gui = Instance.new("SurfaceGui") :: SurfaceGui
-	gui.Face = Enum.NormalId.Front
-	gui.CanvasSize = Vector2.new(plateW * 60, plateH * 60)
+	local pxW = if g.ghost then 56 elseif hq then 230 else 168
+	local pxH = if g.ghost then 34 elseif hq then 58 else 44
+	local gui = Instance.new("BillboardGui") :: BillboardGui
+	gui.Size = UDim2.fromOffset(pxW, pxH + 16)
+	gui.SizeOffset = Vector2.new(0, 0.1)
 	gui.LightInfluence = 0
-	gui.Parent = plate
-	local function line(sizeY: number, posY: number, text: string, font: EnumFont): TextLabel
+	gui.MaxDistance = 4000
+	gui.AlwaysOnTop = false
+	gui.ResetOnSpawn = false
+	gui.Adornee = anchor
+	gui.Parent = anchor
+	local plate = Instance.new("Frame") :: Frame
+	plate.Size = UDim2.new(1, 0, 0, pxH)
+	plate.BackgroundColor3 = if g.ghost then g.colour else IVORY
+	plate.BackgroundTransparency = if g.ghost then 0.35 else 0.02
+	plate.BorderSizePixel = 0
+	plate.Parent = gui
+	local stroke = Instance.new("UIStroke") :: UIStroke
+	stroke.Color = if hq then GOLD else INK
+	stroke.Thickness = if hq then 3 else 2
+	stroke.Parent = plate
+	local function text(sizeY: number, posY: number, value: string, font: EnumFont, colour: Color3, parent: Instance): TextLabel
 		local l = Instance.new("TextLabel") :: TextLabel
 		l.BackgroundTransparency = 1
-		l.Size = UDim2.new(1, -16, sizeY, 0)
-		l.Position = UDim2.new(0, 8, posY, 0)
+		l.Size = UDim2.new(1, -10, sizeY, 0)
+		l.Position = UDim2.new(0, 5, posY, 0)
 		l.Font = font
 		l.TextScaled = true
-		l.TextColor3 = INK
-		l.Text = text
-		l.Parent = gui
+		l.TextColor3 = colour
+		l.Text = value
+		l.Parent = parent
 		return l
 	end
 	local nameText = string.upper(tostring(f.name or ("#" .. g.id)))
@@ -16739,16 +16909,27 @@ local function buildMarker(g: Group, f: any): Marker
 			nameText, corpsText = a, b
 		end
 	end
-	local nameLabel = line(if hq then 0.5 else 0.46, 0.04, nameText, Enum.Font.Garamond)
-	line(if hq then 0.22 else 0.26, if hq then 0.54 else 0.48, corpsText, Enum.Font.Garamond)
-	local statusLabel = line(0.22, if hq then 0.76 else 0.74, "", Enum.Font.Gotham)
+	local nameLabel: TextLabel
+	if g.ghost then
+		nameLabel = text(0.9, 0.05, "?", Enum.Font.Garamond, Color3.fromRGB(246, 241, 226), plate)
+	else
+		nameLabel = text(0.56, 0.06, nameText, Enum.Font.Garamond, INK, plate)
+		local corps = text(0.32, 0.62, corpsText, Enum.Font.Garamond, INK, plate)
+		corps.TextTransparency = 0.15
+	end
+	-- status line under the plate (selected/hovered, or the age of a sighting)
+	local statusLabel = text(0, 0, "", Enum.Font.GothamBold, IVORY, gui)
+	statusLabel.Size = UDim2.new(1, 0, 0, 14)
+	statusLabel.Position = UDim2.new(0, 0, 0, pxH + 2)
+	statusLabel.TextStrokeTransparency = 0.3
+	statusLabel.TextStrokeColor3 = INK
 	local bar = Instance.new("Frame") :: Frame
-	bar.Size = UDim2.new(1, -16, 0, 6)
-	bar.Position = UDim2.new(0, 8, 1, -8)
+	bar.Size = UDim2.new(1, -10, 0, 4)
+	bar.Position = UDim2.new(0, 5, 1, -6)
 	bar.BackgroundColor3 = INK
 	bar.BorderSizePixel = 0
 	bar.Visible = false
-	bar.Parent = gui
+	bar.Parent = plate
 	local fill = Instance.new("Frame") :: Frame
 	fill.Size = UDim2.fromScale(1, 1)
 	fill.BackgroundColor3 = g.colour
@@ -16757,14 +16938,16 @@ local function buildMarker(g: Group, f: any): Marker
 	return {
 		parts = parts,
 		locals = locals,
-		plate = plate,
+		plate = anchor,
 		gui = gui,
+		pxW = pxW,
+		pxH = pxH,
 		nameLabel = nameLabel,
 		statusLabel = statusLabel,
 		bar = bar,
 		barFill = fill,
-		height = poleH + plateH / 2,
-		priority = if hq then 4 else 1,
+		height = poleH + 0.5,
+		priority = if hq then 4 elseif g.ghost then 0 else 1,
 	}
 end
 
@@ -16823,7 +17006,7 @@ local function rebuildBody(g: Group, f: any)
 end
 
 local function layoutKeyOf(g: Group, f: any): string
-	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), figureCount(g.class, f.strength), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
+	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), visualCount(f), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
 end
 
 local function newGroup(id: number, f: any, ghost: boolean): Group
@@ -16890,7 +17073,10 @@ local function onSnapshot()
 	local total = 0
 	for id, f in BattleState.formations do
 		seen[id] = true
-		total += figureCount(f.class, f.strength)
+		local near = groups[id]
+		if near and near.lod == "near" then
+			total += visualCount(f) -- the budget only spends figures on near-LOD blocks
+		end
 		local existing: Group? = groups[id]
 		if existing and existing.ghost then
 			destroyGroup(existing)
@@ -17072,10 +17258,8 @@ end
 -- ------------------------------------------------------------------ labels
 
 local function deconflictLabels(cam: Camera)
-	local vp = cam.ViewportSize
 	local list: { { g: Group, x: number, y: number, w: number, h: number, pri: number } } = {}
 	local hovered = Selection.hovered()
-	local fov = math.rad(cam.FieldOfView)
 	for id, g in groups do
 		local m = g.marker
 		local pri = m.priority
@@ -17087,10 +17271,7 @@ local function deconflictLabels(cam: Camera)
 		local world = Vector3.new(g.rx, groundY(g.rx, g.rz) + m.height, g.rz)
 		local sp, onScreen = cam:WorldToViewportPoint(world)
 		if onScreen and sp.Z > 0 then
-			local scale = vp.Y / (2 * sp.Z * math.tan(fov / 2))
-			local w = m.plate.Size.X * scale
-			local h = m.plate.Size.Y * scale
-			table.insert(list, { g = g, x = sp.X, y = sp.Y, w = w, h = h, pri = pri })
+			table.insert(list, { g = g, x = sp.X, y = sp.Y - m.pxH / 2, w = m.pxW, h = m.pxH, pri = pri })
 		else
 			m.gui.Enabled = false
 		end
@@ -17315,7 +17496,7 @@ function Figures.update(dt: number)
 						y += math.abs(math.cos(ph)) * 0.12
 					end
 					swing[si] = sw
-					local h = g.rh
+					local h = g.rh + (s.face or 0)
 					if routing then
 						h += math.pi + (s.phase - math.pi) * 0.35
 					end
@@ -18155,10 +18336,23 @@ local function ensureWorld(mapId: string): boolean
 		return false
 	end
 	ok = Props.build(map, Settings.get().quality, function(p: number)
-		Loading.setProgress(0.7 + p * 0.3, "Planting woods and villages…")
+		Loading.setProgress(0.6 + p * 0.25, "Planting woods and villages…")
 	end)
 	if not ok or token ~= buildToken then
 		return false
+	end
+	-- Every voxel is written, but Roblox meshes a large map over several seconds (Studio showed
+	-- holes for ~15 s on Austerlitz). Hold the loading screen, looking over the field so the
+	-- centre meshes first, for a time scaled by map area.
+	Camera.reset(map.width / 2, map.depth * 0.4)
+	local settle = math.clamp(3 + 5 * (map.width * map.depth) / (1600 * 1200), 4, 14)
+	local t0 = os.clock()
+	while os.clock() - t0 < settle do
+		if token ~= buildToken then
+			return false
+		end
+		Loading.setProgress(0.85 + 0.15 * (os.clock() - t0) / settle, "Letting the ground settle…")
+		task.wait(0.1)
 	end
 	builtMapId = mapId
 	Loading.hide()
@@ -18333,6 +18527,7 @@ local function onMatchState(msg: any)
 	local sameMatch = msg.matchId == lastMatchId and msg.matchId ~= ""
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
 	BattleState.applyMatchState(msg)
+	WorldLighting.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
 	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
 	if pauseToggle then
@@ -18478,7 +18673,10 @@ local function wire()
 			DevPanel.setGoals(msg.aiGoals)
 		end
 	end))
-	table.insert(conns, BattleState.updated:Connect(function()
+	table.insert(conns, BattleState.updated:Connect(function(snap: any)
+		if type(snap) == "table" then
+			WorldLighting.setWeather(snap.weather)
+		end
 		Selection.prune()
 		Figures.onSnapshot()
 		Props.updateObjectives(BattleState.objectives)
@@ -19309,10 +19507,11 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000076"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000077"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: the scenarios from Scenarios.list() (fallback: Scenarios.jena alone), each with
 -- name, date, sides, summary, difficulty note and a Fight button; a difficulty selector on top.
 
+local RunService = game:GetService("RunService") :: RunService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Scenarios = require(Shared.Scenarios)
 local Kit = require(script.Parent.Kit)
@@ -19504,6 +19703,16 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	for i, e in list do
 		card(scroll, e, i, cb, isCommander)
 	end
+	-- Roblox can leave a card under the scroll window's clip half-drawn on the first frame;
+	-- nudging the canvas after the first layout pass forces a full redraw.
+	task.spawn(function()
+		RunService.Heartbeat:Wait()
+		if scroll.Parent then
+			scroll.CanvasPosition = Vector2.new(0, 1)
+			RunService.Heartbeat:Wait()
+			scroll.CanvasPosition = Vector2.new(0, 0)
+		end
+	end)
 	if #list == 0 then
 		Kit.label(scroll, "No scenarios are installed.", { size = UDim2.new(1, 0, 0, 24), colour = Kit.MUTED })
 	end
@@ -20227,10 +20436,15 @@ local Selection = require(script.Parent.Parent.Selection)
 local Input = require(script.Parent.Parent.Input)
 local Camera = require(script.Parent.Parent.Camera)
 local Factions = require(script.Parent.Parent.Factions)
+local Ledger = require(script.Parent.Ledger)
 
 local CardBar = {}
 
-local CARD_W, CARD_H = 58, 80
+local FULL_W, COMPACT_W, CARD_H = 58, 46, 80
+local COMPACT_ABOVE = 18 -- more cards than this and they narrow
+local CARD_W = FULL_W
+local ARROW_W = 18
+local PAD = 5
 local GAP = 3
 CardBar.HEIGHT = 96
 CardBar.SIDE_MARGIN = 276 -- clear of the command panel (left) and the minimap (right)
@@ -20257,6 +20471,7 @@ type Card = {
 
 local panel: Frame? = nil
 local scroll: ScrollingFrame? = nil
+local arrows: { TextButton } = {}
 local cards: { [number]: Card } = {}
 local extras: { Instance } = {} -- corps spacers and arriving cards, rebuilt on roster change
 local arriving: { [number]: TextLabel } = {}
@@ -20611,6 +20826,15 @@ local function arrivingCard(r: any, order: number)
 end
 
 local function relayout(forms: { any })
+	local want = if #forms + #BattleState.reinforcements > COMPACT_ABOVE then COMPACT_W else FULL_W
+	if want ~= CARD_W then
+		-- every card is drawn for one width: rebuild them all
+		CARD_W = want
+		for _, c in cards do
+			c.root:Destroy()
+		end
+		table.clear(cards)
+	end
 	for _, e in extras do
 		e:Destroy()
 	end
@@ -20659,6 +20883,22 @@ local function relayout(forms: { any })
 	end
 end
 
+local function step(): number
+	return CARD_W + GAP
+end
+
+local function refreshArrows()
+	local s = scroll
+	if not s or #arrows < 2 then
+		return
+	end
+	local maxX = math.max(0, s.AbsoluteCanvasSize.X - s.AbsoluteWindowSize.X)
+	Kit.setEnabled(arrows[1], s.CanvasPosition.X > 1, "Start of the line")
+	Kit.setEnabled(arrows[2], s.CanvasPosition.X < maxX - 1, "End of the line")
+end
+
+-- Size the bar to its cards; when they overflow, show gilt arrows at both ends and trim the
+-- window to a whole number of cards so none is drawn half-cut at the edge.
 local function fitWidth()
 	local p, s = panel, scroll
 	if not p or not s then
@@ -20667,16 +20907,30 @@ local function fitWidth()
 	local layout = s:FindFirstChildOfClass("UIListLayout") :: UIListLayout?
 	local sg = p.Parent :: ScreenGui
 	local content = if layout then layout.AbsoluteContentSize.X else 0
-	local avail = math.max(sg.AbsoluteSize.X - 2 * CardBar.SIDE_MARGIN, CARD_W + 12)
-	p.Size = UDim2.fromOffset(math.min(content + 12, avail), CardBar.HEIGHT)
+	local avail = math.max(sg.AbsoluteSize.X - 2 * CardBar.SIDE_MARGIN, CARD_W + 2 * PAD)
+	local overflow = content + 2 * PAD > avail
+	for _, a in arrows do
+		a.Visible = overflow
+	end
+	if overflow then
+		local window = math.max(step(), math.floor((avail - 2 * PAD - 2 * (ARROW_W + 4) + GAP) / step()) * step() - GAP)
+		s.Position = UDim2.fromOffset(ARROW_W + 4, 0)
+		s.Size = UDim2.new(0, window, 1, 0)
+		p.Size = UDim2.fromOffset(window + 2 * PAD + 2 * (ARROW_W + 4), CardBar.HEIGHT)
+	else
+		s.Position = UDim2.new()
+		s.Size = UDim2.fromScale(1, 1)
+		p.Size = UDim2.fromOffset(content + 2 * PAD, CardBar.HEIGHT)
+	end
 	p.Visible = content > 0
+	refreshArrows()
 end
 
 -- ------------------------------------------------------------------ API
 
 function CardBar.create(sg: ScreenGui)
 	CardBar.destroy()
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(200, CardBar.HEIGHT), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), padding = 6, transparency = 0.12 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(200, CardBar.HEIGHT), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), padding = PAD, transparency = 0.12 })
 	p.Name = "CardBar"
 	local s = Instance.new("ScrollingFrame") :: ScrollingFrame
 	s.Size = UDim2.fromScale(1, 1)
@@ -20685,13 +20939,26 @@ function CardBar.create(sg: ScreenGui)
 	s.ScrollingDirection = Enum.ScrollingDirection.X
 	s.AutomaticCanvasSize = Enum.AutomaticSize.X
 	s.CanvasSize = UDim2.new()
-	s.ScrollBarThickness = 4
+	s.ScrollBarThickness = 6
 	s.ScrollBarImageColor3 = Kit.GILT
+	s.ScrollBarImageTransparency = 0
 	s.Active = true
 	s.Parent = p
 	local layout = Kit.list(s, GAP, true)
 	panel = p
 	scroll = s
+	-- page by whole cards
+	for i, dir in { -1, 1 } do
+		local b = Kit.button(p, if dir < 0 then "‹" else "›", function()
+			local page = math.max(step(), math.floor(s.AbsoluteWindowSize.X / step()) * step())
+			local maxX = math.max(0, s.AbsoluteCanvasSize.X - s.AbsoluteWindowSize.X)
+			local x = math.clamp(s.CanvasPosition.X + dir * page, 0, maxX)
+			s.CanvasPosition = Vector2.new(math.round(x / step()) * step(), 0)
+		end, { size = UDim2.new(0, ARROW_W, 1, 0), position = UDim2.fromScale(if dir < 0 then 0 else 1, 0), anchor = Vector2.new(if dir < 0 then 0 else 1, 0), textSize = 22, font = Enum.Font.Garamond, tooltip = if dir < 0 then "Earlier formations" else "More formations" })
+		b.Visible = false
+		arrows[i] = b
+	end
+	table.insert(conns, s:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshArrows))
 	table.insert(conns, layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitWidth))
 	table.insert(conns, sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitWidth))
 	-- the wheel scrolls the cards sideways instead of zooming the camera
@@ -20716,6 +20983,7 @@ function CardBar.update()
 	for _, r in BattleState.reinforcements do
 		table.insert(ids, -r.id)
 	end
+	Ledger.observe(forms)
 	local key = table.concat(ids, ",")
 	if key ~= rosterKey then
 		rosterKey = key
@@ -20765,6 +21033,8 @@ function CardBar.destroy()
 	end
 	panel = nil
 	scroll = nil
+	table.clear(arrows)
+	CARD_W = FULL_W
 	table.clear(cards)
 	table.clear(extras)
 	table.clear(arriving)
@@ -20980,6 +21250,7 @@ local Config = require(Shared.Config)
 local Kit = require(script.Parent.Kit)
 local Minimap = require(script.Parent.Minimap)
 local CardBar = require(script.Parent.CardBar)
+local Ledger = require(script.Parent.Ledger)
 local BattleState = require(script.Parent.Parent.BattleState)
 local Selection = require(script.Parent.Parent.Selection)
 local Net = require(script.Parent.Parent.Net)
@@ -21011,7 +21282,7 @@ local objectiveStrip: Frame? = nil
 local objectiveChips: { [string]: { frame: Frame, pennant: Frame, label: TextLabel, bar: Frame } } = {}
 
 -- ticker
-local tickerLines: { { label: TextLabel, t0: number } } = {}
+local tickerLines: { { label: TextLabel, t0: number, base: number } } = {}
 local tickerFrame: Frame? = nil
 local tickerOrder = 0
 local TICKER_LIFE = 9
@@ -21180,10 +21451,16 @@ local function updateBalance()
 			end
 		end
 	end
-	if balanceOwn then
-		balanceOwn.Size = UDim2.fromScale(if own + enemy > 0 then own / (own + enemy) else 0.5, 1)
+	local o = balanceOwn
+	if o then
+		-- neutral grey until the first enemy formation is in sight
+		local sighted = enemy > 0
+		o.Size = UDim2.fromScale(if sighted then own / (own + enemy) else 1, 1)
+		o.BackgroundColor3 = if sighted then Kit.BLUE_LIGHT else Kit.SLATE
 	end
-	balanceText = string.format("Balance of power\nYour army: %d men\nKnown enemy strength: %d men\n(only the enemy formations you can see)", own, enemy)
+	balanceText = if enemy > 0
+		then string.format("Balance of power\nYour army: %d men\nKnown enemy strength: %d men\n(only the enemy formations you can see)", own, enemy)
+		else string.format("Balance of power\nYour army: %d men\nNo enemy sighted", own)
 end
 
 local function objectiveTip(id: string): string
@@ -21283,7 +21560,8 @@ local function escape(s: string): string
 end
 
 -- Up to four lines, newest at the bottom, fading out. `bold` for routs and captures.
-function HUD.message(text: string, colour: Color3?, bold: boolean?)
+-- `ribbon` paints the line on a solid band (crimson for routs and losses) in ivory.
+function HUD.message(text: string, colour: Color3?, bold: boolean?, ribbon: Color3?)
 	local f = tickerFrame
 	if not f then
 		return
@@ -21294,11 +21572,12 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?)
 			old.label:Destroy()
 		end
 	end
-	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = colour or Kit.CREAM, rich = true })
+	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = if ribbon then Kit.IVORY else (colour or Kit.CREAM), rich = true })
 	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
 	l.AutomaticSize = Enum.AutomaticSize.X
-	l.BackgroundColor3 = Kit.INSET
-	l.BackgroundTransparency = 0.45
+	l.BackgroundColor3 = ribbon or Kit.INSET
+	local base = if ribbon then 0.08 else 0.45
+	l.BackgroundTransparency = base
 	l.TextStrokeTransparency = 0.5
 	l.TextStrokeColor3 = Kit.INK
 	local pad = Instance.new("UIPadding") :: UIPadding
@@ -21315,7 +21594,7 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?)
 	end
 	tickerOrder += 1
 	l.LayoutOrder = tickerOrder
-	table.insert(tickerLines, { label = l, t0 = os.clock() })
+	table.insert(tickerLines, { label = l, t0 = os.clock(), base = base })
 end
 
 local function updateTicker()
@@ -21331,7 +21610,7 @@ local function updateTicker()
 			local fade = math.clamp((age - TICKER_LIFE + 3) / 3, 0, 1)
 			e.label.TextTransparency = fade
 			e.label.TextStrokeTransparency = 0.5 + 0.5 * fade
-			e.label.BackgroundTransparency = 0.5 + 0.5 * fade
+			e.label.BackgroundTransparency = e.base + (1 - e.base) * fade
 			i += 1
 		end
 	end
@@ -21421,7 +21700,7 @@ local COMMANDS: { CommandDef } = {
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
 	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
-	{ key = "ammo", text = "Auto ammo", tip = "Cycle: round shot (long) / canister (short) / auto" },
+	{ key = "ammo", text = "Auto", tip = "Ammunition, click to cycle: auto / round shot (long) / canister (short)" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
 }
 
@@ -21553,7 +21832,7 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 	elseif key == "ammo" then
 		local art = firstOfClass(forms, "artillery")
 		local mode = if art and art.ammoMode then art.ammoMode else "auto"
-		b.Text = if mode == "roundShot" then "Round shot" elseif mode == "canister" then "Canister" else "Auto ammo"
+		b.Text = if mode == "roundShot" then "Shot" elseif mode == "canister" then "Canister" else "Auto"
 	elseif key == "rally" then
 		local cd = 0
 		for _, f in forms do
@@ -21680,6 +21959,7 @@ function HUD.show(callbacks: Callbacks)
 end
 
 function HUD.onEvent(ev: any)
+	Ledger.onEvent(ev)
 	local f = if ev.id then BattleState.formations[ev.id] else nil
 	local name = if f and f.name then f.name else (if ev.id then "#" .. tostring(ev.id) else nil)
 	local ours = ev.faction == BattleState.viewerFaction
@@ -21687,15 +21967,16 @@ function HUD.onEvent(ev: any)
 	if kind == "message" and ev.text then
 		HUD.message(ev.text)
 	elseif kind == "rout" and name then
-		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.GILT_BRIGHT, true)
+		HUD.message(name .. " is routing!", Kit.GILT_BRIGHT, true, if ours then Kit.CRIMSON else nil)
 	elseif kind == "rally" and name then
 		HUD.message(name .. " has rallied.")
 	elseif kind == "capture" then
 		local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
 		local who = if ev.faction then (names[ev.faction] or Kit.factionName(ev.faction)) else "Someone"
 		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.GILT_BRIGHT else Kit.HOSTILE, true)
-	elseif kind == "destroyed" and name then
-		HUD.message(name .. " is destroyed.", Kit.HOSTILE)
+	elseif kind == "destroyed" and (ev.text or name) then
+		-- the formation has already left the snapshot: the event text carries its name
+		HUD.message(if ev.text then tostring(ev.text) .. "." else tostring(name) .. " is destroyed.", nil, true, if ours then Kit.CRIMSON else Kit.INSET)
 	elseif kind == "charge" and name then
 		HUD.message(name .. " charges!")
 	end
@@ -22193,7 +22474,13 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 			frame(cloth, UDim2.fromScale(1 / #bands, 1), UDim2.fromScale((i - 1) / #bands, 0), c)
 		end
 	end
-	local m, mc = fl.mark, fl.markColour
+	local stripes = fl.stripes
+	if stripes then
+		for i, c in stripes do
+			frame(cloth, UDim2.fromScale(1, 1 / #stripes), UDim2.fromScale(0, (i - 1) / #stripes), c)
+		end
+	end
+	local m, mc = (if stripes then nil else fl.mark), fl.markColour
 	local cx, cy = size.X / 2, size.Y / 2
 	local function bar(w: number, h: number, rot: number)
 		local b = frame(cloth, UDim2.fromOffset(w, h), UDim2.fromOffset(cx, cy), mc)
@@ -22204,8 +22491,11 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 	if m == "diamond" then
 		bar(size.Y * 0.4, size.Y * 0.4, 45)
 	elseif m == "x" then
-		bar(diag, 3, 45)
-		bar(diag, 3, -45)
+		-- saltire corner to corner (a hair short: rotated children are not clipped)
+		local a = math.deg(math.atan2(size.Y, size.X))
+		local len = math.sqrt(size.X * size.X + size.Y * size.Y) - 3
+		bar(len, 4, a)
+		bar(len, 4, -a)
 	elseif m == "plus" then
 		bar(size.X, 3, 0)
 		bar(3, size.Y, 0)
@@ -22215,6 +22505,18 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 		b.AnchorPoint = Vector2.new(0, 0.5)
 	elseif m == "diagonal" then
 		bar(diag, 3, -45)
+	end
+	local cross = fl.cross
+	if cross then
+		-- white edging under the red cross, as on the Union flag
+		local ew = frame(cloth, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0.5, -3), Kit.IVORY)
+		ew.ZIndex = 2
+		local eh = frame(cloth, UDim2.new(0, 6, 1, 0), UDim2.new(0.5, -3, 0, 0), Kit.IVORY)
+		eh.ZIndex = 2
+		local rw = frame(cloth, UDim2.new(1, 0, 0, 3), UDim2.new(0, 0, 0.5, -1), cross)
+		rw.ZIndex = 3
+		local rh = frame(cloth, UDim2.new(0, 3, 1, 0), UDim2.new(0.5, -1, 0, 0), cross)
+		rh.ZIndex = 3
 	end
 	local s = Instance.new("UIStroke") :: UIStroke
 	s.Color = Kit.INSET
@@ -22552,7 +22854,159 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+-- What the client saw of its own army during one battle, for the results report: one record per
+-- own formation (start, last strength, final status) and counts of squares, charges, routs,
+-- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
+
+local BattleState = require(script.Parent.Parent.BattleState)
+
+local Ledger = {}
+
+export type Record = {
+	id: number,
+	name: string,
+	corps: string,
+	class: string,
+	start: number,
+	last: number,
+	status: string,
+	shape: string,
+	squares: number,
+}
+
+export type Counts = {
+	squares: number,
+	ownCharges: number,
+	enemyCharges: number,
+	ownRouts: number,
+	enemyRouts: number,
+	ownRallies: number,
+	ownDestroyed: number,
+	enemyDestroyed: number,
+	gunsLost: number,
+	ownIntoSquares: number, -- our charges that met a formed square
+	enemyIntoSquares: number,
+}
+
+local matchId = ""
+local records: { [number]: Record } = {}
+local order: { number } = {}
+local counts: Counts
+
+local STATUS: { [string]: string } = { idle = "Holding", moving = "Marching", reforming = "Reforming", firing = "Firing", charging = "Charging", melee = "In melee", retreating = "Retreating", routing = "Routing", rallying = "Rallying" }
+
+local FINAL: { [string]: boolean } = { Destroyed = true, ["Off the field"] = true, ["Guns abandoned"] = true, ["Fled the field"] = true }
+
+local function reset()
+	table.clear(records)
+	table.clear(order)
+	counts = { squares = 0, ownCharges = 0, enemyCharges = 0, ownRouts = 0, enemyRouts = 0, ownRallies = 0, ownDestroyed = 0, enemyDestroyed = 0, gunsLost = 0, ownIntoSquares = 0, enemyIntoSquares = 0 }
+end
+reset()
+
+local function sync()
+	if BattleState.matchId ~= matchId then
+		matchId = BattleState.matchId
+		reset()
+	end
+end
+
+-- Called on every snapshot with the own formations currently on the field.
+function Ledger.observe(forms: { any })
+	sync()
+	local present: { [number]: boolean } = {}
+	for _, f in forms do
+		present[f.id] = true
+		local found = records[f.id]
+		local r: Record
+		if found then
+			r = found
+		else
+			r = { id = f.id :: number, name = tostring(f.name or ("#" .. f.id)), corps = tostring(f.corps or ""), class = tostring(f.class), start = tonumber(f.startStrength) or 0, last = tonumber(f.strength) or 0, status = "", shape = tostring(f.shape), squares = 0 }
+			records[f.id] = r
+			table.insert(order, f.id)
+		end
+		local shape: string = tostring(f.shape)
+		local was: string = r.shape
+		if shape == "square" and was ~= "square" then
+			r.squares += 1
+			counts.squares += 1
+		end
+		r.shape = shape
+		r.last = tonumber(f.strength) or 0
+		r.status = if f.moraleBand == "shattered" then "Shattered" else (STATUS[f.state] or f.state)
+	end
+	for id, r in records do
+		if not present[id] and not FINAL[r.status] then
+			r.status = "Off the field"
+		end
+	end
+end
+
+function Ledger.onEvent(ev: any)
+	sync()
+	local ours = ev.faction == BattleState.viewerFaction
+	local r = if ev.id then records[ev.id] else nil
+	if ev.kind == "charge" then
+		local square = ev.text == "square"
+		if ours then
+			counts.ownCharges += 1
+			counts.ownIntoSquares += if square then 1 else 0
+		else
+			counts.enemyCharges += 1
+			counts.enemyIntoSquares += if square then 1 else 0
+		end
+	elseif ev.kind == "rout" then
+		if r or ours then
+			counts.ownRouts += 1
+		else
+			counts.enemyRouts += 1
+		end
+	elseif ev.kind == "rally" and (r or ours) then
+		counts.ownRallies += 1
+	elseif ev.kind == "destroyed" then
+		local text = tostring(ev.text or "")
+		if r then
+			counts.ownDestroyed += 1
+			if string.find(text, "guns abandoned", 1, true) then
+				r.status = "Guns abandoned"
+				counts.gunsLost += 1
+			elseif string.find(text, "fled the field", 1, true) then
+				r.status = "Fled the field"
+			else
+				r.status = "Destroyed"
+				r.last = 0
+				if r.class == "artillery" then
+					counts.gunsLost += 1
+				end
+			end
+		elseif not ours then
+			counts.enemyDestroyed += 1
+		end
+	end
+end
+
+-- Own formations in roster order.
+function Ledger.records(): { Record }
+	sync()
+	local out = {}
+	for _, id in order do
+		table.insert(out, records[id])
+	end
+	table.sort(out, function(a: Record, b: Record)
+		return a.id < b.id
+	end)
+	return out
+end
+
+function Ledger.counts(): Counts
+	sync()
+	return counts
+end
+
+return Ledger
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (terrain + props build).
 
 local Kit = require(script.Parent.Kit)
@@ -22629,7 +23083,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -22699,7 +23153,7 @@ local note: TextLabel? = nil
 
 function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boolean)
 	if not gui then
-		local sg = Kit.screen("EoEMenu", 30)
+		local sg = Kit.screen("EoEMenu", 30, true) -- the column runs up under the Roblox top-bar inset
 		-- full-height column on the left; the live battlefield stays visible on the right
 		local col = Instance.new("Frame") :: Frame
 		col.Size = UDim2.new(0, 400, 1, 0)
@@ -22753,7 +23207,7 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		if grand then
 			item("Grand Campaign", grand, 5)
 		end
-		item("Tutorial", cb.tutorial, 5) -- the aide-de-camp's training ground (Tutorial.luau)
+		item("Tutorial", cb.tutorial, 6) -- the aide-de-camp's training ground (Tutorial.luau)
 		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
 		gui = sg
 	end
@@ -22788,7 +23242,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -23047,14 +23501,19 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 
+local Ledger = require(script.Parent.Ledger)
+
 local Results = {}
+
+local notes: (results: any) -> { string }
+local formationTable: (parent: Instance, order: number) -> ()
 
 export type Callbacks = { restart: () -> (), menu: () -> (), campaign: (() -> ())? }
 
@@ -23122,8 +23581,78 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	end
 end
 
+-- Specific notes from what we saw happen, then the server's lessons.
+notes = function(results: any): { string }
+	local c = Ledger.counts()
+	local out: { string } = {}
+	local function plural(k: number, one: string, many: string): string
+		return string.format("%d %s", k, if k == 1 then one else many)
+	end
+	if c.squares > 0 then
+		table.insert(out, string.format("Your infantry formed square %s.", plural(c.squares, "time", "times")))
+	end
+	if c.enemyIntoSquares > 0 then
+		table.insert(out, string.format("%s broke against your squares.", plural(c.enemyIntoSquares, "enemy charge", "enemy charges")))
+	end
+	if c.ownIntoSquares > 0 then
+		table.insert(out, string.format("Your cavalry rode into formed squares %s; charge flanks, guns or broken troops instead.", plural(c.ownIntoSquares, "time", "times")))
+	end
+	if c.ownCharges + c.enemyCharges > 0 then
+		table.insert(out, string.format("You launched %s; the enemy %d.", plural(c.ownCharges, "charge", "charges"), c.enemyCharges))
+	end
+	if c.ownRouts + c.enemyRouts > 0 then
+		table.insert(out, string.format("Your formations broke %s and rallied %s; the enemy broke %s that you saw.", plural(c.ownRouts, "time", "times"), plural(c.ownRallies, "time", "times"), plural(c.enemyRouts, "time", "times")))
+	else
+		table.insert(out, "No formation on either side broke: the lines never came to a decision.")
+	end
+	if c.ownDestroyed > 0 or c.enemyDestroyed > 0 then
+		table.insert(out, string.format("You lost %s%s; the enemy lost %d that you saw.", plural(c.ownDestroyed, "formation", "formations"), if c.gunsLost > 0 then string.format(" (guns lost: %d %s)", c.gunsLost, if c.gunsLost == 1 then "battery" else "batteries") else "", c.enemyDestroyed))
+	end
+	for _, line in results.feedback or {} do
+		table.insert(out, tostring(line))
+	end
+	return out
+end
+
+-- Own army, one row per formation: name, start, end, casualties, final status.
+formationTable = function(parent: Instance, order: number)
+	local t = Instance.new("Frame") :: Frame
+	t.Size = UDim2.new(1, -14, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.BackgroundTransparency = 1
+	t.LayoutOrder = order
+	t.Parent = parent
+	Kit.list(t, 0)
+	local COLS = { { "Formation", 0.44 }, { "Start", 0.11 }, { "End", 0.11 }, { "Lost", 0.11 }, { "Status", 0.23 } }
+	local function row(cells: { string }, i: number, header: boolean)
+		local r = Instance.new("Frame") :: Frame
+		r.Size = UDim2.new(1, 0, 0, 20)
+		r.BackgroundColor3 = Kit.PARCHMENT_EDGE
+		r.BackgroundTransparency = if header then 0.4 elseif i % 2 == 0 then 0.75 else 1
+		r.BorderSizePixel = 0
+		r.LayoutOrder = i
+		r.Parent = t
+		local x = 0
+		for k, col in COLS do
+			local w = col[2] :: number
+			local l = Kit.label(r, cells[k], { size = UDim2.new(w, -6, 1, 0), position = UDim2.new(x, 4, 0, 0), textSize = if header then 13 else 14, font = if header then Enum.Font.SourceSansBold else nil, align = if k > 1 and k < 5 then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left })
+			l.TextTruncate = Enum.TextTruncate.AtEnd
+			x += w
+		end
+	end
+	row({ "Formation", "Start", "End", "Lost", "Status" }, 0, true)
+	local recs = Ledger.records()
+	for i, r in recs do
+		row({ r.name, tostring(r.start), tostring(r.last), tostring(math.max(0, r.start - r.last)), r.status }, i, false)
+	end
+	if #recs == 0 then
+		row({ "No formations recorded", "", "", "", "" }, 1, false)
+	end
+end
+
 local function objectiveChip(parent: Instance, o: any, names: { [string]: string }, order: number)
-	local f = Kit.panel(parent, { size = UDim2.fromOffset(170, 26), position = UDim2.new(), transparency = 0.1, plain = true })
+	local f = Kit.panel(parent, { size = UDim2.fromOffset(0, 26), position = UDim2.new(), transparency = 0.1, plain = true })
+	f.AutomaticSize = Enum.AutomaticSize.X
 	f.LayoutOrder = order
 	local pennant = Instance.new("Frame") :: Frame
 	pennant.Size = UDim2.new(0, 8, 1, 0)
@@ -23131,8 +23660,11 @@ local function objectiveChip(parent: Instance, o: any, names: { [string]: string
 	pennant.BorderSizePixel = 0
 	pennant.Parent = f
 	local owner = if o.owner then (names[o.owner] or Kit.factionName(o.owner)) else "unclaimed"
-	local l = Kit.label(f, string.format("%s — %s", tostring(o.name), owner), { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(13, 0), textSize = 12 })
-	l.TextTruncate = Enum.TextTruncate.AtEnd
+	local l = Kit.label(f, string.format("%s — %s", tostring(o.name), owner), { size = UDim2.fromOffset(0, 26), position = UDim2.fromOffset(13, 0), textSize = 14 })
+	l.AutomaticSize = Enum.AutomaticSize.X
+	local pad = Instance.new("UIPadding") :: UIPadding
+	pad.PaddingRight = UDim.new(0, 10)
+	pad.Parent = l
 end
 
 function Results.show(results: any, cb: Callbacks)
@@ -23184,12 +23716,40 @@ function Results.show(results: any, cb: Callbacks)
 		end
 	end
 
-	Kit.title(panel, "Objectives", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 264), textSize = 19, spaced = true })
+	-- the rest of the report scrolls: objectives, notes, the chronicle, the order of battle
+	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
+	body.Size = UDim2.new(1, 0, 1, -264 - 52)
+	body.Position = UDim2.new(0, 0, 0, 264)
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = Kit.GILT_DARK
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.CanvasSize = UDim2.new()
+	body.Parent = panel
+	Kit.list(body, 6)
+	local n = 0
+	local function nextOrder(): number
+		n += 1
+		return n
+	end
+	local function heading(text: string)
+		local t = Kit.title(body, text, { size = UDim2.new(1, -10, 0, 24), textSize = 19, spaced = true })
+		t.LayoutOrder = nextOrder()
+	end
+	local function para(text: string, colour: Color3?)
+		local l = Kit.label(body, text, { size = UDim2.new(1, -14, 0, 0), textSize = 17, font = Enum.Font.Garamond, wrap = true, colour = colour })
+		l.AutomaticSize = Enum.AutomaticSize.Y
+		l.LayoutOrder = nextOrder()
+	end
+
+	heading("Objectives")
 	local objRow = Instance.new("Frame") :: Frame
-	objRow.Size = UDim2.new(1, 0, 0, 26)
-	objRow.Position = UDim2.new(0, 0, 0, 290)
+	objRow.Size = UDim2.new(1, -10, 0, 0)
+	objRow.AutomaticSize = Enum.AutomaticSize.Y
 	objRow.BackgroundTransparency = 1
-	objRow.Parent = panel
+	objRow.LayoutOrder = nextOrder()
+	objRow.Parent = body
 	local ol = Kit.list(objRow, 6, true)
 	ol.Wraps = true
 	local objs = results.objectives or {}
@@ -23197,30 +23757,30 @@ function Results.show(results: any, cb: Callbacks)
 		objectiveChip(objRow, o, names, i)
 	end
 	if #objs == 0 then
-		Kit.label(objRow, "None on this field.", { size = UDim2.new(1, 0, 1, 0), textSize = 12, colour = Kit.MUTED })
+		para("None on this field.", Kit.MUTED)
 	end
 
-	Kit.title(panel, "Notes from the field", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 326), textSize = 19, spaced = true })
-	local fb = Instance.new("ScrollingFrame") :: ScrollingFrame
-	fb.Size = UDim2.new(1, 0, 1, -352 - 52)
-	fb.Position = UDim2.new(0, 0, 0, 352)
-	fb.BackgroundTransparency = 1
-	fb.BorderSizePixel = 0
-	fb.ScrollBarThickness = 4
-	fb.ScrollBarImageColor3 = Kit.INK
-	fb.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	fb.CanvasSize = UDim2.new()
-	fb.Parent = panel
-	Kit.list(fb, 4)
-	local lines = results.feedback or {}
-	if #lines == 0 then
-		lines = { "No particular lessons this time." }
+	heading("Notes from the field")
+	for _, line in notes(results) do
+		para("· " .. line)
 	end
-	for i, line in lines do
-		local l = Kit.label(fb, "· " .. tostring(line), { size = UDim2.new(1, -8, 0, 20), textSize = 17, font = Enum.Font.Garamond, wrap = true })
-		l.AutomaticSize = Enum.AutomaticSize.Y
-		l.LayoutOrder = i
+
+	local chronicle: { string } = {}
+	for _, line in results.log or {} do
+		local l = tostring(line)
+		if string.find(l, " broke ", 1, true) or string.find(l, "abandoned", 1, true) or string.find(l, "destroyed", 1, true) or string.find(l, "captured", 1, true) or string.find(l, " fell", 1, true) then
+			table.insert(chronicle, l)
+		end
 	end
+	if #chronicle > 0 then
+		heading("Chronicle")
+		for _, l in chronicle do
+			para(l, Kit.MUTED)
+		end
+	end
+
+	heading("Order of battle")
+	formationTable(body, nextOrder())
 
 	local buttons = Instance.new("Frame") :: Frame
 	buttons.Size = UDim2.new(1, 0, 0, 42)
@@ -23261,7 +23821,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
@@ -23390,7 +23950,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -23552,7 +24112,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000081"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000082"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morning battlefield light: warm sun from the south-east, light haze, soft clouds, slight
 -- warmth and contrast. Built-in defaults only (no asset ids). Quality 1 drops the costly bits.
 
@@ -23589,21 +24149,45 @@ local function setTechnology()
 	end
 end
 
+local currentQuality = 2
+local currentWeather: string? = nil
+
+-- Weather tints only the distance: fog is a pale warm grey that thickens far away.
+local function applyHaze(L: Lighting, atmo: Atmosphere?)
+	local foggy = currentWeather == "fog"
+	if atmo then
+		atmo.Density = if foggy then 0.32 else 0.1
+		atmo.Offset = if foggy then 0.05 else 0.25
+		atmo.Color = if foggy then Color3.fromRGB(214, 206, 190) else Color3.fromRGB(232, 216, 182)
+		atmo.Decay = if foggy then Color3.fromRGB(196, 188, 170) else Color3.fromRGB(206, 182, 140)
+		atmo.Glare = 0
+		atmo.Haze = if foggy then 1.4 else 0.3
+	end
+	L.FogColor = Color3.fromRGB(214, 206, 188)
+	L.FogStart = if foggy then 500 else 1600
+	L.FogEnd = if foggy then 2200 else 4200
+end
+
+local atmosphere: Atmosphere? = nil
+
 function Lighting.apply(quality: number)
+	currentQuality = quality
 	clearOwned()
+	atmosphere = nil
 	setTechnology()
 	local L = LightingService
-	-- ~10:12, latitude 50: the sun stands in the south-east, so north/west slopes read darker
-	L.ClockTime = 10.2
+	-- Low morning sun from the south-east: long shadows so north/west slopes read dark.
+	L.ClockTime = 8.9
 	L.GeographicLatitude = 50
-	L.Brightness = 2.4
-	L.ShadowSoftness = 0.2
+	L.Brightness = 2.8
+	L.ShadowSoftness = 0.12
 	L.GlobalShadows = true
-	L.EnvironmentDiffuseScale = 0.5
-	L.EnvironmentSpecularScale = 0.25
-	L.Ambient = Color3.fromRGB(88, 92, 82)
-	L.OutdoorAmbient = Color3.fromRGB(126, 128, 112)
-	L.ExposureCompensation = 0.1
+	-- low ambient keeps the shaded side of a ridge dark, as in the reference
+	L.EnvironmentDiffuseScale = 0.25
+	L.EnvironmentSpecularScale = 0.1
+	L.Ambient = Color3.fromRGB(64, 60, 50)
+	L.OutdoorAmbient = Color3.fromRGB(104, 98, 82)
+	L.ExposureCompensation = 0.15
 
 	local sky = own(Instance.new("Sky") :: Sky, L)
 	sky.CelestialBodiesShown = true
@@ -23611,39 +24195,42 @@ function Lighting.apply(quality: number)
 	sky.SunAngularSize = 14
 
 	local cc = own(Instance.new("ColorCorrectionEffect") :: ColorCorrectionEffect, L)
-	cc.TintColor = Color3.fromRGB(255, 248, 236) -- slight warmth
-	cc.Contrast = 0.08
-	cc.Saturation = 0.04
-	cc.Brightness = 0.0
+	cc.TintColor = Color3.fromRGB(255, 244, 222) -- warm, never cyan
+	cc.Contrast = 0.18
+	cc.Saturation = 0.22
+	cc.Brightness = 0.02
 
 	local bloom = own(Instance.new("BloomEffect") :: BloomEffect, L)
-	bloom.Intensity = 0.15
+	bloom.Intensity = 0.12
 	bloom.Size = 18
-	bloom.Threshold = 1.6
+	bloom.Threshold = 1.8
 
 	if quality >= 2 then
-		local atmo = own(Instance.new("Atmosphere") :: Atmosphere, L)
-		atmo.Density = 0.28
-		atmo.Offset = 0.12
-		atmo.Color = Color3.fromRGB(214, 206, 186)
-		atmo.Decay = Color3.fromRGB(120, 118, 104)
-		atmo.Glare = 0.15
-		atmo.Haze = 1.2
+		atmosphere = own(Instance.new("Atmosphere") :: Atmosphere, L)
 
 		local rays = own(Instance.new("SunRaysEffect") :: SunRaysEffect, L)
-		rays.Intensity = 0.04
-		rays.Spread = 0.6
+		rays.Intensity = 0.03
+		rays.Spread = 0.5
 
 		local clouds = own(Instance.new("Clouds") :: Clouds, workspace.Terrain)
-		clouds.Cover = 0.45
-		clouds.Density = 0.25
-		clouds.Color = Color3.fromRGB(246, 242, 232)
-	else
-		-- without Atmosphere, plain distance fog hides the horizon past the map edge
-		L.FogColor = Color3.fromRGB(200, 198, 182)
-		L.FogStart = 1400
-		L.FogEnd = 3400
+		clouds.Cover = 0.4
+		clouds.Density = 0.2
+		clouds.Color = Color3.fromRGB(248, 244, 234)
 	end
+	applyHaze(L, atmosphere)
+end
+
+-- Scenario weather (`fog`, `rain`, ... or nil). Only fog changes the light.
+function Lighting.setWeather(weather: string?)
+	if weather == currentWeather then
+		return
+	end
+	currentWeather = weather
+	applyHaze(LightingService, atmosphere)
+end
+
+function Lighting.quality(): number
+	return currentQuality
 end
 
 function Lighting.destroy()
@@ -23651,7 +24238,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -23679,7 +24266,7 @@ local TREE_PRIORITY = { [1] = 0.55, [2] = 0.25, [3] = 0.0 } -- keep trees with p
 local CROWNS = { [1] = 2, [2] = 3, [3] = 3 }
 local CROWN = Color3.fromRGB(52, 74, 36) -- dense dark green (reference), not the lighter palette crown
 local ROOF = Color3.fromRGB(58, 40, 30) -- very dark brown pitched roofs
-local WALL = Color3.fromRGB(104, 78, 58)
+local WALL = Color3.fromRGB(150, 128, 96)
 
 local function part(parent: Instance, shape: EnumPartType?, size: Vector3, cf: CFrame, color: Color3, material: EnumMaterial?): Part
 	local p = Instance.new("Part") :: Part
@@ -23743,16 +24330,34 @@ local function buildTree(parent: Instance, t: any, crowns: number)
 	end
 end
 
-local function buildBuilding(parent: Instance, b: any)
-	local y = groundY(b.pos.x, b.pos.z)
-	local base = yaw(b.pos.x, y + b.h / 2 - 0.5, b.pos.z, b.heading)
-	part(parent, nil, Vector3.new(b.w, b.h, b.d), base, WALL)
-	local roofH = b.h * 0.55
-	local roofColor = if (b.w * 3 + b.d) % 2 < 1 then ROOF else ROOF:Lerp(Color3.fromRGB(28, 22, 18), 0.4)
-	local roofBase = yaw(b.pos.x, y + b.h - 0.5 + roofH / 2, b.pos.z, b.heading)
+-- Small cottages about 1.5x a soldier's height (walls 2.4 + roof ~2): a MapGen building
+-- footprint becomes one or two of them side by side, so villages read as dense clusters of
+-- dark pitched roofs rather than a few big boxes.
+local WALL_H = 2.4
+
+local function cottage(parent: Instance, x: number, z: number, heading: number, w: number, d: number, shade: number)
+	local y = groundY(x, z)
+	part(parent, nil, Vector3.new(w, WALL_H + 0.6, d), yaw(x, y + WALL_H / 2 - 0.3, z, heading), WALL:Lerp(Color3.fromRGB(110, 92, 70), shade))
+	local roofH = d * 0.42
+	local roofColor = ROOF:Lerp(Color3.fromRGB(24, 18, 14), shade)
+	local roofBase = yaw(x, y + WALL_H + roofH / 2, z, heading)
 	-- two wedges back to back along local Z form a gable with the ridge along local X
-	wedge(parent, Vector3.new(b.w + 0.6, roofH, b.d / 2 + 0.3), roofBase * CFrame.new(0, 0, -b.d / 4), roofColor)
-	wedge(parent, Vector3.new(b.w + 0.6, roofH, b.d / 2 + 0.3), roofBase * CFrame.new(0, 0, b.d / 4) * CFrame.Angles(0, math.pi, 0), roofColor)
+	wedge(parent, Vector3.new(w + 0.5, roofH, d / 2 + 0.35), roofBase * CFrame.new(0, 0, -d / 4), roofColor)
+	wedge(parent, Vector3.new(w + 0.5, roofH, d / 2 + 0.35), roofBase * CFrame.new(0, 0, d / 4) * CFrame.Angles(0, math.pi, 0), roofColor)
+end
+
+local function buildBuilding(parent: Instance, b: any)
+	local w = math.clamp(b.w * 0.55, 3.8, 6.5)
+	local d = math.clamp(b.d * 0.62, 3.4, 5)
+	local shade = ((b.pos.x * 13 + b.pos.z * 7) % 10) / 10
+	if b.w >= 9 then
+		local ux, uz = math.cos(b.heading), math.sin(b.heading)
+		local off = w / 2 + 0.5
+		cottage(parent, b.pos.x - ux * off, b.pos.z - uz * off, b.heading, w, d, shade)
+		cottage(parent, b.pos.x + ux * off, b.pos.z + uz * off, b.heading + 0.08, w * 0.9, d, 1 - shade)
+	else
+		cottage(parent, b.pos.x, b.pos.z, b.heading, w, d, shade)
+	end
 end
 
 local function buildBridge(parent: Instance, br: any)
@@ -23793,13 +24398,17 @@ local function maxGroundUnder(x: number, z: number, hl: number, hd: number): (nu
 	return hi, lo
 end
 
-local function buildLabel(parent: Instance, l: any)
-	local size = 20 * l.size -- modest, mixed case, cream serif
+local function buildLabel(parent: Instance, l: any, isVillage: boolean)
+	-- Villages are the names players navigate by: larger and steadier than terrain features,
+	-- which no longer dwarf them (Landgrafenberg vs Closewitz in Studio).
+	local size = if isVillage then 24 else math.clamp(17 * l.size, 13, 22)
+	-- plate length follows the name so long names keep their letter height
+	local len = size * math.max(3, 0.56 * #l.text)
 	-- Shorten the plate on steep ground (it clipped at the ends on slopes in Studio), then lift it
 	-- above the highest terrain under its largest scaled footprint.
-	local len = size * 4
 	local hi, lo = maxGroundUnder(l.pos.x, l.pos.z, len * LABEL_MAX_K / 2, size * LABEL_MAX_K / 2)
-	while hi - lo > LABEL_MAX_RISE and len > size * 2.2 do
+	local minLen = len * 0.55
+	while hi - lo > LABEL_MAX_RISE and len > minLen do
 		len *= 0.85
 		hi, lo = maxGroundUnder(l.pos.x, l.pos.z, len * LABEL_MAX_K / 2, size * LABEL_MAX_K / 2)
 	end
@@ -23811,7 +24420,7 @@ local function buildLabel(parent: Instance, l: any)
 	p.CastShadow = false
 	local gui = Instance.new("SurfaceGui") :: SurfaceGui
 	gui.Face = Enum.NormalId.Top
-	gui.CanvasSize = Vector2.new(400, 100) -- TextScaled stops at 100 px, so the canvas is 100 tall
+	gui.CanvasSize = Vector2.new(math.floor(100 * len / size), 100) -- TextScaled stops at 100 px, so the canvas is 100 tall
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
 	gui.Parent = p
@@ -23822,7 +24431,9 @@ local function buildLabel(parent: Instance, l: any)
 	text.TextScaled = true
 	text.Text = l.text
 	text.TextColor3 = rgb(P.Cream)
-	text.TextTransparency = 0.4
+	text.TextTransparency = 0.12
+	text.TextStrokeColor3 = Color3.fromRGB(40, 34, 24)
+	text.TextStrokeTransparency = 0.6
 	text.Parent = gui
 	table.insert(labelParts, { part = p, size = size, len = len })
 end
@@ -23885,9 +24496,13 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 			buildBridge(f, br)
 		end)
 	end
+	local villageNames: { [string]: boolean } = {}
+	for _, v in map.villages do
+		villageNames[v.name] = true
+	end
 	for _, l in map.labels do
 		table.insert(jobs, function()
-			buildLabel(f, l)
+			buildLabel(f, l, villageNames[l.text] == true)
 		end)
 	end
 	for _, o in map.objectives do
@@ -24000,7 +24615,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -24027,9 +24642,33 @@ local FUR = Color3.fromRGB(52, 40, 32)
 local RED = Color3.fromRGB(176, 40, 44)
 local GOLD = Color3.fromRGB(205, 168, 62)
 
+-- Up-close uniforms (far LOD keeps the palette cobalt vs charcoal): coat, collar/facings.
+local COATS: { [string]: Color3 } = {
+	france = Color3.fromRGB(34, 62, 156), -- cobalt
+	prussia = Color3.fromRGB(30, 34, 54), -- dark blue-black
+	britain = Color3.fromRGB(172, 34, 38),
+	russia = Color3.fromRGB(42, 70, 44),
+	austria = Color3.fromRGB(226, 222, 210),
+}
+local FACINGS: { [string]: Color3 } = {
+	france = Color3.fromRGB(196, 36, 40), -- red collar (white lapels drawn separately)
+	prussia = Color3.fromRGB(196, 36, 40), -- red collar
+	britain = Color3.fromRGB(232, 222, 190),
+	russia = Color3.fromRGB(196, 36, 40),
+	austria = Color3.fromRGB(150, 40, 60),
+}
+
+-- Coat colour for a figure: a unit palette override (e.g. Saxony) keeps its own colour.
+function Soldiers.coat(faction: string, override: string?, fallback: Color3): Color3
+	if override then
+		return fallback
+	end
+	return COATS[faction] or fallback
+end
+
 local TROUSERS: { [string]: Color3 } = {
-	france = Color3.fromRGB(226, 222, 208),
-	prussia = Color3.fromRGB(214, 210, 198),
+	france = Color3.fromRGB(232, 228, 216), -- white breeches
+	prussia = Color3.fromRGB(128, 128, 124), -- grey
 	britain = Color3.fromRGB(98, 100, 108),
 	russia = Color3.fromRGB(220, 218, 206),
 	austria = Color3.fromRGB(224, 222, 214),
@@ -24119,24 +24758,36 @@ end
 
 -- Flag in the local X-Y plane, hoist at x = 0, flying toward -X.
 function Soldiers.flag(add: Add, faction: string, origin: CFrame, w: number, h: number)
-	local design = Factions.flag(faction)
+	local design = Factions.flag(faction) :: any
+	local c = origin * CFrame.new(-w / 2, 0, 0)
+	local t = 0.08
+	local stripes = design.stripes
+	if stripes then
+		-- horizontal bands, top to bottom (Prussia black-white-black); no mark
+		local n = #stripes
+		for i, col in stripes do
+			add(mk(Vector3.new(w, h / n, 0.05), col), c * CFrame.new(0, h / 2 - (i - 0.5) * h / n, 0), 0, 0)
+		end
+		return
+	end
 	local bands = design.bands
 	if bands then
 		local n = #bands
-		for i, c in bands do
-			add(mk(Vector3.new(w / n, h, 0.05), c), origin * CFrame.new(-(i - 0.5) * w / n, 0, 0), 0, 0)
+		for i, col in bands do
+			add(mk(Vector3.new(w / n, h, 0.05), col), origin * CFrame.new(-(i - 0.5) * w / n, 0, 0), 0, 0)
 		end
 	else
-		add(mk(Vector3.new(w, h, 0.05), design.field or WHITE), origin * CFrame.new(-w / 2, 0, 0), 0, 0)
+		add(mk(Vector3.new(w, h, 0.05), design.field or WHITE), c, 0, 0)
 	end
-	local c = origin * CFrame.new(-w / 2, 0, 0)
-	local mc = design.markColour
-	local t = 0.08
+	local mc: Color3 = design.markColour
+	local diag = math.deg(math.atan2(h, w))
 	if design.mark == "diamond" then
 		add(mk(Vector3.new(h * 0.32, h * 0.32, t), mc), c * CFrame.Angles(0, 0, math.rad(45)), 0, 0)
 	elseif design.mark == "x" then
-		for _, a in { 35, -35 } do
-			add(mk(Vector3.new(w * 1.15, h * 0.12, t), mc), c * CFrame.Angles(0, 0, math.rad(a)), 0, 0)
+		-- saltire corner to corner
+		local len = math.sqrt(w * w + h * h)
+		for _, a in { diag, -diag } do
+			add(mk(Vector3.new(len, h * 0.16, t), mc), c * CFrame.Angles(0, 0, math.rad(a)), 0, 0)
 		end
 	elseif design.mark == "plus" then
 		add(mk(Vector3.new(w, h * 0.16, t), mc), c, 0, 0)
@@ -24145,7 +24796,15 @@ function Soldiers.flag(add: Add, faction: string, origin: CFrame, w: number, h: 
 		add(mk(Vector3.new(w, h * 0.1, t), mc), c * CFrame.new(0, h * 0.18, 0), 0, 0)
 		add(mk(Vector3.new(w, h * 0.1, t), mc), c * CFrame.new(0, -h * 0.18, 0), 0, 0)
 	elseif design.mark == "diagonal" then
-		add(mk(Vector3.new(w * 1.15, h * 0.12, t), mc), c * CFrame.Angles(0, 0, math.rad(35)), 0, 0)
+		add(mk(Vector3.new(math.sqrt(w * w + h * h), h * 0.12, t), mc), c * CFrame.Angles(0, 0, math.rad(diag)), 0, 0)
+	end
+	local cross: Color3? = design.cross
+	if cross then
+		-- upright cross over the saltire (Union flag): a white edge under a red centre
+		add(mk(Vector3.new(w, h * 0.26, t + 0.01), WHITE), c, 0, 0)
+		add(mk(Vector3.new(w * 0.18, h, t + 0.01), WHITE), c, 0, 0)
+		add(mk(Vector3.new(w, h * 0.15, t + 0.02), cross), c, 0, 0)
+		add(mk(Vector3.new(w * 0.1, h, t + 0.02), cross), c, 0, 0)
 	end
 end
 
@@ -24158,6 +24817,10 @@ function Soldiers.infantry(add: Add, faction: string, coat: Color3, detail: bool
 	add(mk(Vector3.new(0.3, 1.1, 0.26), legs), CFrame.new(0, 0.55, -0.16), 1, 1.1)
 	add(mk(Vector3.new(0.3, 1.1, 0.26), legs), CFrame.new(0, 0.55, 0.16), 2, 1.1)
 	add(mk(Vector3.new(0.42, 1.05, 0.66), coat), CFrame.new(0, 1.6, 0), 0, 0)
+	add(mk(Vector3.new(0.46, 0.14, 0.62), FACINGS[faction] or coat), CFrame.new(0, 2.1, 0), 0, 0) -- collar
+	if detail and faction == "france" then
+		add(mk(Vector3.new(0.04, 0.6, 0.34), WHITE), CFrame.new(0.22, 1.78, 0), 0, 0) -- white lapels
+	end
 	if detail then
 		-- white cross-belts over the coat front
 		add(mk(Vector3.new(0.05, 1.15, 0.09), WHITE), CFrame.new(0.22, 1.6, 0) * CFrame.Angles(0.6, 0, 0), 0, 0)
@@ -24281,13 +24944,14 @@ function Soldiers.gun(add: Add, faction: string, coat: Color3, limbered: boolean
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Vec = require(Shared.Vec)
+local RNG = require(Shared.RNG)
 
 local Terrain = {}
 
@@ -24297,11 +24961,32 @@ local CHUNK = 32 -- columns per chunk side
 local CHUNKS_PER_YIELD = 2
 
 local generation = 0
-local pickPlane: Part? = nil
+local pickPlanes: { Part } = {}
+local pickFolder: Folder? = nil
+local SKIRT = 160 -- cells (640 studs) of continuing country around every map
+local SKIRT_FADE = 420 -- studs over which the skirt relaxes to a gentle plain
 local bounds: { minY: number, maxY: number } = { minY = 0, maxY = 0 }
 
 local function rgb(t: { number }): Color3
 	return Color3.fromRGB(t[1], t[2], t[3])
+end
+
+local function smooth(t: number): number
+	t = math.clamp(t, 0, 1)
+	return t * t * (3 - 2 * t)
+end
+
+-- Value noise in [0, 1) for the skirt (cosmetic only; never read by gameplay).
+local function noise(x: number, z: number, scale: number, seed: number): number
+	local fx, fz = x / scale, z / scale
+	local ix, iz = math.floor(fx), math.floor(fz)
+	local tx, tz = smooth(fx - ix), smooth(fz - iz)
+	local a = RNG.hash(ix, iz, seed)
+	local b = RNG.hash(ix + 1, iz, seed)
+	local c = RNG.hash(ix, iz + 1, seed)
+	local d = RNG.hash(ix + 1, iz + 1, seed)
+	local top = a + (b - a) * tx
+	return top + ((c + (d - c) * tx) - top) * tz
 end
 
 local function materialFor(cls: number, isBank: boolean): EnumMaterial
@@ -24310,9 +24995,9 @@ local function materialFor(cls: number, isBank: boolean): EnumMaterial
 	elseif cls == IDS.village then
 		return Enum.Material.Ground
 	elseif cls == IDS.road then
-		return Enum.Material.Mud -- flat and smooth; Cobblestone read as rubble walls in Studio
+		return Enum.Material.Ground -- a thin dark dirt line; Cobblestone and pale Mud read as rubble/snow
 	elseif cls == IDS.steep then
-		return Enum.Material.Ground
+		return Enum.Material.Grass -- slopes read through shading, as in the reference
 	elseif cls == IDS.cliff then
 		return Enum.Material.Rock
 	elseif isBank then
@@ -24326,12 +25011,11 @@ local function applyPalette()
 	local t = workspace.Terrain
 	-- Studio showed the palette olive reading brown under warm low light; these are tuned with
 	-- World/Lighting (ClockTime 10.2) toward the reference's olive-gold and green.
-	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(150, 150, 70)) -- olive-gold on lit plateaus
-	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(58, 78, 38))
-	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(120, 104, 62)) -- slopes: darker olive-brown
-	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(104, 94, 76))
-	t:SetMaterialColor(Enum.Material.Mud, Color3.fromRGB(190, 176, 138)) -- roads: thin pale lines
-	t:SetMaterialColor(Enum.Material.Sand, rgb(P.Bank))
+	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(162, 150, 58)) -- saturated olive-gold
+	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(52, 74, 30))
+	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads and village lanes
+	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
+	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(176, 162, 120)) -- pale but not white banks
 	t.WaterColor = rgb(P.Water)
 	t.WaterTransparency = 0.35
 	t.WaterWaveSize = 0.05
@@ -24358,15 +25042,35 @@ local function waterLevelAt(map: any, x: number, z: number): number?
 end
 
 -- Precompute per-cell water level and bank flags (cheap: only water/bridge cells scan rivers).
-local function analyse(map: any): ({ [number]: number }, { [number]: boolean })
+-- Road cells whose centre lies within the road's own half-width minus a margin: the painted
+-- line is one cell wide, never wider than the road (MapGen classes a band around it).
+local function roadCore(map: any, x: number, z: number): boolean
+	local p = { x = x, z = z }
+	for _, road in map.roads do
+		local keep = math.max(road.width / 2 - 1, 1.5)
+		local pts = road.points
+		for i = 1, #pts - 1 do
+			if Vec.distToSegment(p, pts[i], pts[i + 1]) <= keep then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function analyse(map: any): ({ [number]: number }, { [number]: boolean }, { [number]: boolean })
 	local g = map.grid
 	local cols, rows = g.cols, g.rows
 	local water: { [number]: number } = {}
 	local bank: { [number]: boolean } = {}
+	local roadOff: { [number]: boolean } = {}
 	for cz = 0, rows - 1 do
 		for cx = 0, cols - 1 do
 			local idx = cz * cols + cx + 1
 			local cls = g.class[idx]
+			if cls == IDS.road and not roadCore(map, (cx + 0.5) * g.cell, (cz + 0.5) * g.cell) then
+				roadOff[idx] = true
+			end
 			if cls == IDS.water or cls == IDS.bridge then
 				local c = { x = (cx + 0.5) * g.cell, z = (cz + 0.5) * g.cell }
 				local lvl = waterLevelAt(map, c.x, c.z)
@@ -24389,29 +25093,55 @@ local function analyse(map: any): ({ [number]: number }, { [number]: boolean })
 			end
 		end
 	end
-	return water, bank
+	return water, bank, roadOff
 end
 
-local function ensurePickPlane(map: any, minY: number)
-	if pickPlane then
-		pickPlane:Destroy()
+local function clearPickPlanes()
+	if pickFolder then
+		pickFolder:Destroy()
+		pickFolder = nil
 	end
-	local p = Instance.new("Part") :: Part
-	p.Name = "EoEPickPlane"
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanTouch = false
-	p.CanQuery = true
-	p.Transparency = 1
-	p.CastShadow = false
-	p.Size = Vector3.new(map.width + 4000, 1, map.depth + 4000)
-	p.CFrame = CFrame.new(map.width / 2, minY - 1, map.depth / 2)
-	p.Parent = workspace
-	pickPlane = p
+	table.clear(pickPlanes)
 end
 
-function Terrain.pickPlane(): Part?
-	return pickPlane
+-- Invisible pick floor under the map and skirt, tiled because a part is capped at 2048 studs.
+local function ensurePickPlane(map: any, minY: number)
+	clearPickPlanes()
+	local folder = Instance.new("Folder") :: Folder
+	folder.Name = "EoEPickPlane"
+	folder.Parent = workspace
+	pickFolder = folder
+	local margin = 2000
+	local TILE = 2048
+	local x0, z0 = -margin, -margin
+	local x1, z1 = map.width + margin, map.depth + margin
+	local x = x0
+	while x < x1 do
+		local w = math.min(TILE, x1 - x)
+		local z = z0
+		while z < z1 do
+			local d = math.min(TILE, z1 - z)
+			local p = Instance.new("Part") :: Part
+			p.Name = "EoEPickPlane"
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanTouch = false
+			p.CanQuery = true
+			p.Transparency = 1
+			p.CastShadow = false
+			p.Size = Vector3.new(w, 1, d)
+			p.CFrame = CFrame.new(x + w / 2, minY - 1, z + d / 2)
+			p.Parent = folder
+			table.insert(pickPlanes, p)
+			z += d
+		end
+		x += w
+	end
+end
+
+-- The folder holding every pick-plane tile; raycast include lists take descendants.
+function Terrain.pickPlane(): Instance?
+	return pickFolder
 end
 
 function Terrain.bounds()
@@ -24428,44 +25158,103 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 
 	local g = map.grid
 	local cols, rows = g.cols, g.rows
-	local minH, maxH = math.huge, -math.huge
+	local cell = g.cell
+	local minH = math.huge
 	for i = 1, cols * rows do
-		local h = g.height[i]
-		if h < minH then
-			minH = h
-		end
-		if h > maxH then
-			maxH = h
-		end
+		minH = math.min(minH, g.height[i])
 	end
-	local water, bank = analyse(map)
-	for _, lvl in water do
-		if lvl > maxH then
-			maxH = lvl
-		end
+	local water, bank, roadOff = analyse(map)
+	-- the skirt relaxes toward the mean height of the map border
+	local edgeSum, edgeN = 0, 0
+	for cx = 0, cols - 1 do
+		edgeSum += g.height[cx + 1] + g.height[(rows - 1) * cols + cx + 1]
+		edgeN += 2
 	end
-	local y0 = math.floor((minH - 8) / VOXEL) * VOXEL
-	local y1 = math.ceil((maxH + 4) / VOXEL) * VOXEL
-	local ny = (y1 - y0) // VOXEL
-	bounds = { minY = y0, maxY = y1 }
+	for cz = 0, rows - 1 do
+		edgeSum += g.height[cz * cols + 1] + g.height[cz * cols + cols]
+		edgeN += 2
+	end
+	local plain = edgeSum / edgeN
+	local seed = (map.seed or 1) + 77
+	bounds = { minY = math.floor((minH - 8) / VOXEL) * VOXEL, maxY = 0 }
 	ensurePickPlane(map, minH)
+
+	-- Column at cell (cx, cz), possibly outside the map: ground height, material, water level.
+	local function column(cx: number, cz: number): (number, EnumMaterial, number?)
+		if cx >= 0 and cz >= 0 and cx < cols and cz < rows then
+			local idx = cz * cols + cx + 1
+			local cls = g.class[idx]
+			local lvl = water[idx]
+			-- a bridge cell carries the deck height; its voxels are the river bed beneath
+			local h = if cls == IDS.bridge and lvl ~= nil then lvl - 3 else g.height[idx]
+			if roadOff[idx] then
+				cls = IDS.open
+			end
+			return h, materialFor(cls, bank[idx] == true), lvl
+		end
+		-- skirt: continue the edge, roughen it with noise, relax to a plain
+		local ex = math.clamp(cx, 0, cols - 1)
+		local ez = math.clamp(cz, 0, rows - 1)
+		local eidx = ez * cols + ex + 1
+		local x, z = (cx + 0.5) * cell, (cz + 0.5) * cell
+		local d = math.sqrt(((cx - ex) * cell) ^ 2 + ((cz - ez) * cell) ^ 2)
+		local s = smooth(d / SKIRT_FADE)
+		local rough = math.min(1, d / 120)
+		local h = g.height[eidx] + (plain - g.height[eidx]) * s
+			+ ((noise(x, z, 150, seed) - 0.5) * 18 + (noise(x, z, 44, seed + 1) - 0.5) * 5) * rough
+		local lvl = water[eidx]
+		if lvl and d < 240 then
+			-- rivers run on past the edge
+			return math.min(h, lvl - 3), Enum.Material.Sand, lvl
+		end
+		if d < 40 and g.class[eidx] == IDS.road and not roadOff[eidx] then
+			return h, Enum.Material.Ground, nil
+		end
+		if noise(x, z, 90, seed + 2) > 0.7 then
+			return h, Enum.Material.LeafyGrass, nil
+		end
+		return h, Enum.Material.Grass, nil
+	end
 
 	local AIR = Enum.Material.Air
 	local WATER = Enum.Material.Water
-	local nChunksX = math.ceil(cols / CHUNK)
-	local nChunksZ = math.ceil(rows / CHUNK)
+	local SAND = Enum.Material.Sand
+	local cxA, czA = -SKIRT, -SKIRT
+	local cxB, czB = cols + SKIRT, rows + SKIRT
+	local nChunksX = math.ceil((cxB - cxA) / CHUNK)
+	local nChunksZ = math.ceil((czB - czA) / CHUNK)
 	local total = nChunksX * nChunksZ
 	local done = 0
+	local colH = table.create(CHUNK * CHUNK, 0)
+	local colM: { EnumMaterial } = table.create(CHUNK * CHUNK, AIR)
+	local colW: { number | false } = table.create(CHUNK * CHUNK, false)
 
 	for chz = 0, nChunksZ - 1 do
 		for chx = 0, nChunksX - 1 do
 			if generation ~= myGen then
 				return false
 			end
-			local cx0 = chx * CHUNK
-			local cz0 = chz * CHUNK
-			local nx = math.min(CHUNK, cols - cx0)
-			local nz = math.min(CHUNK, rows - cz0)
+			local cx0 = cxA + chx * CHUNK
+			local cz0 = czA + chz * CHUNK
+			local nx = math.min(CHUNK, cxB - cx0)
+			local nz = math.min(CHUNK, czB - cz0)
+			-- sample the columns first so the voxel slab is only as tall as this chunk needs
+			local lo, hi = math.huge, -math.huge
+			for iz = 1, nz do
+				for ix = 1, nx do
+					local h, m, lvl = column(cx0 + ix - 1, cz0 + iz - 1)
+					local k = (iz - 1) * CHUNK + ix
+					colH[k], colM[k], colW[k] = h, m, lvl or false
+					lo = math.min(lo, h)
+					hi = math.max(hi, if lvl then math.max(h, lvl) else h)
+				end
+			end
+			local y0 = math.floor((lo - 8) / VOXEL) * VOXEL
+			local y1 = math.ceil((hi + 4) / VOXEL) * VOXEL
+			local ny = (y1 - y0) // VOXEL
+			if y1 > bounds.maxY then
+				bounds.maxY = y1
+			end
 			local mats: { { { EnumMaterial } } } = {}
 			local occs: { { { number } } } = {}
 			for ix = 1, nx do
@@ -24479,25 +25268,19 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 				end
 			end
 			for iz = 1, nz do
-				local cz = cz0 + iz - 1
 				for ix = 1, nx do
-					local cx = cx0 + ix - 1
-					local idx = cz * cols + cx + 1
-					local cls = g.class[idx]
-					local lvl = water[idx]
-					-- a bridge cell carries the deck height; its voxels are the river bed beneath
-					local h = if cls == IDS.bridge and lvl ~= nil then lvl - 3 else g.height[idx]
-					local mat = materialFor(cls, bank[idx] == true)
+					local k = (iz - 1) * CHUNK + ix
+					local h, mat, lvl = colH[k], colM[k], colW[k]
 					for iy = 1, ny do
 						-- + half a voxel: Roblox draws the surface VOXEL/2 above a linear fill (measured
 						-- in Studio: +2.0 everywhere), and props/figures sit on Grid.heightAt
 						local yBase = y0 + (iy - 1) * VOXEL + VOXEL / 2
 						local groundOcc = math.clamp((h - yBase) / VOXEL, 0, 1)
-						if lvl ~= nil then
+						if lvl then
 							-- river bed below, water column up to the surface level
 							local waterOcc = math.clamp((lvl - yBase) / VOXEL, 0, 1)
 							if groundOcc > 0.5 then
-								mats[ix][iy][iz] = Enum.Material.Sand
+								mats[ix][iy][iz] = SAND
 								occs[ix][iy][iz] = groundOcc
 							elseif waterOcc > 0 then
 								mats[ix][iy][iz] = WATER
@@ -24510,10 +25293,7 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 					end
 				end
 			end
-			local region = Region3.new(
-				Vector3.new(cx0 * VOXEL, y0, cz0 * VOXEL),
-				Vector3.new((cx0 + nx) * VOXEL, y1, (cz0 + nz) * VOXEL)
-			)
+			local region = Region3.new(Vector3.new(cx0 * VOXEL, y0, cz0 * VOXEL), Vector3.new((cx0 + nx) * VOXEL, y1, (cz0 + nz) * VOXEL))
 			terrain:WriteVoxels(region, VOXEL, mats, occs)
 			done += 1
 			if onProgress then
@@ -24530,11 +25310,8 @@ end
 function Terrain.clear()
 	generation += 1
 	workspace.Terrain:Clear()
-	if pickPlane then
-		pickPlane:Destroy()
-		pickPlane = nil
-	end
+	clearPickPlanes()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000085"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000086"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000087"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000086"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000087"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000088"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
