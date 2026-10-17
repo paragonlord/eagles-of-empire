@@ -56,11 +56,21 @@ local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, is
 	f.AutomaticSize = Enum.AutomaticSize.Y
 	Kit.title(f, e.name, { size = UDim2.new(1, -130, 0, 28), textSize = 24 })
 	Kit.label(f, string.format("%s   ·   %s", tostring(e.date or ""), sides(e)), { size = UDim2.new(1, -130, 0, 18), position = UDim2.new(0, 0, 0, 30), textSize = 12, colour = Kit.MUTED })
-	local summary = Kit.label(f, tostring(e.summary or ""), { size = UDim2.new(1, -130, 0, 40), position = UDim2.new(0, 0, 0, 52), textSize = 13, wrap = true })
+	-- summary and note stacked, so a long summary pushes the note down instead of overlapping it
+	local body = Instance.new("Frame") :: Frame
+	body.Size = UDim2.new(1, -130, 0, 0)
+	body.Position = UDim2.new(0, 0, 0, 52)
+	body.AutomaticSize = Enum.AutomaticSize.Y
+	body.BackgroundTransparency = 1
+	body.Parent = f
+	Kit.list(body, 6)
+	local summary = Kit.label(body, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 0), textSize = 13, wrap = true })
 	summary.AutomaticSize = Enum.AutomaticSize.Y
 	summary.TextYAlignment = Enum.TextYAlignment.Top
-	local note = Kit.label(f, if e.difficultyNote then "Difficulty: " .. tostring(e.difficultyNote) else "", { size = UDim2.new(1, -130, 0, 18), position = UDim2.new(0, 0, 1, -22), anchor = Vector2.new(0, 1), textSize = 12, colour = Kit.MUTED, wrap = true })
+	summary.LayoutOrder = 1
+	local note = Kit.label(body, if e.difficultyNote then "Difficulty: " .. tostring(e.difficultyNote) else "", { size = UDim2.new(1, 0, 0, 0), textSize = 12, colour = Kit.MUTED, wrap = true })
 	note.AutomaticSize = Enum.AutomaticSize.Y
+	note.LayoutOrder = 2
 	local b = Kit.button(f, "Fight", function()
 		cb.fight(e.id)
 	end, { size = UDim2.fromOffset(110, 40), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), primary = true, textSize = 16 })

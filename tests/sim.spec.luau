@@ -74,6 +74,10 @@ test("Volleys need range, facing, LOS and ammunition; artillery needs to be unli
 	local f1 = sim.formations[1]
 	assertEq(Combat.fireBlockReason(sim, f1, sim.formations[2]), "Out of range")
 	assertEq(Combat.fireBlockReason(sim, f1, sim.formations[3]), "Target not to the front")
+	local shape = f1.shape
+	f1.shape = "square"
+	assertTrue(Combat.fireBlockReason(sim, f1, sim.formations[3]) ~= "Target not to the front", "a square fires all round")
+	f1.shape = shape
 	f1.ammo = 0
 	assertEq(Combat.fireBlockReason(sim, f1, sim.formations[2]), "Out of ammunition")
 	local guns = sim.formations[4]

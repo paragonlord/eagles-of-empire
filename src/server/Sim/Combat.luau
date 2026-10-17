@@ -120,7 +120,8 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 		if dist > unit.musket.range then
 			return "Out of range"
 		end
-		if not inArc(f, target, math.rad(60)) then
+		-- a square faces every way (its fire factor already counts one face's muskets)
+		if f.shape ~= "square" and not inArc(f, target, math.rad(60)) then
 			return "Target not to the front"
 		end
 	end

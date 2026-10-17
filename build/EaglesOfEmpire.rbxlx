@@ -339,6 +339,17 @@ Config.Objectives = {
 	EligibleClasses = { infantry = true, cavalry = true },
 }
 
+-- Weather / ground state per scenario (`scenario.weather`, optional `scenario.weatherUntil` seconds
+-- after which it clears). Multipliers on musket accuracy, artillery hit chance, movement speed and
+-- spotting distance.
+Config.Weather = {
+	clear = { accuracy = 1.0, cannon = 1.0, speed = 1.0, spot = 1.0, label = "Clear" },
+	rain = { accuracy = 0.6, cannon = 0.85, speed = 0.9, spot = 0.8, label = "Rain" },
+	mud = { accuracy = 0.9, cannon = 0.7, speed = 0.8, spot = 1.0, label = "Sodden ground" },
+	fog = { accuracy = 0.9, cannon = 0.8, speed = 1.0, spot = 0.45, label = "Fog" },
+	snow = { accuracy = 0.85, cannon = 0.9, speed = 0.8, spot = 0.7, label = "Snow" },
+}
+
 Config.Victory = {
 	CollapseFraction = 0.7, -- fraction of formations routing/shattered/destroyed/exited
 	CollapseStrengthFraction = 0.35,
@@ -1682,7 +1693,7 @@ export type Vec = Vec.Vec
 
 export type UnitClass = "infantry" | "cavalry" | "artillery" | "hq"
 export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff"
-export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited"
+export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited" | "offmap"
 export type MoraleBand = "steady" | "shaken" | "routing" | "shattered"
 
 export type Order = {
@@ -1808,6 +1819,8 @@ export type Snapshot = {
 	simLag: number,
 	viewer: string,
 	removed: { number }?,
+	reinforcements: { { id: number, name: string, corps: string, eta: number } }?, -- own side, not yet arrived
+	weather: string?, -- key into Config.Weather
 }
 
 export type Results = {
@@ -4413,6 +4426,10 @@ local function matchStatePayload(player: Player)
 				factions = m.scenario.factions,
 				factionNames = m.scenario.factionNames,
 				timeLimit = m.sim.timeLimit,
+				date = (m.scenario :: any).date,
+				summary = (m.scenario :: any).summary,
+				weather = m.sim.weather,
+				difficultyNote = (m.scenario :: any).difficultyNote,
 			}
 			else nil,
 		viewerFaction = playerFaction(m),
@@ -5240,6 +5257,7 @@ export type Sim = {
 	isVisibleTo: (Sim, string, number) -> boolean,
 	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
+	weather: string, -- key into Config.Weather, may change once at weatherUntil
 	aiStep: ((Sim) -> ())?, -- per-instance AI hook (preferred over the module-level Sim.aiStep)
 	-- methods
 	deploy: (Sim, number, Vec, number) -> (boolean, string?),
@@ -5292,6 +5310,7 @@ function Sim.new(opts: Options): Sim
 	self.difficulty = opts.difficulty or "normal"
 	self.simLag = 0
 	self.aiStep = nil
+	self.weather = if (Config.Weather :: any)[(opts.scenario :: any).weather] then (opts.scenario :: any).weather else "clear"
 	for i, def in opts.scenario.units do
 		local f = Formation.fromDef(i, def)
 		self.formations[i] = f
@@ -5350,6 +5369,9 @@ function Sim.deploy(self: Sim, id: number, pos: Vec, heading: number): (boolean,
 	local f = self.formations[id]
 	if not f then
 		return false, "destroyed"
+	end
+	if f.state == "offmap" then
+		return false, "badState"
 	end
 	if not MapGen.inZone(self.map, f.faction, pos) then
 		return false, "deployZone"
@@ -5626,6 +5648,22 @@ function Sim.step(self: Sim)
 	self.tick += 1
 	self.clock = self.tick * DT
 	local s: any = self
+	-- 0. weather clearing, reinforcements entering the field
+	local until_ = (self.scenario :: any).weatherUntil
+	if self.weather ~= "clear" and type(until_) == "number" and self.clock >= until_ then
+		self.weather = "clear"
+		self:emit({ kind = "message", tick = self.tick, text = "The weather clears" })
+		self:log("Weather cleared")
+	end
+	for _, id in self.order do
+		local f = self.formations[id]
+		if f and f.state == "offmap" and f.arrivalTick and f.arrivalTick <= self.tick then
+			f.state = "idle"
+			f.arrivalTick = nil
+			self:emit({ kind = "message", tick = self.tick, id = f.id, faction = f.faction, x = f.pos.x, z = f.pos.z, text = f.name .. " arrives on the field" })
+			self:log(f.name .. " arrived")
+		end
+	end
 	-- 1. commands
 	applyQueuedCommands(self)
 	-- 2. AI
@@ -5779,6 +5817,14 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 			return a.id < b.id
 		end)
 	end
+	-- Own reinforcements still off the map.
+	local reinforcements = {}
+	for _, id in self.order do
+		local f = self.formations[id]
+		if f and f.faction == viewer and f.state == "offmap" and f.arrivalTick then
+			reinforcements[#reinforcements + 1] = { id = f.id, name = f.name, corps = f.corps, eta = math.max(0, (f.arrivalTick - self.tick) * DT) }
+		end
+	end
 	-- Events: hide positions of unseen enemy actors.
 	local events: { Types.Event } = {}
 	for _, ev in self.events do
@@ -5810,6 +5856,8 @@ function Sim.snapshot(self: Sim, viewer: string, full: boolean): Types.Snapshot
 		simLag = self.simLag,
 		viewer = viewer,
 		removed = if #removed > 0 then removed else nil,
+		reinforcements = if #reinforcements > 0 then reinforcements else nil,
+		weather = self.weather,
 	}
 end
 
@@ -5828,7 +5876,10 @@ function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Resu
 			local f = self.formations[id]
 			if f and f.faction == faction then
 				s.formations += 1
-				if f.state == "destroyed" then
+				if f.state == "offmap" then
+					s.remaining += f.strength
+					s.surviving += 1
+				elseif f.state == "destroyed" then
 					s.destroyed += 1
 					s.casualties += f.startStrength
 				elseif f.state == "exited" then
@@ -5914,6 +5965,7 @@ export type SimLike = {
 	grid: Grid.Grid,
 	tick: number,
 	rng: any,
+	weather: string?,
 	formations: { [number]: Formation },
 	order: { number },
 	emit: (sim: any, ev: Types.Event) -> (),
@@ -6006,7 +6058,8 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 		if dist > unit.musket.range then
 			return "Out of range"
 		end
-		if not inArc(f, target, math.rad(60)) then
+		-- a square faces every way (its fire factor already counts one face's muskets)
+		if f.shape ~= "square" and not inArc(f, target, math.rad(60)) then
 			return "Target not to the front"
 		end
 	end
@@ -6082,6 +6135,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	if uphill(sim, f.pos, target.pos) then
 		hit *= 1 + Config.Slope.UphillFireBonus
 	end
+	hit *= ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).accuracy
 	hit = math.min(C.MaxHitChance, hit)
 	local casualties = rollCasualties(sim, shooters * hit)
 	f.reload = musket.reload
@@ -6102,7 +6156,8 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	local rangeF = 1 - C.RangeFalloff * (dist / ammo.range)
 	local shapeF = (Config.Shapes :: any)[target.shape].artillery
 	local cover = Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover
-	local expected = guns * ammo.hit * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
+	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).cannon
+	local expected = guns * ammo.hit * weatherF * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
 	local casualties = rollCasualties(sim, expected)
 	f.reload = ammo.reload
 	f.ammo -= 1
@@ -6418,6 +6473,7 @@ export type Formation = {
 	casualtiesThisTick: number,
 	visibleTo: { [string]: boolean },
 	inWoods: boolean,
+	arrivalTick: number?, -- reinforcements: tick at which the formation enters the field
 }
 
 local Formation = {}
@@ -6522,13 +6578,23 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		casualtiesThisTick = 0,
 		visibleTo = {},
 		inWoods = false,
+		arrivalTick = nil,
 	}
+	-- Off-map reinforcements: `arrival = { seconds, pos }` on the unit definition.
+	local arrival = (def :: any).arrival
+	if type(arrival) == "table" and type(arrival.seconds) == "number" and arrival.seconds > 0 then
+		f.state = "offmap"
+		f.arrivalTick = math.floor(arrival.seconds / Config.Sim.DT)
+		if type(arrival.pos) == "table" then
+			f.pos = { x = arrival.pos.x, z = arrival.pos.z }
+		end
+	end
 	Formation.refreshFootprint(f)
 	return f
 end
 
 function Formation.isActive(f: Formation): boolean
-	return f.state ~= "destroyed" and f.state ~= "exited"
+	return f.state ~= "destroyed" and f.state ~= "exited" and f.state ~= "offmap"
 end
 
 function Formation.isBroken(f: Formation): boolean
@@ -6536,6 +6602,9 @@ function Formation.isBroken(f: Formation): boolean
 end
 
 function Formation.canTakeOrders(f: Formation): (boolean, string?)
+	if f.state == "offmap" then
+		return false, "badState"
+	end
 	if not Formation.isActive(f) then
 		return false, "destroyed"
 	end
@@ -6908,6 +6977,7 @@ export type SimLike = {
 	emit: (sim: any, ev: Types.Event) -> (),
 	homeEdge: (sim: any, faction: string) -> Vec,
 	findFormation: (sim: any, id: number) -> Formation?,
+	weather: string?,
 }
 
 local function terrainSpeed(f: Formation, grid: Grid.Grid): number
@@ -6926,7 +6996,8 @@ function Movement.currentSpeed(sim: SimLike, f: Formation, dir: Vec): number
 	local slope = Grid.slopeAlong(sim.grid, f.pos.x, f.pos.z, dir)
 	local slopeFactor = math.max(0.25, 1 - Config.Slope.UphillPenalty * math.max(0, slope) + Config.Slope.DownhillBonus * math.max(0, -slope))
 	local fatigue = Formation.fatigueFactor(f, Config.Combat.FatigueSpeedPenalty)
-	local speed = base * shapeFactor * terrainSpeed(f, sim.grid) * slopeFactor * fatigue
+	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).speed
+	local speed = base * shapeFactor * terrainSpeed(f, sim.grid) * slopeFactor * fatigue * weatherF
 	if f.state == "routing" then
 		speed = base * terrainSpeed(f, sim.grid) * slopeFactor * Config.Morale.RoutSpeedFactor
 	end
@@ -7736,7 +7807,7 @@ local function sideStats(sim: SimLike, faction: string)
 	local total, broken, strength = 0, 0, 0
 	for _, id in sim.order do
 		local f = sim.formations[id]
-		if f and f.faction == faction then
+		if f and f.faction == faction and f.state ~= "offmap" then
 			total += 1
 			if f.state == "routing" or f.state == "rallying" or f.shattered or not Formation.isActive(f) then
 				broken += 1
@@ -7852,6 +7923,7 @@ export type SimLike = {
 	order: { number },
 	factions: { string },
 	views: { [string]: FactionView },
+	weather: string?,
 }
 
 local Visibility = {}
@@ -7861,7 +7933,7 @@ function Visibility.newView(): FactionView
 end
 
 local function canSee(sim: SimLike, observer: Formation, target: Formation): boolean
-	local spot = Formation.unitConfig(observer).spot
+	local spot = Formation.unitConfig(observer).spot * ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).spot
 	local d = Vec.dist(observer.pos, target.pos)
 	if target.inWoods then
 		spot = math.min(spot, Config.Vision.WoodsReveal)
@@ -7954,7 +8026,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000061"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000060"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000059"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000063"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000062"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000061"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -8188,6 +8260,7 @@ BattleState.lastSnapshotAt = 0
 BattleState.formations = {} :: { [number]: Formation }
 BattleState.lastKnown = {} :: { [number]: LastKnown }
 BattleState.objectives = {} :: { Objective }
+BattleState.reinforcements = {} :: { { id: number, name: string, corps: string, eta: number } } -- own side, off-map
 BattleState.pending = {} :: { [string]: Pending }
 
 BattleState.updated = Signal.new() -- (snapshot) after merge
@@ -8199,6 +8272,7 @@ function BattleState.reset()
 	table.clear(BattleState.formations)
 	table.clear(BattleState.lastKnown)
 	BattleState.objectives = {}
+	BattleState.reinforcements = {}
 	table.clear(BattleState.pending)
 	BattleState.clock = 0
 	BattleState.tick = 0
@@ -8254,6 +8328,11 @@ function BattleState.applySnapshot(snap: any)
 	end
 	if snap.objectives then
 		BattleState.objectives = snap.objectives
+	end
+	if snap.reinforcements then
+		BattleState.reinforcements = snap.reinforcements
+	elseif snap.kind == "full" then
+		BattleState.reinforcements = {}
 	end
 	BattleState.updated:Fire(snap)
 	for _, ev in snap.events or {} do
@@ -8402,11 +8481,15 @@ local function textBoxFocused(): boolean
 	return (UserInputService:GetFocusedTextBox() :: TextBox?) ~= nil
 end
 
+-- The focus keeps a margin from the map edge that grows with height, so the frustum stays
+-- over the terrain instead of showing sky past the edge.
 local function clampTarget()
-	target.x = math.clamp(target.x, bounds.x0, bounds.x1)
-	target.z = math.clamp(target.z, bounds.z0, bounds.z1)
 	target.height = math.clamp(target.height, MIN_HEIGHT, MAX_HEIGHT)
 	target.pitch = math.clamp(target.pitch, MIN_PITCH, MAX_PITCH)
+	local w, d = bounds.x1 - bounds.x0, bounds.z1 - bounds.z0
+	local margin = math.clamp(target.height * 0.45, 40, math.min(w, d) * 0.3)
+	target.x = math.clamp(target.x, bounds.x0 + margin, bounds.x1 - margin)
+	target.z = math.clamp(target.z, bounds.z0 + margin, bounds.z1 - margin)
 end
 
 local function readKeys(dt: number)
@@ -8522,7 +8605,7 @@ end
 function Camera.setMap(m: any)
 	map = m
 	if m then
-		bounds = { x0 = 40, z0 = 40, x1 = m.width - 40, z1 = m.depth - 40 }
+		bounds = { x0 = 0, z0 = 0, x1 = m.width, z1 = m.depth }
 	end
 	clampTarget()
 end
@@ -8783,7 +8866,97 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
+-- unit `colour` override, else the faction), display names and marker-flag designs.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Config = require(Shared.Config)
+
+local Factions = {}
+
+local P = Config.Visual.Palette :: { [string]: { number } }
+
+-- Fallbacks for palette keys the shared Config may not define yet.
+local DEFAULTS: { [string]: { number } } = {
+	France = { 44, 79, 166 },
+	Prussia = { 58, 61, 66 },
+	Saxony = { 108, 113, 128 },
+	Russia = { 46, 98, 60 },
+	Austria = { 232, 228, 220 },
+	Britain = { 170, 40, 44 },
+	Bavaria = { 92, 150, 200 },
+	Netherlands = { 214, 120, 40 },
+}
+
+local NAMES: { [string]: string } = {
+	france = "France",
+	prussia = "Prussia",
+	russia = "Russia",
+	austria = "Austria",
+	britain = "Britain",
+	saxony = "Saxony",
+	bavaria = "Bavaria",
+	netherlands = "Netherlands",
+}
+
+local function rgb(t: { number }): Color3
+	return Color3.fromRGB(t[1], t[2], t[3])
+end
+
+local function keyFor(faction: string?): string
+	local f = faction or ""
+	return string.upper(string.sub(f, 1, 1)) .. string.sub(f, 2)
+end
+
+-- Palette colour for a palette key ("Saxony") or a faction id ("prussia").
+function Factions.colour(faction: string?, override: string?): Color3
+	local key = override or keyFor(faction)
+	local t = P[key] or DEFAULTS[key]
+	if t then
+		return rgb(t)
+	end
+	return Color3.fromRGB(120, 108, 96)
+end
+
+function Factions.name(faction: string?): string
+	return NAMES[faction or ""] or tostring(faction or "—")
+end
+
+export type Flag = {
+	bands: { Color3 }?, -- vertical bands, left to right
+	field: Color3?, -- plain field when there are no bands
+	mark: string?, -- "diamond" | "x" | "plus" | "double" | "diagonal"
+	markColour: Color3,
+}
+
+local WHITE = Color3.fromRGB(242, 240, 232)
+local BLACK = Color3.fromRGB(28, 26, 24)
+local GOLD = Color3.fromRGB(205, 168, 62)
+
+local FLAGS: { [string]: Flag } = {
+	france = { bands = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }, mark = "diamond", markColour = GOLD },
+	prussia = { field = WHITE, mark = "x", markColour = BLACK },
+	russia = { field = Color3.fromRGB(40, 96, 56), mark = "diamond", markColour = GOLD },
+	austria = { field = WHITE, mark = "double", markColour = BLACK },
+	britain = { field = Color3.fromRGB(178, 36, 42), mark = "plus", markColour = WHITE },
+}
+
+function Factions.flag(faction: string?): Flag
+	local f = FLAGS[faction or ""]
+	if f then
+		return f
+	end
+	return { field = Factions.colour(faction), mark = "diagonal", markColour = WHITE }
+end
+
+-- How much the far-LOD slab is darkened (Prussian blocks read near-black in the reference).
+function Factions.slabDarken(faction: string?): number
+	return if faction == "prussia" then 0.45 else 0.12
+end
+
+return Factions
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
@@ -8795,6 +8968,7 @@ local Vec = require(Shared.Vec)
 local BattleState = require(script.Parent.BattleState)
 local Selection = require(script.Parent.Selection)
 local Settings = require(script.Parent.Settings)
+local Factions = require(script.Parent.Factions)
 
 local Figures = {}
 
@@ -8909,9 +9083,7 @@ local function frame(x: number, y: number, z: number, heading: number): CFrame
 end
 
 local function factionColour(faction: string, colourKey: string?): Color3
-	local key = colourKey or (if faction == "france" then "France" elseif faction == "prussia" then "Prussia" else nil)
-	local t = if key then (P :: any)[key] else nil
-	return if t then rgb(t) else Color3.fromRGB(120, 120, 120)
+	return Factions.colour(faction, colourKey)
 end
 
 local function desaturate(c: Color3): Color3
@@ -9069,7 +9241,7 @@ local SLAB_H = 1.2
 
 -- Reference look: French deep cobalt, Prussian near-black charcoal; ghosts desaturated.
 local function slabColour(g: Group): Color3
-	local c = g.colour:Lerp(BLACK, if g.faction == "prussia" then 0.45 else 0.12)
+	local c = g.colour:Lerp(BLACK, Factions.slabDarken(g.faction))
 	return if g.ghost then desaturate(c) else c
 end
 
@@ -9149,7 +9321,6 @@ end
 local POLE = Color3.fromRGB(150, 150, 150)
 local IVORY = Color3.fromRGB(246, 241, 226)
 local GOLD = Color3.fromRGB(205, 168, 62)
-local TRICOLOUR = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }
 
 -- Marker: pole (formation space), then camera-facing parts whose locals are offsets from the
 -- plate centre: frame, plate, square flag. parts[1] is always the pole.
@@ -9174,21 +9345,35 @@ local function buildMarker(g: Group, f: any): Marker
 	face(framePart, CFrame.new(0, 0, 0.12))
 	local plate = mk("Part", Vector3.new(plateW, plateH, 0.3), IVORY) :: Part
 	face(plate, CFrame.new())
-	-- square flag below the plate, beside the pole
+	-- square flag below the plate, beside the pole; design per faction
 	local s = 2.4 * scale
 	local fx = s / 2 + 0.2
 	local fy = -(plateH / 2 + s / 2 + 0.3)
-	local prussian = g.faction ~= "france"
-	if prussian then
-		face(mk("Part", Vector3.new(s, s, 0.12), WHITE), CFrame.new(fx, fy, 0))
-		for _, a in { 45, -45 } do
-			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), INK), CFrame.new(fx, fy, -0.08) * CFrame.Angles(0, 0, math.rad(a)))
+	local flag = Factions.flag(g.faction)
+	if flag.bands then
+		local n = #flag.bands
+		for i, c in flag.bands do
+			face(mk("Part", Vector3.new(s / n, s, 0.12), c), CFrame.new(fx + (i - (n + 1) / 2) * s / n, fy, 0))
 		end
 	else
-		for i, c in TRICOLOUR do
-			face(mk("Part", Vector3.new(s / 3, s, 0.12), c), CFrame.new(fx + (i - 2) * s / 3, fy, 0))
+		face(mk("Part", Vector3.new(s, s, 0.12), flag.field or g.colour), CFrame.new(fx, fy, 0))
+	end
+	local mc = flag.markColour
+	local markCf = CFrame.new(fx, fy, -0.08)
+	if flag.mark == "diamond" then
+		face(mk("Part", Vector3.new(0.55 * scale, 0.55 * scale, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
+	elseif flag.mark == "x" then
+		for _, a in { 45, -45 } do
+			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(a)))
 		end
-		face(mk("Part", Vector3.new(0.55, 0.55, 0.14), GOLD), CFrame.new(fx, fy, -0.08) * CFrame.Angles(0, 0, math.rad(45)))
+	elseif flag.mark == "plus" then
+		face(mk("Part", Vector3.new(s, 0.3, 0.14), mc), markCf)
+		face(mk("Part", Vector3.new(0.3, s, 0.14), mc), markCf)
+	elseif flag.mark == "double" then
+		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, s * 0.18, 0))
+		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, -s * 0.18, 0))
+	elseif flag.mark == "diagonal" then
+		face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
 	end
 	for _, p in parts do
 		if g.ghost then
@@ -9805,7 +9990,7 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -10461,7 +10646,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, builds the world per map, wires the
 -- modules together and drives the match lifecycle from MatchState messages.
 
@@ -10490,9 +10675,9 @@ local Help = require(script.Parent.UI.Help)
 local Loading = require(script.Parent.UI.Loading)
 local DevPanel = require(script.Parent.UI.DevPanel)
 local CampaignScreen = require(script.Parent.UI.CampaignScreen)
+local BattleSelect = require(script.Parent.UI.BattleSelect)
 
 local DEFAULT_MAP = "jena"
-local DEFAULT_SCENARIO = "jena"
 
 local mapCache: { [string]: any } = {}
 local builtMapId: string? = nil
@@ -10546,6 +10731,7 @@ end
 local function closePanels()
 	Help.hide()
 	SettingsPanel.hide()
+	BattleSelect.hide()
 end
 
 local function openHelp()
@@ -10558,9 +10744,23 @@ local function openSettings()
 	SettingsPanel.show()
 end
 
-local menuCallbacks = {
+local menuCallbacks: any
+menuCallbacks = {
 	play = function()
-		Net.control("start", DEFAULT_SCENARIO)
+		Menu.hide()
+		BattleSelect.show({
+			fight = function(id: string)
+				BattleSelect.hide()
+				Net.control("start", id)
+			end,
+			difficulty = function(v: string)
+				Net.control("difficulty", v)
+			end,
+			back = function()
+				BattleSelect.hide()
+				Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+			end,
+		}, BattleState.isCommander)
 	end,
 	campaign = function()
 		campaignWanted = true
@@ -10643,8 +10843,9 @@ end
 
 local gotServerState = false
 
--- Diagnostic beacon (top-left): shows what the client last did; cheap and always on for now.
+-- Diagnostic beacon (bottom-left, F10 toggles; shown by default only in Studio).
 local beacon: TextLabel? = nil
+local beaconGui: ScreenGui? = nil
 local function diag(text: string)
 	print("[EoE client] " .. text)
 	if not beacon then
@@ -10652,10 +10853,13 @@ local function diag(text: string)
 		sg.Name = "EoEDiag"
 		sg.DisplayOrder = 100
 		sg.ResetOnSpawn = false
+		sg.Enabled = RunService:IsStudio()
 		sg.Parent = (game:GetService("Players") :: Players).LocalPlayer:WaitForChild("PlayerGui")
+		beaconGui = sg
 		local l = Instance.new("TextLabel") :: TextLabel
 		l.Size = UDim2.new(0, 900, 0, 18)
-		l.Position = UDim2.new(0, 8, 0, 4)
+		l.Position = UDim2.new(0, 8, 1, -22)
+		l.AnchorPoint = Vector2.new(0, 0)
 		l.BackgroundTransparency = 0.4
 		l.BackgroundColor3 = Color3.new(0, 0, 0)
 		l.TextColor3 = Color3.new(1, 1, 1)
@@ -10862,6 +11066,10 @@ do
 	lighting.EnvironmentDiffuseScale = 0.45
 	lighting.Ambient = Color3.fromRGB(96, 92, 80)
 	lighting.OutdoorAmbient = Color3.fromRGB(118, 112, 96)
+	-- distance fog in the sky's tone hides the horizon beyond the map edge
+	lighting.FogColor = Color3.fromRGB(196, 190, 170)
+	lighting.FogStart = 1400
+	lighting.FogEnd = 3200
 end
 
 
@@ -10875,6 +11083,13 @@ diag("remotes hooked; requesting state")
 -- ask for it again now that the remotes are hooked.
 Net.control("spectate")
 wire()
+
+local UserInputService = game:GetService("UserInputService") :: UserInputService
+UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
+	if not gp and input.KeyCode == Enum.KeyCode.F10 and beaconGui then
+		beaconGui.Enabled = not beaconGui.Enabled
+	end
+end)
 
 RunService.RenderStepped:Connect(function(dt: number)
 	Figures.update(dt)
@@ -10900,7 +11115,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -11034,7 +11249,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -11156,7 +11371,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local Signal = require(script.Parent.Signal)
@@ -11202,7 +11417,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -11246,12 +11461,144 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000055"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000057"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Battle select: the scenarios from Scenarios.list() (fallback: Scenarios.jena alone), each with
+-- name, date, sides, summary, difficulty note and a Fight button; a difficulty selector on top.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Scenarios = require(Shared.Scenarios)
+local Kit = require(script.Parent.Kit)
+local BattleState = require(script.Parent.Parent.BattleState)
+
+local BattleSelect = {}
+
+export type Callbacks = {
+	fight: (id: string) -> (),
+	difficulty: (value: string) -> (),
+	back: () -> (),
+}
+
+type Entry = { id: string, name: string, date: string?, map: string?, factionNames: { [string]: string }?, summary: string?, difficultyNote: string? }
+
+local gui: ScreenGui? = nil
+local difficultyButtons: { [string]: TextButton } = {}
+
+local function entries(): { Entry }
+	local list = (Scenarios :: any).list
+	if type(list) == "function" then
+		local ok, result = pcall(list)
+		if ok and type(result) == "table" and #result > 0 then
+			return result
+		end
+	end
+	local j = (Scenarios :: any).jena
+	if j then
+		return { { id = j.id, name = j.name, date = "14 October 1806", map = j.map, factionNames = j.factionNames, summary = j.briefing, difficultyNote = "The opening battle: even numbers, the French hold the high ground." } }
+	end
+	return {}
+end
+
+local function sides(e: Entry): string
+	local names = {}
+	for _, n in e.factionNames or {} do
+		table.insert(names, tostring(n))
+	end
+	table.sort(names)
+	return table.concat(names, "  vs  ")
+end
+
+local function refreshDifficulty()
+	for key, b in difficultyButtons do
+		Kit.setActiveLook(b, BattleState.difficulty == key)
+	end
+end
+
+local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean)
+	local f = Kit.panel(parent, { size = UDim2.new(1, -8, 0, 150), position = UDim2.new(), dark = true, padding = 12 })
+	f.LayoutOrder = order
+	f.AutomaticSize = Enum.AutomaticSize.Y
+	Kit.title(f, e.name, { size = UDim2.new(1, -130, 0, 28), textSize = 24 })
+	Kit.label(f, string.format("%s   ·   %s", tostring(e.date or ""), sides(e)), { size = UDim2.new(1, -130, 0, 18), position = UDim2.new(0, 0, 0, 30), textSize = 12, colour = Kit.MUTED })
+	local summary = Kit.label(f, tostring(e.summary or ""), { size = UDim2.new(1, -130, 0, 40), position = UDim2.new(0, 0, 0, 52), textSize = 13, wrap = true })
+	summary.AutomaticSize = Enum.AutomaticSize.Y
+	summary.TextYAlignment = Enum.TextYAlignment.Top
+	local note = Kit.label(f, if e.difficultyNote then "Difficulty: " .. tostring(e.difficultyNote) else "", { size = UDim2.new(1, -130, 0, 18), position = UDim2.new(0, 0, 1, -22), anchor = Vector2.new(0, 1), textSize = 12, colour = Kit.MUTED, wrap = true })
+	note.AutomaticSize = Enum.AutomaticSize.Y
+	local b = Kit.button(f, "Fight", function()
+		cb.fight(e.id)
+	end, { size = UDim2.fromOffset(110, 40), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), primary = true, textSize = 16 })
+	Kit.setEnabled(b, isCommander, "Only the commander starts a battle")
+end
+
+function BattleSelect.show(cb: Callbacks, isCommander: boolean)
+	BattleSelect.destroy()
+	local sg = Kit.screen("EoEBattleSelect", 31)
+	local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+	Kit.title(panel, "Choose a battle", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
+	Kit.button(panel, "Back (Esc)", cb.back, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
+	Kit.label(panel, "Enemy difficulty", { size = UDim2.new(0, 160, 0, 30), position = UDim2.new(0, 0, 0, 44), textSize = 13, colour = Kit.MUTED })
+	local dRow = Instance.new("Frame") :: Frame
+	dRow.Size = UDim2.new(0, 300, 0, 30)
+	dRow.Position = UDim2.new(0, 150, 0, 44)
+	dRow.BackgroundTransparency = 1
+	dRow.Parent = panel
+	Kit.list(dRow, 6, true)
+	table.clear(difficultyButtons)
+	for i, key in { "easy", "normal", "hard" } do
+		local b = Kit.button(dRow, string.upper(string.sub(key, 1, 1)) .. string.sub(key, 2), function()
+			cb.difficulty(key)
+			BattleState.difficulty = key
+			refreshDifficulty()
+		end, { size = UDim2.fromOffset(94, 30), order = i, tooltip = if key == "hard" then "The enemy gets +5 morale" else nil })
+		Kit.setEnabled(b, isCommander, "Only the commander sets the difficulty")
+		difficultyButtons[key] = b
+	end
+	refreshDifficulty()
+	local scroll = Instance.new("ScrollingFrame") :: ScrollingFrame
+	scroll.Size = UDim2.new(1, 0, 1, -86)
+	scroll.Position = UDim2.new(0, 0, 0, 82)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 6
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new()
+	scroll.Active = true
+	scroll.Parent = panel
+	Kit.list(scroll, 10)
+	local list = entries()
+	for i, e in list do
+		card(scroll, e, i, cb, isCommander)
+	end
+	if #list == 0 then
+		Kit.label(scroll, "No scenarios are installed.", { size = UDim2.new(1, 0, 0, 24), colour = Kit.MUTED })
+	end
+	gui = sg
+end
+
+function BattleSelect.isOpen(): boolean
+	return gui ~= nil
+end
+
+function BattleSelect.hide()
+	BattleSelect.destroy()
+end
+
+function BattleSelect.destroy()
+	if gui then
+		gui:Destroy()
+		gui = nil
+	end
+	table.clear(difficultyButtons)
+end
+
+return BattleSelect
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
 
 local Kit = require(script.Parent.Kit)
+local Factions = require(script.Parent.Parent.Factions)
 
 local CampaignScreen = {}
 
@@ -11334,7 +11681,7 @@ local function shortName(name: string): string
 end
 
 local function factionName(f: string?): string
-	return if f == "france" then "France" elseif f == "prussia" then "Prussia" else tostring(f or "—")
+	return Factions.name(f)
 end
 
 local function plural(n: number): string
@@ -11928,7 +12275,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: briefing panel, placement hints, Start Battle. Dragging formations is
 -- handled by Input in "deploy" mode; this panel only explains and sends `ready`.
 
@@ -11983,7 +12330,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -12068,7 +12415,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD: top bar (clock, speed, pause), objective strip, event ticker, roster, inspector,
 -- command bar and minimap. Thin frame around the field; the centre stays clear.
 
@@ -12106,6 +12453,7 @@ local TICKER_LIFE = 9
 local rosterScroll: ScrollingFrame? = nil
 local rosterKey = ""
 local rosterRows: { [number]: { frame: TextButton, name: TextLabel, state: TextLabel, bar: Frame, lastClick: number } } = {}
+local arrivingRows: { [number]: TextLabel } = {}
 
 -- inspector
 local inspector: Frame? = nil
@@ -12365,6 +12713,20 @@ local function rebuildRoster(forms: { any })
 			entry.lastClick = now
 		end)
 	end
+	-- off-map reinforcements: a greyed group with countdowns
+	table.clear(arrivingRows)
+	if #BattleState.reinforcements > 0 then
+		order += 1
+		local h = Kit.label(s, "Arriving", { size = UDim2.new(1, 0, 0, 20), font = Enum.Font.Garamond, textSize = 17, colour = Kit.MUTED })
+		h.LayoutOrder = order
+		for _, r in BattleState.reinforcements do
+			order += 1
+			local l = Kit.label(s, "", { size = UDim2.new(1, -4, 0, 18), textSize = 12, colour = Kit.MUTED })
+			l.TextTruncate = Enum.TextTruncate.AtEnd
+			l.LayoutOrder = order
+			arrivingRows[r.id] = l
+		end
+	end
 end
 
 local function updateRoster()
@@ -12372,6 +12734,9 @@ local function updateRoster()
 	local ids = {}
 	for _, f in forms do
 		table.insert(ids, f.id)
+	end
+	for _, r in BattleState.reinforcements do
+		table.insert(ids, -r.id)
 	end
 	local key = table.concat(ids, ",")
 	if key ~= rosterKey then
@@ -12393,6 +12758,12 @@ local function updateRoster()
 			local sel = Selection.isSelected(f.id)
 			row.frame.BackgroundTransparency = if sel then 0 else 0.4
 			row.frame.BackgroundColor3 = if sel then Kit.SELECT else Kit.PANEL_DARK
+		end
+	end
+	for _, r in BattleState.reinforcements do
+		local l = arrivingRows[r.id]
+		if l then
+			l.Text = string.format("%s  ·  %s  ·  in %s", tostring(r.name), tostring(r.corps or ""), Kit.formatClock(r.eta or 0))
 		end
 	end
 end
@@ -12685,7 +13056,9 @@ function HUD.show(callbacks: Callbacks)
 	buildRoster(sg)
 	buildInspector(sg)
 	buildCommandBar(sg)
-	Minimap.create(sg, UDim2.fromOffset(200, 150), UDim2.new(1, -8, 1, -8), Vector2.new(1, 1))
+	local m = BattleState.map
+	local mmH = if m then math.round(200 * m.depth / m.width) else 150
+	Minimap.create(sg, UDim2.fromOffset(200, mmH), UDim2.new(1, -8, 1, -8), Vector2.new(1, 1))
 	if BattleState.map then
 		task.spawn(Minimap.paint, BattleState.map)
 	end
@@ -12771,12 +13144,13 @@ function HUD.destroy()
 	table.clear(objectiveChips)
 	table.clear(tickerLines)
 	table.clear(rosterRows)
+	table.clear(arrivingRows)
 	table.clear(inspectorFields)
 	table.clear(commandButtons)
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -12879,7 +13253,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tiny native-GUI toolkit: cream panels, ink text, serif titles, Gotham data, buttons with
 -- disabled-reason tooltips, sliders. Every panel is Active so clicks never reach the field.
 
@@ -12887,6 +13261,7 @@ local Players = game:GetService("Players") :: Players
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
+local Factions = require(script.Parent.Parent.Factions)
 
 local Kit = {}
 
@@ -12905,12 +13280,14 @@ Kit.MUTED = Color3.fromRGB(120, 108, 96)
 Kit.PANEL_DARK = Color3.fromRGB(224, 214, 190)
 
 function Kit.factionColour(faction: string?): Color3
-	if faction == "france" then
-		return Kit.FRANCE
-	elseif faction == "prussia" then
-		return Kit.PRUSSIA
+	if faction == nil or faction == "" then
+		return Kit.MUTED
 	end
-	return Kit.MUTED
+	return Factions.colour(faction)
+end
+
+function Kit.factionName(faction: string?): string
+	return Factions.name(faction)
 end
 
 function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenGui
@@ -13200,7 +13577,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (terrain + props build).
 
 local Kit = require(script.Parent.Kit)
@@ -13273,7 +13650,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu over the live battlefield. Buttons call back into Main.
 
 local Kit = require(script.Parent.Kit)
@@ -13342,7 +13719,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -13601,7 +13978,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle panel: outcome, objectives, per-side tallies, feedback lines.
 
 local Kit = require(script.Parent.Kit)
@@ -13727,7 +14104,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
@@ -13856,7 +14233,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000058"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000060"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -13864,6 +14241,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Grid = require(Shared.Grid)
 local Vec = require(Shared.Vec)
+local Factions = require(script.Parent.Parent.Factions)
 
 local Props = {}
 
@@ -14109,12 +14487,10 @@ function Props.updateLabels(cameraHeight: number)
 end
 
 local function factionColour(faction: string?): Color3
-	if faction == "france" then
-		return rgb(P.France)
-	elseif faction == "prussia" then
-		return rgb(P.Prussia)
+	if faction == nil or faction == "" then
+		return rgb(P.Cream)
 	end
-	return rgb(P.Cream)
+	return Factions.colour(faction)
 end
 
 function Props.updateObjectives(objectives: { any })
@@ -14182,7 +14558,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
@@ -14436,4 +14812,4 @@ function Terrain.clear()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000062"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000063"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000064"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000064"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000065"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000066"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
