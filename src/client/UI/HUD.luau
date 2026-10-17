@@ -334,12 +334,14 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?, ribbon: Colo
 		end
 	end
 	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = if ribbon then Kit.IVORY else (colour or Kit.CREAM), rich = true })
-	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
+	-- ribbons use a heavy built-in face: a Garamond bold weight may not exist and then draws
+	-- faint or not at all on the crimson
+	l.FontFace = if ribbon then Font.fromEnum(Enum.Font.SourceSansBold) elseif bold then GARAMOND_BOLD else GARAMOND
 	l.AutomaticSize = Enum.AutomaticSize.X
 	l.BackgroundColor3 = ribbon or Kit.INSET
-	local base = if ribbon then 0.08 else 0.45
+	local base = if ribbon then 0 else 0.45
 	l.BackgroundTransparency = base
-	l.TextStrokeTransparency = 0.5
+	l.TextStrokeTransparency = if ribbon then 0.7 else 0.5
 	l.TextStrokeColor3 = Kit.INK
 	local pad = Instance.new("UIPadding") :: UIPadding
 	pad.PaddingLeft = UDim.new(0, 8)

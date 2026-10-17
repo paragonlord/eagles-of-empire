@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
+local BattleState = require(script.Parent.Parent.BattleState)
 
 local Kit = {}
 
@@ -64,7 +65,13 @@ function Kit.factionColour(faction: string?): Color3
 	return Factions.colour(faction)
 end
 
+-- The scenario's display name ("Russia & Austria") when the match gives one, else the faction's.
 function Kit.factionName(faction: string?): string
+	local sc = BattleState.scenario
+	local names = if sc and type(sc.factionNames) == "table" then sc.factionNames else nil
+	if names and faction and names[faction] then
+		return tostring(names[faction])
+	end
 	return Factions.name(faction)
 end
 
@@ -358,6 +365,27 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 	holder.Position = pos
 	holder.BackgroundTransparency = 1
 	holder.Parent = parent
+	-- Inline on a button or label (left-hand flag): reserve its width in the text padding so
+	-- the text can never run under it, and let long names shrink or wrap to fit.
+	if (parent:IsA("TextButton") or parent:IsA("TextLabel")) and not poleRight and pos.X.Scale == 0 then
+		local t = parent :: any
+		local pad = (parent:FindFirstChild("Lift") or parent:FindFirstChildOfClass("UIPadding")) :: UIPadding?
+		if not pad then
+			local np = Instance.new("UIPadding") :: UIPadding
+			np.Parent = parent
+			pad = np
+		end
+		local old = (pad :: UIPadding).PaddingLeft.Offset
+		local reserve = pos.X.Offset + size.X + 4 + 6
+		;(pad :: UIPadding).PaddingLeft = UDim.new(0, reserve)
+		holder.Position = UDim2.new(0, pos.X.Offset - (reserve - old), pos.Y.Scale, pos.Y.Offset)
+		local cap = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+		cap.MaxTextSize = t.TextSize
+		cap.MinTextSize = 9
+		cap.Parent = parent
+		t.TextWrapped = true
+		t.TextScaled = true
+	end
 	local pole = frame(holder, UDim2.new(0, 2, 1, 0), UDim2.fromScale(if poleRight then 1 else 0, 0), Kit.GILT)
 	pole.AnchorPoint = Vector2.new(if poleRight then 1 else 0, 0)
 	local cloth = frame(holder, UDim2.fromOffset(size.X, size.Y), UDim2.fromOffset(if poleRight then 0 else 4, 1), fl.field or Kit.IVORY)
