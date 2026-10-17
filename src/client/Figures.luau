@@ -12,6 +12,7 @@ local Selection = require(script.Parent.Selection)
 local Settings = require(script.Parent.Settings)
 local Factions = require(script.Parent.Factions)
 local Soldiers = require(script.Parent.World.Soldiers)
+local Kit = require(script.Parent.UI.Kit)
 
 local Figures = {}
 
@@ -528,8 +529,8 @@ local function buildMarker(g: Group, f: any): Marker
 		l.Parent = parent
 		return l
 	end
-	local nameText = string.upper(tostring(f.name or ("#" .. g.id)))
-	local corpsText = string.upper(tostring(f.corps or ""))
+	local nameText = Kit.upper(tostring(f.name or ("#" .. g.id)))
+	local corpsText = Kit.upper(tostring(f.corps or ""))
 	if hq then
 		-- "Napoléon — Imperial HQ" -> NAPOLÉON / IMPERIAL HQ
 		local a, b = string.match(nameText, "^(.-)%s+[—%-]+%s+(.+)$")

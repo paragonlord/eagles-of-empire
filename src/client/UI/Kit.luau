@@ -79,10 +79,30 @@ function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenG
 	return sg
 end
 
+-- Capitals that are safe for UTF-8. Roblox's string.upper is byte-wise with Latin-1 rules: it
+-- leaves é/è/à lowercase and turns the 0xE2 lead byte of "—", "’", "…" into 0xC2 ("�").
+function Kit.upper(text: string): string
+	if utf8.len(text) == nil then
+		return text
+	end
+	local out = {}
+	for _, cp in utf8.codes(text) do
+		if (cp >= 97 and cp <= 122) or (cp >= 0xE0 and cp <= 0xFE and cp ~= 0xF7) then
+			cp -= 32 -- a-z, à-þ
+		elseif cp == 0x153 then
+			cp = 0x152 -- œ
+		elseif cp == 0xFF then
+			cp = 0x178 -- ÿ
+		end
+		out[#out + 1] = utf8.char(cp)
+	end
+	return table.concat(out)
+end
+
 -- Capitals with wide tracking: "Eagles of Empire" -> "E A G L E S   O F   E M P I R E".
 function Kit.spaced(text: string): string
 	local out = {}
-	for _, cp in utf8.codes(string.upper(text)) do
+	for _, cp in utf8.codes(Kit.upper(text)) do
 		local ch = utf8.char(cp)
 		table.insert(out, if ch == " " then "  " else ch)
 	end
@@ -293,7 +313,7 @@ function Kit.title(parent: Instance, text: string, props: TextProps?): TextLabel
 	local p: TextProps = props or {}
 	p.font = Enum.Font.Garamond
 	p.textSize = p.textSize or 26
-	local t = if p.spaced then Kit.spaced(text) elseif p.caps == false then text else string.upper(text)
+	local t = if p.spaced then Kit.spaced(text) elseif p.caps == false then text else Kit.upper(text)
 	local l = Kit.label(parent, t, p)
 	if p.rule then
 		local centred = p.align == Enum.TextXAlignment.Center
@@ -514,10 +534,10 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 	b.Active = true
 	b.Parent = parent
 	local caps = p.caps ~= false
-	b.Text = if caps then string.upper(text) else text
+	b.Text = if caps then Kit.upper(text) else text
 	if caps then
 		b:GetPropertyChangedSignal("Text"):Connect(function()
-			local up = string.upper(b.Text)
+			local up = Kit.upper(b.Text)
 			if up ~= b.Text then
 				b.Text = up
 			end

@@ -303,6 +303,21 @@ ground is now saturated orange, reading as desert, not the olive-gold of the ref
 the tutorial brook ends abruptly at the map's east edge; the crimson rout ribbon in the ticker
 is unreadable (dark text on dark red, `campaign-battle.jpg`).
 
+**2026-10-17 round 8 (generals and abilities), build 07f9b0e.** Boots clean; Jena runs with no
+EoE errors. Napoleon's HQ carries `general=napoleon`; the Vive l'Empereur! button (selected HQ,
+bottom left) fires from a click, the ticker reads "Napoléon: Vive l'Empereur! (10 formations)",
+the button greys out while recharging and a second request is refused "Ability is recharging";
+its tooltip shows the effect text. Hohenlohe's AI used Inspire three times in one battle.
+- Fixed: **accented and dashed names were broken in capitals** (`plates-before.jpg`): the HQ plate
+  read "NAPOLéON �� IMPERIAL HQ", and "17E LéGèRE", "à CHEVAL", "RéSERVE". Roblox's
+  `string.upper` is byte-wise: it leaves é/è/à lowercase and turns the lead byte of "—" (and of
+  "’", "…") into an invalid sequence, which also stopped the HQ name from splitting at the dash.
+  New `Kit.upper` (UTF-8 aware, Latin-1 letters and œ/ÿ) now backs `Kit.title`, caps buttons,
+  `Kit.spaced` and the name plates in `Figures` (`plates-after-ability.jpg`: "NAPOLÉON / IMPERIAL
+  HQ", "17E LÉGÈRE", "9E CHASSEURS À CHEVAL").
+- Open: the plates are now very large at the default deployment zoom and cover most of the field
+  (`plates-after-ability.jpg`); fog weather still gives the whole map a strong teal tint.
+
 ## Known failures
 
 None recorded yet.
