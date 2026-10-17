@@ -11,6 +11,7 @@ export type Callbacks = {
 	campaign: () -> (),
 	help: () -> (),
 	settings: () -> (),
+	tutorial: () -> (),
 }
 
 local gui: ScreenGui? = nil
@@ -95,7 +96,7 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		local sub = Kit.label(col, "Napoleonic real-time tactics", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0, 226), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
 		sub.FontFace = Kit.ITALIC
 		local list = Instance.new("Frame") :: Frame
-		list.Size = UDim2.new(1, -80, 0, 260)
+		list.Size = UDim2.new(1, -80, 0, 340)
 		list.Position = UDim2.new(0, 40, 0, 280)
 		list.BackgroundTransparency = 1
 		list.Parent = col
@@ -117,6 +118,7 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		campaignBtn = item("Campaign", cb.campaign, 2)
 		item("How to Command", cb.help, 3)
 		item("Settings", cb.settings, 4)
+		item("Tutorial", cb.tutorial, 5) -- the aide-de-camp's training ground (Tutorial.luau)
 		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
 		gui = sg
 	end

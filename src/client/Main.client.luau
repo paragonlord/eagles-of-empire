@@ -29,6 +29,7 @@ local Loading = require(script.Parent.UI.Loading)
 local DevPanel = require(script.Parent.UI.DevPanel)
 local CampaignScreen = require(script.Parent.UI.CampaignScreen)
 local BattleSelect = require(script.Parent.UI.BattleSelect)
+local Tutorial = require(script.Parent.Tutorial)
 
 local DEFAULT_MAP = "jena"
 
@@ -121,6 +122,11 @@ menuCallbacks = {
 	end,
 	help = openHelp,
 	settings = openSettings,
+	tutorial = function()
+		Menu.hide()
+		Tutorial.begin()
+		Net.control("start", "tutorial")
+	end,
 }
 
 local campaignCallbacks = {
@@ -238,6 +244,7 @@ local function onMatchState(msg: any)
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
 	BattleState.applyMatchState(msg)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
+	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
 	if pauseToggle then
 		-- keep figures, selection and HUD; just reflect the new state
 		BattleState.updated:Fire(nil)
