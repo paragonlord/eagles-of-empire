@@ -94,7 +94,7 @@ export type Sim = {
 	step: (Sim) -> (),
 	snapshot: (Sim, string, boolean) -> Types.Snapshot,
 	clearEvents: (Sim) -> (),
-	buildResults: (Sim, string, string) -> Types.Results,
+	buildResults: (Sim, string, string, string?) -> Types.Results,
 }
 
 local Sim = {}
@@ -795,7 +795,10 @@ end
 
 -- Results ------------------------------------------------------------------------------------
 
-function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Results
+-- `viewer` (default the player faction) is the side the outcome and feedback are written for.
+function Sim.buildResults(self: Sim, winner: string, reason: string, viewer: string?): Types.Results
+	local me = viewer or self.playerFaction
+	local them = if me == self.playerFaction then self.enemyFaction else self.playerFaction
 	local sides: { [string]: any } = {}
 	for _, faction in self.factions do
 		local s = { deployed = self.deployed[faction] or 0, casualties = 0, remaining = 0, surviving = 0, routed = 0, shattered = 0, destroyed = 0, exited = 0, formations = 0, routEvents = 0 }
@@ -828,9 +831,9 @@ function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Resu
 		end
 		sides[faction] = s
 	end
-	local outcome: "victory" | "defeat" | "draw" = if winner == "draw" then "draw" elseif winner == self.playerFaction then "victory" else "defeat"
+	local outcome: "victory" | "defeat" | "draw" = if winner == "draw" then "draw" elseif winner == me then "victory" else "defeat"
 	local feedback: { string } = {}
-	local p = sides[self.playerFaction]
+	local p = sides[me]
 	if p.routed + p.shattered > p.formations / 3 then
 		feedback[#feedback + 1] = "More than a third of your formations broke. Keep the general close to the line and rest shaken units behind it."
 	end
@@ -846,7 +849,7 @@ function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Resu
 	if squares > 0 then
 		feedback[#feedback + 1] = "Cavalry charged a formed square. Charge flanks, guns or broken troops instead."
 	end
-	if p.casualties > 0 and sides[self.enemyFaction].casualties > p.casualties * 1.5 then
+	if p.casualties > 0 and sides[them].casualties > p.casualties * 1.5 then
 		feedback[#feedback + 1] = "Your fire was far more effective than the enemy's: good use of ground and facing."
 	end
 	if #feedback == 0 then

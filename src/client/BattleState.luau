@@ -102,7 +102,9 @@ BattleState.enemyFaction = ""
 BattleState.isCommander = false
 -- co-op (docs/coop-contract.md). Absent from an old server / solo: everything is yours.
 BattleState.role = "spectator" -- commander | officer | spectator
-BattleState.players = {} :: { { userId: number, name: string, role: string, ready: boolean?, slot: number? } }
+BattleState.lead = nil :: boolean? -- server's word on leading this side; nil (older server): the commander
+BattleState.mode = "coop" -- "coop" | "pvp" (PvP: viewerFaction is this player's side)
+BattleState.players = {} :: { { userId: number, name: string, role: string, ready: boolean?, slot: number?, side: string? } }
 BattleState.controllers = {} :: { [string]: number } -- formation id (string) -> userId
 BattleState.pauseVotes = 0
 BattleState.pauseNeeded = 0
@@ -149,6 +151,8 @@ function BattleState.applyMatchState(msg: any)
 	BattleState.viewerFaction = msg.viewerFaction or ""
 	BattleState.isCommander = msg.isCommander == true
 	BattleState.role = if type(msg.role) == "string" then msg.role elseif BattleState.isCommander then "commander" else "spectator"
+	BattleState.lead = if type(msg.lead) == "boolean" then msg.lead else nil
+	BattleState.mode = if msg.mode == "pvp" then "pvp" else "coop"
 	BattleState.players = if type(msg.players) == "table" then msg.players else {}
 	BattleState.controllers = if type(msg.controllers) == "table" then msg.controllers else {}
 	BattleState.pauseVotes = tonumber(msg.pauseVotes) or 0
@@ -251,6 +255,38 @@ function BattleState.coop(): boolean
 	return #BattleState.players > 1
 end
 
+-- Leads this side: its HQ and reach over every own formation (co-op: the commander).
+function BattleState.isLead(): boolean
+	if BattleState.lead ~= nil then
+		return BattleState.lead
+	end
+	return BattleState.role == "commander"
+end
+
+function BattleState.pvp(): boolean
+	return BattleState.mode == "pvp"
+end
+
+-- The two sides, own first, each with its commanding players: { { faction, players } }.
+-- Players without a side (co-op, older server) count for the scenario's player faction.
+function BattleState.sides(): { { faction: string, players: { any } } }
+	local sc = BattleState.scenario
+	local f = if type(sc) == "table" then sc.factions else nil
+	if type(f) ~= "table" then
+		return {}
+	end
+	local out = { { faction = f.player, players = {} }, { faction = f.enemy, players = {} } }
+	for _, p in BattleState.players do
+		if p.role ~= "spectator" then
+			table.insert(out[if p.side == f.enemy then 2 else 1].players, p)
+		end
+	end
+	if BattleState.viewerFaction == f.enemy then
+		out[1], out[2] = out[2], out[1]
+	end
+	return out
+end
+
 -- May this client give orders at all (commander or officer)?
 function BattleState.canOrder(): boolean
 	return BattleState.role == "commander" or BattleState.role == "officer"
@@ -271,7 +307,7 @@ function BattleState.isMine(id: number): boolean
 	end
 	local c = BattleState.controllerOf(id)
 	if c == nil then
-		return BattleState.role == "commander" -- unassigned stays with the commander
+		return BattleState.isLead() -- unassigned stays with the side's lead
 	end
 	return c == BattleState.userId
 end
@@ -282,7 +318,7 @@ function BattleState.canCommand(id: number): boolean
 		return true
 	end
 	local f = BattleState.formations[id]
-	return BattleState.role == "commander" and f ~= nil and f.faction == BattleState.viewerFaction
+	return BattleState.isLead() and f ~= nil and f.faction == BattleState.viewerFaction
 end
 
 function BattleState.player(userId: number?): any
@@ -296,8 +332,9 @@ end
 
 -- The ally commanding a formation that is not ours (nil when it is ours or solo).
 function BattleState.allyOf(id: number): any
-	if not BattleState.coop() or BattleState.isMine(id) then
-		return nil
+	local f = BattleState.formations[id]
+	if not BattleState.coop() or not f or f.faction ~= BattleState.viewerFaction or BattleState.isMine(id) then
+		return nil -- the other side's officers stay anonymous
 	end
 	return BattleState.player(BattleState.controllerOf(id))
 end

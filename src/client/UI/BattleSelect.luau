@@ -13,6 +13,7 @@ local BattleSelect = {}
 export type Callbacks = {
 	fight: (id: string) -> (),
 	difficulty: (value: string) -> (),
+	mode: ((value: string) -> ())?, -- "coop" | "pvp"
 	back: () -> (),
 }
 
@@ -231,6 +232,19 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 		difficultyButtons[key] = b
 	end
 	refreshDifficulty()
+	local setMode = cb.mode
+	if setMode then
+		local function modeText(): string
+			return if BattleState.pvp() then "PvP: side against side" else "Co-op against the AI"
+		end
+		local mb: TextButton
+		mb = Kit.button(panel, modeText(), function()
+			BattleState.mode = if BattleState.pvp() then "coop" else "pvp"
+			setMode(BattleState.mode)
+			mb.Text = modeText()
+		end, { size = UDim2.fromOffset(220, 30), position = UDim2.new(1, 0, 0, 44), anchor = Vector2.new(1, 0), textSize = 15, tooltip = "PvP: players pick a side in deployment; a side without players is left to the AI" })
+		Kit.setEnabled(mb, isCommander, "Only the commander chooses the mode")
+	end
 	local tabs = Instance.new("Frame") :: Frame
 	tabs.Size = UDim2.new(1, 0, 0, 32)
 	tabs.Position = UDim2.new(0, 0, 0, 84)

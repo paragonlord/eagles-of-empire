@@ -296,7 +296,7 @@ local function updateTopBar()
 	local paused = BattleState.state == "paused"
 	for s, b in speedButtons do
 		Kit.setActiveLook(b, not paused and BattleState.speed == s)
-		Kit.setEnabled(b, BattleState.isCommander, "Only the commander sets the speed")
+		Kit.setEnabled(b, BattleState.isCommander and not BattleState.pvp(), if BattleState.pvp() then "PvP is fought at 1×" else "Only the commander sets the speed")
 	end
 	if pauseButton then
 		local vote = BattleState.pauseLabel() -- co-op only
@@ -329,14 +329,24 @@ local function buildTicker(sg: ScreenGui)
 	playerList = pl
 end
 
--- Co-op roster: slot colour, name, ready tick; the ticker moves down beneath it.
+-- Co-op roster: slot colour, name, ready tick; the ticker moves down beneath it. PvP groups
+-- the players under their side's name, own side first.
 local function updatePlayers()
 	local pl, tf = playerList, tickerFrame
 	if not pl or not tf then
 		return
 	end
-	local rows = {}
-	if BattleState.coop() then
+	local rows: { any } = {}
+	if BattleState.pvp() and BattleState.coop() then
+		for _, side in BattleState.sides() do
+			if #side.players > 0 then
+				table.insert(rows, { header = Kit.factionName(side.faction) })
+				for _, p in side.players do
+					table.insert(rows, p)
+				end
+			end
+		end
+	elseif BattleState.coop() then
 		for _, p in BattleState.players do
 			if p.role ~= "spectator" then
 				table.insert(rows, p)
@@ -345,7 +355,7 @@ local function updatePlayers()
 	end
 	local parts = {}
 	for _, p in rows do
-		table.insert(parts, string.format("%s|%s|%s|%s", tostring(p.slot), tostring(p.name), tostring(p.role), tostring(p.ready)))
+		table.insert(parts, string.format("%s|%s|%s|%s|%s", tostring(p.slot), tostring(p.name), tostring(p.role), tostring(p.ready), tostring(p.header)))
 	end
 	local key = table.concat(parts, ";")
 	if key == playersKey then
@@ -364,6 +374,11 @@ local function updatePlayers()
 		row.BackgroundTransparency = 1
 		row.LayoutOrder = i
 		row.Parent = pl
+		if p.header then
+			local h = Kit.label(row, string.upper(tostring(p.header)), { size = UDim2.fromScale(1, 1), textSize = 13, colour = Kit.GILT })
+			h.TextStrokeTransparency = 0.5
+			continue
+		end
 		local chip = Instance.new("Frame") :: Frame
 		chip.Size = UDim2.fromOffset(10, 10)
 		chip.Position = UDim2.fromOffset(0, 4)

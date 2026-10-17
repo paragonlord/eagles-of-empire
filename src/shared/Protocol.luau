@@ -52,6 +52,9 @@ Protocol.ControlActions = {
 	join = true, -- spectator → officer when a slot is free
 	assign = true, -- commander: value = { ids = { formationId }, userId = n }
 	ping = true, -- value = { x, z, kind } (Protocol.PingKinds)
+	mode = true, -- host: value = "coop" | "pvp" (menu, or during deployment)
+	side = true, -- PvP deployment: value = the faction id of the side to command
+	balance = true, -- host, PvP deployment: even the sides out
 	tutorialStep = true, -- tutorial scenario: value = step number reached (MatchService validates)
 }
 
@@ -311,6 +314,14 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 		end
 	elseif msg.action == "start" or msg.action == "restart" then
 		if msg.value ~= nil and type(msg.value) ~= "string" then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "mode" then
+		if msg.value ~= "coop" and msg.value ~= "pvp" then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "side" then
+		if type(msg.value) ~= "string" or #msg.value == 0 or #msg.value > 32 then
 			return false, Protocol.Reasons.badRequest
 		end
 	elseif msg.action == "spectate" then

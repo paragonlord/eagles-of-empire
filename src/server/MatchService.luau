@@ -1,5 +1,5 @@
 --!strict
--- Match lifecycle, co-op roles and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
+-- Match lifecycle, co-op / PvP roles, sides and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
 
@@ -29,6 +29,8 @@ type Match = {
 	id: string,
 	sim: Sim,
 	ai: any,
+	aiFaction: string?, -- the faction the AI runs (nil in PvP with humans on both sides)
+	sideResults: { [string]: any }, -- results rewritten for the enemy side's players (PvP)
 	clock: MatchClock.Clock,
 	scenario: Scenarios.Scenario,
 	state: MatchState,
@@ -54,6 +56,7 @@ local match: Match? = nil
 local roster = Coop.newRoster()
 local lastPing: { [number]: number } = {}
 local difficulty = "normal"
+local mode = "coop" -- host's choice for the next match: "coop" | "pvp"
 local mapCache: { [string]: MapGen.MapData } = {}
 local matchCounter = 0
 local heartbeat: RBXScriptConnection? = nil
@@ -68,8 +71,51 @@ local function mapFor(id: string): MapGen.MapData
 	return m
 end
 
-local function playerFaction(m: Match?): string
-	return if m then m.scenario.factions.player else "france"
+-- The faction a player commands and sees (PvP: their side; spectators: the host's side).
+local function viewFaction(m: Match?, userId: number): string
+	return if m then Coop.sideFaction(m.scenario.factions, Coop.sideOf(roster, userId)) else "france"
+end
+
+-- PvP is off for the tutorial (scripted enemy) and campaign battles (one nation's campaign).
+local function pvpAllowed(m: Match): boolean
+	return m.tutorialStep == nil and m.campaignBattleId == nil and m.scenario.id ~= "tutorial"
+end
+
+-- Runs the AI for the side without humans (Coop.aiSide); none in a full PvP match. The tutorial
+-- drives its own enemy. `force` rebuilds it (a new difficulty).
+local function refreshAI(m: Match, force: boolean?)
+	if m.tutorialStep ~= nil then
+		return
+	end
+	local side = Coop.aiSide(roster)
+	local faction = if side then Coop.sideFaction(m.scenario.factions, side) else nil
+	if faction == m.aiFaction and not force then
+		return
+	end
+	m.aiFaction = faction
+	if faction then
+		local ai = AI.new(m.sim, faction, m.difficulty)
+		m.ai = ai
+		m.sim.aiStep = function(_s)
+			AI.step(ai)
+		end
+	else
+		m.ai = nil
+		m.sim.aiStep = nil
+	end
+end
+
+local function resultsFor(m: Match, faction: string): any
+	local r = m.sim.result
+	if not r or faction == m.sim.playerFaction or not m.sim.winner then
+		return r
+	end
+	local cached = m.sideResults[faction]
+	if not cached then
+		cached = m.sim:buildResults(m.sim.winner :: string, r.reason, faction)
+		m.sideResults[faction] = cached
+	end
+	return cached
 end
 
 local function isCommander(player: Player): boolean
@@ -88,17 +134,21 @@ local function playersPayload(m: Match?)
 	local out = {}
 	for _, mem in roster.members do
 		if mem.role ~= "spectator" then
-			out[#out + 1] = { userId = mem.userId, name = mem.name, role = mem.role, ready = m ~= nil and m.ready[mem.userId] == true, slot = mem.slot }
+			out[#out + 1] = { userId = mem.userId, name = mem.name, role = mem.role, ready = m ~= nil and m.ready[mem.userId] == true, slot = mem.slot, side = if m then viewFaction(m, mem.userId) else nil }
 		end
 	end
 	return out
 end
 
-local function controllersPayload(m: Match?): { [string]: number }
+-- Wings of the viewer's own faction only: the other side's wing split is not ours to know.
+local function controllersPayload(m: Match?, faction: string): { [string]: number }
 	local out: { [string]: number } = {}
 	if m then
 		for id, uid in m.controllers do
-			out[tostring(id)] = uid
+			local f = m.sim.formations[id]
+			if f and f.faction == faction then
+				out[tostring(id)] = uid
+			end
 		end
 	end
 	return out
@@ -106,6 +156,8 @@ end
 
 local function matchStatePayload(player: Player)
 	local m = match
+	local faction = viewFaction(m, player.UserId)
+	local n = #Coop.commanding(roster)
 	return {
 		matchId = if m then m.id else "",
 		state = if m then m.state else "menu",
@@ -124,16 +176,18 @@ local function matchStatePayload(player: Player)
 				difficultyNote = (m.scenario :: any).difficultyNote,
 			}
 			else nil,
-		viewerFaction = playerFaction(m),
+		viewerFaction = faction,
 		isCommander = isCommander(player),
 		role = Coop.roleOf(roster, player.UserId),
+		lead = Coop.isLead(roster, player.UserId),
+		mode = if m then (if roster.pvp then "pvp" else "coop") else mode,
 		players = playersPayload(m),
-		controllers = controllersPayload(m),
+		controllers = controllersPayload(m, faction),
 		pauseVotes = if m then count(m.votes) else 0,
-		pauseNeeded = Coop.votesNeeded(#Coop.commanding(roster)),
+		pauseNeeded = if roster.pvp and m and m.state == "paused" then 1 else Coop.votesNeeded(n, roster.pvp),
 		difficulty = if m then m.difficulty else difficulty,
 		speed = if m then m.clock.speed else 1,
-		results = if m then m.sim.result else nil,
+		results = if m then resultsFor(m, faction) else nil,
 		reason = if m and m.sim.result then m.sim.result.reason else nil,
 		campaignAvailable = true,
 		campaignSessionOnly = CampaignService.sessionOnly(),
@@ -152,7 +206,7 @@ local function sendSnapshot(player: Player, full: boolean)
 	if not m then
 		return
 	end
-	local snap = m.sim:snapshot(playerFaction(m), full)
+	local snap = m.sim:snapshot(viewFaction(m, player.UserId), full)
 	snap.speed = m.clock.speed
 	snap.simLag = m.clock.simLag
 	snap.state = m.state
@@ -170,12 +224,25 @@ local function publish(full: boolean)
 		m.sim:clearEvents()
 		return
 	end
-	local snap = m.sim:snapshot(playerFaction(m), full)
-	snap.speed = m.clock.speed
-	snap.simLag = m.clock.simLag
-	snap.state = m.state
+	local byFaction: { [string]: { Player } } = {}
 	for _, p in players do
-		remotes.Snapshot:FireClient(p, snap)
+		local f = viewFaction(m, p.UserId)
+		byFaction[f] = byFaction[f] or {}
+		table.insert(byFaction[f], p)
+	end
+	for _, faction in { m.scenario.factions.player, m.scenario.factions.enemy } do
+		local list = byFaction[faction]
+		if list then
+			local snap = m.sim:snapshot(faction, full)
+			snap.speed = m.clock.speed
+			snap.simLag = m.clock.simLag
+			snap.state = m.state
+			for _, p in list do
+				remotes.Snapshot:FireClient(p, snap)
+			end
+		else
+			m.sim.lastSent[faction] = nil -- nobody watching: the next viewer starts from a keyframe
+		end
 	end
 	m.sim:clearEvents()
 end
@@ -186,22 +253,39 @@ local function destroyMatch()
 		m.sim.aiStep = nil
 	end
 	match = nil
+	roster.pvp = false
 end
 
--- Auto-split the player faction into wings, one per commanding player (Coop.split).
+-- Commanding players and their sides: a change re-splits the wings.
+local function rosterKey(): string
+	local parts = {}
+	for _, uid in Coop.commanding(roster) do
+		parts[#parts + 1] = uid .. Coop.sideOf(roster, uid)
+	end
+	return table.concat(parts, ",") .. (if roster.pvp then "|pvp" else "")
+end
+
+-- Auto-split each human side into wings, one per commanding player of that side (Coop.split);
+-- the side's lead keeps its HQ. The player side is always split (co-op as before).
 local function resplit(m: Match)
-	local faction = playerFaction(m)
-	local forms: { Coop.SplitFormation } = {}
-	for _, id in m.sim.order do
-		local f = m.sim.formations[id]
-		if f and f.faction == faction then
-			forms[#forms + 1] = f :: any
+	m.controllers = {}
+	for _, side: Coop.Side in { "player", "enemy" } do
+		local players = Coop.commanding(roster, side)
+		if side == "player" or #players > 0 then
+			local faction = Coop.sideFaction(m.scenario.factions, side)
+			local forms: { Coop.SplitFormation } = {}
+			for _, id in m.sim.order do
+				local f = m.sim.formations[id]
+				if f and f.faction == faction then
+					forms[#forms + 1] = f :: any
+				end
+			end
+			for id, uid in Coop.split(forms, m.sim.map.deployZones[faction], players, Coop.lead(roster, side) or 0) do
+				m.controllers[id] = uid
+			end
 		end
 	end
-	local players = Coop.commanding(roster)
-	local cmd = Coop.commander(roster)
-	m.controllers = Coop.split(forms, m.sim.map.deployZones[faction], players, if cmd then cmd.userId else 0)
-	m.splitKey = table.concat(players, ",")
+	m.splitKey = rosterKey()
 end
 
 -- After any join, leave or role change: re-split when the commanding set changed, drop votes
@@ -223,8 +307,15 @@ local function onRoster()
 				m.ready[uid] = nil
 			end
 		end
-		if table.concat(Coop.commanding(roster), ",") ~= m.splitKey then
+		if rosterKey() ~= m.splitKey then
 			resplit(m)
+			refreshAI(m)
+			if roster.pvp then
+				-- someone's side (and so their view) may have changed
+				broadcastState()
+				publish(true)
+				return
+			end
 		end
 	end
 	broadcastState()
@@ -438,6 +529,8 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		id = id,
 		sim = sim,
 		ai = ai,
+		aiFaction = scenario.factions.enemy,
+		sideResults = {},
 		clock = MatchClock.new(),
 		scenario = scenario,
 		state = "deployment",
@@ -453,7 +546,13 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		ready = {},
 		votes = {},
 	}
-	resplit(match :: Match)
+	local m = match :: Match
+	roster.pvp = mode == "pvp" and pvpAllowed(m)
+	if roster.pvp then
+		MatchClock.setSpeed(m.clock, 1)
+	end
+	resplit(m)
+	refreshAI(m)
 	if scenario.id == "tutorial" then
 		tutorialStart(match)
 	end
@@ -513,7 +612,7 @@ local function onControl(player: Player, msg: any)
 		return
 	end
 	local role = Coop.roleOf(roster, uid)
-	local anyone = action == "ready" or action == "pause" or action == "resume" or action == "ping"
+	local anyone = action == "ready" or action == "pause" or action == "resume" or action == "ping" or action == "side" or action == "assign"
 	if role == "spectator" or (role ~= "commander" and not anyone) then
 		result(player, msg.requestId, false, Protocol.Reasons.notCommander)
 		return
@@ -523,11 +622,7 @@ local function onControl(player: Player, msg: any)
 		if m and m.state == "deployment" and m.tutorialStep == nil then
 			m.difficulty = difficulty
 			m.sim.difficulty = difficulty
-			m.ai = AI.new(m.sim, m.scenario.factions.enemy, difficulty)
-			local ai = m.ai
-			m.sim.aiStep = function(_s)
-				AI.step(ai)
-			end
+			refreshAI(m, true)
 		end
 		result(player, msg.requestId, true)
 		broadcastState()
@@ -551,8 +646,9 @@ local function onControl(player: Player, msg: any)
 		publish(true)
 	elseif action == "ready" then
 		if m and m.state == "deployment" then
-			-- Starts once every commanding player is ready, or on the commander's second ready.
-			local force = role == "commander" and m.ready[uid] == true
+			-- Starts once every commanding player is ready, or on the commander's second ready
+			-- (co-op only: in PvP the other side must be ready too).
+			local force = role == "commander" and m.ready[uid] == true and not roster.pvp
 			m.ready[uid] = true
 			local all = true
 			for _, id in Coop.commanding(roster) do
@@ -577,7 +673,9 @@ local function onControl(player: Player, msg: any)
 			local target: MatchState = if action == "pause" then "paused" else "running"
 			if m.state ~= target then
 				-- A vote: ⌈n/2⌉ commanding players, or the commander's resume alone. Solo acts at once.
-				local passed = Coop.vote(m.votes, uid, #Coop.commanding(roster), action == "resume" and role == "commander")
+				-- PvP: pausing needs everyone, any one player may resume.
+				local decisive = action == "resume" and (role == "commander" or roster.pvp)
+				local passed = Coop.vote(m.votes, uid, #Coop.commanding(roster), decisive, roster.pvp)
 				if passed then
 					m.state = target
 					m.clock.paused = target == "paused"
@@ -590,7 +688,9 @@ local function onControl(player: Player, msg: any)
 			result(player, msg.requestId, false, Protocol.Reasons.badState)
 		end
 	elseif action == "speed" then
-		if m and MatchClock.setSpeed(m.clock, msg.value) then
+		if roster.pvp and msg.value ~= 1 then
+			result(player, msg.requestId, false, Protocol.Reasons.badState) -- PvP runs at 1×
+		elseif m and MatchClock.setSpeed(m.clock, msg.value) then
 			result(player, msg.requestId, true)
 			broadcastState()
 		else
@@ -602,11 +702,16 @@ local function onControl(player: Player, msg: any)
 			result(player, msg.requestId, false, Protocol.Reasons.badState)
 			return
 		end
-		if Coop.roleOf(roster, v.userId) == "spectator" then
+		-- the side's lead hands formations of that side to an officer of the same side
+		if not Coop.isLead(roster, uid) then
+			result(player, msg.requestId, false, Protocol.Reasons.notCommander)
+			return
+		end
+		if Coop.roleOf(roster, v.userId) == "spectator" or Coop.sideOf(roster, v.userId) ~= Coop.sideOf(roster, uid) then
 			result(player, msg.requestId, false, Protocol.Reasons.badTarget)
 			return
 		end
-		local faction = playerFaction(m)
+		local faction = viewFaction(m, uid)
 		for _, id in v.ids do
 			local f = m.sim.formations[id]
 			if not f or f.faction ~= faction then
@@ -631,13 +736,54 @@ local function onControl(player: Player, msg: any)
 		else
 			lastPing[uid] = now
 			local ping = { userId = uid, name = player.Name, x = v.x, z = v.z, kind = v.kind, tick = m.sim.tick }
+			local side = Coop.sideOf(roster, uid)
 			for _, p in Players:GetPlayers() do
-				if Coop.roleOf(roster, p.UserId) ~= "spectator" then
+				if Coop.roleOf(roster, p.UserId) ~= "spectator" and Coop.sideOf(roster, p.UserId) == side then
 					remotes.Ping:FireClient(p, ping)
 				end
 			end
 			result(player, msg.requestId, true)
 		end
+	elseif action == "mode" then
+		-- host: co-op vs AI or PvP, from the menu (next match) or during deployment
+		if m and (m.state ~= "deployment" or (msg.value == "pvp" and not pvpAllowed(m))) then
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+			return
+		end
+		mode = msg.value
+		result(player, msg.requestId, true)
+		if m then
+			roster.pvp = mode == "pvp"
+			m.ready = {}
+			m.votes = {}
+			if roster.pvp then
+				MatchClock.setSpeed(m.clock, 1)
+			end
+			onRoster() -- re-splits and swaps the AI
+			publish(true) -- views may have changed side
+		else
+			broadcastState()
+		end
+	elseif action == "side" or action == "balance" then
+		-- PvP deployment: pick a side (value = faction id), or the host balances them
+		if not m or not roster.pvp or m.state ~= "deployment" then
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+			return
+		end
+		if action == "balance" then
+			Coop.balance(roster)
+			m.ready = {}
+		else
+			local side = Coop.sideFor(m.scenario.factions, msg.value)
+			if not side then
+				result(player, msg.requestId, false, Protocol.Reasons.badRequest)
+				return
+			end
+			Coop.setSide(roster, uid, side)
+			m.ready[uid] = nil
+		end
+		result(player, msg.requestId, true)
+		onRoster()
 	elseif action == "tutorialStep" then
 		local tok, treason = tutorialStep(m, true, msg.value)
 		result(player, msg.requestId, tok, treason)
@@ -657,7 +803,7 @@ local function onCommand(player: Player, cmd: any)
 		return
 	end
 	local sim = m.sim
-	local faction = playerFaction(m)
+	local faction = viewFaction(m, player.UserId)
 	local role = Coop.roleOf(roster, player.UserId)
 	local ctx: Protocol.ValidateContext = {
 		matchId = m.id,
@@ -684,8 +830,8 @@ local function onCommand(player: Player, cmd: any)
 		end
 		return
 	end
-	-- Officers command only their own wing; the commander may command any formation.
-	if role ~= "commander" then
+	-- Officers command only their own wing; the side's lead may command any of its formations.
+	if not Coop.isLead(roster, player.UserId) then
 		for _, id in cmd.ids do
 			if m.controllers[id] ~= player.UserId then
 				result(player, cmd.requestId, false, Protocol.Reasons.notYours)
@@ -756,7 +902,7 @@ local function onHeartbeat(realDt: number)
 			publish(false)
 		end
 	end
-	if devView and m.ai then
+	if devView and m.ai and not roster.pvp then
 		m.devTimer += realDt
 		if m.devTimer >= 1 then
 			m.devTimer = 0

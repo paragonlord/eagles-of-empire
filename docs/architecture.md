@@ -99,7 +99,8 @@ Client → server
   `Protocol.CommandKinds` (Move, AttackMove, Engage, Stop, Hold, Face, Retreat, Shape, Stance,
   Charge, Rally, Limber, Deploy). `data` is bounded and validated field by field.
 - `Control` `{matchId, requestId, action, value}`; actions: `start, pause, resume, speed,
-  restart, ready, difficulty, quit, spectate, join, assign, ping, tutorialStep`.
+  restart, ready, difficulty, quit, spectate, join, assign, ping, mode, side, balance,
+  tutorialStep`.
 
 Server → client
 - `CommandResult` `{requestId, accepted, reason, effectiveTick}`.
@@ -122,6 +123,11 @@ wing (`notYours`), starts on ready-all (or the commander's second ready), pauses
 ⌈n/2⌉ votes and relays pings on the `Ping` remote. A departing commander hands command to the
 next player in join order; only when nobody is left does the match pause, resuming on
 reconnection within `Config.Match.ReconnectGrace`, otherwise resetting to the menu.
+
+PvP (same contract, `mode = "pvp"`): each commanding player has a `side` (the scenario's player
+or enemy faction) and the wing split runs per side, each side's lead keeping its HQ. Snapshots,
+`viewerFaction`, wings, pings and results are per side (spectators get the host's side); the AI
+runs only a side without humans. Pausing is unanimous, speed is fixed at 1×, no forced start.
 
 Lifecycle: `menu → loading → deployment → running ⇄ paused → results → (restart|campaign)`.
 `MatchService:destroyMatch()` disconnects every connection, stops the loop and clears

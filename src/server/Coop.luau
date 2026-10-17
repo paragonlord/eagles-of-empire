@@ -1,10 +1,12 @@
 --!strict
--- Co-op (2–4 players vs AI): roster roles and slots, the wing split and vote thresholds.
+-- Co-op (2–4 players vs AI) and PvP (two human sides): roster roles, slots and sides, the wing
+-- split, AI side and vote thresholds.
 -- Pure Luau; MatchService adapts it to Roblox players. Contract: docs/coop-contract.md.
 
 export type Role = "commander" | "officer" | "spectator"
-export type Member = { userId: number, name: string, role: Role, slot: number? }
-export type Roster = { members: { Member } } -- join order
+export type Side = "player" | "enemy" -- the scenario's factions.player / factions.enemy
+export type Member = { userId: number, name: string, role: Role, slot: number?, side: Side }
+export type Roster = { members: { Member }, pvp: boolean } -- join order; sides count only when pvp
 export type SplitFormation = { id: number, class: string, pos: { x: number, z: number } }
 export type Rect = { x0: number, z0: number, x1: number, z1: number }
 
@@ -13,7 +15,7 @@ local Coop = {}
 Coop.MaxCommanding = 4
 
 function Coop.newRoster(): Roster
-	return { members = {} }
+	return { members = {}, pvp = false }
 end
 
 function Coop.find(roster: Roster, userId: number): Member?
@@ -39,11 +41,25 @@ function Coop.commander(roster: Roster): Member?
 	return nil
 end
 
--- Commanding players' userIds in join order.
-function Coop.commanding(roster: Roster): { number }
+-- The side a player commands and views. Co-op: always "player". PvP: a commanding player's own
+-- side; spectators (and strangers) see the host's side, so they cannot scout for either.
+function Coop.sideOf(roster: Roster, userId: number): Side
+	if not roster.pvp then
+		return "player"
+	end
+	local mem = Coop.find(roster, userId)
+	if mem and mem.role ~= "spectator" then
+		return mem.side
+	end
+	local host = Coop.commander(roster)
+	return if host then host.side else "player"
+end
+
+-- Commanding players' userIds in join order, optionally only those of one side.
+function Coop.commanding(roster: Roster, side: Side?): { number }
 	local out = {}
 	for _, mem in roster.members do
-		if mem.role ~= "spectator" then
+		if mem.role ~= "spectator" and (side == nil or Coop.sideOf(roster, mem.userId) == side) then
 			out[#out + 1] = mem.userId
 		end
 	end
@@ -75,6 +91,18 @@ local function enlist(roster: Roster, mem: Member): boolean
 		return false
 	end
 	mem.slot = slot
+	-- joins the side with fewer commanding players (ties: the player side)
+	local p, e = 0, 0
+	for _, o in roster.members do
+		if o.role ~= "spectator" then
+			if o.side == "enemy" then
+				e += 1
+			else
+				p += 1
+			end
+		end
+	end
+	mem.side = if e < p then "enemy" else "player"
 	mem.role = if Coop.commander(roster) then "officer" else "commander"
 	return true
 end
@@ -84,7 +112,7 @@ function Coop.add(roster: Roster, userId: number, name: string): Member
 	if mem then
 		return mem
 	end
-	local m: Member = { userId = userId, name = name, role = "spectator", slot = nil }
+	local m: Member = { userId = userId, name = name, role = "spectator", slot = nil, side = "player" }
 	table.insert(roster.members, m)
 	enlist(roster, m)
 	return m
@@ -141,6 +169,66 @@ function Coop.remove(roster: Roster, userId: number): boolean
 	return wasCommander
 end
 
+-- The side's lead (its HQ, abilities and reach over every formation of the side): the host
+-- when on that side, else the side's first commanding player in join order.
+function Coop.lead(roster: Roster, side: Side): number?
+	local host = Coop.commander(roster)
+	if host and Coop.sideOf(roster, host.userId) == side then
+		return host.userId
+	end
+	return Coop.commanding(roster, side)[1]
+end
+
+function Coop.isLead(roster: Roster, userId: number): boolean
+	return Coop.roleOf(roster, userId) ~= "spectator" and Coop.lead(roster, Coop.sideOf(roster, userId)) == userId
+end
+
+-- A commanding player picks a side. False for spectators and strangers.
+function Coop.setSide(roster: Roster, userId: number, side: Side): boolean
+	local mem = Coop.find(roster, userId)
+	if not mem or mem.role == "spectator" then
+		return false
+	end
+	mem.side = side
+	return true
+end
+
+-- Host force-balance: the host keeps their side, the others alternate in join order starting
+-- on the other side (1v1, 2v1, 2v2).
+function Coop.balance(roster: Roster)
+	local host = Coop.commander(roster)
+	local hs: Side = if host then host.side else "player"
+	local other: Side = if hs == "player" then "enemy" else "player"
+	local i = 0
+	for _, mem in roster.members do
+		if mem.role ~= "spectator" and mem ~= host then
+			i += 1
+			mem.side = if i % 2 == 1 then other else hs
+		end
+	end
+end
+
+-- The side the AI runs: co-op always the enemy; PvP the side without humans (nil when both
+-- have some; the enemy when neither does).
+function Coop.aiSide(roster: Roster): Side?
+	if not roster.pvp then
+		return "enemy"
+	end
+	local p, e = #Coop.commanding(roster, "player"), #Coop.commanding(roster, "enemy")
+	if p > 0 and e > 0 then
+		return nil
+	end
+	return if p == 0 and e > 0 then "player" else "enemy"
+end
+
+function Coop.sideFaction(factions: { player: string, enemy: string }, side: Side): string
+	return if side == "enemy" then factions.enemy else factions.player
+end
+
+function Coop.sideFor(factions: { player: string, enemy: string }, faction: any): Side?
+	return if faction == factions.player then "player" elseif faction == factions.enemy then "enemy" else nil
+end
+
 -- Wings: formations sorted along the deploy zone's long axis, cut into one contiguous wing per
 -- commanding player (join order). HQs always go to the commander. Returns { [formationId]: userId }.
 function Coop.split(forms: { SplitFormation }, zone: Rect?, players: { number }, commanderId: number): { [number]: number }
@@ -169,19 +257,20 @@ function Coop.split(forms: { SplitFormation }, zone: Rect?, players: { number },
 	return out
 end
 
-function Coop.votesNeeded(n: number): number
-	return math.max(1, math.ceil(n / 2))
+-- ⌈n/2⌉ in co-op; every commanding player in PvP.
+function Coop.votesNeeded(n: number, pvp: boolean?): number
+	return math.max(1, if pvp then n else math.ceil(n / 2))
 end
 
--- Records a pause/resume vote. Passes at ⌈n/2⌉ votes, or at once when `decisive` (the
--- commander's resume). Returns passed, votes cast.
-function Coop.vote(votes: { [number]: boolean }, userId: number, n: number, decisive: boolean): (boolean, number)
+-- Records a pause/resume vote. Passes at votesNeeded, or at once when `decisive` (the
+-- commander's resume in co-op, anyone's resume in PvP). Returns passed, votes cast.
+function Coop.vote(votes: { [number]: boolean }, userId: number, n: number, decisive: boolean, pvp: boolean?): (boolean, number)
 	votes[userId] = true
 	local count = 0
 	for _ in votes do
 		count += 1
 	end
-	return decisive or count >= Coop.votesNeeded(n), count
+	return decisive or count >= Coop.votesNeeded(n, pvp), count
 end
 
 return Coop

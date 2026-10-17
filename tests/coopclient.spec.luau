@@ -49,3 +49,39 @@ test("Co-op client: wings, commander reach and the vote label", function()
 	BattleState.reset()
 	BattleState.applyMatchState({ matchId = "", state = "menu" })
 end)
+
+test("PvP client: own side is the viewer's, sides grouped own first, enemy officers anonymous", function()
+	local players = {
+		{ userId = 22, name = "Host", role = "commander", slot = 1, side = "france" },
+		{ userId = 11, name = "Me", role = "officer", slot = 2, side = "prussia" },
+		{ userId = 33, name = "Ally", role = "officer", slot = 3, side = "prussia" },
+	}
+	setup({
+		matchId = "m",
+		state = "deployment",
+		viewerFaction = "prussia",
+		isCommander = false,
+		role = "officer",
+		lead = true,
+		mode = "pvp",
+		players = players,
+		scenario = { factions = { player = "france", enemy = "prussia" } },
+		controllers = { ["3"] = 33 },
+	})
+	assertTrue(BattleState.pvp() and BattleState.isLead(), "an officer can lead the other side")
+	assertEq(BattleState.enemyFaction, "france")
+	local sides = BattleState.sides()
+	assertEq(sides[1].faction, "prussia", "own side first")
+	assertEq(#sides[1].players, 2)
+	assertEq(sides[2].players[1].name, "Host")
+	assertTrue(BattleState.canCommand(3) and not BattleState.isMine(3), "the lead reaches an ally's wing")
+	assertTrue(not BattleState.canCommand(1) and not BattleState.isMine(1), "the French are the enemy now")
+	assertEq(BattleState.allyOf(1), nil, "never an enemy officer's name")
+	assertEq(BattleState.allyOf(3).name, "Ally")
+	-- co-op from an older server: no lead / mode / side fields
+	setup({ matchId = "m", state = "running", viewerFaction = "france", isCommander = true, role = "commander", players = { players[1] }, scenario = { factions = { player = "france", enemy = "prussia" } } })
+	assertTrue(not BattleState.pvp() and BattleState.isLead(), "lead falls back to the commander")
+	assertEq(BattleState.sides()[1].faction, "france")
+	BattleState.reset()
+	BattleState.applyMatchState({ matchId = "", state = "menu" })
+end)

@@ -10,11 +10,18 @@ local BattleState = require(script.Parent.Parent.BattleState)
 
 local Deployment = {}
 
-export type Callbacks = { ready: () -> (), settings: () -> (), assign: ((userId: number) -> ())? }
+export type Callbacks = {
+	ready: () -> (),
+	settings: () -> (),
+	assign: ((userId: number) -> ())?,
+	mode: ((mode: string) -> ())?, -- host: "coop" | "pvp"
+	side: ((faction: string) -> ())?, -- PvP: command this side
+	balance: (() -> ())?, -- host, PvP: even the sides out
+}
 
 local gui: ScreenGui? = nil
 local startBtn: TextButton? = nil
-local playersBox: Frame? = nil -- co-op roster (hidden solo)
+local playersBox: Frame? = nil -- co-op / PvP roster (hidden solo co-op)
 local callbacks: Callbacks? = nil
 
 local HINTS = "· Left-drag a formation to re-place it inside your zone.\n· Right-drag from a formation to set its facing.\n· Objectives are marked with flags; north is up on the minimap."
@@ -99,7 +106,7 @@ function Deployment.show(cb: Callbacks)
 		bs.Thickness = 2
 	end
 	Kit.button(row, "Settings", cb.settings, { size = UDim2.new(0, 90, 1, 0), order = 2 })
-	if BattleState.coop() and BattleState.role == "officer" then
+	if (BattleState.coop() and BattleState.role == "officer") or BattleState.pvp() then
 		b.Text = "Ready"
 	elseif not BattleState.isCommander then
 		Kit.setEnabled(b, false, "Waiting for the commander to start the battle")
@@ -109,7 +116,8 @@ function Deployment.show(cb: Callbacks)
 	Deployment.refresh()
 end
 
--- Co-op roster: slot colour, name, ready tick; the commander can hand the selection to an ally.
+-- Co-op / PvP roster: slot colour, name, ready tick; the side's lead can hand the selection to an
+-- officer of the side. The host toggles co-op / PvP; in PvP everyone picks a side by its flag.
 function Deployment.refresh()
 	local pb = playersBox
 	if not pb then
@@ -120,34 +128,72 @@ function Deployment.refresh()
 			c:Destroy()
 		end
 	end
-	pb.Visible = BattleState.coop()
+	local pvp = BattleState.pvp()
+	pb.Visible = BattleState.coop() or pvp
 	if not pb.Visible then
 		return
 	end
-	local h = Kit.title(pb, "Officers", { size = UDim2.new(1, 0, 0, 22), textSize = 18, spaced = true })
-	h.LayoutOrder = 0
-	local giver = BattleState.role == "commander" and callbacks and callbacks.assign
-	for i, p in BattleState.players do
-		if p.role ~= "spectator" then
-			local row = Instance.new("Frame") :: Frame
-			row.Size = UDim2.new(1, 0, 0, 22)
-			row.BackgroundTransparency = 1
-			row.LayoutOrder = i * 2
-			row.Parent = pb
-			local chip = Instance.new("Frame") :: Frame
-			chip.Size = UDim2.fromOffset(12, 12)
-			chip.Position = UDim2.fromOffset(0, 5)
-			chip.BackgroundColor3 = Kit.slotColour(p.slot)
-			chip.BorderSizePixel = 0
-			chip.Parent = row
-			local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then "  ✓" else "")
-			Kit.label(row, who, { size = UDim2.new(1, -20, 1, 0), position = UDim2.fromOffset(20, 0), textSize = 16, font = Enum.Font.Garamond })
-			if giver and p.userId ~= BattleState.userId then
-				local uid = p.userId
-				local g = Kit.button(pb, "Give selected to " .. tostring(p.name), function()
-					giver(uid)
-				end, { size = UDim2.new(1, 0, 0, 24), order = i * 2 + 1, textSize = 14, tooltip = "Hand the selected formations to this officer" })
-				g.LayoutOrder = i * 2 + 1
+	local cb = callbacks
+	local order = 0
+	local function nextOrder(): number
+		order += 1
+		return order
+	end
+	local setMode = cb and cb.mode
+	if BattleState.isCommander and setMode then
+		Kit.button(pb, if pvp then "Mode: PvP, side against side" else "Mode: Co-op against the AI", function()
+			setMode(if pvp then "coop" else "pvp")
+		end, { size = UDim2.new(1, 0, 0, 26), order = nextOrder(), textSize = 15, tooltip = "Switch between every player against the AI and two human sides" })
+	end
+	local sides = BattleState.sides()
+	if pvp then
+		local row = Instance.new("Frame") :: Frame
+		row.Size = UDim2.new(1, 0, 0, 40)
+		row.BackgroundTransparency = 1
+		row.LayoutOrder = nextOrder()
+		row.Parent = pb
+		Kit.list(row, 6, true)
+		local pick = cb and cb.side
+		for i, side in sides do
+			local faction = side.faction
+			local b = Kit.button(row, string.format("%s (%d)", Kit.factionName(faction), #side.players), function()
+				if pick then
+					pick(faction)
+				end
+			end, { size = UDim2.new(0.5, -3, 1, 0), order = i, textSize = 15, tooltip = "Command this side" })
+			Kit.flag(b, faction, Vector2.new(24, 16), UDim2.fromOffset(6, 10))
+			Kit.setActiveLook(b, faction == BattleState.viewerFaction)
+			Kit.setEnabled(b, BattleState.canOrder(), "Spectators do not pick a side")
+		end
+		local balance = cb and cb.balance
+		if BattleState.isCommander and balance then
+			Kit.button(pb, "Balance sides", balance, { size = UDim2.new(1, 0, 0, 24), order = nextOrder(), textSize = 14, tooltip = "Share the players out evenly between the sides" })
+		end
+	end
+	local giver = BattleState.isLead() and cb and cb.assign
+	for gi, group in sides do
+		if gi == 1 or pvp then
+			Kit.title(pb, if pvp then Kit.factionName(group.faction) else "Officers", { size = UDim2.new(1, 0, 0, 22), textSize = 18, spaced = true }).LayoutOrder = nextOrder()
+			for _, p in group.players do
+				local row = Instance.new("Frame") :: Frame
+				row.Size = UDim2.new(1, 0, 0, 22)
+				row.BackgroundTransparency = 1
+				row.LayoutOrder = nextOrder()
+				row.Parent = pb
+				local chip = Instance.new("Frame") :: Frame
+				chip.Size = UDim2.fromOffset(12, 12)
+				chip.Position = UDim2.fromOffset(0, 5)
+				chip.BackgroundColor3 = Kit.slotColour(p.slot)
+				chip.BorderSizePixel = 0
+				chip.Parent = row
+				local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then "  ✓" else "")
+				Kit.label(row, who, { size = UDim2.new(1, -20, 1, 0), position = UDim2.fromOffset(20, 0), textSize = 16, font = Enum.Font.Garamond })
+				if giver and p.userId ~= BattleState.userId and group.faction == BattleState.viewerFaction then
+					local uid = p.userId
+					Kit.button(pb, "Give selected to " .. tostring(p.name), function()
+						giver(uid)
+					end, { size = UDim2.new(1, 0, 0, 24), order = nextOrder(), textSize = 14, tooltip = "Hand the selected formations to this officer" })
+				end
 			end
 		end
 	end

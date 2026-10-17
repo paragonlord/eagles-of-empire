@@ -126,6 +126,9 @@ menuCallbacks = {
 			difficulty = function(v: string)
 				Net.control("difficulty", v)
 			end,
+			mode = function(v: string)
+				Net.control("mode", v)
+			end,
 			back = function()
 				BattleSelect.hide()
 				Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
@@ -264,11 +267,13 @@ local function onMatchState(msg: any)
 	local prevState = BattleState.state
 	local sameMatch = msg.matchId == lastMatchId and msg.matchId ~= ""
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
-	local wasCoop = BattleState.coop()
+	local wasCoop = BattleState.coop() or BattleState.pvp()
+	local prevFaction = BattleState.viewerFaction
 	BattleState.applyMatchState(msg)
 	-- co-op: votes, ready ticks, joins and wing changes resend the same state; refresh in place
 	local s = BattleState.state
-	local coopRefresh = sameMatch and s == prevState and (wasCoop or BattleState.coop()) and (s == "deployment" or s == "running" or s == "paused")
+	-- a PvP side switch changes the view: rebuild instead (new zone, camera, full snapshot)
+	local coopRefresh = sameMatch and s == prevState and (wasCoop or BattleState.coop() or BattleState.pvp()) and BattleState.viewerFaction == prevFaction and (s == "deployment" or s == "running" or s == "paused")
 	WorldLighting.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
 	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
@@ -324,7 +329,7 @@ local function onMatchState(msg: any)
 		Deployment.show({
 			ready = function()
 				Net.control("ready")
-				if BattleState.coop() and BattleState.role == "commander" then
+				if BattleState.coop() and BattleState.role == "commander" and not BattleState.pvp() then
 					Deployment.setWaiting("Start now", true) -- a second ready forces the start
 				else
 					Deployment.setWaiting("Forming up…")
@@ -335,6 +340,15 @@ local function onMatchState(msg: any)
 				if #ids > 0 then
 					Net.control("assign", { ids = ids, userId = userId })
 				end
+			end,
+			mode = function(v: string)
+				Net.control("mode", v)
+			end,
+			side = function(faction: string)
+				Net.control("side", faction)
+			end,
+			balance = function()
+				Net.control("balance")
 			end,
 			settings = openSettings,
 		})
