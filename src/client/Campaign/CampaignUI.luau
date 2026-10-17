@@ -435,10 +435,10 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 			end
 			local br = buttonRow(box, 3, 28)
 			Kit.button(br, "Accept", function()
-				send("diplomacy", { nation = o.from, kind = "accept", offerId = o.id })
+				send("diplomacy", { nation = o.from, action = "accept", offerId = o.id })
 			end, { size = UDim2.new(0.5, -3, 1, 0), primary = true })
 			Kit.button(br, "Reject", function()
-				send("diplomacy", { nation = o.from, kind = "reject", offerId = o.id })
+				send("diplomacy", { nation = o.from, action = "reject", offerId = o.id })
 			end, { size = UDim2.new(0.5, -3, 1, 0) })
 		end
 	end
@@ -488,7 +488,7 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		Kit.list(br, 6, true)
 		local function act(label: string, kind: string, ok: boolean, why: string, primary: boolean?)
 			local b = Kit.button(br, label, function()
-				send("diplomacy", { nation = id, kind = kind })
+				send("diplomacy", { nation = id, action = kind })
 			end, { size = UDim2.fromOffset(96, 22), textSize = 12, primary = primary })
 			Kit.setEnabled(b, ok and ctx.canAct, if ctx.canAct then why else ctx.actReason)
 		end
