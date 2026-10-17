@@ -14,10 +14,15 @@ local Selection = require(script.Parent.Parent.Selection)
 local Input = require(script.Parent.Parent.Input)
 local Camera = require(script.Parent.Parent.Camera)
 local Factions = require(script.Parent.Parent.Factions)
+local Ledger = require(script.Parent.Ledger)
 
 local CardBar = {}
 
-local CARD_W, CARD_H = 58, 80
+local FULL_W, COMPACT_W, CARD_H = 58, 46, 80
+local COMPACT_ABOVE = 18 -- more cards than this and they narrow
+local CARD_W = FULL_W
+local ARROW_W = 18
+local PAD = 5
 local GAP = 3
 CardBar.HEIGHT = 96
 CardBar.SIDE_MARGIN = 276 -- clear of the command panel (left) and the minimap (right)
@@ -44,6 +49,7 @@ type Card = {
 
 local panel: Frame? = nil
 local scroll: ScrollingFrame? = nil
+local arrows: { TextButton } = {}
 local cards: { [number]: Card } = {}
 local extras: { Instance } = {} -- corps spacers and arriving cards, rebuilt on roster change
 local arriving: { [number]: TextLabel } = {}
@@ -398,6 +404,15 @@ local function arrivingCard(r: any, order: number)
 end
 
 local function relayout(forms: { any })
+	local want = if #forms + #BattleState.reinforcements > COMPACT_ABOVE then COMPACT_W else FULL_W
+	if want ~= CARD_W then
+		-- every card is drawn for one width: rebuild them all
+		CARD_W = want
+		for _, c in cards do
+			c.root:Destroy()
+		end
+		table.clear(cards)
+	end
 	for _, e in extras do
 		e:Destroy()
 	end
@@ -446,6 +461,22 @@ local function relayout(forms: { any })
 	end
 end
 
+local function step(): number
+	return CARD_W + GAP
+end
+
+local function refreshArrows()
+	local s = scroll
+	if not s or #arrows < 2 then
+		return
+	end
+	local maxX = math.max(0, s.AbsoluteCanvasSize.X - s.AbsoluteWindowSize.X)
+	Kit.setEnabled(arrows[1], s.CanvasPosition.X > 1, "Start of the line")
+	Kit.setEnabled(arrows[2], s.CanvasPosition.X < maxX - 1, "End of the line")
+end
+
+-- Size the bar to its cards; when they overflow, show gilt arrows at both ends and trim the
+-- window to a whole number of cards so none is drawn half-cut at the edge.
 local function fitWidth()
 	local p, s = panel, scroll
 	if not p or not s then
@@ -454,16 +485,30 @@ local function fitWidth()
 	local layout = s:FindFirstChildOfClass("UIListLayout") :: UIListLayout?
 	local sg = p.Parent :: ScreenGui
 	local content = if layout then layout.AbsoluteContentSize.X else 0
-	local avail = math.max(sg.AbsoluteSize.X - 2 * CardBar.SIDE_MARGIN, CARD_W + 12)
-	p.Size = UDim2.fromOffset(math.min(content + 12, avail), CardBar.HEIGHT)
+	local avail = math.max(sg.AbsoluteSize.X - 2 * CardBar.SIDE_MARGIN, CARD_W + 2 * PAD)
+	local overflow = content + 2 * PAD > avail
+	for _, a in arrows do
+		a.Visible = overflow
+	end
+	if overflow then
+		local window = math.max(step(), math.floor((avail - 2 * PAD - 2 * (ARROW_W + 4) + GAP) / step()) * step() - GAP)
+		s.Position = UDim2.fromOffset(ARROW_W + 4, 0)
+		s.Size = UDim2.new(0, window, 1, 0)
+		p.Size = UDim2.fromOffset(window + 2 * PAD + 2 * (ARROW_W + 4), CardBar.HEIGHT)
+	else
+		s.Position = UDim2.new()
+		s.Size = UDim2.fromScale(1, 1)
+		p.Size = UDim2.fromOffset(content + 2 * PAD, CardBar.HEIGHT)
+	end
 	p.Visible = content > 0
+	refreshArrows()
 end
 
 -- ------------------------------------------------------------------ API
 
 function CardBar.create(sg: ScreenGui)
 	CardBar.destroy()
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(200, CardBar.HEIGHT), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), padding = 6, transparency = 0.12 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(200, CardBar.HEIGHT), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), padding = PAD, transparency = 0.12 })
 	p.Name = "CardBar"
 	local s = Instance.new("ScrollingFrame") :: ScrollingFrame
 	s.Size = UDim2.fromScale(1, 1)
@@ -472,13 +517,26 @@ function CardBar.create(sg: ScreenGui)
 	s.ScrollingDirection = Enum.ScrollingDirection.X
 	s.AutomaticCanvasSize = Enum.AutomaticSize.X
 	s.CanvasSize = UDim2.new()
-	s.ScrollBarThickness = 4
+	s.ScrollBarThickness = 6
 	s.ScrollBarImageColor3 = Kit.GILT
+	s.ScrollBarImageTransparency = 0
 	s.Active = true
 	s.Parent = p
 	local layout = Kit.list(s, GAP, true)
 	panel = p
 	scroll = s
+	-- page by whole cards
+	for i, dir in { -1, 1 } do
+		local b = Kit.button(p, if dir < 0 then "‹" else "›", function()
+			local page = math.max(step(), math.floor(s.AbsoluteWindowSize.X / step()) * step())
+			local maxX = math.max(0, s.AbsoluteCanvasSize.X - s.AbsoluteWindowSize.X)
+			local x = math.clamp(s.CanvasPosition.X + dir * page, 0, maxX)
+			s.CanvasPosition = Vector2.new(math.round(x / step()) * step(), 0)
+		end, { size = UDim2.new(0, ARROW_W, 1, 0), position = UDim2.fromScale(if dir < 0 then 0 else 1, 0), anchor = Vector2.new(if dir < 0 then 0 else 1, 0), textSize = 22, font = Enum.Font.Garamond, tooltip = if dir < 0 then "Earlier formations" else "More formations" })
+		b.Visible = false
+		arrows[i] = b
+	end
+	table.insert(conns, s:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshArrows))
 	table.insert(conns, layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitWidth))
 	table.insert(conns, sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitWidth))
 	-- the wheel scrolls the cards sideways instead of zooming the camera
@@ -503,6 +561,7 @@ function CardBar.update()
 	for _, r in BattleState.reinforcements do
 		table.insert(ids, -r.id)
 	end
+	Ledger.observe(forms)
 	local key = table.concat(ids, ",")
 	if key ~= rosterKey then
 		rosterKey = key
@@ -552,6 +611,8 @@ function CardBar.destroy()
 	end
 	panel = nil
 	scroll = nil
+	table.clear(arrows)
+	CARD_W = FULL_W
 	table.clear(cards)
 	table.clear(extras)
 	table.clear(arriving)

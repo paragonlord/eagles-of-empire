@@ -68,7 +68,7 @@ local note: TextLabel? = nil
 
 function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boolean)
 	if not gui then
-		local sg = Kit.screen("EoEMenu", 30)
+		local sg = Kit.screen("EoEMenu", 30, true) -- the column runs up under the Roblox top-bar inset
 		-- full-height column on the left; the live battlefield stays visible on the right
 		local col = Instance.new("Frame") :: Frame
 		col.Size = UDim2.new(0, 400, 1, 0)
@@ -122,7 +122,7 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		if grand then
 			item("Grand Campaign", grand, 5)
 		end
-		item("Tutorial", cb.tutorial, 5) -- the aide-de-camp's training ground (Tutorial.luau)
+		item("Tutorial", cb.tutorial, 6) -- the aide-de-camp's training ground (Tutorial.luau)
 		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
 		gui = sg
 	end

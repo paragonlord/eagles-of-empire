@@ -2,6 +2,7 @@
 -- Battle select: the scenarios from Scenarios.list() (fallback: Scenarios.jena alone), each with
 -- name, date, sides, summary, difficulty note and a Fight button; a difficulty selector on top.
 
+local RunService = game:GetService("RunService") :: RunService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Scenarios = require(Shared.Scenarios)
 local Kit = require(script.Parent.Kit)
@@ -193,6 +194,16 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	for i, e in list do
 		card(scroll, e, i, cb, isCommander)
 	end
+	-- Roblox can leave a card under the scroll window's clip half-drawn on the first frame;
+	-- nudging the canvas after the first layout pass forces a full redraw.
+	task.spawn(function()
+		RunService.Heartbeat:Wait()
+		if scroll.Parent then
+			scroll.CanvasPosition = Vector2.new(0, 1)
+			RunService.Heartbeat:Wait()
+			scroll.CanvasPosition = Vector2.new(0, 0)
+		end
+	end)
 	if #list == 0 then
 		Kit.label(scroll, "No scenarios are installed.", { size = UDim2.new(1, 0, 0, 24), colour = Kit.MUTED })
 	end

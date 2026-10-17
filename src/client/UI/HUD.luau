@@ -9,6 +9,7 @@ local Config = require(Shared.Config)
 local Kit = require(script.Parent.Kit)
 local Minimap = require(script.Parent.Minimap)
 local CardBar = require(script.Parent.CardBar)
+local Ledger = require(script.Parent.Ledger)
 local BattleState = require(script.Parent.Parent.BattleState)
 local Selection = require(script.Parent.Parent.Selection)
 local Net = require(script.Parent.Parent.Net)
@@ -40,7 +41,7 @@ local objectiveStrip: Frame? = nil
 local objectiveChips: { [string]: { frame: Frame, pennant: Frame, label: TextLabel, bar: Frame } } = {}
 
 -- ticker
-local tickerLines: { { label: TextLabel, t0: number } } = {}
+local tickerLines: { { label: TextLabel, t0: number, base: number } } = {}
 local tickerFrame: Frame? = nil
 local tickerOrder = 0
 local TICKER_LIFE = 9
@@ -209,10 +210,16 @@ local function updateBalance()
 			end
 		end
 	end
-	if balanceOwn then
-		balanceOwn.Size = UDim2.fromScale(if own + enemy > 0 then own / (own + enemy) else 0.5, 1)
+	local o = balanceOwn
+	if o then
+		-- neutral grey until the first enemy formation is in sight
+		local sighted = enemy > 0
+		o.Size = UDim2.fromScale(if sighted then own / (own + enemy) else 1, 1)
+		o.BackgroundColor3 = if sighted then Kit.BLUE_LIGHT else Kit.SLATE
 	end
-	balanceText = string.format("Balance of power\nYour army: %d men\nKnown enemy strength: %d men\n(only the enemy formations you can see)", own, enemy)
+	balanceText = if enemy > 0
+		then string.format("Balance of power\nYour army: %d men\nKnown enemy strength: %d men\n(only the enemy formations you can see)", own, enemy)
+		else string.format("Balance of power\nYour army: %d men\nNo enemy sighted", own)
 end
 
 local function objectiveTip(id: string): string
@@ -312,7 +319,8 @@ local function escape(s: string): string
 end
 
 -- Up to four lines, newest at the bottom, fading out. `bold` for routs and captures.
-function HUD.message(text: string, colour: Color3?, bold: boolean?)
+-- `ribbon` paints the line on a solid band (crimson for routs and losses) in ivory.
+function HUD.message(text: string, colour: Color3?, bold: boolean?, ribbon: Color3?)
 	local f = tickerFrame
 	if not f then
 		return
@@ -323,11 +331,12 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?)
 			old.label:Destroy()
 		end
 	end
-	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = colour or Kit.CREAM, rich = true })
+	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = if ribbon then Kit.IVORY else (colour or Kit.CREAM), rich = true })
 	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
 	l.AutomaticSize = Enum.AutomaticSize.X
-	l.BackgroundColor3 = Kit.INSET
-	l.BackgroundTransparency = 0.45
+	l.BackgroundColor3 = ribbon or Kit.INSET
+	local base = if ribbon then 0.08 else 0.45
+	l.BackgroundTransparency = base
 	l.TextStrokeTransparency = 0.5
 	l.TextStrokeColor3 = Kit.INK
 	local pad = Instance.new("UIPadding") :: UIPadding
@@ -344,7 +353,7 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?)
 	end
 	tickerOrder += 1
 	l.LayoutOrder = tickerOrder
-	table.insert(tickerLines, { label = l, t0 = os.clock() })
+	table.insert(tickerLines, { label = l, t0 = os.clock(), base = base })
 end
 
 local function updateTicker()
@@ -360,7 +369,7 @@ local function updateTicker()
 			local fade = math.clamp((age - TICKER_LIFE + 3) / 3, 0, 1)
 			e.label.TextTransparency = fade
 			e.label.TextStrokeTransparency = 0.5 + 0.5 * fade
-			e.label.BackgroundTransparency = 0.5 + 0.5 * fade
+			e.label.BackgroundTransparency = e.base + (1 - e.base) * fade
 			i += 1
 		end
 	end
@@ -450,7 +459,7 @@ local COMMANDS: { CommandDef } = {
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
 	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
-	{ key = "ammo", text = "Auto ammo", tip = "Cycle: round shot (long) / canister (short) / auto" },
+	{ key = "ammo", text = "Auto", tip = "Ammunition, click to cycle: auto / round shot (long) / canister (short)" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
 }
 
@@ -582,7 +591,7 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 	elseif key == "ammo" then
 		local art = firstOfClass(forms, "artillery")
 		local mode = if art and art.ammoMode then art.ammoMode else "auto"
-		b.Text = if mode == "roundShot" then "Round shot" elseif mode == "canister" then "Canister" else "Auto ammo"
+		b.Text = if mode == "roundShot" then "Shot" elseif mode == "canister" then "Canister" else "Auto"
 	elseif key == "rally" then
 		local cd = 0
 		for _, f in forms do
@@ -709,6 +718,7 @@ function HUD.show(callbacks: Callbacks)
 end
 
 function HUD.onEvent(ev: any)
+	Ledger.onEvent(ev)
 	local f = if ev.id then BattleState.formations[ev.id] else nil
 	local name = if f and f.name then f.name else (if ev.id then "#" .. tostring(ev.id) else nil)
 	local ours = ev.faction == BattleState.viewerFaction
@@ -716,15 +726,16 @@ function HUD.onEvent(ev: any)
 	if kind == "message" and ev.text then
 		HUD.message(ev.text)
 	elseif kind == "rout" and name then
-		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.GILT_BRIGHT, true)
+		HUD.message(name .. " is routing!", Kit.GILT_BRIGHT, true, if ours then Kit.CRIMSON else nil)
 	elseif kind == "rally" and name then
 		HUD.message(name .. " has rallied.")
 	elseif kind == "capture" then
 		local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
 		local who = if ev.faction then (names[ev.faction] or Kit.factionName(ev.faction)) else "Someone"
 		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.GILT_BRIGHT else Kit.HOSTILE, true)
-	elseif kind == "destroyed" and name then
-		HUD.message(name .. " is destroyed.", Kit.HOSTILE)
+	elseif kind == "destroyed" and (ev.text or name) then
+		-- the formation has already left the snapshot: the event text carries its name
+		HUD.message(if ev.text then tostring(ev.text) .. "." else tostring(name) .. " is destroyed.", nil, true, if ours then Kit.CRIMSON else Kit.INSET)
 	elseif kind == "charge" and name then
 		HUD.message(name .. " charges!")
 	end

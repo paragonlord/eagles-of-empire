@@ -5,7 +5,12 @@
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 
+local Ledger = require(script.Parent.Ledger)
+
 local Results = {}
+
+local notes: (results: any) -> { string }
+local formationTable: (parent: Instance, order: number) -> ()
 
 export type Callbacks = { restart: () -> (), menu: () -> (), campaign: (() -> ())? }
 
@@ -73,8 +78,78 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	end
 end
 
+-- Specific notes from what we saw happen, then the server's lessons.
+notes = function(results: any): { string }
+	local c = Ledger.counts()
+	local out: { string } = {}
+	local function plural(k: number, one: string, many: string): string
+		return string.format("%d %s", k, if k == 1 then one else many)
+	end
+	if c.squares > 0 then
+		table.insert(out, string.format("Your infantry formed square %s.", plural(c.squares, "time", "times")))
+	end
+	if c.enemyIntoSquares > 0 then
+		table.insert(out, string.format("%s broke against your squares.", plural(c.enemyIntoSquares, "enemy charge", "enemy charges")))
+	end
+	if c.ownIntoSquares > 0 then
+		table.insert(out, string.format("Your cavalry rode into formed squares %s; charge flanks, guns or broken troops instead.", plural(c.ownIntoSquares, "time", "times")))
+	end
+	if c.ownCharges + c.enemyCharges > 0 then
+		table.insert(out, string.format("You launched %s; the enemy %d.", plural(c.ownCharges, "charge", "charges"), c.enemyCharges))
+	end
+	if c.ownRouts + c.enemyRouts > 0 then
+		table.insert(out, string.format("Your formations broke %s and rallied %s; the enemy broke %s that you saw.", plural(c.ownRouts, "time", "times"), plural(c.ownRallies, "time", "times"), plural(c.enemyRouts, "time", "times")))
+	else
+		table.insert(out, "No formation on either side broke: the lines never came to a decision.")
+	end
+	if c.ownDestroyed > 0 or c.enemyDestroyed > 0 then
+		table.insert(out, string.format("You lost %s%s; the enemy lost %d that you saw.", plural(c.ownDestroyed, "formation", "formations"), if c.gunsLost > 0 then string.format(" (guns lost: %d %s)", c.gunsLost, if c.gunsLost == 1 then "battery" else "batteries") else "", c.enemyDestroyed))
+	end
+	for _, line in results.feedback or {} do
+		table.insert(out, tostring(line))
+	end
+	return out
+end
+
+-- Own army, one row per formation: name, start, end, casualties, final status.
+formationTable = function(parent: Instance, order: number)
+	local t = Instance.new("Frame") :: Frame
+	t.Size = UDim2.new(1, -14, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.BackgroundTransparency = 1
+	t.LayoutOrder = order
+	t.Parent = parent
+	Kit.list(t, 0)
+	local COLS = { { "Formation", 0.44 }, { "Start", 0.11 }, { "End", 0.11 }, { "Lost", 0.11 }, { "Status", 0.23 } }
+	local function row(cells: { string }, i: number, header: boolean)
+		local r = Instance.new("Frame") :: Frame
+		r.Size = UDim2.new(1, 0, 0, 20)
+		r.BackgroundColor3 = Kit.PARCHMENT_EDGE
+		r.BackgroundTransparency = if header then 0.4 elseif i % 2 == 0 then 0.75 else 1
+		r.BorderSizePixel = 0
+		r.LayoutOrder = i
+		r.Parent = t
+		local x = 0
+		for k, col in COLS do
+			local w = col[2] :: number
+			local l = Kit.label(r, cells[k], { size = UDim2.new(w, -6, 1, 0), position = UDim2.new(x, 4, 0, 0), textSize = if header then 13 else 14, font = if header then Enum.Font.SourceSansBold else nil, align = if k > 1 and k < 5 then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left })
+			l.TextTruncate = Enum.TextTruncate.AtEnd
+			x += w
+		end
+	end
+	row({ "Formation", "Start", "End", "Lost", "Status" }, 0, true)
+	local recs = Ledger.records()
+	for i, r in recs do
+		row({ r.name, tostring(r.start), tostring(r.last), tostring(math.max(0, r.start - r.last)), r.status }, i, false)
+	end
+	if #recs == 0 then
+		row({ "No formations recorded", "", "", "", "" }, 1, false)
+	end
+end
+
 local function objectiveChip(parent: Instance, o: any, names: { [string]: string }, order: number)
-	local f = Kit.panel(parent, { size = UDim2.fromOffset(170, 26), position = UDim2.new(), transparency = 0.1, plain = true })
+	local f = Kit.panel(parent, { size = UDim2.fromOffset(0, 26), position = UDim2.new(), transparency = 0.1, plain = true })
+	f.AutomaticSize = Enum.AutomaticSize.X
 	f.LayoutOrder = order
 	local pennant = Instance.new("Frame") :: Frame
 	pennant.Size = UDim2.new(0, 8, 1, 0)
@@ -82,8 +157,11 @@ local function objectiveChip(parent: Instance, o: any, names: { [string]: string
 	pennant.BorderSizePixel = 0
 	pennant.Parent = f
 	local owner = if o.owner then (names[o.owner] or Kit.factionName(o.owner)) else "unclaimed"
-	local l = Kit.label(f, string.format("%s — %s", tostring(o.name), owner), { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(13, 0), textSize = 12 })
-	l.TextTruncate = Enum.TextTruncate.AtEnd
+	local l = Kit.label(f, string.format("%s — %s", tostring(o.name), owner), { size = UDim2.fromOffset(0, 26), position = UDim2.fromOffset(13, 0), textSize = 14 })
+	l.AutomaticSize = Enum.AutomaticSize.X
+	local pad = Instance.new("UIPadding") :: UIPadding
+	pad.PaddingRight = UDim.new(0, 10)
+	pad.Parent = l
 end
 
 function Results.show(results: any, cb: Callbacks)
@@ -135,12 +213,40 @@ function Results.show(results: any, cb: Callbacks)
 		end
 	end
 
-	Kit.title(panel, "Objectives", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 264), textSize = 19, spaced = true })
+	-- the rest of the report scrolls: objectives, notes, the chronicle, the order of battle
+	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
+	body.Size = UDim2.new(1, 0, 1, -264 - 52)
+	body.Position = UDim2.new(0, 0, 0, 264)
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = Kit.GILT_DARK
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.CanvasSize = UDim2.new()
+	body.Parent = panel
+	Kit.list(body, 6)
+	local n = 0
+	local function nextOrder(): number
+		n += 1
+		return n
+	end
+	local function heading(text: string)
+		local t = Kit.title(body, text, { size = UDim2.new(1, -10, 0, 24), textSize = 19, spaced = true })
+		t.LayoutOrder = nextOrder()
+	end
+	local function para(text: string, colour: Color3?)
+		local l = Kit.label(body, text, { size = UDim2.new(1, -14, 0, 0), textSize = 17, font = Enum.Font.Garamond, wrap = true, colour = colour })
+		l.AutomaticSize = Enum.AutomaticSize.Y
+		l.LayoutOrder = nextOrder()
+	end
+
+	heading("Objectives")
 	local objRow = Instance.new("Frame") :: Frame
-	objRow.Size = UDim2.new(1, 0, 0, 26)
-	objRow.Position = UDim2.new(0, 0, 0, 290)
+	objRow.Size = UDim2.new(1, -10, 0, 0)
+	objRow.AutomaticSize = Enum.AutomaticSize.Y
 	objRow.BackgroundTransparency = 1
-	objRow.Parent = panel
+	objRow.LayoutOrder = nextOrder()
+	objRow.Parent = body
 	local ol = Kit.list(objRow, 6, true)
 	ol.Wraps = true
 	local objs = results.objectives or {}
@@ -148,30 +254,30 @@ function Results.show(results: any, cb: Callbacks)
 		objectiveChip(objRow, o, names, i)
 	end
 	if #objs == 0 then
-		Kit.label(objRow, "None on this field.", { size = UDim2.new(1, 0, 1, 0), textSize = 12, colour = Kit.MUTED })
+		para("None on this field.", Kit.MUTED)
 	end
 
-	Kit.title(panel, "Notes from the field", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 326), textSize = 19, spaced = true })
-	local fb = Instance.new("ScrollingFrame") :: ScrollingFrame
-	fb.Size = UDim2.new(1, 0, 1, -352 - 52)
-	fb.Position = UDim2.new(0, 0, 0, 352)
-	fb.BackgroundTransparency = 1
-	fb.BorderSizePixel = 0
-	fb.ScrollBarThickness = 4
-	fb.ScrollBarImageColor3 = Kit.INK
-	fb.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	fb.CanvasSize = UDim2.new()
-	fb.Parent = panel
-	Kit.list(fb, 4)
-	local lines = results.feedback or {}
-	if #lines == 0 then
-		lines = { "No particular lessons this time." }
+	heading("Notes from the field")
+	for _, line in notes(results) do
+		para("· " .. line)
 	end
-	for i, line in lines do
-		local l = Kit.label(fb, "· " .. tostring(line), { size = UDim2.new(1, -8, 0, 20), textSize = 17, font = Enum.Font.Garamond, wrap = true })
-		l.AutomaticSize = Enum.AutomaticSize.Y
-		l.LayoutOrder = i
+
+	local chronicle: { string } = {}
+	for _, line in results.log or {} do
+		local l = tostring(line)
+		if string.find(l, " broke ", 1, true) or string.find(l, "abandoned", 1, true) or string.find(l, "destroyed", 1, true) or string.find(l, "captured", 1, true) or string.find(l, " fell", 1, true) then
+			table.insert(chronicle, l)
+		end
 	end
+	if #chronicle > 0 then
+		heading("Chronicle")
+		for _, l in chronicle do
+			para(l, Kit.MUTED)
+		end
+	end
+
+	heading("Order of battle")
+	formationTable(body, nextOrder())
 
 	local buttons = Instance.new("Frame") :: Frame
 	buttons.Size = UDim2.new(1, 0, 0, 42)
