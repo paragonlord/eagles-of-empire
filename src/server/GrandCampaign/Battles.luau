@@ -21,6 +21,7 @@ local EuropeData = require(Shared.EuropeData)
 local MapGen = require(Shared.MapGen)
 local Scenarios = require(Shared.Scenarios)
 local Types = require(Shared.Types)
+local Moments = require(Shared.Moments)
 local State = require(script.Parent.State)
 local Movement = require(script.Parent.Movement)
 local Diplomacy = require(script.Parent.Diplomacy)
@@ -482,6 +483,60 @@ function Battles.zoneKeys(s: State, b: Battle, map: MapGen.MapData): { [string]:
 	return out
 end
 
+-- Moments whose selectors (and releases) still find a formation in `units`; the rest are dropped.
+local function keptMoments(base: Scenarios.Scenario, units: { Scenarios.UnitDef }): { Moments.Moment }?
+	if not base.moments then
+		return nil
+	end
+	local function found(sel: Moments.Selector): boolean
+		for _, u in units do
+			if Moments.matches(sel, u :: any) then
+				return true
+			end
+		end
+		return false
+	end
+	local function condOk(c: Moments.Condition): boolean
+		for _, sel in { c.formationRouted, c.strengthBelow, c.formationNear } do
+			if sel and not found(sel) then
+				return false
+			end
+		end
+		for _, sub in c.all or {} do
+			if not condOk(sub) then
+				return false
+			end
+		end
+		for _, sub in c.any or {} do
+			if not condOk(sub) then
+				return false
+			end
+		end
+		return true
+	end
+	local out: { Moments.Moment } = {}
+	for _, m in base.moments do
+		local ok = condOk(m.when)
+		local e = m.effect
+		if ok and e then
+			for _, sel in e.morale or {} do
+				ok = ok and found(sel)
+			end
+			if e.release then
+				local released = false
+				for _, u in units do
+					released = released or (u.arrival ~= nil and string.find(u.name, e.release :: string, 1, true) ~= nil)
+				end
+				ok = ok and released
+			end
+		end
+		if ok then
+			out[#out + 1] = table.clone(m)
+		end
+	end
+	return out
+end
+
 local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): Scenarios.Scenario
 	-- which campaign side plays which scenario faction
 	local sp: EuropeData.SetPiece? = nil
@@ -501,7 +556,9 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 	factionSide[fb] = if spAttackerSide == "attackers" then "defenders" else "attackers"
 	local histMen: { [string]: number } = { attackers = 0, defenders = 0 }
 	for _, d in base.units do
-		histMen[factionSide[d.faction]] += d.strength
+		if d.arrival == nil and d.class ~= "hq" then -- off-map reinforcements do not set the scale
+			histMen[factionSide[d.faction]] += d.strength
+		end
 	end
 	local ratio: { [string]: number } = {}
 	for _, side in { "attackers", "defenders" } do
@@ -519,7 +576,7 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 		if d.arrival then
 			u.arrival = { seconds = d.arrival.seconds, pos = { x = d.arrival.pos.x, z = d.arrival.pos.z } }
 		end
-		if d.class ~= "hq" then
+		if d.class ~= "hq" and d.arrival == nil then
 			u.strength = math.max(40, math.floor(d.strength * ratio[side]))
 		end
 		u.key = string.format("h:%s:%d", side, i)
@@ -543,6 +600,7 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 		difficultyNote = base.difficultyNote,
 		weather = base.weather,
 		weatherUntil = base.weatherUntil,
+		moments = keptMoments(base, units),
 	}
 end
 

@@ -528,6 +528,18 @@ test("Grand battles: set-piece scenario keeps the historical OOB, scaled, sides 
 	for _, u in sc.units do
 		assertTrue(string.sub(u.key, 1, 2) == "h:", "set-piece key " .. tostring(u.key))
 	end
+	-- historical moments come through; off-map units keep their historical strength
+	local titles = {}
+	for _, m in sc.moments or {} do
+		titles[m.title] = true
+	end
+	assertTrue(titles["The Sun of Austerlitz"], "Sun of Austerlitz kept")
+	for _, u in sc.units do
+		if u.name == "Life Guard Horse Regiment" then
+			assertEq(u.strength, 400, "off-map unit not scaled")
+			assertTrue(u.arrival ~= nil)
+		end
+	end
 	-- results by side fraction land on the campaign armies
 	local survivors = {}
 	for _, u in sc.units do
