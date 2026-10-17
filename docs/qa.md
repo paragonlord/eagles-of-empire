@@ -212,6 +212,27 @@ orders through the Command remote for 6–11 (those lessons only read field stat
   can look stuck if the player presses Square before the column has formed (8 s); the highlight
   already moves from Column to Square, so maybe say "once in column" in the text.
 
+**2026-10-17 round 6 (grand campaign), builds 7678e1f → ea04bec.** Menu → Grand Campaign →
+French Empire → End Turn → dispatches → select III Corps → march Belgium → Rhineland. No server
+errors. Shots in `docs/shots/`.
+- Fixed (Kit, affects every screen): **panels with a list layout grew past the screen and hid
+  their content.** `Kit.panel`'s gilt Trim frame is a direct child sized to the panel, so a
+  `UIListLayout` on the panel stacks it as a row; on an auto-sized panel that inflates the panel
+  and pushes the real rows below it. Seen on the nation picker (1037 px, the buttons at the
+  bottom edge, `grand-nation-before.jpg`), the dispatches parchment and the army and province
+  panels (empty walnut blocks, `grand-army-before.jpg`), and in round 5 on the tutorial panel.
+  The Trim now sits in a `Folder` (layouts ignore Folder children), so every panel sizes to its
+  rows (`grand-nation-after.jpg`, `grand-army-after.jpg`, 278 px for the picker).
+- **Incident: 2199ae7 → b00fb2a did not boot.** `CampaignUI:776: Expected 'end' (to close
+  'function' at line 375)`, so `Main` failed and the screen was blank sky. ea04bec fixed it.
+  Second boot break today after `Kit.MORALE`; a Luau parse of `src/` before each push would
+  catch both (no luau CLI on this Mac, so I cannot run it here).
+- The recruit-list (province ids as 0-gold units), men-vs-strength and "marchs" bugs I found on
+  7678e1f were fixed by the cloud in b00fb2a at the same time; I dropped my copies.
+- Open: the army title in Garamond reads "ĪI Corps" for III Corps (the three I's merge); the
+  province names on the board are too small to read at the default zoom; the board's corner
+  shows the edge of the table and sky.
+
 ## Known failures
 
 None recorded yet.

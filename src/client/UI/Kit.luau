@@ -182,7 +182,12 @@ local function trim(f: Frame, pad: number, colour: Color3)
 	inner.BackgroundTransparency = 1
 	inner.Position = UDim2.fromOffset(4 - pad, 4 - pad)
 	inner.Size = UDim2.new(1, 2 * pad - 8, 1, 2 * pad - 8)
-	inner.Parent = f
+	-- inside a Folder so a UIListLayout on the panel does not stack the trim as a row (it is
+	-- sized to the panel, so on an auto-sized panel it pushed every row off screen)
+	local deco = Instance.new("Folder")
+	deco.Name = "Deco"
+	deco.Parent = f
+	inner.Parent = deco
 	local s = Instance.new("UIStroke") :: UIStroke
 	s.Color = colour
 	s.Thickness = 1

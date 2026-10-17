@@ -12815,7 +12815,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000083"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000082"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000081"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000084"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000083"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000082"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -13557,7 +13557,7 @@ function Camera.destroy()
 end
 
 return Camera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign client: the server's grandView is the only state. Owns the board, the
 -- camera, the panels and the board input while open; `close()` removes all of it (Main calls
 -- it on every lifecycle change) and `request()` asks for the view again (menu, back from battle).
@@ -13568,6 +13568,7 @@ local Data = require(script.Data)
 local Board = require(script.Board)
 local CampaignCamera = require(script.CampaignCamera)
 local UI = require(script.CampaignUI)
+local Logic = require(script.Logic)
 
 local Grand = {}
 
@@ -13605,114 +13606,15 @@ local function player(): string
 end
 
 local function armyById(id: any): any
-	if id == nil or not view then
-		return nil
-	end
-	for _, a in view.armies or {} do
-		if a.id == id then
-			return a
-		end
-	end
-	return nil
-end
-
-local function me(): any
-	return view and view.nations and view.nations[player()] or {}
+	return Logic.army(view, id)
 end
 
 local function canAct(): (boolean, string)
-	if not view then
-		return false, "Waiting for the campaign"
-	elseif view.victory then
-		return false, "The campaign is over"
-	elseif view.pendingBattle then
-		return false, "Resolve the pending battle first"
-	end
-	return true, ""
+	return Logic.canAct(view)
 end
 
-local function hostile(nation: string?): boolean
-	return nation ~= nil and table.find(me().atWarWith or {}, nation) ~= nil
-end
-
-local function ownerOf(id: string): string
-	local ps = view and view.provinces and view.provinces[id]
-	local p = Data.byId[id]
-	return if ps and ps.owner then ps.owner elseif p then p.owner1805 else ""
-end
-
--- Own, allied and enemy ground can be entered; neutrals need a declaration of war first.
-local function enterable(id: string): boolean
-	local o = ownerOf(id)
-	return o == player() or hostile(o) or table.find(me().allies or {}, o) ~= nil
-end
-
--- An enemy army stands in or next to the province: a march halts on entering it.
-local function zoc(id: string): boolean
-	local p = Data.byId[id]
-	if not p or not view then
-		return false
-	end
-	for _, a in view.armies or {} do
-		if hostile(a.nation) and (a.provinceId == id or table.find(p.neighbours, a.provinceId) ~= nil) then
-			return true
-		end
-	end
-	return false
-end
-
--- Shortest march (in provinces) from the army to `goal`, as board steps with turn numbers.
 local function route(a: any, goal: string): { Board.Step }?
-	local start = a.provinceId
-	if start == goal or not Data.byId[goal] then
-		return nil
-	end
-	local prev: { [string]: string } = { [start] = start }
-	local queue = { start }
-	local head = 1
-	while head <= #queue do
-		local cur = queue[head]
-		head += 1
-		if cur == goal then
-			break
-		end
-		if cur == start or not zoc(cur) then
-			for _, n in Data.byId[cur].neighbours do
-				if not prev[n] and enterable(n) then
-					prev[n] = cur
-					table.insert(queue, n)
-				end
-			end
-		end
-	end
-	if not prev[goal] then
-		return nil
-	end
-	local ids: { string } = {}
-	local c: string = goal
-	while c ~= start do
-		table.insert(ids, 1, c)
-		c = prev[c]
-	end
-	local left = tonumber(a.movesLeft) or 0
-	local per = math.max(1, tonumber(a.movesMax) or 2) -- ponytail: 2 marches per turn until the view carries movesMax
-	local steps: { Board.Step } = {}
-	for i, id in ids do
-		local turn = if i <= left then 1 else 2 + (i - left - 1) // per
-		table.insert(steps, { id = id, turn = turn, stop = zoc(id) })
-	end
-	return steps
-end
-
-local function reachable(a: any): { [string]: boolean }
-	local out = {}
-	for _, p in Data.Provinces do
-		local r = route(a, p.id)
-		if r and r[#r].turn == 1 then
-			out[p.id] = true
-		end
-	end
-	return out
+	return Logic.route(view, a, goal)
 end
 
 -- ------------------------------------------------------------------ render
@@ -13736,7 +13638,7 @@ local function render()
 	end
 	local ok, why = canAct()
 	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, province = selProv, others = others, canAct = ok, actReason = why })
-	Board.setSelection(selArmy, selProv, if own and ok then reachable(a) else nil)
+	Board.setSelection(selArmy, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
 	if own and ok then
 		path = if hoverProv then route(a, hoverProv) else nil
@@ -13857,21 +13759,6 @@ local function open()
 	end
 end
 
--- Log lines of the turn that just ended (entries are strings or {turn, text}).
-local function turnLines(v: any, turn: number): { string }
-	local out = {}
-	for _, e in v.log or {} do
-		if type(e) == "table" then
-			if e.turn == nil or e.turn == turn then
-				table.insert(out, tostring(e.text or e.message or ""))
-			end
-		else
-			table.insert(out, tostring(e))
-		end
-	end
-	return { table.unpack(out, math.max(1, #out - 13)) }
-end
-
 function Grand.init(h: Hooks)
 	hooks = h
 end
@@ -13909,7 +13796,7 @@ function Grand.handle(msg: any, canShow: boolean): boolean
 		end
 		if isOpen then
 			if prevTurn and lastTurn and lastTurn > prevTurn then
-				UI.showSummary("Dispatches · " .. tostring(view.date or ""), turnLines(view, prevTurn))
+				UI.showSummary("Dispatches · " .. tostring(view.date or ""), Logic.turnLines(view, prevTurn))
 			end
 			Board.setView(view)
 			render()
@@ -14444,12 +14331,12 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	cylinder(m, pos + Vector3.new(poleX, top + 5, 0), 10, 0.25, Kit.GILT_DARK)
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
-	bb.Size = UDim2.fromOffset(62, 18)
+	bb.Size = UDim2.fromOffset(78, 18)
 	bb.StudsOffset = Vector3.new(0, -1.6, 0)
 	bb.LightInfluence = 0
 	bb.Adornee = plinth
 	bb.Parent = m
-	local plate = Kit.label(bb, string.format("%d", math.floor(tonumber(a.strength) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	local plate = Kit.label(bb, string.format("%d · %d", math.floor(tonumber(a.men or a.strength) or 0), math.floor(tonumber(a.unitCount) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
 	plate.BackgroundTransparency = 0.1
 	plate.BackgroundColor3 = Kit.WALNUT
 	local st = Instance.new("UIStroke") :: UIStroke
@@ -14542,7 +14429,8 @@ function Board.setSelection(armyId: any?, provinceId: string?, reachable: { [str
 	end
 end
 
-export type Step = { id: string, turn: number, stop: boolean }
+local Logic = require(script.Parent.Logic)
+export type Step = Logic.Step
 
 -- Dotted march from `fromId` through `steps`; a numbered marker ends each turn's leg, red
 -- where the march halts in an enemy zone of control.
@@ -14773,6 +14661,7 @@ return CampaignCamera
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Data = require(script.Parent.Data)
+local Logic = require(script.Parent.Logic)
 
 local UI = {}
 
@@ -14793,23 +14682,10 @@ export type Ctx = {
 	actReason: string,
 }
 
-local REASONS: { [string]: string } = {
-	notYourArmy = "That army is not yours",
-	noMoves = "That army has no movement left this turn",
-	notAdjacent = "No road leads there",
-	notYourProvince = "You do not hold that province",
-	insufficientFunds = "Not enough treasury",
-	insufficientManpower = "Not enough manpower",
-	queueFull = "The recruitment queue is full",
-	wrongPhase = "Not now",
-	badArgs = "Malformed order",
-	unknownCommand = "The server does not know that order",
-	noCampaign = "No grand campaign in progress",
-}
-
 local gui: ScreenGui? = nil
 local cb: Callbacks? = nil
 local diplomacyOpen = false
+local objectivesOpen = false
 local pickerReason: string? = nil -- nation choice open (with the reason it opened)
 local summary: { lines: { string }, title: string }? = nil
 local dismissed: { [any]: boolean } = {}
@@ -14930,7 +14806,7 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	fl.Name = "Flag"
 	local who = item(2, 220)
 	Kit.title(who, Data.name(ctx.player), { size = UDim2.new(1, 0, 0, 22), textSize = 22, colour = Kit.GILT_BRIGHT })
-	local date = Kit.label(who, if view then string.format("%s · turn %s", tostring(view.date or "?"), tostring(view.turn or "?")) else "", { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 22), textSize = 14, colour = Kit.MUTED })
+	local date = Kit.label(who, if view then string.format("%s · turn %s of %s%s", tostring(view.date or "?"), tostring(view.turn or "?"), tostring(view.endTurn or "?"), if view.phase and view.phase ~= "player" then " · " .. (if view.phase == "battle" then "battle pending" else tostring(view.phase)) else "") else "", { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 22), textSize = 14, colour = Kit.MUTED })
 	date.FontFace = Kit.ITALIC
 	local money = item(3, 150)
 	Kit.label(money, "TREASURY", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
@@ -14938,13 +14814,20 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	local men = item(4, 150)
 	Kit.label(men, "MANPOWER", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
 	Kit.label(men, fmt(me.manpower), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond })
+	local flow = item(5, 150)
+	Kit.label(flow, "PER TURN", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
+	local net = (tonumber(me.income) or 0) - (tonumber(me.upkeep) or 0)
+	Kit.label(flow, string.format("%s%s", if net >= 0 then "+" else "", fmt(net)), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond, colour = if net < 0 then Kit.HOSTILE else Kit.IVORY })
+	Kit.hoverTip(flow, function(): string
+		return string.format("Income %s, upkeep %s, recruits +%s men", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome))
+	end)
 	if ctx.sessionOnly then
-		local warn = item(5, 200)
+		local warn = item(6, 200)
 		Kit.label(warn, "Saving unavailable: this campaign lasts the session only.", { size = UDim2.fromScale(1, 1), textSize = 12, wrap = true, colour = Kit.HOSTILE })
 	end
 	-- right-hand group
 	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.new(0, 470, 1, 0)
+	right.Size = UDim2.new(0, 600, 1, 0)
 	right.Position = UDim2.fromScale(1, 0)
 	right.AnchorPoint = Vector2.new(1, 0)
 	right.BackgroundTransparency = 1
@@ -14957,6 +14840,11 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		rerender()
 	end, { size = UDim2.fromOffset(120, 34), order = 1, tooltip = "Relations, wars and offers" })
 	Kit.setActiveLook(dip, diplomacyOpen)
+	local obj = Kit.button(right, "Objectives", function()
+		objectivesOpen = not objectivesOpen
+		rerender()
+	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "What wins the campaign" })
+	Kit.setActiveLook(obj, objectivesOpen)
 	Kit.button(right, "Main Menu", function()
 		if cb then
 			cb.menu()
@@ -14991,9 +14879,10 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	local t = Kit.title(head, tostring(a.name or "Army"), { size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 22, caps = false })
 	t.TextTruncate = Enum.TextTruncate.AtEnd
 	local prov = Data.byId[a.provinceId]
-	text(p, string.format("General %s · %s", tostring(a.general or "unknown"), tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
-	local moves = if a.movesLeft ~= nil then " · " .. plural(a.movesLeft, "march") .. " left" else ""
-	text(p, string.format("%s men%s", fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
+	local stars = if a.rating then "  " .. string.rep("★", math.clamp(math.floor(tonumber(a.rating) or 0), 0, 5)) else ""
+	text(p, string.format("%s%s · %s", if a.general then "General " .. tostring(a.general) else "No general", stars, tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
+	local moves = if a.movesLeft ~= nil then string.format(" · %d/%d moves", a.movesLeft, a.movesMax or a.movesLeft) else ""
+	text(p, string.format("%s men · %s · strength %s%s", fmt(a.men or a.strength), plural(tonumber(a.unitCount) or 0, "unit"), fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
 	local units: any = a.units
 	if type(units) == "table" and next(units) ~= nil and type(select(2, next(units))) ~= "table" then
 		local list = {}
@@ -15072,28 +14961,8 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 end
 
 local function recruitOptions(view: any, provinceId: string): { any }
-	local rec = view.recruitment or {}
-	local src = rec.options or {}
-	if type(rec[provinceId]) == "table" then
-		src = rec[provinceId].options or rec[provinceId]
-	end
-	local out = {}
-	for k, o in src do
-		if type(o) == "table" then
-			table.insert(out, { unitType = o.unitType or o.key or k, o = o })
-		end
-	end
-	if #out == 0 then
-		local names = Data.Europe.UnitNames[view.playerNation] or {}
-		for _, k in Data.Europe.UnitTypeOrder do
-			local c = Data.Europe.UnitClasses[k]
-			table.insert(out, { unitType = k, o = { name = names[k] or c.name, cost = c.cost, manpower = c.manpower, turns = c.turns, requires = if c.needs == "any" then nil else c.needs, majorOnly = c.majorOnly } })
-		end
-	end
-	table.sort(out, function(x: any, y: any): boolean
-		return (tonumber(x.o.cost) or 0) < (tonumber(y.o.cost) or 0)
-	end)
-	return out
+	local opts = view.recruitment and view.recruitment.options
+	return if type(opts) == "table" and type(opts[provinceId]) == "table" then opts[provinceId] else {}
 end
 
 local function provincePanel(parent: Instance, ctx: Ctx, order: number)
@@ -15146,37 +15015,12 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		return
 	end
 	Kit.title(panelF, "Recruit", { size = UDim2.new(1, 0, 0, 22), textSize = 18 }).LayoutOrder = 20
-	local me = nationOf(view, ctx.player)
-	local treasury, manpower = tonumber(me.treasury) or 0, tonumber(me.manpower) or 0
-	for i, opt in opts do
-		local o = opt.o
-		local cost, men, turns = tonumber(o.cost) or 0, tonumber(o.manpower or o.strength) or 0, tonumber(o.turns) or 1
-		local b = Kit.button(panelF, string.format("%s   ·   %s gold · %s men · %s", tostring(o.name or opt.unitType), fmt(cost), fmt(men), plural(turns, "turn")), function()
-			send("recruit", { provinceId = id, unitType = opt.unitType })
+	for i, o in opts do
+		local b = Kit.button(panelF, string.format("%s   ·   %s gold · %s men · %s · upkeep %s", tostring(o.name or o.unitType), fmt(o.cost), fmt(o.manpower), plural(tonumber(o.turns) or 1, "turn"), fmt(o.upkeep)), function()
+			send("recruit", { provinceId = id, unitType = o.unitType })
 		end, { size = UDim2.new(1, 0, 0, 28), order = 20 + i, textSize = 13, caps = false })
 		b.TextXAlignment = Enum.TextXAlignment.Left
-		local why: string? = nil
-		if not ctx.canAct then
-			why = ctx.actReason
-		elseif type(o.reason) == "string" and o.reason ~= "" then
-			why = REASONS[o.reason] or o.reason
-		elseif ps.occupiedBy and ps.occupiedBy ~= ctx.player then
-			why = "No recruiting in an occupied province"
-		elseif type(siege) == "table" then
-			why = "No recruiting under siege"
-		elseif o.requires == "port" and not p.isPort then
-			why = "Needs a port"
-		elseif o.requires == "capital" and not p.isCapital then
-			why = "Only raised in a capital"
-		elseif o.requires == "fort" and (p.fort or 0) == 0 then
-			why = "Needs a fortress"
-		elseif o.majorOnly and not (Data.Nations[ctx.player] and Data.Nations[ctx.player].major) then
-			why = "Only the great powers raise these"
-		elseif treasury < cost then
-			why = string.format("Not enough treasury (%s needed)", fmt(cost))
-		elseif manpower < men then
-			why = string.format("Not enough manpower (%s needed)", fmt(men))
-		end
+		local why: string? = if not ctx.canAct then ctx.actReason elseif o.available == false then Logic.reason(o.reason) else nil
 		Kit.setEnabled(b, why == nil, why)
 	end
 end
@@ -15196,10 +15040,7 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		local col = column(p, 2, 6)
 		for i, o in offers do
 			local box = panel(col, i, true)
-			text(box, string.format("%s proposes %s.", Data.name(o.from), tostring(o.kind)), 1, { textSize = 15, font = Enum.Font.Garamond })
-			if o.terms then
-				text(box, if type(o.terms) == "string" then o.terms else "Terms attached", 2, { textSize = 13 })
-			end
+			text(box, Logic.offerText(o), 1, { textSize = 15, font = Enum.Font.Garamond })
 			local br = buttonRow(box, 3, 28)
 			Kit.button(br, "Accept", function()
 				send("diplomacy", { nation = o.from, action = "accept", offerId = o.id })
@@ -15235,11 +15076,17 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 	for i, id in ids do
 		local n = view.nations[id]
 		local war, ally = contains(me.atWarWith, id), contains(me.allies, id)
+		local alive = n.alive ~= false
+		local truce = tonumber(n.truceUntil)
 		local r = row(list, i, 58)
 		r.Size = UDim2.new(1, -8, 0, 58)
 		flag(r, id, 28, 18, UDim2.fromOffset(0, 2))
-		Kit.label(r, Data.name(id), { size = UDim2.new(1, -150, 0, 20), position = UDim2.fromOffset(38, 0), textSize = 17, font = Enum.Font.Garamond })
-		local status = if war then "At war" elseif ally then "Allied" else "At peace"
+		local nameL = Kit.label(r, Data.name(id) .. (if n.major then "  ✦" else ""), { size = UDim2.new(1, -150, 0, 20), position = UDim2.fromOffset(38, 0), textSize = 17, font = Enum.Font.Garamond })
+		local cap = Data.byId[n.capital or ""]
+		Kit.hoverTip(nameL, function(): string
+			return (if n.major then "Great power. " else "") .. (if cap then "Capital: " .. cap.name else "")
+		end)
+		local status = if not alive then "Fallen" elseif war then (if n.warScore then string.format("At war (%+d)", n.warScore) else "At war") elseif ally then "Allied" elseif truce then "Truce to " .. Data.Europe.dateOf(truce) else "At peace"
 		Kit.label(r, status, { size = UDim2.fromOffset(100, 18), position = UDim2.new(1, -100, 0, 1), textSize = 13, align = Enum.TextXAlignment.Right, colour = if war then Kit.HOSTILE elseif ally then Kit.GILT_BRIGHT else Kit.MUTED })
 		local rel = math.clamp(tonumber(n.relationToPlayer) or 0, -100, 100)
 		local fill = Kit.bar(r, UDim2.new(1, -38, 0, 5), UDim2.fromOffset(38, 24), Color3.fromRGB(184, 52, 40):Lerp(Color3.fromRGB(96, 150, 70), (rel + 100) / 200))
@@ -15259,9 +15106,18 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 			end, { size = UDim2.fromOffset(96, 22), textSize = 12, primary = primary })
 			Kit.setEnabled(b, ok and ctx.canAct, if ctx.canAct then why else ctx.actReason)
 		end
-		act("Peace", "peace", war, "You are not at war")
-		act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
-		act("War", "war", not war and not ally, if ally then "You will not strike an ally" else "Already at war", true)
+		if not alive then
+			nameL.TextTransparency = 0.5
+			for _, c in r:GetDescendants() do
+				if c:IsA("Frame") then
+					(c :: Frame).BackgroundTransparency = math.max((c :: Frame).BackgroundTransparency, 0.6)
+				end
+			end
+		else
+			act("Peace", "peace", war, "You are not at war")
+			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
+			act("War", "war", not war and not ally and truce == nil, if ally then "You will not strike an ally" elseif truce then Logic.REASONS.truce else "Already at war", true)
+		end
 	end
 end
 
@@ -15305,6 +15161,7 @@ local function eventDoc(sg: ScreenGui, ev: any)
 	else
 		Kit.button(col, "Very well", function()
 			dismissed[ev.id] = true
+			send("eventChoice", { eventId = ev.id })
 			rerender()
 		end, { size = UDim2.new(1, 0, 0, 32), primary = true, textSize = 15 })
 	end
@@ -15316,15 +15173,15 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	local prov = Data.byId[pb.provinceId]
 	Kit.title(p, "Battle at " .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
 	local function side(v: any): (string, string)
-		for _, a in view.armies or {} do
-			if a.id == v then
-				return a.nation, string.format("%s · %s men", tostring(a.name), fmt(a.strength))
-			end
+		local a = Logic.army(view, v)
+		if a then
+			return a.nation, string.format("%s · %s men", tostring(a.name), fmt(a.men or a.strength))
 		end
 		return tostring(v), ""
 	end
 	local an, ad = side(pb.attacker)
 	local dn, dd = side(pb.defender)
+	an, dn = pb.attackerNation or an, pb.defenderNation or dn
 	local sides = row(p, 2, 70)
 	for i, s in { { an, ad, "Attacker" }, { dn, dd, "Defender" } } do
 		local f = Instance.new("Frame") :: Frame
@@ -15371,9 +15228,9 @@ local function summaryDoc(sg: ScreenGui, s: { lines: { string }, title: string }
 end
 
 local function victoryDoc(sg: ScreenGui, ctx: Ctx, v: any)
-	local won = v.outcome == "victory"
+	local won, draw = v.outcome == "victory", v.outcome == "draw"
 	local p = modal(sg, 520)
-	Kit.title(p, if won then "Victory" else "Defeat", { size = UDim2.new(1, 0, 0, 48), textSize = 44, spaced = true, align = Enum.TextXAlignment.Center, colour = if won then Kit.GILT_BRIGHT else Kit.HOSTILE, rule = true }).LayoutOrder = 1
+	Kit.title(p, if won then "Victory" elseif draw then "Draw" else "Defeat", { size = UDim2.new(1, 0, 0, 48), textSize = 44, spaced = true, align = Enum.TextXAlignment.Center, colour = if won then Kit.GILT_BRIGHT elseif draw then Kit.IVORY else Kit.HOSTILE, rule = true }).LayoutOrder = 1
 	Kit.tricolour(p, UDim2.fromOffset(150, 6), UDim2.new()).LayoutOrder = 2
 	text(p, tostring(v.reason or ""), 3, { align = Enum.TextXAlignment.Center, textSize = 18, font = Enum.Font.Garamond })
 	local br = buttonRow(p, 4, 36)
@@ -15394,7 +15251,7 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 	local sub = text(p, "Europe, January 1805. Eleven years to decide its fate.", 2, { align = Enum.TextXAlignment.Center, textSize = 16, colour = Kit.MUTED })
 	sub.FontFace = Kit.ITALIC
 	if reason ~= "" then
-		text(p, REASONS[reason] or reason, 3, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
+		text(p, Logic.reason(reason), 3, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
 	end
 	local grid = row(p, 4, 0)
 	grid.AutomaticSize = Enum.AutomaticSize.Y
@@ -15463,7 +15320,7 @@ function UI.render(ctx: Ctx)
 	armyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	left.Active = #left:GetChildren() > 1
-	if diplomacyOpen and view then
+	if (diplomacyOpen or objectivesOpen) and view then
 		local right = Instance.new("Frame") :: Frame
 		right.Size = UDim2.new(0, 380, 0, 0)
 		right.Position = UDim2.new(1, -12, 0, 72)
@@ -15472,7 +15329,16 @@ function UI.render(ctx: Ctx)
 		right.BackgroundTransparency = 1
 		right.Parent = sg
 		Kit.list(right, 8)
-		diplomacy(right, ctx)
+		if objectivesOpen then
+			local op = panel(right, 0)
+			Kit.title(op, "Objectives", { size = UDim2.new(1, 0, 0, 28), textSize = 24, rule = true }).LayoutOrder = 0
+			for i, o in view.objectives or {} do
+				text(op, (if o.done then "■  " else "□  ") .. tostring(o.text), i, { textSize = 15, font = Enum.Font.Garamond, colour = if o.done then Kit.GILT_BRIGHT else Kit.IVORY })
+			end
+		end
+		if diplomacyOpen then
+			diplomacy(right, ctx)
+		end
 	end
 	-- one document at a time, most pressing first
 	local ev = nil
@@ -15516,8 +15382,8 @@ function UI.escape(): boolean
 	if summary then
 		summary = nil
 		return true
-	elseif diplomacyOpen then
-		diplomacyOpen = false
+	elseif diplomacyOpen or objectivesOpen then
+		diplomacyOpen, objectivesOpen = false, false
 		return true
 	end
 	return false
@@ -15541,7 +15407,7 @@ function UI.toast(reason: string)
 		t = l
 	end
 	local label = t :: TextLabel
-	local msg = REASONS[reason] or reason
+	local msg = Logic.reason(reason)
 	label.Text = msg
 	label.Visible = true
 	task.delay(4, function()
@@ -15556,7 +15422,7 @@ function UI.destroy()
 		gui:Destroy()
 	end
 	gui, cb, toastLabel, summary, pickerReason, splitArmy = nil, nil, nil, nil, nil, nil
-	diplomacyOpen = false
+	diplomacyOpen, objectivesOpen = false, false
 	table.clear(split)
 	table.clear(dismissed)
 	Kit.hideTooltip()
@@ -15582,25 +15448,6 @@ for _, p in Data.Provinces do
 	Data.byId[p.id] = p
 end
 
--- Palette keys the shared Config does not carry (minor powers).
-local EXTRA: { [string]: { number } } = {
-	Spain = { 196, 152, 44 },
-	Portugal = { 52, 118, 92 },
-	Naples = { 214, 196, 130 },
-	Ottoman = { 118, 146, 84 },
-	Sweden = { 64, 108, 172 },
-	Denmark = { 186, 86, 76 },
-	Poland = { 196, 74, 98 },
-	Warsaw = { 196, 74, 98 },
-	Switzerland = { 176, 64, 60 },
-	Italy = { 84, 140, 110 },
-	Sardinia = { 150, 120, 170 },
-	Westphalia = { 140, 116, 168 },
-	Rhine = { 132, 110, 158 },
-	Wurttemberg = { 168, 132, 64 },
-	Hanover = { 200, 170, 90 },
-}
-
 local cache: { [string]: Color3 } = {}
 
 function Data.colour(nation: string?): Color3
@@ -15611,8 +15458,7 @@ function Data.colour(nation: string?): Color3
 	end
 	local n = Data.Nations[id]
 	local key = if n and type(n.colour) == "string" then n.colour else string.upper(string.sub(id, 1, 1)) .. string.sub(id, 2)
-	local t = EXTRA[key]
-	c = if t then Color3.fromRGB(t[1], t[2], t[3]) else Factions.colour(id, key)
+	c = Factions.colour(id, key)
 	cache[id] = c
 	return c
 end
@@ -15637,7 +15483,250 @@ function Data.flag(nation: string?): Factions.Flag
 end
 
 return Data
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Pure grand-campaign view logic (no Roblox types, so tests run it in the Luau CLI): who may act,
+-- march routes mirroring the server's Movement rules, reachable provinces, readable reasons,
+-- the turn summary and offer terms.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local EuropeData = require(Shared.EuropeData)
+
+local Logic = {}
+
+export type Step = { id: string, turn: number, stop: boolean }
+
+Logic.REASONS = {
+	noCampaign = "No grand campaign in progress",
+	notYourArmy = "That army is not yours",
+	notYourProvince = "You do not hold that province",
+	noMovesLeft = "That army has no movement left this turn",
+	notAdjacent = "No road leads there",
+	noAccess = "Neutral ground: declare war first",
+	badPath = "No road leads there",
+	seaNeedsFullMoves = "A sea crossing needs the army's full movement",
+	navalSupremacy = "The Royal Navy holds the seas against you",
+	insufficientFunds = "Not enough treasury",
+	insufficientManpower = "Not enough manpower",
+	queueFull = "The recruitment queue is full",
+	needsFortress = "Needs a fortress",
+	needsCapital = "Only raised in a capital",
+	majorsOnly = "Only the great powers raise these",
+	underSiege = "Not while under siege",
+	provinceBusy = "That province is already raising troops",
+	tooManyArmies = "You field as many armies as you can supply",
+	armyFull = "That army is at full establishment",
+	notTogether = "The armies must stand in the same province",
+	badSplit = "Leave at least one unit behind",
+	nothingToReplenish = "At full strength",
+	refused = "They refuse your proposal",
+	truce = "A truce binds you: no war until it ends",
+	notAtWar = "You are not at war with them",
+	alreadyAtWar = "You are already at war",
+	battlePending = "Resolve the pending battle first",
+	noBattle = "There is no battle to fight",
+	notInBattle = "Your army is not in that battle",
+	noLineOfRetreat = "There is nowhere to retreat to",
+	wrongPhase = "Not now",
+	campaignOver = "The campaign is over",
+	unknownOffer = "That offer has lapsed",
+	unknownEvent = "That dispatch has been answered",
+	badArgs = "Malformed order",
+	unknownCommand = "The server does not know that order",
+}
+
+function Logic.reason(code: any): string
+	local s = tostring(code)
+	return Logic.REASONS[s] or s
+end
+
+function Logic.canAct(view: any): (boolean, string)
+	if not view then
+		return false, "Waiting for the campaign"
+	elseif view.victory or view.phase == "ended" then
+		return false, Logic.REASONS.campaignOver
+	elseif view.pendingBattle or view.phase == "battle" then
+		return false, Logic.REASONS.battlePending
+	elseif view.phase ~= nil and view.phase ~= "player" then
+		return false, Logic.REASONS.wrongPhase
+	end
+	return true, ""
+end
+
+function Logic.army(view: any, id: any): any
+	if id == nil or not view or not view.armies then
+		return nil
+	end
+	return view.armies[tostring(id)]
+end
+
+local function me(view: any): any
+	return view.nations and view.nations[view.playerNation] or {}
+end
+
+function Logic.atWar(view: any, nation: string?): boolean
+	return nation ~= nil and table.find(me(view).atWarWith or {}, nation) ~= nil
+end
+
+function Logic.allied(view: any, nation: string?): boolean
+	return nation ~= nil and table.find(me(view).allies or {}, nation) ~= nil
+end
+
+-- Who controls a province: the occupier if any, else the owner.
+function Logic.controller(view: any, id: string): string
+	local ps = view.provinces and view.provinces[id]
+	local p = EuropeData.province(id)
+	if ps then
+		return ps.occupiedBy or ps.owner
+	end
+	return if p then p.occupied1805 or p.owner1805 else ""
+end
+
+local function friendly(view: any, n: string): boolean
+	return n == view.playerNation or Logic.allied(view, n)
+end
+
+local function hostileArmyIn(view: any, id: string): boolean
+	for _, a in view.armies or {} do
+		if a.provinceId == id and Logic.atWar(view, a.nation) then
+			return true
+		end
+	end
+	return false
+end
+
+local function canEnter(view: any, id: string): boolean
+	local c = Logic.controller(view, id)
+	return friendly(view, c) or Logic.atWar(view, c)
+end
+
+local function stops(view: any, id: string): boolean
+	return hostileArmyIn(view, id) or Logic.atWar(view, Logic.controller(view, id))
+end
+
+local function inZoc(view: any, id: string): boolean
+	local p = EuropeData.province(id)
+	for _, n in if p then p.neighbours else {} do
+		if hostileArmyIn(view, n) then
+			return true
+		end
+	end
+	return false
+end
+
+local function seaBlocked(view: any): boolean
+	return view.flags ~= nil and view.flags.navalSupremacy == true and Logic.atWar(view, "britain")
+end
+
+-- Shortest march for army `a` to `goal` as board steps (turn numbers from movement points;
+-- `stop` where the march halts: enemy army or enemy ground). Nil when unreachable.
+function Logic.route(view: any, a: any, goal: string): { Step }?
+	local start = a.provinceId
+	if start == goal or not EuropeData.province(goal) then
+		return nil
+	end
+	local parent: { [string]: string } = {}
+	local seen: { [string]: boolean } = { [start] = true }
+	local queue = { start }
+	local head = 1
+	local seaOk = not seaBlocked(view)
+	while head <= #queue do
+		local id = queue[head]
+		head += 1
+		if id == goal then
+			break
+		end
+		if id == start or not stops(view, id) then
+			for _, n in (EuropeData.province(id) :: any).neighbours do
+				if not seen[n] and canEnter(view, n) and (seaOk or not EuropeData.isSeaLane(id, n)) then
+					seen[n] = true
+					parent[n] = id
+					table.insert(queue, n)
+				end
+			end
+		end
+	end
+	if not seen[goal] then
+		return nil
+	end
+	local ids: { string } = {}
+	local c: string = goal
+	while c ~= start do
+		table.insert(ids, 1, c)
+		c = parent[c]
+	end
+	local max = math.max(1, tonumber(a.movesMax) or 2)
+	local left = tonumber(a.movesLeft) or max
+	local turn = 1
+	local from = start
+	local steps: { Step } = {}
+	for _, id in ids do
+		local halt = stops(view, id)
+		local sea = EuropeData.isSeaLane(from, id)
+		local cost = if sea then max elseif not halt and inZoc(view, id) then 2 else 1
+		if cost > left or (sea and left < max) then
+			turn += 1
+			left = max
+		end
+		left = if sea or halt then 0 else left - math.min(cost, left)
+		table.insert(steps, { id = id, turn = turn, stop = halt })
+		from = id
+	end
+	return steps
+end
+
+function Logic.reachable(view: any, a: any): { [string]: boolean }
+	local out = {}
+	for _, id in EuropeData.ProvinceIds do
+		local r = Logic.route(view, a, id)
+		if r and r[#r].turn == 1 then
+			out[id] = true
+		end
+	end
+	return out
+end
+
+-- Log lines dated `turn` ("May 1805: …"); the newest dozen when none carry that date.
+function Logic.turnLines(view: any, turn: number): { string }
+	local prefix = EuropeData.dateOf(turn) .. ":"
+	local all, dated = {}, {}
+	for _, e in view.log or {} do
+		local s = if type(e) == "table" then tostring(e.text or "") else tostring(e)
+		table.insert(all, s)
+		if string.sub(s, 1, #prefix) == prefix then
+			table.insert(dated, (string.gsub(string.sub(s, #prefix + 1), "^%s+", "")))
+		end
+	end
+	if #dated > 0 then
+		return dated
+	end
+	return { table.unpack(all, math.max(1, #all - 11)) }
+end
+
+local function nationName(id: string?): string
+	local n = EuropeData.Nations[id or ""]
+	return if n then n.name else tostring(id)
+end
+
+-- One readable sentence for a diplomatic offer.
+function Logic.offerText(o: any): string
+	local t = o.terms
+	if o.kind == "peace" and type(t) == "table" then
+		if t.winner == nil or t.winner == "" then
+			return string.format("%s offers a white peace.", nationName(o.from))
+		end
+		local names = {}
+		for _, id in t.provinces or {} do
+			local p = EuropeData.province(id)
+			table.insert(names, if p then p.name else tostring(id))
+		end
+		local cede = if #names > 0 then " " .. nationName(t.loser) .. " cedes " .. table.concat(names, ", ") .. "." else " No provinces change hands."
+		return string.format("%s offers peace%s: %s prevails (war score %s).%s", nationName(o.from), if t.dictated then ", dictated" else "", nationName(t.winner), tostring(t.score or 0), cede)
+	end
+	return string.format("%s proposes %s.", nationName(o.from), tostring(o.kind))
+end
+
+return Logic
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pooled one-shot visual effects driven by snapshot events only: lingering volley smoke banks,
 -- muzzle flashes, cannon plumes and shot strikes, charge dust, routing markers.
 
@@ -15888,7 +15977,7 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
 -- unit `colour` override, else the faction), display names and marker-flag designs.
 
@@ -15978,7 +16067,7 @@ function Factions.slabDarken(faction: string?): number
 end
 
 return Factions
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
@@ -17132,7 +17221,7 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -17788,7 +17877,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, builds the world per map, wires the
 -- modules together and drives the match lifecycle from MatchState messages.
 
@@ -18280,7 +18369,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -18414,7 +18503,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -18536,7 +18625,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local Signal = require(script.Parent.Signal)
@@ -18582,7 +18671,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -18626,7 +18715,7 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -19015,7 +19104,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000075"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000076"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: the scenarios from Scenarios.list() (fallback: Scenarios.jena alone), each with
 -- name, date, sides, summary, difficulty note and a Fight button; a difficulty selector on top.
 
@@ -19233,7 +19322,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -19917,7 +20006,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -20478,7 +20567,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -20590,7 +20679,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -20675,7 +20764,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -21447,7 +21536,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -21550,7 +21639,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents. Every panel is Active so clicks never reach
@@ -21734,7 +21823,12 @@ local function trim(f: Frame, pad: number, colour: Color3)
 	inner.BackgroundTransparency = 1
 	inner.Position = UDim2.fromOffset(4 - pad, 4 - pad)
 	inner.Size = UDim2.new(1, 2 * pad - 8, 1, 2 * pad - 8)
-	inner.Parent = f
+	-- inside a Folder so a UIListLayout on the panel does not stack the trim as a row (it is
+	-- sized to the panel, so on an auto-sized panel it pushed every row off screen)
+	local deco = Instance.new("Folder")
+	deco.Name = "Deco"
+	deco.Parent = f
+	inner.Parent = deco
 	local s = Instance.new("UIStroke") :: UIStroke
 	s.Color = colour
 	s.Thickness = 1
@@ -22253,7 +22347,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (terrain + props build).
 
 local Kit = require(script.Parent.Kit)
@@ -22330,7 +22424,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -22489,7 +22583,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -22748,7 +22842,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -22962,7 +23056,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
@@ -23091,7 +23185,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -23253,7 +23347,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000080"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000081"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morning battlefield light: warm sun from the south-east, light haze, soft clouds, slight
 -- warmth and contrast. Built-in defaults only (no asset ids). Quality 1 drops the costly bits.
 
@@ -23352,7 +23446,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -23701,7 +23795,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -23982,7 +24076,7 @@ function Soldiers.gun(add: Add, faction: string, coat: Color3, limbered: boolean
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
@@ -24238,4 +24332,4 @@ function Terrain.clear()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000084"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000085"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000086"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000085"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000086"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000087"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
