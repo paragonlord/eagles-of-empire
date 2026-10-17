@@ -462,6 +462,7 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 			act("Peace", "peace", war, "You are not at war")
 			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
 			act("War", "war", not war and not ally and truce == nil, if ally then "You will not strike an ally" elseif truce then Logic.REASONS.truce else "Already at war", true)
+		end
 	end
 end
 
