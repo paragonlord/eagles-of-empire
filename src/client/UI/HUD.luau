@@ -1,55 +1,66 @@
 --!strict
--- Battle HUD: top bar (clock, speed, pause), objective strip, event ticker, roster, inspector,
--- command bar and minimap. Thin frame around the field; the centre stays clear.
+-- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
+-- speeds, weather), balance of power and objective banners under it, message ticker top-left,
+-- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
+-- bottom-right. Everything hugs the screen edges; the centre of the field stays clear.
 
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Config = require(Shared.Config)
 local Kit = require(script.Parent.Kit)
 local Minimap = require(script.Parent.Minimap)
+local CardBar = require(script.Parent.CardBar)
 local BattleState = require(script.Parent.Parent.BattleState)
 local Selection = require(script.Parent.Parent.Selection)
 local Net = require(script.Parent.Parent.Net)
 local Input = require(script.Parent.Parent.Input)
-local Camera = require(script.Parent.Parent.Camera)
 local Signal = require(script.Parent.Parent.Signal)
 
 local HUD = {}
 
 export type Callbacks = { settings: () -> (), help: () -> (), menu: () -> () }
 
+local EDGE = 8
+local CMD_W = 256
+local BOTTOM_H = CardBar.HEIGHT
+
 local gui: ScreenGui? = nil
 local cb: Callbacks? = nil
 local conns: { Signal.Connection } = {}
+local weather: string? = nil
 
 -- top bar
 local clockLabel: TextLabel? = nil
 local lagLabel: TextLabel? = nil
+local weatherLabel: TextLabel? = nil
 local speedButtons: { [number]: TextButton } = {}
 local pauseButton: TextButton? = nil
+local balanceOwn: Frame? = nil
+local balanceText = ""
 local objectiveStrip: Frame? = nil
-local objectiveChips: { [string]: { frame: Frame, label: TextLabel, bar: Frame } } = {}
+local objectiveChips: { [string]: { frame: Frame, pennant: Frame, label: TextLabel, bar: Frame } } = {}
 
 -- ticker
 local tickerLines: { { label: TextLabel, t0: number } } = {}
 local tickerFrame: Frame? = nil
+local tickerOrder = 0
 local TICKER_LIFE = 9
-
--- roster
-local rosterScroll: ScrollingFrame? = nil
-local rosterKey = ""
-local rosterRows: { [number]: { frame: TextButton, name: TextLabel, state: TextLabel, bar: Frame, lastClick: number } } = {}
-local arrivingRows: { [number]: TextLabel } = {}
 
 -- inspector
 local inspector: Frame? = nil
 local inspectorFields: { [string]: TextLabel } = {}
 local inspectorBarFill: Frame? = nil
 
--- command bar
+-- command panel
 local commandButtons: { [string]: TextButton } = {}
+local rallyBar: Frame? = nil
 local toast: TextLabel? = nil
 local toastT0 = 0
 
 local MORALE_WORD: { [string]: string } = { steady = "Steady", shaken = "Shaken", routing = "Routing", shattered = "Shattered" }
 local STATE_WORD: { [string]: string } = { idle = "Holding", moving = "Marching", reforming = "Reforming", firing = "Firing", charging = "Charging", melee = "Melee", retreating = "Retreating", routing = "Routing", rallying = "Rallying", destroyed = "Destroyed", exited = "Exited" }
+
+local GARAMOND_BOLD = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Bold)
+local GARAMOND = Font.fromEnum(Enum.Font.Garamond)
 
 local function selectedFormations(): { any }
 	local out = {}
@@ -77,26 +88,47 @@ end
 local function buildTopBar(sg: ScreenGui)
 	local bar = Kit.panel(sg, { size = UDim2.new(1, 0, 0, 36), position = UDim2.new(0, 0, 0, 0), transparency = 0.08 })
 	local sc = BattleState.scenario
-	Kit.title(bar, if sc then sc.name else "", { size = UDim2.new(0, 360, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
-	clockLabel = Kit.label(bar, "00:00", { size = UDim2.new(0, 90, 1, 0), position = UDim2.new(0.5, -200, 0, 0), textSize = 18, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Center })
-	lagLabel = Kit.label(bar, "", { size = UDim2.new(0, 70, 1, 0), position = UDim2.new(0.5, -110, 0, 0), textSize = 11, colour = Kit.HOSTILE })
-	local speeds = { 1, 2, 4 }
-	for i, s in speeds do
-		local b = Kit.button(bar, "×" .. s, function()
-			Net.control("speed", s)
-		end, { size = UDim2.fromOffset(40, 26), position = UDim2.new(0.5, -40 + (i - 1) * 46, 0, 5), tooltip = "Speed ×" .. s .. " (key " .. i .. ")" })
-		speedButtons[s] = b
-	end
-	pauseButton = Kit.button(bar, "Pause", function()
+	local name = Kit.title(bar, if sc then sc.name else "", { size = UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
+	name.TextTruncate = Enum.TextTruncate.AtEnd
+
+	-- centre: clock / limit, pause, speeds, weather
+	local mid = Instance.new("Frame") :: Frame
+	mid.Size = UDim2.fromOffset(0, 26)
+	mid.AutomaticSize = Enum.AutomaticSize.X
+	mid.Position = UDim2.new(0.5, 0, 0, 5)
+	mid.AnchorPoint = Vector2.new(0.5, 0)
+	mid.BackgroundTransparency = 1
+	mid.Parent = bar
+	local ml = Kit.list(mid, 6, true)
+	ml.VerticalAlignment = Enum.VerticalAlignment.Center
+	clockLabel = Kit.label(mid, "00:00", { size = UDim2.fromOffset(118, 26), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right })
+	;(clockLabel :: TextLabel).LayoutOrder = 1
+	local pb = Kit.button(mid, "II", function()
 		if BattleState.state == "paused" then
 			Net.control("resume")
 		else
 			Net.control("pause")
 		end
-	end, { size = UDim2.fromOffset(70, 26), position = UDim2.new(0.5, 104, 0, 5), tooltip = "Space" })
+	end, { size = UDim2.fromOffset(34, 26), order = 2, font = Enum.Font.GothamBlack, tooltip = "Pause / resume (Space)" })
+	pauseButton = pb
+	for i, s in { 1, 2, 4 } do
+		local b = Kit.button(mid, "×" .. s, function()
+			if BattleState.state == "paused" then
+				Net.control("resume")
+			end
+			Net.control("speed", s)
+		end, { size = UDim2.fromOffset(34, 26), order = 2 + i, tooltip = "Speed ×" .. s .. " (key " .. i .. ")" })
+		speedButtons[s] = b
+	end
+	weatherLabel = Kit.title(mid, "", { size = UDim2.fromOffset(118, 26), textSize = 18 })
+	;(weatherLabel :: TextLabel).LayoutOrder = 6
+	lagLabel = Kit.label(mid, "", { size = UDim2.fromOffset(0, 26), textSize = 11, colour = Kit.HOSTILE })
+	;(lagLabel :: TextLabel).AutomaticSize = Enum.AutomaticSize.X
+	;(lagLabel :: TextLabel).LayoutOrder = 7
+
 	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.fromOffset(250, 26)
-	right.Position = UDim2.new(1, -8, 0, 5)
+	right.Size = UDim2.fromOffset(220, 26)
+	right.Position = UDim2.new(1, -EDGE, 0, 5)
 	right.AnchorPoint = Vector2.new(1, 0)
 	right.BackgroundTransparency = 1
 	right.Parent = bar
@@ -118,15 +150,68 @@ local function buildTopBar(sg: ScreenGui)
 		end
 	end, { size = UDim2.fromOffset(60, 26), order = 3, tooltip = "Leave the battle" })
 
+	-- balance of power: own strength against the enemy strength we can see
+	local bal = Kit.panel(sg, { size = UDim2.fromOffset(320, 12), position = UDim2.new(0.5, 0, 0, 42), anchor = Vector2.new(0.5, 0), transparency = 0, plain = true })
+	bal.BackgroundColor3 = Kit.factionColour(BattleState.enemyFaction)
+	local own = Instance.new("Frame") :: Frame
+	own.Size = UDim2.fromScale(0.5, 1)
+	own.BackgroundColor3 = Kit.factionColour(BattleState.viewerFaction)
+	own.BorderSizePixel = 0
+	own.Parent = bal
+	local tick = Instance.new("Frame") :: Frame
+	tick.Size = UDim2.new(0, 2, 1, 4)
+	tick.Position = UDim2.fromScale(0.5, 0.5)
+	tick.AnchorPoint = Vector2.new(0.5, 0.5)
+	tick.BackgroundColor3 = Kit.GOLD
+	tick.BorderSizePixel = 0
+	tick.Parent = bal
+	Kit.hoverTip(bal, function(): string
+		return balanceText
+	end)
+	balanceOwn = own
+
 	local strip = Instance.new("Frame") :: Frame
-	strip.Size = UDim2.new(0, 600, 0, 24)
-	strip.Position = UDim2.new(0.5, 0, 0, 40)
+	strip.Size = UDim2.new(0, 640, 0, 24)
+	strip.Position = UDim2.new(0.5, 0, 0, 60)
 	strip.AnchorPoint = Vector2.new(0.5, 0)
 	strip.BackgroundTransparency = 1
 	strip.Parent = sg
-	local sl = Kit.list(strip, 8, true)
+	local sl = Kit.list(strip, 6, true)
 	sl.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	objectiveStrip = strip
+end
+
+local function updateBalance()
+	local own, enemy = 0, 0
+	for _, f in BattleState.formations do
+		if f.state ~= "destroyed" and f.state ~= "exited" then
+			if f.faction == BattleState.viewerFaction then
+				own += f.strength
+			else
+				enemy += f.strength
+			end
+		end
+	end
+	if balanceOwn then
+		balanceOwn.Size = UDim2.fromScale(if own + enemy > 0 then own / (own + enemy) else 0.5, 1)
+	end
+	balanceText = string.format("Balance of power\nYour army: %d men\nKnown enemy strength: %d men\n(only the enemy formations you can see)", own, enemy)
+end
+
+local function objectiveTip(id: string): string
+	for _, o in BattleState.objectives do
+		if o.id == id then
+			local owner = if o.owner then Kit.factionName(o.owner) else "Unclaimed"
+			local t = string.format("%s\nHeld by: %s", o.name, owner)
+			if o.contested then
+				t ..= "\nContested"
+			elseif o.capturing and (o.progress or 0) > 0 then
+				t ..= string.format("\n%s capturing: %d%%", Kit.factionName(o.capturing), math.floor((o.progress or 0) * 100))
+			end
+			return t
+		end
+	end
+	return ""
 end
 
 local function updateObjectives()
@@ -137,38 +222,80 @@ local function updateObjectives()
 	for i, o in BattleState.objectives do
 		local chip = objectiveChips[o.id]
 		if not chip then
-			local f = Kit.panel(strip, { size = UDim2.fromOffset(150, 24), position = UDim2.new(), transparency = 0.15 })
+			local f = Kit.panel(strip, { size = UDim2.fromOffset(124, 24), position = UDim2.new(), transparency = 0.12, plain = true })
 			f.LayoutOrder = i
-			local lbl = Kit.label(f, o.name, { size = UDim2.new(1, -12, 1, -4), position = UDim2.new(0, 6, 0, 0), textSize = 12, align = Enum.TextXAlignment.Center })
+			local pennant = Instance.new("Frame") :: Frame
+			pennant.Size = UDim2.new(0, 7, 1, 0)
+			pennant.BorderSizePixel = 0
+			pennant.Parent = f
+			local lbl = Kit.title(f, o.name, { size = UDim2.new(1, -14, 1, -3), position = UDim2.new(0, 11, 0, 0), textSize = 15, align = Enum.TextXAlignment.Center })
+			lbl.TextTruncate = Enum.TextTruncate.AtEnd
 			local bar = Instance.new("Frame") :: Frame
 			bar.Size = UDim2.new(0, 0, 0, 3)
-			bar.Position = UDim2.new(0, 0, 1, -3)
+			bar.Position = UDim2.new(0, 7, 1, -3)
 			bar.BorderSizePixel = 0
 			bar.Parent = f
-			chip = { frame = f, label = lbl, bar = bar }
+			local oid = o.id
+			Kit.hoverTip(f, function(): string
+				return objectiveTip(oid)
+			end)
+			chip = { frame = f, pennant = pennant, label = lbl, bar = bar }
 			objectiveChips[o.id] = chip
 		end
-		local colour = if o.contested then Kit.HOSTILE else Kit.factionColour(o.owner)
-		chip.label.TextColor3 = if o.owner or o.contested then colour else Kit.INK
-		chip.label.Text = if o.contested then o.name .. " · contested" else o.name
+		chip.pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.PANEL_DARK
+		chip.label.TextColor3 = if o.contested then Kit.HOSTILE else Kit.INK
 		chip.bar.BackgroundColor3 = Kit.factionColour(o.capturing or o.owner)
-		chip.bar.Size = UDim2.new(math.clamp(o.progress or 0, 0, 1), 0, 0, 3)
+		chip.bar.Size = UDim2.new(math.clamp(o.progress or 0, 0, 1), -7, 0, 3)
 	end
+end
+
+local function updateTopBar()
+	if clockLabel then
+		local limit = BattleState.timeLimit
+		if limit <= 0 then
+			local sc = BattleState.scenario
+			limit = if sc and sc.timeLimit then sc.timeLimit else Config.Victory.TimeLimitSeconds
+		end
+		clockLabel.Text = Kit.formatClock(BattleState.clock) .. " / " .. Kit.formatClock(limit)
+	end
+	if weatherLabel then
+		local w = (Config.Weather :: any)[weather or "clear"]
+		weatherLabel.Text = if w then w.label else ""
+	end
+	if lagLabel then
+		lagLabel.Text = if BattleState.simLag > 0.5 then string.format("lag %.1fs", BattleState.simLag) else ""
+	end
+	local paused = BattleState.state == "paused"
+	for s, b in speedButtons do
+		Kit.setActiveLook(b, not paused and BattleState.speed == s)
+		Kit.setEnabled(b, BattleState.isCommander, "Only the commander sets the speed")
+	end
+	if pauseButton then
+		pauseButton.Text = if paused then ">" else "II"
+		Kit.setActiveLook(pauseButton, paused)
+		Kit.setEnabled(pauseButton, BattleState.isCommander, "Only the commander may pause")
+	end
+	updateBalance()
 end
 
 -- ------------------------------------------------------------------ ticker
 
 local function buildTicker(sg: ScreenGui)
 	local f = Instance.new("Frame") :: Frame
-	f.Size = UDim2.fromOffset(420, 90)
-	f.Position = UDim2.new(0, 12, 0, 72)
+	f.Size = UDim2.fromOffset(440, 96)
+	f.Position = UDim2.new(0, 12, 0, 44)
 	f.BackgroundTransparency = 1
 	f.Parent = sg
-	Kit.list(f, 2)
+	Kit.list(f, 3)
 	tickerFrame = f
 end
 
-function HUD.message(text: string, colour: Color3?)
+local function escape(s: string): string
+	return (string.gsub(string.gsub(string.gsub(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"))
+end
+
+-- Up to four lines, newest at the bottom, fading out. `bold` for routs and captures.
+function HUD.message(text: string, colour: Color3?, bold: boolean?)
 	local f = tickerFrame
 	if not f then
 		return
@@ -179,10 +306,27 @@ function HUD.message(text: string, colour: Color3?)
 			old.label:Destroy()
 		end
 	end
-	local l = Kit.label(f, text, { size = UDim2.new(1, 0, 0, 18), textSize = 13, colour = colour or Kit.CREAM })
-	l.TextStrokeTransparency = 0.4
+	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = colour or Kit.CREAM, rich = true })
+	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
+	l.AutomaticSize = Enum.AutomaticSize.X
+	l.BackgroundColor3 = Kit.INK
+	l.BackgroundTransparency = 0.5
+	l.TextStrokeTransparency = 0.5
 	l.TextStrokeColor3 = Kit.INK
-	l.LayoutOrder = math.floor(os.clock() * 10) % 1000000000
+	local pad = Instance.new("UIPadding") :: UIPadding
+	pad.PaddingLeft = UDim.new(0, 8)
+	pad.PaddingRight = UDim.new(0, 8)
+	pad.Parent = l
+	if bold then
+		local edge = Instance.new("Frame") :: Frame
+		edge.Size = UDim2.new(0, 2, 1, 0)
+		edge.Position = UDim2.fromOffset(-8, 0)
+		edge.BackgroundColor3 = Kit.GOLD
+		edge.BorderSizePixel = 0
+		edge.Parent = l
+	end
+	tickerOrder += 1
+	l.LayoutOrder = tickerOrder
 	table.insert(tickerLines, { label = l, t0 = os.clock() })
 end
 
@@ -196,7 +340,10 @@ local function updateTicker()
 			e.label:Destroy()
 			table.remove(tickerLines, i)
 		else
-			e.label.TextTransparency = math.clamp((age - TICKER_LIFE + 3) / 3, 0, 1)
+			local fade = math.clamp((age - TICKER_LIFE + 3) / 3, 0, 1)
+			e.label.TextTransparency = fade
+			e.label.TextStrokeTransparency = 0.5 + 0.5 * fade
+			e.label.BackgroundTransparency = 0.5 + 0.5 * fade
 			i += 1
 		end
 	end
@@ -205,174 +352,16 @@ local function updateTicker()
 	end
 end
 
--- ------------------------------------------------------------------ roster
-
-local function buildRoster(sg: ScreenGui)
-	local panel = Kit.panel(sg, { size = UDim2.new(0, 240, 1, -300), position = UDim2.new(1, -8, 0, 72), anchor = Vector2.new(1, 0), transparency = 0.12 })
-	Kit.title(panel, "Order of battle", { size = UDim2.new(1, -16, 0, 28), position = UDim2.new(0, 8, 0, 0), textSize = 20 })
-	local s = Instance.new("ScrollingFrame") :: ScrollingFrame
-	s.Size = UDim2.new(1, -8, 1, -34)
-	s.Position = UDim2.new(0, 4, 0, 30)
-	s.BackgroundTransparency = 1
-	s.BorderSizePixel = 0
-	s.ScrollBarThickness = 4
-	s.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	s.CanvasSize = UDim2.new()
-	s.Active = true
-	s.Parent = panel
-	Kit.list(s, 2)
-	rosterScroll = s
-end
-
-local function rebuildRoster(forms: { any })
-	local s = rosterScroll
-	if not s then
-		return
-	end
-	s:ClearAllChildren()
-	Kit.list(s, 2)
-	table.clear(rosterRows)
-	table.sort(forms, function(a: any, b: any)
-		if a.corps ~= b.corps then
-			return tostring(a.corps) < tostring(b.corps)
-		end
-		return a.id < b.id
-	end)
-	local order = 0
-	local lastCorps = nil
-	for _, f in forms do
-		if f.corps ~= lastCorps then
-			lastCorps = f.corps
-			order += 1
-			local h = Kit.label(s, tostring(f.corps or "—"), { size = UDim2.new(1, 0, 0, 20), font = Enum.Font.Garamond, textSize = 17 })
-			h.LayoutOrder = order
-		end
-		order += 1
-		local row = Instance.new("TextButton") :: TextButton
-		row.Size = UDim2.new(1, -4, 0, 30)
-		row.BackgroundColor3 = Kit.PANEL_DARK
-		row.BackgroundTransparency = 0.4
-		row.BorderSizePixel = 0
-		row.Text = ""
-		row.AutoButtonColor = true
-		row.LayoutOrder = order
-		row.Active = true
-		row.Parent = s
-		local name = Kit.label(row, tostring(f.name or f.id), { size = UDim2.new(1, -8, 0, 16), position = UDim2.new(0, 6, 0, 1), textSize = 12 })
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		local state = Kit.label(row, "", { size = UDim2.new(0, 110, 0, 12), position = UDim2.new(1, -116, 0, 17), textSize = 10, colour = Kit.MUTED, align = Enum.TextXAlignment.Right })
-		local track = Instance.new("Frame") :: Frame
-		track.Size = UDim2.new(0, 90, 0, 4)
-		track.Position = UDim2.new(0, 6, 0, 22)
-		track.BackgroundColor3 = Kit.INK
-		track.BackgroundTransparency = 0.7
-		track.BorderSizePixel = 0
-		track.Parent = row
-		local bar = Instance.new("Frame") :: Frame
-		bar.Size = UDim2.fromScale(1, 1)
-		bar.BackgroundColor3 = Kit.factionColour(f.faction)
-		bar.BorderSizePixel = 0
-		bar.Parent = track
-		local id = f.id
-		local entry = { frame = row, name = name, state = state, bar = bar, lastClick = 0 }
-		rosterRows[id] = entry
-		row.Activated:Connect(function()
-			local now = os.clock()
-			if now - entry.lastClick < 0.35 then
-				local cur = BattleState.formations[id]
-				if cur then
-					Camera.focusOn(cur.x, cur.z)
-				end
-			else
-				if Input.mode() ~= "off" then
-					local uis = game:GetService("UserInputService") :: UserInputService
-					if uis:IsKeyDown(Enum.KeyCode.LeftShift) or uis:IsKeyDown(Enum.KeyCode.RightShift) then
-						Selection.toggle(id)
-					else
-						Selection.set({ id })
-					end
-				end
-			end
-			entry.lastClick = now
-		end)
-	end
-	-- off-map reinforcements: a greyed group with countdowns
-	table.clear(arrivingRows)
-	if #BattleState.reinforcements > 0 then
-		order += 1
-		local h = Kit.label(s, "Arriving", { size = UDim2.new(1, 0, 0, 20), font = Enum.Font.Garamond, textSize = 17, colour = Kit.MUTED })
-		h.LayoutOrder = order
-		for _, r in BattleState.reinforcements do
-			order += 1
-			local l = Kit.label(s, "", { size = UDim2.new(1, -4, 0, 18), textSize = 12, colour = Kit.MUTED })
-			l.TextTruncate = Enum.TextTruncate.AtEnd
-			l.LayoutOrder = order
-			arrivingRows[r.id] = l
-		end
-	end
-end
-
-local function updateRoster()
-	local forms = BattleState.ownFormations()
-	local ids = {}
-	for _, f in forms do
-		table.insert(ids, f.id)
-	end
-	for _, r in BattleState.reinforcements do
-		table.insert(ids, -r.id)
-	end
-	local key = table.concat(ids, ",")
-	if key ~= rosterKey then
-		rosterKey = key
-		rebuildRoster(forms)
-	end
-	for _, f in forms do
-		local row = rosterRows[f.id]
-		if row then
-			row.bar.Size = UDim2.fromScale(math.clamp(f.strength / math.max(f.startStrength, 1), 0, 1), 1)
-			local word = STATE_WORD[f.state] or f.state
-			if f.moraleBand == "shaken" then
-				word ..= " · shaken"
-			elseif f.moraleBand == "shattered" then
-				word = "Shattered"
-			end
-			row.state.Text = word
-			row.state.TextColor3 = if f.state == "routing" or f.moraleBand == "shattered" then Kit.HOSTILE else Kit.MUTED
-			local sel = Selection.isSelected(f.id)
-			row.frame.BackgroundTransparency = if sel then 0 else 0.4
-			row.frame.BackgroundColor3 = if sel then Kit.SELECT else Kit.PANEL_DARK
-		end
-	end
-	for _, r in BattleState.reinforcements do
-		local l = arrivingRows[r.id]
-		if l then
-			l.Text = string.format("%s  ·  %s  ·  in %s", tostring(r.name), tostring(r.corps or ""), Kit.formatClock(r.eta or 0))
-		end
-	end
-end
-
 -- ------------------------------------------------------------------ inspector
 
 local INSPECTOR_FIELDS = { "corps", "class", "strength", "morale", "fatigue", "ammo", "shape", "status" }
 
 local function buildInspector(sg: ScreenGui)
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(300, 196), position = UDim2.new(0, 8, 1, -8), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
-	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, 0, 0, 26), textSize = 22 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
+	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21 })
 	inspectorFields.name.TextTruncate = Enum.TextTruncate.AtEnd
-	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 60, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, align = Enum.TextXAlignment.Right, colour = Kit.MUTED })
-	local track = Instance.new("Frame") :: Frame
-	track.Size = UDim2.new(1, 0, 0, 6)
-	track.Position = UDim2.new(0, 0, 0, 30)
-	track.BackgroundColor3 = Kit.INK
-	track.BackgroundTransparency = 0.7
-	track.BorderSizePixel = 0
-	track.Parent = p
-	local fill = Instance.new("Frame") :: Frame
-	fill.Size = UDim2.fromScale(1, 1)
-	fill.BackgroundColor3 = Kit.FRANCE
-	fill.BorderSizePixel = 0
-	fill.Parent = track
-	inspectorBarFill = fill
+	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
+	inspectorBarFill = Kit.bar(p, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0, 30), Kit.FRANCE)
 	local y = 40
 	local names = { corps = "Corps", class = "Class", strength = "Strength", morale = "Morale", fatigue = "Fatigue", ammo = "Ammunition", shape = "Shape", status = "Status" }
 	for i, key in INSPECTOR_FIELDS do
@@ -380,7 +369,7 @@ local function buildInspector(sg: ScreenGui)
 		local rowY = y + ((i - 1) // 2) * 32
 		local k = Kit.label(p, names[key], { size = UDim2.new(0.5, -4, 0, 12), position = UDim2.new(col * 0.5, 0, 0, rowY), textSize = 10, colour = Kit.MUTED })
 		k.Name = key .. "Key"
-		inspectorFields[key] = Kit.label(p, "—", { size = UDim2.new(0.5, -4, 0, 18), position = UDim2.new(col * 0.5, 0, 0, rowY + 12), textSize = 13, font = Enum.Font.GothamBold })
+		inspectorFields[key] = Kit.label(p, "—", { size = UDim2.new(0.5, -4, 0, 18), position = UDim2.new(col * 0.5, 0, 0, rowY + 12), textSize = 12, font = Enum.Font.GothamBold })
 		inspectorFields[key].TextTruncate = Enum.TextTruncate.AtEnd
 	end
 	p.Visible = false
@@ -406,7 +395,7 @@ local function updateInspector()
 	F.class.Text = string.upper(string.sub(f.class, 1, 1)) .. string.sub(f.class, 2)
 	F.strength.Text = string.format("%d / %d", f.strength, f.startStrength)
 	if inspectorBarFill then
-		inspectorBarFill.Size = UDim2.fromScale(math.clamp(f.strength / math.max(f.startStrength, 1), 0, 1), 1)
+		Kit.setBar(inspectorBarFill, f.strength / math.max(f.startStrength, 1))
 		inspectorBarFill.BackgroundColor3 = Kit.factionColour(f.faction)
 	end
 	F.morale.Text = string.format("%s%s", MORALE_WORD[f.moraleBand] or f.moraleBand, if f.morale then string.format(" (%d)", math.floor(f.morale)) else "")
@@ -424,26 +413,27 @@ local function updateInspector()
 	if f.status and f.status ~= "" then
 		status ..= " · " .. f.status
 	elseif f.reload and f.reload > 0 then
-		status ..= string.format(" · reloading %ds", math.ceil(f.reload))
+		status ..= " · reloading"
 	end
 	F.status.Text = status
 end
 
--- ------------------------------------------------------------------ command bar
+-- ------------------------------------------------------------------ command panel
 
-type CommandDef = { key: string, text: string, tip: string, width: number? }
+type CommandDef = { key: string, text: string, tip: string }
+-- Grid order, four to a row: formations, then stance and orders, then guns and the staff.
 local COMMANDS: { CommandDef } = {
 	{ key = "line", text = "Line", tip = "Three ranks: full fire, slow (infantry/cavalry)" },
-	{ key = "column", text = "Column", tip = "Twelve ranks: fast, strong in the charge, weak to fire" },
+	{ key = "column", text = "Column", tip = "Deep column: fast, strong in the charge, weak to fire" },
 	{ key = "square", text = "Square", tip = "Hollow box against cavalry; artillery loves it" },
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
-	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range", width = 84 },
+	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
 	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
 	{ key = "hold", text = "Hold", tip = "Stand and hold position" },
-	{ key = "stop", text = "Stop", tip = "Cancel orders" },
+	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
 	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
-	{ key = "ammo", text = "Ammo: auto", tip = "Round shot (long) / canister (short) / auto", width = 84 },
+	{ key = "ammo", text = "Auto ammo", tip = "Cycle: round shot (long) / canister (short) / auto" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
 }
 
@@ -496,19 +486,45 @@ local function runCommand(key: string)
 	end
 end
 
-local function buildCommandBar(sg: ScreenGui)
-	local bar = Kit.panel(sg, { size = UDim2.fromOffset(740, 46), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), transparency = 0.1 })
-	local l = Kit.list(bar, 4, true)
-	l.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	l.VerticalAlignment = Enum.VerticalAlignment.Center
+local function buildCommandPanel(sg: ScreenGui)
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, BOTTOM_H), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 9 })
+	local grid = Instance.new("Frame") :: Frame
+	grid.Size = UDim2.fromScale(1, 1)
+	grid.BackgroundTransparency = 1
+	grid.Parent = p
+	local g = Instance.new("UIGridLayout") :: UIGridLayout
+	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), 24)
+	g.CellPadding = UDim2.fromOffset(3, 3)
+	g.FillDirectionMaxCells = 4
+	g.SortOrder = Enum.SortOrder.LayoutOrder
+	g.Parent = grid
 	for i, c in COMMANDS do
 		local key = c.key
-		local b = Kit.button(bar, c.text, function()
+		local b = Kit.button(grid, c.text, function()
 			runCommand(key)
-		end, { size = UDim2.fromOffset(c.width or 56, 32), order = i, textSize = 12, tooltip = c.tip })
+		end, { order = i, textSize = 11, tooltip = c.tip })
+		b.TextScaled = true
+		local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+		tc.MaxTextSize = 11
+		tc.Parent = b
+		local pad = Instance.new("UIPadding") :: UIPadding
+		pad.PaddingLeft = UDim.new(0, 2)
+		pad.PaddingRight = UDim.new(0, 2)
+		pad.Parent = b
 		commandButtons[c.key] = b
 	end
-	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, -60), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
+	-- rally cooldown: a gold bar along the bottom of the button that shrinks to nothing
+	local rb = commandButtons.rally
+	local bar = Instance.new("Frame") :: Frame
+	bar.AnchorPoint = Vector2.new(0, 1)
+	bar.Position = UDim2.new(0, -2, 1, 0)
+	bar.Size = UDim2.new(0, 0, 0, 3)
+	bar.BackgroundColor3 = Kit.GOLD
+	bar.BorderSizePixel = 0
+	bar.Parent = rb
+	rallyBar = bar
+
+	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, -EDGE - BOTTOM_H - 10), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
@@ -553,12 +569,20 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 	elseif key == "ammo" then
 		local art = firstOfClass(forms, "artillery")
 		local mode = if art and art.ammoMode then art.ammoMode else "auto"
-		b.Text = "Ammo: " .. (if mode == "roundShot" then "shot" elseif mode == "canister" then "canister" else "auto")
+		b.Text = if mode == "roundShot" then "Round shot" elseif mode == "canister" then "Canister" else "Auto ammo"
 	elseif key == "rally" then
+		local cd = 0
 		for _, f in forms do
-			if f.class == "hq" and f.rallyCd and f.rallyCd > 0 then
-				return string.format("Recharging (%ds)", math.ceil(f.rallyCd))
+			if f.class == "hq" and f.rallyCd and f.rallyCd > cd then
+				cd = f.rallyCd
 			end
+		end
+		if rallyBar then
+			local frac = math.clamp(cd / Config.Units.hq.rally.cooldown, 0, 1)
+			rallyBar.Size = UDim2.new(frac, math.round(4 * frac), 0, 3)
+		end
+		if cd > 0 then
+			return string.format("Recharging (%ds)", math.ceil(cd))
 		end
 	end
 	return nil
@@ -612,49 +636,50 @@ end
 
 -- ------------------------------------------------------------------ lifecycle
 
-local function updateTopBar()
-	if clockLabel then
-		clockLabel.Text = Kit.formatClock(BattleState.clock)
+local function buildMinimap(sg: ScreenGui)
+	local m = BattleState.map
+	local w = 200
+	local h = if m then math.round(w * m.depth / m.width) else 150
+	local frame = Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.05, padding = 6 })
+	frame.Name = "MinimapFrame"
+	Minimap.create(frame, UDim2.fromScale(1, 1), UDim2.new(), Vector2.new(0, 0))
+	local n = Kit.title(frame, "N", { size = UDim2.fromOffset(14, 14), position = UDim2.new(0.5, 0, 0, -6), anchor = Vector2.new(0.5, 0.5), textSize = 14, align = Enum.TextXAlignment.Center })
+	n.BackgroundTransparency = 0
+	n.BackgroundColor3 = Kit.CREAM
+	n.ZIndex = 10
+	if m then
+		task.spawn(Minimap.paint, m)
 	end
-	if lagLabel then
-		lagLabel.Text = if BattleState.simLag > 0.5 then string.format("lag %.1fs", BattleState.simLag) else ""
-	end
-	for s, b in speedButtons do
-		Kit.setActiveLook(b, BattleState.speed == s)
-		Kit.setEnabled(b, BattleState.isCommander, "Only the commander sets the speed")
-	end
-	if pauseButton then
-		pauseButton.Text = if BattleState.state == "paused" then "Resume" else "Pause"
-		Kit.setActiveLook(pauseButton, BattleState.state == "paused")
-		Kit.setEnabled(pauseButton, BattleState.isCommander, "Only the commander may pause")
-	end
+end
+
+local function refreshAll()
+	updateTopBar()
+	updateObjectives()
+	CardBar.update()
+	updateInspector()
+	HUD.refreshCommands()
 end
 
 function HUD.show(callbacks: Callbacks)
 	HUD.destroy()
 	cb = callbacks
+	weather = if BattleState.scenario then BattleState.scenario.weather else nil
 	local sg = Kit.screen("EoEHUD", 10)
 	buildTopBar(sg)
 	buildTicker(sg)
-	buildRoster(sg)
 	buildInspector(sg)
-	buildCommandBar(sg)
-	local m = BattleState.map
-	local mmH = if m then math.round(200 * m.depth / m.width) else 150
-	Minimap.create(sg, UDim2.fromOffset(200, mmH), UDim2.new(1, -8, 1, -8), Vector2.new(1, 1))
-	if BattleState.map then
-		task.spawn(Minimap.paint, BattleState.map)
-	end
+	buildCommandPanel(sg)
+	CardBar.create(sg)
+	buildMinimap(sg)
 	gui = sg
-	table.insert(conns, BattleState.updated:Connect(function()
-		updateTopBar()
-		updateObjectives()
-		updateRoster()
-		updateInspector()
-		HUD.refreshCommands()
+	table.insert(conns, BattleState.updated:Connect(function(snap: any)
+		if type(snap) == "table" and type(snap.weather) == "string" then
+			weather = snap.weather
+		end
+		refreshAll()
 	end))
 	table.insert(conns, Selection.changed:Connect(function()
-		updateRoster()
+		CardBar.update()
 		updateInspector()
 		HUD.refreshCommands()
 	end))
@@ -666,27 +691,24 @@ function HUD.show(callbacks: Callbacks)
 			HUD.refreshCommands()
 		end
 	end))
-	updateTopBar()
-	updateObjectives()
-	updateRoster()
-	updateInspector()
-	HUD.refreshCommands()
+	refreshAll()
 end
 
 function HUD.onEvent(ev: any)
-	local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
-	local who = if ev.faction then (names[ev.faction] or ev.faction) else nil
 	local f = if ev.id then BattleState.formations[ev.id] else nil
 	local name = if f and f.name then f.name else (if ev.id then "#" .. tostring(ev.id) else nil)
+	local ours = ev.faction == BattleState.viewerFaction
 	local kind = ev.kind
 	if kind == "message" and ev.text then
 		HUD.message(ev.text)
 	elseif kind == "rout" and name then
-		HUD.message(name .. " is routing!", if ev.faction == BattleState.viewerFaction then Kit.HOSTILE else Kit.CREAM)
+		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.SELECT, true)
 	elseif kind == "rally" and name then
 		HUD.message(name .. " has rallied.")
 	elseif kind == "capture" then
-		HUD.message(string.format("%s captured %s", who or "Someone", ev.text or "an objective"))
+		local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
+		local who = if ev.faction then (names[ev.faction] or Kit.factionName(ev.faction)) else "Someone"
+		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.SELECT else Kit.HOSTILE, true)
 	elseif kind == "destroyed" and name then
 		HUD.message(name .. " is destroyed.", Kit.HOSTILE)
 	elseif kind == "charge" and name then
@@ -699,6 +721,7 @@ function HUD.update(_dt: number)
 		return
 	end
 	updateTicker()
+	CardBar.animate()
 	Minimap.update()
 end
 
@@ -708,6 +731,7 @@ function HUD.destroy()
 	end
 	table.clear(conns)
 	Minimap.destroy()
+	CardBar.destroy()
 	if gui then
 		gui:Destroy()
 		gui = nil
@@ -715,19 +739,18 @@ function HUD.destroy()
 	cb = nil
 	clockLabel = nil
 	lagLabel = nil
+	weatherLabel = nil
 	pauseButton = nil
+	balanceOwn = nil
 	objectiveStrip = nil
 	tickerFrame = nil
-	rosterScroll = nil
-	rosterKey = ""
 	inspector = nil
 	inspectorBarFill = nil
+	rallyBar = nil
 	toast = nil
 	table.clear(speedButtons)
 	table.clear(objectiveChips)
 	table.clear(tickerLines)
-	table.clear(rosterRows)
-	table.clear(arrivingRows)
 	table.clear(inspectorFields)
 	table.clear(commandButtons)
 end

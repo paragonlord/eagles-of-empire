@@ -24,7 +24,7 @@ Kit.PRUSSIA = rgb(P.Prussia)
 Kit.MUTED = Color3.fromRGB(120, 108, 96)
 Kit.PANEL_DARK = Color3.fromRGB(224, 214, 190)
 Kit.GOLD = Color3.fromRGB(184, 148, 62)
-Kit.MORALE: { [string]: Color3 } = {
+Kit.MORALE = {
 	steady = Color3.fromRGB(88, 128, 64),
 	shaken = Color3.fromRGB(206, 160, 52),
 	routing = Color3.fromRGB(178, 58, 44),
@@ -194,7 +194,11 @@ local function showTooltip(text: string)
 	local t = tooltip :: TextLabel
 	t.Text = text
 	local m = UserInputService:GetMouseLocation()
-	t.Position = UDim2.fromOffset(m.X + 14, m.Y - 44)
+	local cam = workspace.CurrentCamera
+	local maxX = if cam then cam.ViewportSize.X - 248 else m.X + 14
+	-- grows upward from just above the cursor and stays on screen at the right edge
+	t.AnchorPoint = Vector2.new(0, 1)
+	t.Position = UDim2.fromOffset(math.min(m.X + 14, maxX), math.max(m.Y - 10, 40))
 	t.Visible = true
 end
 
@@ -260,6 +264,17 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 	end)
 	b.MouseLeave:Connect(hideTooltip)
 	return b
+end
+
+-- Hover text for any GUI object; the text is computed when the pointer arrives.
+function Kit.hoverTip(obj: GuiObject, text: () -> string)
+	obj.MouseEnter:Connect(function()
+		local t = text()
+		if t ~= "" then
+			showTooltip(t)
+		end
+	end)
+	obj.MouseLeave:Connect(hideTooltip)
 end
 
 -- Disabled buttons stay visible (dimmed) and explain themselves on hover.
