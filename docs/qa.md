@@ -318,6 +318,27 @@ its tooltip shows the effect text. Hohenlohe's AI used Inspire three times in on
 - Open: the plates are now very large at the default deployment zoom and cover most of the field
   (`plates-after-ability.jpg`); fog weather still gives the whole map a strong teal tint.
 
+**2026-10-17 round 9 (moments and quick battles), builds 4ac313f → 554deef.** Boots clean on every
+build. Battle select now has Quick (8–10 min) and Full (25–30 min) tabs with episode cards under
+each battle (`battle-select-tabs.jpg`); the episode briefing with "What happened" reads well
+(`episode-briefing.jpg`). Played "Lannes on the Landgrafenberg" twice at ×4: fog lifts at 4:00 as
+the briefing promises, the "The fog lifts" moment fires with letterbox bars, a camera pan and the
+title card (`moment-card.jpg`); the episode ends at 10:00 as a Draw with sane totals. No EoE errors.
+- Fixed: generals without a named commander showed as **"Staff"**: the ticker read "Staff: Inspire
+  (4 formations)" for Tauentzien, and the HQ inspector and ability button would read "General
+  Staff". New `Generals.displayName(g, hqName)` names a generic HQ after its formation
+  ("Tauentzien — Avantgarde HQ" → "Tauentzien"); used by the ability event text and both HUD
+  spots. Checked on a Sim copy of the episode: "Tauentzien: Inspire (1 formation)".
+- Open, the moment card: (1) it stays up 4 real seconds; at ×4 that is 16 game seconds of battle
+  passing while the player reads two lines; pause or drop to ×1 while it shows, or hold ~7 s.
+  (2) The band is 30 % transparent, so bright ground names and white unit plates show through the
+  title (`moment-card.jpg`: "Landgrafenberg" sits across "THE FOG LIFTS", the battery's plate
+  over the band's top edge); 0.1 or a darker band would keep it clean. (3) Moments do not appear
+  in the results chronicle; "04:00 The fog lifts" there would tie the story together.
+- Open: the second moment ("Closewitz is carried") needs Closewitz taken; in my ×4 attack-move run
+  France took Cospeda but not Closewitz in 10 minutes, so it never showed. Chronicle still writes
+  "prussia captured Cospeda" in lowercase ids.
+
 ## Known failures
 
 None recorded yet.

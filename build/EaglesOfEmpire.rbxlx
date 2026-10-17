@@ -1289,6 +1289,15 @@ local LIST: { General } = {
 -- Any HQ without a named commander.
 Generals.generic = { id = "generic", name = "Staff", nation = "", rank = "General", match = {}, traits = {}, ability = inspire() } :: General
 
+-- The name to show for `g` commanding the HQ formation called `hqName`: a generic HQ is named
+-- after its formation ("Tauentzien — Avantgarde HQ" -> "Tauentzien") instead of "Staff".
+function Generals.displayName(g: General, hqName: string?): string
+	if g.id ~= "generic" or hqName == nil then
+		return g.name
+	end
+	return string.match(hqName, "^(.-)%s+—") or hqName
+end
+
 Generals.list = LIST
 Generals.byId = {} :: { [string]: General }
 for _, g in LIST do
@@ -12417,7 +12426,7 @@ function Abilities.use(sim: SimLike, hq: Formation, data: any): (boolean, string
 		addEffect(sim, hq, ab, list, { accuracy = 1.5 })
 	end
 	Abilities.state(sim).readyTick[hq.id] = sim.tick + math.floor(ab.cooldown / DT)
-	local text = string.format("%s: %s (%d formation%s)", g.name, ab.name, #list, if #list == 1 then "" else "s")
+	local text = string.format("%s: %s (%d formation%s)", Generals.displayName(g, hq.name), ab.name, #list, if #list == 1 then "" else "s")
 	-- No id or position: both sides hear the cheer, nobody learns where the general stands.
 	sim.emit(sim, { kind = "ability", tick = sim.tick, faction = hq.faction, text = text, n = #list })
 	sim.log(sim, text)
@@ -23805,7 +23814,7 @@ local function updateInspector()
 	local ammoKey = p:FindFirstChild("ammoKey") :: TextLabel?
 	local g = if f.class == "hq" and f.general then Generals.byId[f.general] else nil
 	if ammoKey then
-		ammoKey.Text = if g then g.rank .. " " .. g.name else "Ammunition"
+		ammoKey.Text = if g then g.rank .. " " .. Generals.displayName(g, f.name) else "Ammunition"
 	end
 	if g then
 		local names = {}
@@ -24013,7 +24022,7 @@ local function refreshAbility()
 	end
 	local g = Generals.byId[f.general]
 	local ab = g.ability
-	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, g.name)
+	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, Generals.displayName(g, f.name))
 	b:SetAttribute("tip", ab.name .. ": " .. ab.text)
 	local left = abilityLeft(f)
 	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")

@@ -451,7 +451,7 @@ local function updateInspector()
 	local ammoKey = p:FindFirstChild("ammoKey") :: TextLabel?
 	local g = if f.class == "hq" and f.general then Generals.byId[f.general] else nil
 	if ammoKey then
-		ammoKey.Text = if g then g.rank .. " " .. g.name else "Ammunition"
+		ammoKey.Text = if g then g.rank .. " " .. Generals.displayName(g, f.name) else "Ammunition"
 	end
 	if g then
 		local names = {}
@@ -659,7 +659,7 @@ local function refreshAbility()
 	end
 	local g = Generals.byId[f.general]
 	local ab = g.ability
-	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, g.name)
+	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, Generals.displayName(g, f.name))
 	b:SetAttribute("tip", ab.name .. ": " .. ab.text)
 	local left = abilityLeft(f)
 	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")

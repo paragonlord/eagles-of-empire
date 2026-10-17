@@ -393,7 +393,7 @@ function Abilities.use(sim: SimLike, hq: Formation, data: any): (boolean, string
 		addEffect(sim, hq, ab, list, { accuracy = 1.5 })
 	end
 	Abilities.state(sim).readyTick[hq.id] = sim.tick + math.floor(ab.cooldown / DT)
-	local text = string.format("%s: %s (%d formation%s)", g.name, ab.name, #list, if #list == 1 then "" else "s")
+	local text = string.format("%s: %s (%d formation%s)", Generals.displayName(g, hq.name), ab.name, #list, if #list == 1 then "" else "s")
 	-- No id or position: both sides hear the cheer, nobody learns where the general stands.
 	sim.emit(sim, { kind = "ability", tick = sim.tick, faction = hq.faction, text = text, n = #list })
 	sim.log(sim, text)

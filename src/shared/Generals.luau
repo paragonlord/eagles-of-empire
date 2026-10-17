@@ -176,6 +176,15 @@ local LIST: { General } = {
 -- Any HQ without a named commander.
 Generals.generic = { id = "generic", name = "Staff", nation = "", rank = "General", match = {}, traits = {}, ability = inspire() } :: General
 
+-- The name to show for `g` commanding the HQ formation called `hqName`: a generic HQ is named
+-- after its formation ("Tauentzien — Avantgarde HQ" -> "Tauentzien") instead of "Staff".
+function Generals.displayName(g: General, hqName: string?): string
+	if g.id ~= "generic" or hqName == nil then
+		return g.name
+	end
+	return string.match(hqName, "^(.-)%s+—") or hqName
+end
+
 Generals.list = LIST
 Generals.byId = {} :: { [string]: General }
 for _, g in LIST do
