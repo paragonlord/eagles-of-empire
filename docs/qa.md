@@ -42,6 +42,22 @@ Roblox Studio; not run in this environment). Source checks are not in-engine che
 | Frame rate with normal roster and stress fixture; instance counts; restart leak check | blocked |
 | Terrain visual vs reference image (image not supplied) | blocked |
 
+## Studio run log
+
+**2026-10-17, Studio 0.743, Mac, 1 local client.**
+- Pass: boot → menu → Play Battle → deployment → Start Battle → running; a unit selected and
+  marched. No script errors or warnings from EoE (only Roblox CorePackages `FoundationProvider`
+  noise).
+- Fixed: voxel ground drew 2.0 studs above `Grid.heightAt` everywhere, burying ground labels and
+  objective rings and sinking figures. `Terrain.build` now fills half a voxel lower; measured
+  median offset 0.00 after.
+- Fixed: ground labels were unreadable. A Top-face SurfaceGui runs its text along the part's -Z,
+  and TextScaled caps at 100 px. Plates are now long in Z, turned 90°, canvas 400×100.
+- Open (art, not bugs): wide labels on slopes clip at the ends (Lützeroda, Windknollen);
+  Cobblestone roads read as rubble walls up close; olive-gold Grass reads brown at ClockTime 8.4;
+  the camera can see past the map edge into the sky; the diagnostic beacon covers the date in
+  the top bar.
+
 ## Known failures
 
 None recorded yet.

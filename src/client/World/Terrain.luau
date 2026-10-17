@@ -204,7 +204,9 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 					local h = if cls == IDS.bridge and lvl ~= nil then lvl - 3 else g.height[idx]
 					local mat = materialFor(cls, bank[idx] == true)
 					for iy = 1, ny do
-						local yBase = y0 + (iy - 1) * VOXEL
+						-- + half a voxel: Roblox draws the surface VOXEL/2 above a linear fill (measured
+						-- in Studio: +2.0 everywhere), and props/figures sit on Grid.heightAt
+						local yBase = y0 + (iy - 1) * VOXEL + VOXEL / 2
 						local groundOcc = math.clamp((h - yBase) / VOXEL, 0, 1)
 						if lvl ~= nil then
 							-- river bed below, water column up to the surface level

@@ -126,12 +126,14 @@ end
 local function buildLabel(parent: Instance, l: any)
 	local size = 20 * l.size -- modest, mixed case, cream serif
 	local y = groundY(l.pos.x, l.pos.z)
-	local p = part(parent, nil, Vector3.new(size * 4, 0.2, size), CFrame.new(l.pos.x, y + 0.35, l.pos.z), Color3.new(1, 1, 1))
+	-- A Top-face gui runs its text along the part's -Z (checked in Studio), so the plate is long
+	-- in Z and turned 90° to read left-to-right from the default north-facing camera.
+	local p = part(parent, nil, Vector3.new(size, 0.2, size * 4), CFrame.new(l.pos.x, y + 0.35, l.pos.z) * CFrame.Angles(0, math.pi / 2, 0), Color3.new(1, 1, 1))
 	p.Transparency = 1
 	p.CastShadow = false
 	local gui = Instance.new("SurfaceGui") :: SurfaceGui
 	gui.Face = Enum.NormalId.Top
-	gui.CanvasSize = Vector2.new(1600, 400)
+	gui.CanvasSize = Vector2.new(400, 100) -- TextScaled stops at 100 px, so the canvas is 100 tall
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
 	gui.Parent = p
@@ -143,8 +145,6 @@ local function buildLabel(parent: Instance, l: any)
 	text.Text = l.text
 	text.TextColor3 = rgb(P.Cream)
 	text.TextTransparency = 0.4
-	-- ponytail: Top-face gui orientation is unverified without Studio; if names read mirrored,
-	-- rotate the part by CFrame.Angles(0, math.pi, 0) here.
 	text.Parent = gui
 	table.insert(labelParts, { part = p, size = size })
 end
@@ -246,7 +246,7 @@ function Props.updateLabels(cameraHeight: number)
 	lastLabelK = k
 	for _, l in labelParts do
 		local s = l.size * k
-		l.part.Size = Vector3.new(s * 4, 0.2, s)
+		l.part.Size = Vector3.new(s, 0.2, s * 4)
 	end
 end
 
