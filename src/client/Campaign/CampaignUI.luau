@@ -240,7 +240,8 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	if type(units) == "table" then
 		for i, u in units do
 			local k = unitKey(u, i)
-			local r = row(p, 10 + i, 34)
+			local honours = if type(u.honours) == "table" and #u.honours > 0 then table.concat(u.honours, " · ") else nil
+			local r = row(p, 10 + i, if honours then 48 else 34)
 			local x = 0
 			if own then
 				local pick = Kit.button(r, if split[k] then "✓" else "", function()
@@ -258,6 +259,12 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 				local fill = Kit.bar(r, UDim2.new(1, -x - 64, 0, 6), UDim2.fromOffset(x, 21), Data.colour(a.nation):Lerp(Kit.IVORY, 0.2))
 				Kit.setBar(fill, s / math.max(m, 1))
 				Kit.label(r, string.format("%s/%s", fmt(s), fmt(m)), { size = UDim2.fromOffset(60, 14), position = UDim2.new(1, -60, 0, 17), textSize = 11, colour = Kit.MUTED, align = Enum.TextXAlignment.Right })
+			end
+			if honours then
+				-- battle honours under the name, like the battle names on a regiment's colour
+				local h = Kit.label(r, honours, { size = UDim2.new(1, -x, 0, 13), position = UDim2.fromOffset(x, 32), textSize = 12, colour = Kit.GILT })
+				h.FontFace = Kit.ITALIC
+				h.TextTruncate = Enum.TextTruncate.AtEnd
 			end
 		end
 	end

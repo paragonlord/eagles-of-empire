@@ -320,8 +320,9 @@ local function row(parent: Instance, text: string, order: number, props: Kit.Tex
 end
 
 local function unitRow(parent: Instance, u: any, order: number)
+	local honours = if type(u.honours) == "table" and #u.honours > 0 then table.concat(u.honours, " · ") else nil
 	local f = Instance.new("Frame") :: Frame
-	f.Size = UDim2.new(1, 0, 0, 30)
+	f.Size = UDim2.new(1, 0, 0, if honours then 44 else 30)
 	f.BackgroundTransparency = 1
 	f.LayoutOrder = order
 	f.Parent = parent
@@ -341,6 +342,12 @@ local function unitRow(parent: Instance, u: any, order: number)
 	fill.BorderSizePixel = 0
 	fill.Parent = track
 	Kit.label(f, string.format("%d/%d", u.strength, u.maxStrength), { size = UDim2.fromOffset(56, 12), position = UDim2.new(1, -56, 0, 17), textSize = 10, colour = Kit.MUTED, align = Enum.TextXAlignment.Right })
+	if honours then
+		-- battle honours under the name, like the battle names on a regiment's colour
+		local h = Kit.label(f, honours, { size = UDim2.new(1, 0, 0, 12), position = UDim2.fromOffset(0, 29), textSize = 11, colour = Kit.GOLD })
+		h.FontFace = Kit.ITALIC
+		h.TextTruncate = Enum.TextTruncate.AtEnd
+	end
 end
 
 local function armySection(parent: Instance, order: number)
