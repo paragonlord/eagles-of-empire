@@ -50,3 +50,30 @@ test("Grand client: reasons, terms, summary and phase gating read well", functio
 	assertTrue(not Logic.canAct({ phase = "battle" }), "no orders during a battle")
 	assertTrue(not Logic.canAct({ phase = "player", victory = { outcome = "draw" } }), "no orders after the end")
 end)
+
+test("Grand client: the battle prompt lists every army and takes odds from the totals", function()
+	local view = {
+		playerNation = "france",
+		armies = {
+			a1 = { id = "a1", nation = "france", name = "Grande Armée", men = 6040 },
+			a2 = { id = "a2", nation = "france", name = "II Corps", men = 3560 },
+			a3 = { id = "a3", nation = "austria", name = "Army of Italy", men = 13623 },
+		},
+	}
+	local pb = { attacker = "a1", defender = "a3", attackerNation = "france", defenderNation = "austria", attackers = { "france" }, defenders = { "austria" }, odds = "even" }
+	local att, def, odds = Logic.battleSides(view, pb)
+	assertEq(#att.armies, 1, "lead army only without pb.armies")
+	assertEq(odds, "poor", "6,040 v 13,623")
+	pb.armies = { attacker = { "a1", "a2" }, defender = { "a3" } }
+	att, def, odds = Logic.battleSides(view, pb)
+	assertEq(#att.armies, 2)
+	assertEq(att.men, 9600)
+	assertEq(def.nation, "austria")
+	assertEq(odds, "poor", "9,600 v 13,623 is still poor")
+	pb.attackerMen, pb.defenderMen = 14000, 10000
+	_, _, odds = Logic.battleSides(view, pb)
+	assertEq(odds, "favourable", "server totals win")
+	view.playerNation = "austria"
+	_, _, odds = Logic.battleSides(view, pb)
+	assertEq(odds, "poor", "odds from the player's side")
+end)

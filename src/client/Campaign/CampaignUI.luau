@@ -524,29 +524,27 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	local p = modal(sg, 520)
 	local prov = Data.byId[pb.provinceId]
 	Kit.title(p, "Battle at " .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
-	local function side(v: any): (string, string)
-		local a = Logic.army(view, v)
-		if a then
-			return a.nation, string.format("%s · %s men", tostring(a.name), fmt(a.men or a.strength))
-		end
-		return tostring(v), ""
-	end
-	local an, ad = side(pb.attacker)
-	local dn, dd = side(pb.defender)
-	an, dn = pb.attackerNation or an, pb.defenderNation or dn
-	local sides = row(p, 2, 70)
-	for i, s in { { an, ad, "Attacker" }, { dn, dd, "Defender" } } do
+	local att, def, odds = Logic.battleSides(view, pb)
+	local sides = row(p, 2, 0)
+	sides.AutomaticSize = Enum.AutomaticSize.Y
+	for i, sd in { att, def } do
 		local f = Instance.new("Frame") :: Frame
-		f.Size = UDim2.new(0.5, -30, 1, 0)
-		f.Position = if i == 1 then UDim2.new() else UDim2.new(0.5, 30, 0, 0)
+		f.Size = UDim2.new(0.5, -24, 0, 0)
+		f.AutomaticSize = Enum.AutomaticSize.Y
+		f.Position = if i == 1 then UDim2.new() else UDim2.new(0.5, 24, 0, 0)
 		f.BackgroundTransparency = 1
 		f.Parent = sides
-		flag(f, s[1], 36, 24, UDim2.new(0.5, -20, 0, 0))
-		Kit.label(f, string.format("%s: %s", s[3], Data.name(s[1])), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 36), textSize = 15, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center })
-		Kit.label(f, s[2], { size = UDim2.new(1, 0, 0, 14), position = UDim2.fromOffset(0, 54), textSize = 12, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		local l = Kit.list(f, 3)
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		flag(row(f, 0, 30), sd.nation, 36, 24, UDim2.new(0.5, -20, 0, 0))
+		text(f, string.format("%s: %s", if i == 1 then "Attacker" else "Defender", Data.name(sd.nation)), 1, { textSize = 15, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center })
+		text(f, fmt(sd.men) .. " men", 2, { textSize = 18, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.GILT_BRIGHT })
+		for j, a in sd.armies do
+			local general = if a.general then string.format("%s%s", tostring(a.general), if a.rating then " " .. string.rep("★", math.clamp(math.floor(tonumber(a.rating) or 0), 0, 5)) else "") else "no general"
+			text(f, string.format("%s · %s men\n%s", tostring(a.name), fmt(a.men or a.strength), general), 2 + j, { textSize = 12, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		end
 	end
-	Kit.title(sides, "vs", { size = UDim2.fromOffset(60, 30), position = UDim2.new(0.5, 0, 0, 0), anchor = Vector2.new(0.5, 0), textSize = 22, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
-	local odds = tostring(pb.odds or "even")
+	Kit.title(sides, "vs", { size = UDim2.fromOffset(48, 30), position = UDim2.new(0.5, 0, 0, 0), anchor = Vector2.new(0.5, 0), textSize = 22, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
 	text(p, "The odds are " .. odds .. ".", 3, { align = Enum.TextXAlignment.Center, textSize = 16, colour = if odds == "favourable" then Kit.MORALE.steady elseif odds == "poor" then Kit.HOSTILE else Kit.IVORY })
 	if pb.scenarioId then
 		text(p, "This is the field of a famous battle: the historical engagement will be fought.", 4, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
@@ -598,7 +596,7 @@ local function victoryDoc(sg: ScreenGui, ctx: Ctx, v: any)
 end
 
 local function pickerDoc(sg: ScreenGui, reason: string)
-	local p = modal(sg, 560)
+	local p = modal(sg, 680)
 	Kit.title(p, "Choose your nation", { size = UDim2.new(1, 0, 0, 32), textSize = 26, align = Enum.TextXAlignment.Center, rule = true }).LayoutOrder = 1
 	local sub = text(p, "Europe, January 1805. Eleven years to decide its fate.", 2, { align = Enum.TextXAlignment.Center, textSize = 16, colour = Kit.MUTED })
 	sub.FontFace = Kit.ITALIC
@@ -608,7 +606,7 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 	local grid = row(p, 4, 0)
 	grid.AutomaticSize = Enum.AutomaticSize.Y
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(160, 44)
+	g.CellSize = UDim2.fromOffset(200, 44)
 	g.CellPadding = UDim2.fromOffset(8, 8)
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -626,9 +624,14 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 		local b = Kit.button(grid, Data.name(id), function()
 			pickerReason = nil
 			send("newCampaign", { nation = id })
-		end, { order = i :: number, textSize = 16, caps = false })
-		b.TextXAlignment = Enum.TextXAlignment.Right
-		flag(b, id, 30, 20, UDim2.fromOffset(6, 7))
+		end, { order = i :: number, textSize = 15, caps = false })
+		b.TextXAlignment = Enum.TextXAlignment.Left
+		b.TextTruncate = Enum.TextTruncate.AtEnd
+		local lift = b:FindFirstChild("Lift") :: UIPadding?
+		if lift then
+			lift.PaddingLeft = UDim.new(0, 46)
+		end
+		flag(b, id, 30, 20, UDim2.fromOffset(8 - 46, 7)) -- the padding moves children too
 	end
 	Kit.button(p, "Main Menu", function()
 		if cb then

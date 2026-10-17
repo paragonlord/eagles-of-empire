@@ -114,6 +114,10 @@ function CampaignCamera.focusOn(x: number, z: number, snap: boolean?)
 	end
 end
 
+function CampaignCamera.height(): number
+	return cur.height
+end
+
 function CampaignCamera.stop()
 	if not running then
 		return

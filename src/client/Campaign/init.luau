@@ -195,6 +195,9 @@ local function open()
 	CampaignCamera.start(x0, z0, x1, z1, y, focus.X, focus.Z)
 	table.insert(conns, UserInputService.InputBegan:Connect(onInput))
 	table.insert(conns, UserInputService.InputChanged:Connect(onMove))
+	table.insert(conns, (game:GetService("RunService") :: RunService).RenderStepped:Connect(function()
+		Board.updateLabels(CampaignCamera.height())
+	end))
 	if hooks then
 		hooks.shown()
 	end

@@ -222,6 +222,37 @@ local function nationName(id: string?): string
 	return if n then n.name else tostring(id)
 end
 
+export type Side = { nation: string, armies: { any }, men: number }
+
+-- Both sides of a pending battle: every army that fights (`pb.armies`, else the lead armies),
+-- the side totals (`attackerMen`/`defenderMen`, else summed) and the odds from the player's side.
+function Logic.battleSides(view: any, pb: any): (Side, Side, string)
+	local function side(key: string, nation: any, lead: any, total: any): Side
+		local ids = if type(pb.armies) == "table" and type(pb.armies[key]) == "table" then pb.armies[key] else { lead }
+		local list, sum = {}, 0
+		for _, id in ids do
+			local a = Logic.army(view, id)
+			if a then
+				table.insert(list, a)
+				sum += tonumber(a.men or a.strength) or 0
+			end
+		end
+		local first = list[1]
+		return { nation = tostring(nation or (if first then first.nation else "")), armies = list, men = tonumber(total) or sum }
+	end
+	local att = side("attacker", pb.attackerNation, pb.attacker, pb.attackerMen)
+	local def = side("defender", pb.defenderNation, pb.defender, pb.defenderMen)
+	local player = view.playerNation
+	local mineIsDefender = att.nation ~= player and (def.nation == player or table.find(pb.defenders or {}, player) ~= nil)
+	local mine, theirs = if mineIsDefender then def.men else att.men, if mineIsDefender then att.men else def.men
+	local odds = tostring(pb.odds or "even")
+	if mine > 0 and theirs > 0 then
+		local r = mine / theirs
+		odds = if r >= 1.25 then "favourable" elseif r <= 0.8 then "poor" else "even"
+	end
+	return att, def, odds
+end
+
 -- One readable sentence for a diplomatic offer.
 function Logic.offerText(o: any): string
 	local t = o.terms

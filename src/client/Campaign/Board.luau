@@ -44,6 +44,10 @@ type Edge = { a: { x: number, z: number }, b: { x: number, z: number }, provs: {
 local edges: { [string]: Edge } = {}
 local armyModels: { [any]: Model } = {}
 local highlight: Highlight? = nil
+type Label = { part: BasePart, base: number, at: Vector3 }
+local labels: { Label } = {}
+local labelK = 0
+local FIG = 1.6 -- figure scale
 
 function Board.toWorld(x: number, z: number, y: number?): Vector3
 	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or LAND), ORIGIN.Z - z * S)
@@ -208,7 +212,7 @@ end
 
 -- Same technique as World/Props ground labels: a Top-face SurfaceGui (400×100 canvas) whose
 -- text runs along the part's -Z, here turned -90° so it reads left-to-right looking along -Z.
-local function groundLabel(parent: Instance, text: string, pos: Vector3, height: number)
+local function groundLabel(parent: Instance, text: string, pos: Vector3, height: number): BasePart
 	local len = height * 4
 	local p = part(parent, Vector3.new(height, 0.2, len), CFrame.new(pos) * CFrame.Angles(0, -math.pi / 2, 0), Color3.new(1, 1, 1))
 	p.Transparency = 1
@@ -229,6 +233,7 @@ local function groundLabel(parent: Instance, text: string, pos: Vector3, height:
 	l.TextStrokeTransparency = 0.55
 	l.TextTransparency = 0.1
 	l.Parent = gui
+	return p
 end
 
 local function house(parent: Instance, pos: Vector3, w: number, d: number, h: number, yaw: number)
@@ -358,12 +363,15 @@ function Board.build()
 			end
 		end
 		local c = Board.toWorld(p.centre.x, p.centre.z)
-		groundLabel(statics, p.name, c + Vector3.new(0, 0.25, 10), 4.5)
+		local nation = Data.Nations[p.owner1805]
+		local base = if p.isCapital and nation and nation.capital == p.id and nation.major then 9 elseif p.isCapital then 7.5 else 6
+		local at = c + Vector3.new(0, 0.25, 0)
+		table.insert(labels, { part = groundLabel(statics, p.name, at + Vector3.new(0, 0, 14 + base * 0.5), base), base = base, at = at })
 		if p.isCapital then
-			capital(statics, c + Vector3.new(-7, 0, -9))
+			capital(statics, c + Vector3.new(-17, 0, -15))
 		end
 		if (p.fort or 0) > 0 then
-			bastion(statics, c + Vector3.new(8, 0, -9), p.fort)
+			bastion(statics, c + Vector3.new(17, 0, -15), p.fort)
 		end
 	end
 	-- piers on the nearest stretch of coast of each port
@@ -491,18 +499,21 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	cylinder(m, pos + Vector3.new(poleX, top + 5, 0), 10, 0.25, Kit.GILT_DARK)
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
-	bb.Size = UDim2.fromOffset(78, 18)
-	bb.StudsOffset = Vector3.new(0, -1.6, 0)
+	bb.Size = UDim2.new(7, 64, 1.4, 16) -- grows when zoomed in, never below 64×16 px
+	bb.StudsOffset = Vector3.new(0, -2.5, 0)
 	bb.LightInfluence = 0
 	bb.Adornee = plinth
 	bb.Parent = m
 	local plate = Kit.label(bb, string.format("%d · %d", math.floor(tonumber(a.men or a.strength) or 0), math.floor(tonumber(a.unitCount) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	plate.TextScaled = true
 	plate.BackgroundTransparency = 0.1
 	plate.BackgroundColor3 = Kit.WALNUT
 	local st = Instance.new("UIStroke") :: UIStroke
 	st.Color = Kit.GILT
 	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	st.Parent = plate
+	m.WorldPivot = CFrame.new(pos)
+	m:ScaleTo(FIG)
 	m.Parent = parent
 	return m
 end
@@ -553,8 +564,11 @@ function Board.setView(view: any?)
 				return tostring(x.id) < tostring(y.id)
 			end)
 			local c = Board.toWorld(p.centre.x, p.centre.z)
+			local n = #list
+			local r = if n == 1 then 0 else 5 + 2.4 * n * FIG
 			for i, a in list do
-				armyModels[a.id] = figure(d, a, c + Vector3.new((i - 1) * 8.5 - (#list - 1) * 4.25, 0, 0))
+				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
+				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
 			end
 		end
 	end
@@ -676,6 +690,22 @@ function Board.destroy()
 	table.clear(baseColour)
 	table.clear(edges)
 	table.clear(armyModels)
+	table.clear(labels)
+	labelK = 0
+end
+
+-- Names grow with the camera height so they stay readable (never below their table size).
+function Board.updateLabels(cameraHeight: number)
+	local k = math.clamp(cameraHeight / 220, 1, 2.6)
+	if math.abs(k - labelK) < 0.03 then
+		return
+	end
+	labelK = k
+	for _, l in labels do
+		local h = l.base * k
+		l.part.Size = Vector3.new(h, 0.2, h * 4)
+		l.part.CFrame = CFrame.new(l.at + Vector3.new(0, 0, 14 + h * 0.5)) * CFrame.Angles(0, -math.pi / 2, 0)
+	end
 end
 
 return Board
