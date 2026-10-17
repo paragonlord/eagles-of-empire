@@ -7,7 +7,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local RNG = require(Shared.RNG)
 local EuropeData = require(Shared.EuropeData)
 
-export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number }
+export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number, honours: { string }? }
 export type General = { name: string, rating: number }
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number }
 export type Siege = { by: string, turnsLeft: number }
@@ -61,6 +61,8 @@ State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
 State.MAX_ARMIES = 16 -- per nation
 State.MAX_QUEUE = { major = 6, minor = 2 }
+State.MAX_HONOURS = 5 -- battle honours per unit; the oldest gives way
+State.HONOUR_LEN = 40
 
 -- Basics -------------------------------------------------------------------------------------------
 
@@ -106,6 +108,19 @@ function State.log(s: State, text: string)
 	while #s.log > State.LOG_MAX do
 		table.remove(s.log, 1)
 	end
+end
+
+-- Battle honour ("Austerlitz 1805") carried by a unit that won; at most MAX_HONOURS, no repeats.
+function State.addHonour(u: Unit, honour: string)
+	local h = u.honours or {}
+	if table.find(h, honour) then
+		return
+	end
+	h[#h + 1] = string.sub(honour, 1, State.HONOUR_LEN)
+	while #h > State.MAX_HONOURS do
+		table.remove(h, 1)
+	end
+	u.honours = h
 end
 
 function State.newId(s: State, prefix: string): string

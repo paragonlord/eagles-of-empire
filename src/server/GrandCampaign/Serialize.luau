@@ -61,6 +61,18 @@ local function validArmy(a: any): boolean
 		if u.strength < 0 or u.strength > u.maxStrength or u.experience < 0 or u.experience > 3 then
 			return false
 		end
+		if u.honours ~= nil then
+			if type(u.honours) ~= "table" or #u.honours > State.MAX_HONOURS then
+				return false
+			end
+			local n = 0
+			for _, h in u.honours do
+				n += 1
+				if type(h) ~= "string" or #h > State.HONOUR_LEN or n > State.MAX_HONOURS then
+					return false
+				end
+			end
+		end
 	end
 	return true
 end

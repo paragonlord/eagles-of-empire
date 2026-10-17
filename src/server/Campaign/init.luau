@@ -22,7 +22,7 @@ local Scenarios = require(Shared.Scenarios)
 local Types = require(Shared.Types)
 local CampaignData = require(Shared.CampaignData)
 
-export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number }
+export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number, honours: { string }? }
 export type Army = { id: number, faction: string, name: string, regionId: string, units: { Unit }, movesLeft: number, supplied: boolean }
 export type Recruit = { faction: string, regionId: string, unitType: string, turnsLeft: number, name: string }
 export type Battle = { battleId: string, regionId: string, attacker: string, defender: string, turn: number }
@@ -63,6 +63,39 @@ local ECON = CampaignData.Economy
 local LOG_MAX = 40
 local APPLIED_MAX = 64
 local PHASES = { player = true, battle = true, ended = true }
+local HONOUR_YEAR = 1806 -- the whole campaign is October 1806
+local MAX_HONOURS = 5 -- per unit; the oldest gives way
+local HONOUR_LEN = 40
+
+-- Battle honour ("Jena 1806") carried by a unit that won; bounded, no repeats.
+local function addHonour(u: Unit, honour: string)
+	local h = u.honours or {}
+	if table.find(h, honour) then
+		return
+	end
+	h[#h + 1] = string.sub(honour, 1, HONOUR_LEN)
+	while #h > MAX_HONOURS do
+		table.remove(h, 1)
+	end
+	u.honours = h
+end
+
+local function validHonours(h: any): boolean
+	if h == nil then
+		return true
+	end
+	if type(h) ~= "table" then
+		return false
+	end
+	local n = 0
+	for _, v in h do
+		n += 1
+		if type(v) ~= "string" or #v > HONOUR_LEN or n > MAX_HONOURS then
+			return false
+		end
+	end
+	return true
+end
 
 -- Helpers ------------------------------------------------------------------------------------
 
@@ -738,7 +771,9 @@ function Campaign.applyBattleResult(state: State, battleId: string, results: Typ
 	end
 	local winner = if results.outcome == "victory" then PLAYER elseif results.outcome == "defeat" then ENEMY else b.defender
 	local loser = other(winner)
+	local honour = string.format("%s %d", region(b.regionId).name, HONOUR_YEAR)
 	for _, a in armiesIn(state, b.regionId) do
+		local honoured = 0
 		for i = #a.units, 1, -1 do
 			local u = a.units[i]
 			local s = survivors[u.key]
@@ -753,8 +788,13 @@ function Campaign.applyBattleResult(state: State, battleId: string, results: Typ
 				end
 				if a.faction == winner then
 					u.experience = math.min(3, u.experience + 1)
+					addHonour(u, honour)
+					honoured += 1
 				end
 			end
+		end
+		if honoured > 0 then
+			log(state, string.format("%s: %d unit%s carry the battle honour \"%s\".", a.name, honoured, if honoured == 1 then "" else "s", honour))
 		end
 	end
 	state.owners[b.regionId] = winner
@@ -922,7 +962,7 @@ local function validArmy(a: any): boolean
 		if type(u) ~= "table" or type(u.key) ~= "string" or not CampaignData.UnitTypes[u.type] or type(u.name) ~= "string" or not isNum(u.strength) or not isNum(u.maxStrength) or not isNum(u.experience) then
 			return false
 		end
-		if u.strength < 0 or u.strength > u.maxStrength or u.experience < 0 or u.experience > 3 then
+		if u.strength < 0 or u.strength > u.maxStrength or u.experience < 0 or u.experience > 3 or not validHonours(u.honours) then
 			return false
 		end
 	end

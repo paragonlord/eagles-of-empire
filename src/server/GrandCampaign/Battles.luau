@@ -214,8 +214,10 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 		frac[sd] = if initial[sd] > 0 then math.clamp(kept[sd] / initial[sd], 0, 1) else 1
 	end
 	local destroyedArmy = false
+	local honour = Battles.honourName(b)
 	for _, a in Battles.armies(s, b) do
 		local sd = sideOf(b, a.nation) :: string
+		local honoured = 0
 		for i = #a.units, 1, -1 do
 			local u = a.units[i]
 			local sv = survivors[u.key]
@@ -234,8 +236,13 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 				u.strength = math.min(strength, u.maxStrength)
 				if sd == winnerSide then
 					u.experience = math.min(3, u.experience + 1)
+					State.addHonour(u, honour)
+					honoured += 1
 				end
 			end
+		end
+		if honoured > 0 and a.nation == s.playerNation then -- chronicle only the player's own
+			State.log(s, string.format("%s: %d unit%s carry the battle honour \"%s\".", a.name, honoured, if honoured == 1 then "" else "s", honour))
 		end
 	end
 	local pname = State.province(b.provinceId).name
@@ -273,6 +280,16 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 		s.usedSetPieces[b.scenarioId] = true
 	end
 	State.log(s, string.format("Battle of %s: %s defeats %s (%s).", pname, State.nationName(winnerNation), State.nationName(if winnerSide == "attackers" then b.defender else b.attacker), reason))
+end
+
+-- "Austerlitz 1805": the set piece's name when there is one, else the province; year of the turn.
+function Battles.honourName(b: Battle): string
+	local year = EuropeData.StartYear + ((b.turn - 1) * 2) // 12
+	local sp = if b.scenarioId then Scenarios.get(b.scenarioId) else nil
+	if sp then
+		return string.format("%s %d", string.match(sp.name, "^[^,]+") or sp.name, sp.year or year)
+	end
+	return string.format("%s %d", State.province(b.provinceId).name, year)
 end
 
 -- Side the human commands in the tactical battle (the attackers when the player is not there).

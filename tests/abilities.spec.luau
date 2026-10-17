@@ -1,4 +1,4 @@
--- Generals: traits, active abilities, validation, bounds, AI use.
+-- Generals: traits, active abilities, validation, bounds, AI use; battle honours persistence.
 local Shared = game:GetService("ReplicatedStorage").EoE
 local Server = game:GetService("ServerScriptService").EoE
 local Config = require(Shared.Config)
@@ -10,6 +10,8 @@ local Generals = require(Shared.Generals)
 local Sim = require(Server.Sim)
 local Abilities = require(Server.Sim.Abilities)
 local AI = require(Server.AI)
+local Campaign = require(Server.Campaign)
+local GrandCampaign = require(Server.GrandCampaign)
 
 local MAP = MapGen.generate("jena")
 local DT = Config.Sim.DT
@@ -417,4 +419,61 @@ test("AI uses its general's ability when two formations near the HQ waver", func
 	assertTrue(used, "ability announced")
 	assertTrue(Abilities.cooldownLeft(sim, 1) > 100, "cooldown respected")
 	assertTrue(sim.formations[2].morale >= 44, "Inspire applied")
+end)
+
+-- Battle honours -----------------------------------------------------------------------------------
+
+local function results(outcome)
+	return { outcome = outcome, reason = "test", clock = 0, objectives = {}, sides = {}, feedback = {}, log = {} }
+end
+
+test("Honours (Thuringia): winners carry 'Jena 1806', bounded at five, survive save and load", function()
+	local state = Campaign.new(5)
+	assertTrue(Campaign.command(state, { kind = "move", armyId = 1, regionId = "jena" }))
+	local _, battles = Campaign.endTurn(state)
+	assertTrue(Campaign.applyBattleResult(state, battles[1].battleId, results("victory"), {}))
+	local a1 = state.armies[1]
+	assertEq(a1.units[2].honours[1], "Jena 1806")
+	local chronicled = false
+	for _, l in state.log do
+		chronicled = chronicled or string.find(l, "battle honour", 1, true) ~= nil
+	end
+	assertTrue(chronicled, "chronicle line")
+	for _, a in state.armies do
+		if a.faction == "prussia" then
+			for _, u in a.units do
+				assertTrue(u.honours == nil, "losers earn none")
+			end
+		end
+	end
+	local u = a1.units[2]
+	u.honours = { "A 1806", "B 1806", "C 1806", "D 1806", "Jena 1806" }
+	local back = Campaign.deserialize(Campaign.serialize(state))
+	assertTrue(back ~= nil, "round trip")
+	assertEq(table.concat(back.armies[1].units[2].honours, "|"), "A 1806|B 1806|C 1806|D 1806|Jena 1806")
+	local p = Campaign.serialize(state)
+	p.armies[1].units[2].honours = { "1", "2", "3", "4", "5", "6" }
+	assertTrue(Campaign.deserialize(p) == nil, "more than five rejected")
+	p.armies[1].units[2].honours = { string.rep("x", 80) }
+	assertTrue(Campaign.deserialize(p) == nil, "overlong honour rejected")
+end)
+
+test("Honours (grand campaign): set-piece name and year, oldest gives way, round trip", function()
+	local State = GrandCampaign.State
+	local u = { key = "u1", type = "line", name = "1er", strength = 100, maxStrength = 100, experience = 0 }
+	for i = 1, 7 do
+		State.addHonour(u, "Battle " .. i)
+	end
+	State.addHonour(u, "Battle 7")
+	assertEq(table.concat(u.honours, ","), "Battle 3,Battle 4,Battle 5,Battle 6,Battle 7", "five most recent, no repeats")
+	local b = { battleId = "b", provinceId = "bohemia", turn = 1, attacker = "france", defender = "austria", attackers = { "france" }, defenders = { "austria" }, scenarioId = "austerlitz", player = true }
+	assertEq(GrandCampaign.Battles.honourName(b), "Austerlitz 1805")
+	local s = State.new(1, "france")
+	local a = s.armies[1]
+	a.units[1].honours = { "Austerlitz 1805" }
+	local back = GrandCampaign.deserialize(GrandCampaign.serialize(s))
+	assertTrue(back ~= nil and back.armies[1].units[1].honours[1] == "Austerlitz 1805", "round trip")
+	local p = GrandCampaign.serialize(s)
+	p.armies[1].units[1].honours = { "1", "2", "3", "4", "5", "6" }
+	assertTrue(GrandCampaign.deserialize(p) == nil, "bounded")
 end)
