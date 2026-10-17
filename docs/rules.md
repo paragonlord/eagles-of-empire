@@ -181,3 +181,60 @@ A unit definition with `arrival = { seconds, pos }` starts **off the map**: hidd
 not deployable, not counted toward collapse or objectives. At `seconds` it appears at `pos`
 (a passable point near the map edge) with a message. Off-map units count as surviving in the
 results and their strength as deployed.
+
+## Generals
+
+Data: `src/shared/Generals.luau` (21 commanders plus a generic staff); sim: `src/server/Sim/Abilities.luau`.
+Every HQ has a general: the unit definition's `general` id, else matched from the HQ name, else the
+generic staff. Corps commanders need no unit: a formation whose corps names a general after the "·"
+("V Corps · Lannes") carries his traits.
+
+**Traits** (two per general, always on, recomputed every tick after commands and the AI):
+*local* traits reach friendly formations within 200 of the general's HQ, or his own corps; *army*
+traits reach the whole army (a corps commander's only his corps). A trait applies once per
+formation however it is reached; some only for a class (cavalry, infantry, guns) or a condition:
+*advancing* (moving or charging toward the enemy's edge) or *crest* (infantry halted with ground at
+least 1.5 higher 30 or 60 ahead). Modifiers and their bounds after stacking:
+
+| Modifier | Effect | Bounds |
+| --- | --- | --- |
+| speed | × movement speed | 0.8 – 1.25 |
+| chargeImpact | × cavalry charge impact | 0.8 – 1.5 |
+| chargeRecovery | × the 40 s charge recovery | 0.6 – 1.3 |
+| accuracy | × musket hit chance and gun hits | 0.8 – 1.6 |
+| melee | × melee casualties dealt | 0.85 – 1.25 |
+| cover | + cover against incoming fire | 0 – 0.2 |
+| recovery | + morale per second (always, also under fire) | 0 – 0.6 |
+| shockFloor | casualty shock cannot push morale below it (other shocks can) | 0 – 30 |
+| hideBeyond | enemies cannot spot it beyond this distance; lifted for 10 s after it fires | 120 |
+| steadyRetreat | a Retreat order costs no cohesion (normally − 0.2) | – |
+
+**Ability** (one per general, command `Ability { abilityId }` on the own HQ only): refused when the
+HQ cannot take orders, the id is not its general's, it is recharging (`cooldown`) or nobody would be
+affected (`noTarget`, no cooldown spent). Instant effects apply when the command applies; timed
+effects hold for the formations in reach at that moment. Both sides see a ticker line naming the
+general and the ability, without his position.
+
+| General | Ability | Effect | Cooldown |
+| --- | --- | --- | --- |
+| Napoléon | Vive l'Empereur! | within 200: routing (not shattered) formations rally; all + 20 morale | 180 s |
+| Ney | Charge! | cavalry within 200: charge impact × 1.3 for 30 s | 120 s |
+| Davout | Hold the line | within 150, 45 s: morale stops at 20 (no rout) unless strength < 30 % | 150 s |
+| Wellington | Up, Guards, and at 'em! | infantry within 250 halted behind a crest: reloaded, fire at will, accuracy × 1.5 for 12 s | 180 s |
+| Blücher | Vorwärts! | within 200: + 10 morale; 60 s of speed × 1.2 and + 0.3 morale/s | 150 s |
+| Kutuzov | Strategic withdrawal | routing (not shattered) within 250 rally, then retreat 200 toward their edge | 180 s |
+| Archduke Charles | Personal example | nearest routing formation within 200 rallies (morale ≥ 45); else nearest shaken + 20 | 90 s |
+| everyone else | Inspire | non-routing formations within 150: + 10 morale | 120 s |
+
+Morale never exceeds 100. The AI uses its HQ's ability through the same command when at least two
+of its formations within the ability's radius are shaken or routing and it is ready. The owner's
+snapshot carries the HQ's `general` and `abilityReadyAt` (sim seconds) and, per formation, `tags`:
+the trait and ability ids acting on it, shown on its card and in the inspector with their full text.
+
+## Battle honours (campaigns)
+
+When a campaign battle is decided, every surviving unit of the winning side gains "<battle> <year>"
+("Jena 1806"; the grand campaign uses the set piece's name, e.g. "Austerlitz 1805", else the
+province and the year of the turn). No repeats; at most 5 per unit, the oldest gives way. The
+campaign log gets one chronicle line per honoured army (the player's own in the grand campaign).
+Profiles with more than 5 honours on a unit, or one longer than 40 characters, are rejected on load.
