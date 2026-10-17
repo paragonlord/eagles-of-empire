@@ -192,6 +192,7 @@ test("Tutorial upkeep: cavalry attack renewed, bloodied Grenzers and crowded Ker
 	tick(m)
 	assertTrue(ordersFor(cav.id, "AttackMove") >= 1 and m.tutorialCavAt > sim.clock, "attack renewed after 10 s")
 	-- lesson 11: Kerpen leaves the village when two French battalions are within 80
+	m.ai = require(Server.AI).new(sim, "austria", "normal")
 	assertTrue(step(m, true, 11))
 	local kerpen = named("IR 49 Kerpen")
 	local n = 0
@@ -210,4 +211,53 @@ test("Tutorial upkeep: cavalry attack renewed, bloodied Grenzers and crowded Ker
 	end
 	tick(m)
 	assertEq(ordersFor(kerpen.id, "Retreat"), 1, "Kerpen abandons Ebersdorf")
+	-- and the released AI never orders it back, during the march or after it arrives
+	for _ = 1, 4000 do
+		sim:step()
+		local o = kerpen.order
+		assertTrue(o == nil or o.kind == "Retreat", "Kerpen order " .. tostring(o and o.kind))
+	end
+end)
+
+test("Tutorial lesson 11 plays through: the brigade takes Ebersdorf and step 12 ends it", function()
+	local AI = require(Server.AI)
+	local step, tick = MatchService._internal.tutorialStep, MatchService._internal.tutorialTick
+	local m = newMatch()
+	local sim = m.sim
+	m.ai = AI.new(sim, "austria", "normal")
+	assertTrue(step(m, true, 11), "skip to the village lesson (AI released)")
+	assertTrue(rawget(sim, "aiStep") ~= nil, "AI on")
+	local village = MAP.objectives[1].pos
+	local function attack()
+		local ids = {}
+		for _, f in sim.formations do
+			if f.faction == "france" and (f.class == "infantry" or f.class == "cavalry") and f.name ~= "Conscrits de 1809" and f.state ~= "routing" then
+				ids[#ids + 1] = f.id
+			end
+		end
+		table.sort(ids)
+		if #ids > 0 then
+			sim:queueCommand({ matchId = sim.matchId, requestId = "test", kind = "Move", ids = ids, data = { pos = village } }, "france")
+		end
+	end
+	local owned = false
+	for t = 1, 20 * 60 / Config.Sim.DT do
+		if t % 400 == 1 then
+			attack() -- right-click the village every 20 s, as a player would (a Move)
+		end
+		tick(m)
+		sim:step()
+		if sim.objectives[1].owner == "france" then
+			owned = true
+			break
+		end
+		if sim.state ~= "running" then
+			break
+		end
+	end
+	print(string.format("   (Ebersdorf taken after %.0f s of lesson 11)", sim.clock))
+	assertTrue(owned, "France owns Ebersdorf")
+	assertTrue(step(m, true, 12), "step 12 accepted")
+	assertEq(sim.state, "ended")
+	assertEq(sim.winner, "france")
 end)

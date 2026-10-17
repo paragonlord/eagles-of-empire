@@ -213,6 +213,26 @@ local function tutorialScript(m: any, step: number, target: number)
 		if ai then
 			sim.aiStep = function(_s)
 				AI.step(ai)
+				-- a battalion that abandoned Ebersdorf stays gone: drop the AI's orders for it
+				local out = m.tutorialOut
+				if out then
+					local keep = {}
+					for _, c in sim.commands do
+						if string.sub(c.requestId, 1, 3) == "ai-" then
+							local ids = {}
+							for _, id in c.ids do
+								if not out[id] then
+									ids[#ids + 1] = id
+								end
+							end
+							c.ids = ids
+						end
+						if #c.ids > 0 then
+							keep[#keep + 1] = c
+						end
+					end
+					sim.commands = keep
+				end
 			end
 		end
 	end
@@ -279,6 +299,7 @@ local function tutorialTick(m: any)
 			end
 			if close >= 2 and g.state ~= "routing" then
 				m.tutorialGarrisonOut = true
+				m.tutorialOut = { [g.id] = true }
 				tutorialWithdraw(sim, g, TUTORIAL_GARRISON_FALLBACK, g.name .. " abandons Ebersdorf")
 			end
 		end
