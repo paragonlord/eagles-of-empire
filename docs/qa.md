@@ -378,6 +378,23 @@ Two engine bugs blocked lesson 11; both fixed here (please run `tools/check.sh`)
   aide-de-camp could say "Rally and go again" when the brigade breaks.
 - Small: while the lesson panel changes, the title is blank for a moment ("2 / 11 |  |").
 
+**2026-10-18 round 10c (Grand Campaign as France), build c01302d + feeab2a.** No EoE errors.
+Played Jan 1805 → Jan 1806: marches, end turns, Third Coalition, battle prompt, Fight → deployment.
+- Pass: the battle prompt lists every army with men and general, side totals and odds
+  (`grand-prompt.jpg`: Grande Armée + III Corps 9,560 v four Austrian armies 18,280); province
+  names on the board are readable and scale (Île-de-France, Lombardy); the briefing is dated by the
+  campaign turn ("Headquarters, Jan 1806"); saves keep working past the first minute.
+- Fixed: **the nation picker flags covered the first word of every name** (`picker-before.jpg`:
+  "[flag]n Empire", "U[flag] Kingdom"). 9e6df9d made `Kit.flag` reserve the text padding itself,
+  but the picker still set its own 46 px padding and shifted its flag −46 to match; the two
+  cancelled (padding 2 px, flag on the text). The picker now passes a plain (5, 7) and lets
+  Kit.flag reserve the space (`picker-after.jpg`).
+- Open: "Battle of Lower Austria" still fights on the Jena-area map: the Saale, Camsdorf,
+  Wenigenjena (`grand-battle-map.jpg`), and that map shows its raw edge against the sky with no
+  surrounding skirt. Moves through neutral territory before the war are refused "noAccess"
+  (correct), shown to the player only via the raw reason id if `Logic.reason` lacks it.
+**With this, the Tutorial and the Grand Campaign pass as playable end to end.**
+
 ## Known failures
 
 None recorded yet.

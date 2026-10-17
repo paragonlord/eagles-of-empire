@@ -627,11 +627,7 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 		end, { order = i :: number, textSize = 15, caps = false })
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		b.TextTruncate = Enum.TextTruncate.AtEnd
-		local lift = b:FindFirstChild("Lift") :: UIPadding?
-		if lift then
-			lift.PaddingLeft = UDim.new(0, 46)
-		end
-		flag(b, id, 30, 20, UDim2.fromOffset(8 - 46, 7)) -- the padding moves children too
+		flag(b, id, 30, 20, UDim2.fromOffset(5, 7)) -- Kit.flag reserves the text padding itself
 	end
 	Kit.button(p, "Main Menu", function()
 		if cb then
