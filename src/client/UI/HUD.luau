@@ -36,6 +36,7 @@ local TICKER_LIFE = 9
 local rosterScroll: ScrollingFrame? = nil
 local rosterKey = ""
 local rosterRows: { [number]: { frame: TextButton, name: TextLabel, state: TextLabel, bar: Frame, lastClick: number } } = {}
+local arrivingRows: { [number]: TextLabel } = {}
 
 -- inspector
 local inspector: Frame? = nil
@@ -295,6 +296,20 @@ local function rebuildRoster(forms: { any })
 			entry.lastClick = now
 		end)
 	end
+	-- off-map reinforcements: a greyed group with countdowns
+	table.clear(arrivingRows)
+	if #BattleState.reinforcements > 0 then
+		order += 1
+		local h = Kit.label(s, "Arriving", { size = UDim2.new(1, 0, 0, 20), font = Enum.Font.Garamond, textSize = 17, colour = Kit.MUTED })
+		h.LayoutOrder = order
+		for _, r in BattleState.reinforcements do
+			order += 1
+			local l = Kit.label(s, "", { size = UDim2.new(1, -4, 0, 18), textSize = 12, colour = Kit.MUTED })
+			l.TextTruncate = Enum.TextTruncate.AtEnd
+			l.LayoutOrder = order
+			arrivingRows[r.id] = l
+		end
+	end
 end
 
 local function updateRoster()
@@ -302,6 +317,9 @@ local function updateRoster()
 	local ids = {}
 	for _, f in forms do
 		table.insert(ids, f.id)
+	end
+	for _, r in BattleState.reinforcements do
+		table.insert(ids, -r.id)
 	end
 	local key = table.concat(ids, ",")
 	if key ~= rosterKey then
@@ -323,6 +341,12 @@ local function updateRoster()
 			local sel = Selection.isSelected(f.id)
 			row.frame.BackgroundTransparency = if sel then 0 else 0.4
 			row.frame.BackgroundColor3 = if sel then Kit.SELECT else Kit.PANEL_DARK
+		end
+	end
+	for _, r in BattleState.reinforcements do
+		local l = arrivingRows[r.id]
+		if l then
+			l.Text = string.format("%s  ·  %s  ·  in %s", tostring(r.name), tostring(r.corps or ""), Kit.formatClock(r.eta or 0))
 		end
 	end
 end
@@ -615,7 +639,9 @@ function HUD.show(callbacks: Callbacks)
 	buildRoster(sg)
 	buildInspector(sg)
 	buildCommandBar(sg)
-	Minimap.create(sg, UDim2.fromOffset(200, 150), UDim2.new(1, -8, 1, -8), Vector2.new(1, 1))
+	local m = BattleState.map
+	local mmH = if m then math.round(200 * m.depth / m.width) else 150
+	Minimap.create(sg, UDim2.fromOffset(200, mmH), UDim2.new(1, -8, 1, -8), Vector2.new(1, 1))
 	if BattleState.map then
 		task.spawn(Minimap.paint, BattleState.map)
 	end
@@ -701,6 +727,7 @@ function HUD.destroy()
 	table.clear(objectiveChips)
 	table.clear(tickerLines)
 	table.clear(rosterRows)
+	table.clear(arrivingRows)
 	table.clear(inspectorFields)
 	table.clear(commandButtons)
 end

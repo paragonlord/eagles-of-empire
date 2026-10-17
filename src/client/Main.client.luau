@@ -180,8 +180,9 @@ end
 
 local gotServerState = false
 
--- Diagnostic beacon (top-left): shows what the client last did; cheap and always on for now.
+-- Diagnostic beacon (bottom-left, F10 toggles; shown by default only in Studio).
 local beacon: TextLabel? = nil
+local beaconGui: ScreenGui? = nil
 local function diag(text: string)
 	print("[EoE client] " .. text)
 	if not beacon then
@@ -189,10 +190,13 @@ local function diag(text: string)
 		sg.Name = "EoEDiag"
 		sg.DisplayOrder = 100
 		sg.ResetOnSpawn = false
+		sg.Enabled = RunService:IsStudio()
 		sg.Parent = (game:GetService("Players") :: Players).LocalPlayer:WaitForChild("PlayerGui")
+		beaconGui = sg
 		local l = Instance.new("TextLabel") :: TextLabel
 		l.Size = UDim2.new(0, 900, 0, 18)
-		l.Position = UDim2.new(0, 8, 0, 4)
+		l.Position = UDim2.new(0, 8, 1, -22)
+		l.AnchorPoint = Vector2.new(0, 0)
 		l.BackgroundTransparency = 0.4
 		l.BackgroundColor3 = Color3.new(0, 0, 0)
 		l.TextColor3 = Color3.new(1, 1, 1)
@@ -399,6 +403,10 @@ do
 	lighting.EnvironmentDiffuseScale = 0.45
 	lighting.Ambient = Color3.fromRGB(96, 92, 80)
 	lighting.OutdoorAmbient = Color3.fromRGB(118, 112, 96)
+	-- distance fog in the sky's tone hides the horizon beyond the map edge
+	lighting.FogColor = Color3.fromRGB(196, 190, 170)
+	lighting.FogStart = 1400
+	lighting.FogEnd = 3200
 end
 
 
@@ -412,6 +420,13 @@ diag("remotes hooked; requesting state")
 -- ask for it again now that the remotes are hooked.
 Net.control("spectate")
 wire()
+
+local UserInputService = game:GetService("UserInputService") :: UserInputService
+UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
+	if not gp and input.KeyCode == Enum.KeyCode.F10 and beaconGui then
+		beaconGui.Enabled = not beaconGui.Enabled
+	end
+end)
 
 RunService.RenderStepped:Connect(function(dt: number)
 	Figures.update(dt)

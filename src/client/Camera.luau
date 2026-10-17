@@ -42,11 +42,15 @@ local function textBoxFocused(): boolean
 	return (UserInputService:GetFocusedTextBox() :: TextBox?) ~= nil
 end
 
+-- The focus keeps a margin from the map edge that grows with height, so the frustum stays
+-- over the terrain instead of showing sky past the edge.
 local function clampTarget()
-	target.x = math.clamp(target.x, bounds.x0, bounds.x1)
-	target.z = math.clamp(target.z, bounds.z0, bounds.z1)
 	target.height = math.clamp(target.height, MIN_HEIGHT, MAX_HEIGHT)
 	target.pitch = math.clamp(target.pitch, MIN_PITCH, MAX_PITCH)
+	local w, d = bounds.x1 - bounds.x0, bounds.z1 - bounds.z0
+	local margin = math.clamp(target.height * 0.45, 40, math.min(w, d) * 0.3)
+	target.x = math.clamp(target.x, bounds.x0 + margin, bounds.x1 - margin)
+	target.z = math.clamp(target.z, bounds.z0 + margin, bounds.z1 - margin)
 end
 
 local function readKeys(dt: number)
@@ -162,7 +166,7 @@ end
 function Camera.setMap(m: any)
 	map = m
 	if m then
-		bounds = { x0 = 40, z0 = 40, x1 = m.width - 40, z1 = m.depth - 40 }
+		bounds = { x0 = 0, z0 = 0, x1 = m.width, z1 = m.depth }
 	end
 	clampTarget()
 end

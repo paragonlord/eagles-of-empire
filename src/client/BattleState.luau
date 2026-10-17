@@ -114,6 +114,7 @@ BattleState.lastSnapshotAt = 0
 BattleState.formations = {} :: { [number]: Formation }
 BattleState.lastKnown = {} :: { [number]: LastKnown }
 BattleState.objectives = {} :: { Objective }
+BattleState.reinforcements = {} :: { { id: number, name: string, corps: string, eta: number } } -- own side, off-map
 BattleState.pending = {} :: { [string]: Pending }
 
 BattleState.updated = Signal.new() -- (snapshot) after merge
@@ -125,6 +126,7 @@ function BattleState.reset()
 	table.clear(BattleState.formations)
 	table.clear(BattleState.lastKnown)
 	BattleState.objectives = {}
+	BattleState.reinforcements = {}
 	table.clear(BattleState.pending)
 	BattleState.clock = 0
 	BattleState.tick = 0
@@ -180,6 +182,11 @@ function BattleState.applySnapshot(snap: any)
 	end
 	if snap.objectives then
 		BattleState.objectives = snap.objectives
+	end
+	if snap.reinforcements then
+		BattleState.reinforcements = snap.reinforcements
+	elseif snap.kind == "full" then
+		BattleState.reinforcements = {}
 	end
 	BattleState.updated:Fire(snap)
 	for _, ev in snap.events or {} do
