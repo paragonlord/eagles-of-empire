@@ -31,6 +31,7 @@ local CampaignScreen = require(script.Parent.UI.CampaignScreen)
 local BattleSelect = require(script.Parent.UI.BattleSelect)
 local Grand = require(script.Parent.Campaign)
 local Tutorial = require(script.Parent.Tutorial)
+local Cinematic = require(script.Parent.Cinematic)
 
 local DEFAULT_MAP = "jena"
 
@@ -217,6 +218,7 @@ local function teardown()
 	closePanels()
 	CampaignScreen.hide()
 	Grand.close()
+	Cinematic.clear()
 end
 
 local gotServerState = false
@@ -424,6 +426,7 @@ local function wire()
 	table.insert(conns, BattleState.event:Connect(function(ev: any)
 		Effects.onEvent(ev)
 		HUD.onEvent(ev)
+		Cinematic.onEvent(ev)
 		if ev.kind == "volley" or ev.kind == "cannon" or ev.kind == "melee" or ev.kind == "charge" or ev.kind == "rout" or ev.kind == "rally" or ev.kind == "capture" then
 			Audio.play(ev.kind)
 		end
