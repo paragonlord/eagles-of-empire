@@ -6,6 +6,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Grid = require(Shared.Grid)
 local Vec = require(Shared.Vec)
+local Factions = require(script.Parent.Parent.Factions)
 
 local Props = {}
 
@@ -251,12 +252,10 @@ function Props.updateLabels(cameraHeight: number)
 end
 
 local function factionColour(faction: string?): Color3
-	if faction == "france" then
-		return rgb(P.France)
-	elseif faction == "prussia" then
-		return rgb(P.Prussia)
+	if faction == nil or faction == "" then
+		return rgb(P.Cream)
 	end
-	return rgb(P.Cream)
+	return Factions.colour(faction)
 end
 
 function Props.updateObjectives(objectives: { any })

@@ -4,6 +4,7 @@
 -- The server view is the only state; every action goes back through `callbacks.send`.
 
 local Kit = require(script.Parent.Kit)
+local Factions = require(script.Parent.Parent.Factions)
 
 local CampaignScreen = {}
 
@@ -86,7 +87,7 @@ local function shortName(name: string): string
 end
 
 local function factionName(f: string?): string
-	return if f == "france" then "France" elseif f == "prussia" then "Prussia" else tostring(f or "—")
+	return Factions.name(f)
 end
 
 local function plural(n: number): string

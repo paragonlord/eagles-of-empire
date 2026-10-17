@@ -6,6 +6,7 @@ local Players = game:GetService("Players") :: Players
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
+local Factions = require(script.Parent.Parent.Factions)
 
 local Kit = {}
 
@@ -24,12 +25,14 @@ Kit.MUTED = Color3.fromRGB(120, 108, 96)
 Kit.PANEL_DARK = Color3.fromRGB(224, 214, 190)
 
 function Kit.factionColour(faction: string?): Color3
-	if faction == "france" then
-		return Kit.FRANCE
-	elseif faction == "prussia" then
-		return Kit.PRUSSIA
+	if faction == nil or faction == "" then
+		return Kit.MUTED
 	end
-	return Kit.MUTED
+	return Factions.colour(faction)
+end
+
+function Kit.factionName(faction: string?): string
+	return Factions.name(faction)
 end
 
 function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenGui

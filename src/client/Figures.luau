@@ -10,6 +10,7 @@ local Vec = require(Shared.Vec)
 local BattleState = require(script.Parent.BattleState)
 local Selection = require(script.Parent.Selection)
 local Settings = require(script.Parent.Settings)
+local Factions = require(script.Parent.Factions)
 
 local Figures = {}
 
@@ -124,9 +125,7 @@ local function frame(x: number, y: number, z: number, heading: number): CFrame
 end
 
 local function factionColour(faction: string, colourKey: string?): Color3
-	local key = colourKey or (if faction == "france" then "France" elseif faction == "prussia" then "Prussia" else nil)
-	local t = if key then (P :: any)[key] else nil
-	return if t then rgb(t) else Color3.fromRGB(120, 120, 120)
+	return Factions.colour(faction, colourKey)
 end
 
 local function desaturate(c: Color3): Color3
@@ -284,7 +283,7 @@ local SLAB_H = 1.2
 
 -- Reference look: French deep cobalt, Prussian near-black charcoal; ghosts desaturated.
 local function slabColour(g: Group): Color3
-	local c = g.colour:Lerp(BLACK, if g.faction == "prussia" then 0.45 else 0.12)
+	local c = g.colour:Lerp(BLACK, Factions.slabDarken(g.faction))
 	return if g.ghost then desaturate(c) else c
 end
 
@@ -364,7 +363,6 @@ end
 local POLE = Color3.fromRGB(150, 150, 150)
 local IVORY = Color3.fromRGB(246, 241, 226)
 local GOLD = Color3.fromRGB(205, 168, 62)
-local TRICOLOUR = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }
 
 -- Marker: pole (formation space), then camera-facing parts whose locals are offsets from the
 -- plate centre: frame, plate, square flag. parts[1] is always the pole.
@@ -389,21 +387,35 @@ local function buildMarker(g: Group, f: any): Marker
 	face(framePart, CFrame.new(0, 0, 0.12))
 	local plate = mk("Part", Vector3.new(plateW, plateH, 0.3), IVORY) :: Part
 	face(plate, CFrame.new())
-	-- square flag below the plate, beside the pole
+	-- square flag below the plate, beside the pole; design per faction
 	local s = 2.4 * scale
 	local fx = s / 2 + 0.2
 	local fy = -(plateH / 2 + s / 2 + 0.3)
-	local prussian = g.faction ~= "france"
-	if prussian then
-		face(mk("Part", Vector3.new(s, s, 0.12), WHITE), CFrame.new(fx, fy, 0))
-		for _, a in { 45, -45 } do
-			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), INK), CFrame.new(fx, fy, -0.08) * CFrame.Angles(0, 0, math.rad(a)))
+	local flag = Factions.flag(g.faction)
+	if flag.bands then
+		local n = #flag.bands
+		for i, c in flag.bands do
+			face(mk("Part", Vector3.new(s / n, s, 0.12), c), CFrame.new(fx + (i - (n + 1) / 2) * s / n, fy, 0))
 		end
 	else
-		for i, c in TRICOLOUR do
-			face(mk("Part", Vector3.new(s / 3, s, 0.12), c), CFrame.new(fx + (i - 2) * s / 3, fy, 0))
+		face(mk("Part", Vector3.new(s, s, 0.12), flag.field or g.colour), CFrame.new(fx, fy, 0))
+	end
+	local mc = flag.markColour
+	local markCf = CFrame.new(fx, fy, -0.08)
+	if flag.mark == "diamond" then
+		face(mk("Part", Vector3.new(0.55 * scale, 0.55 * scale, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
+	elseif flag.mark == "x" then
+		for _, a in { 45, -45 } do
+			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(a)))
 		end
-		face(mk("Part", Vector3.new(0.55, 0.55, 0.14), GOLD), CFrame.new(fx, fy, -0.08) * CFrame.Angles(0, 0, math.rad(45)))
+	elseif flag.mark == "plus" then
+		face(mk("Part", Vector3.new(s, 0.3, 0.14), mc), markCf)
+		face(mk("Part", Vector3.new(0.3, s, 0.14), mc), markCf)
+	elseif flag.mark == "double" then
+		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, s * 0.18, 0))
+		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, -s * 0.18, 0))
+	elseif flag.mark == "diagonal" then
+		face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
 	end
 	for _, p in parts do
 		if g.ghost then
