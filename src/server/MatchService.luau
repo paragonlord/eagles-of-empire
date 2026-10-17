@@ -193,6 +193,7 @@ local function onControl(player: Player, msg: any)
 		return
 	end
 	local action = msg.action
+	print(string.format("[EoE server] control %s from %s (commander=%s)", tostring(action), player.Name, tostring(isCommander(player))))
 	if action == "spectate" then
 		remotes.MatchState:FireClient(player, matchStatePayload(player))
 		if m then
@@ -398,6 +399,7 @@ local function onPlayerAdded(player: Player)
 			m.leftAt = nil
 		end
 	end
+	print(string.format("[EoE server] player %s (%d) joined; commander=%s", player.Name, player.UserId, tostring(isCommander(player))))
 	remotes.MatchState:FireClient(player, matchStatePayload(player))
 	if match then
 		sendSnapshot(player, true)
@@ -441,6 +443,7 @@ function MatchService.start()
 		heartbeat:Disconnect()
 	end
 	heartbeat = RunService.Heartbeat:Connect(onHeartbeat)
+	print("[EoE server] match service started")
 	CampaignService.start(remotes.Campaign, {
 		isCommander = function(player: Player): boolean
 			if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then

@@ -180,10 +180,38 @@ end
 
 local gotServerState = false
 
+-- Diagnostic beacon (top-left): shows what the client last did; cheap and always on for now.
+local beacon: TextLabel? = nil
+local function diag(text: string)
+	print("[EoE client] " .. text)
+	if not beacon then
+		local sg = Instance.new("ScreenGui")
+		sg.Name = "EoEDiag"
+		sg.DisplayOrder = 100
+		sg.ResetOnSpawn = false
+		sg.Parent = (game:GetService("Players") :: Players).LocalPlayer:WaitForChild("PlayerGui")
+		local l = Instance.new("TextLabel")
+		l.Size = UDim2.new(0, 900, 0, 18)
+		l.Position = UDim2.new(0, 8, 0, 4)
+		l.BackgroundTransparency = 0.4
+		l.BackgroundColor3 = Color3.new(0, 0, 0)
+		l.TextColor3 = Color3.new(1, 1, 1)
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.Font = Enum.Font.Code
+		l.TextSize = 12
+		l.Parent = sg
+		beacon = l
+	end
+	if beacon then
+		beacon.Text = "EoE build 5 | " .. text
+	end
+end
+
 local function onMatchState(msg: any)
 	if type(msg) ~= "table" then
 		return
 	end
+	diag(string.format("state=%s match=%s commander=%s", tostring(msg.state), tostring(msg.matchId), tostring(msg.isCommander)))
 	local prevState = BattleState.state
 	local sameMatch = msg.matchId == lastMatchId and msg.matchId ~= ""
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
@@ -213,7 +241,9 @@ local function onMatchState(msg: any)
 			Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
 		end
 		Camera.setEnabled(true)
-		if ensureWorld(DEFAULT_MAP) then
+		local built = ensureWorld(DEFAULT_MAP)
+		diag(string.format("menu shown (commander=%s), world built=%s", tostring(BattleState.isCommander), tostring(built)))
+		if built then
 			local m = BattleState.map
 			Camera.reset(m.width / 2, m.depth * 0.45)
 		end
@@ -375,7 +405,9 @@ end
 Audio.init()
 Camera.init()
 Input.init()
+diag("starting; waiting for remotes")
 Net.init()
+diag("remotes hooked; requesting state")
 -- The server announced the match state when we joined, possibly before we were listening:
 -- ask for it again now that the remotes are hooked.
 Net.control("spectate")
@@ -401,6 +433,7 @@ task.spawn(function()
 	end
 	task.wait(1.5)
 	if not gotServerState then
+		diag("no reply from server after 2.5 s; showing offline menu")
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
