@@ -139,7 +139,9 @@ local STEPS: { Step } = {
 		spot = at(320, 270, 30),
 		done = function(): boolean
 			for _, f in own() do
-				if f.dest and f.destHeading then
+				-- a plain right-click marches without a facing (destHeading stays nil); the text
+				-- offers right-drag only as an option, so a march order of either kind counts
+				if f.dest then
 					return true
 				end
 			end

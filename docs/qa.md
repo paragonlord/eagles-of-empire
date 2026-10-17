@@ -172,6 +172,46 @@ next round. Figures (`figures.jpg`): the jostle reads well, but a battalion in l
 reference blocks are solid; closing the gaps (or more figures per file) would read as a line.
 The small training map shows the floating-slab edge on all sides.
 
+**2026-10-17 round 5 (tutorial), build 2e48234.** Played the tutorial from the menu entry as a
+player: real keys, wheel, card clicks, shift-click, right-click and right-drag for lessons 1–5;
+orders through the Command remote for 6–11 (those lessons only read field state). Shots in
+`docs/shots/`. No EoE errors or warnings on client or server.
+- Lessons 1–10 complete; 11 (Ebersdorf) could not, see the brook bug below.
+- Fixed: **the tutorial panel was empty** (`tutorial-panel-before.jpg`). The panel was 1287 px tall
+  on a 1101 px screen with every line below the bottom edge. `Kit.list` sat on the Kit panel
+  itself, so the UIListLayout also stacked the panel's Trim and rosettes, and the Trim (sized
+  to its auto-sized parent) grew to 1129 px. The lines now live in an inner `content` frame
+  (`tutorial-panel-after.jpg`).
+- Fixed: **the ground "ring" was a solid yellow disc** over the spot, hiding the place name. It
+  was a neon cylinder Part; it is now a `CylinderHandleAdornment` with `InnerRadius` (a real
+  ring, `tutorial-ring-after.jpg`), pulse range 0.15–0.5 so the thin ring stays visible.
+- Fixed: **lesson 3 (March) could not be completed as written.** The text says "Right-click the
+  ground to march"; a plain right-click gives the battalion a `dest` but no `destHeading`, and
+  `done` required both, so a player following the text was stuck. `done` now accepts any `dest`
+  (right-drag still works).
+- **Open, serious: units that path into a brook are stuck there for good** (`stuck-in-brook.jpg`:
+  three battalions standing in the Mühlbach, "moving" for 15+ game minutes; ordered back to the
+  near bank, they still do not move). Reproduced in a fresh `Sim` on the tutorial map: a
+  battalion at (400, 480) ordered to (400, 640) paths straight over the brook (waypoints
+  (408,552) (408,568) (400,640)), switches to travel column, stops at (408, 540) on a `water`
+  cell and stays `moving` forever; a later Move back to (400, 470) does nothing. Cause:
+  `Nav.build` marks a 16-stud node walkable when `passable or maxClear >= TRAVEL_HALF`. That
+  clause is for bridges and defiles, but a node straddling a 10–16-stud brook also has dry bank
+  cells with clearance ≥ 8, so A* links the two banks across the water while Movement refuses
+  water cells. Every map has it (river centre points, away from bridges, that Nav calls walkable):
+  Jena Rau-Bach (14 wide) 48/169; Auerstedt Lissbach (12) 83/158; Austerlitz Goldbach (16)
+  48/161; Waterloo Smohain brook (10) 54/78; tutorial Mühlbach (12) 55/116. The Saale and the
+  ponds are fine (0). Not fixed here: checking each A* step with `segmentClear(…, TRAVEL_HALF)`
+  is the obvious fix but needs the bridge tests (node centres sit up to 8 studs off a bridge
+  axis), and Movement should also let a unit already standing on water step out (or snap it to
+  `Nav.nearestWalkable`) so an old save or a scripted ford cannot strand it.
+- Open, small: when Skip step closes the panel on the last lesson, its tooltip ("Move on to the
+  next lesson") stays on screen. The enemy's own "route blocked" messages (Chevaulegers Nr. 3,
+  Brigade-Hauptquartier) show in the player's ticker, repeated; they leak enemy movement and
+  are noise. The Austrian HQ showed `routing` with strength 0 instead of being removed. Lesson 5
+  can look stuck if the player presses Square before the column has formed (8 s); the highlight
+  already moves from Column to Square, so maybe say "once in column" in the text.
+
 ## Known failures
 
 None recorded yet.

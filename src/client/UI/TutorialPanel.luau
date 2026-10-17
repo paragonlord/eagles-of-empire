@@ -16,7 +16,7 @@ local body: TextLabel? = nil
 local doneLabel: TextLabel? = nil
 local frame: Frame? = nil -- the highlight over a HUD element
 local target: GuiObject? = nil
-local ring: Part? = nil
+local ring: CylinderHandleAdornment? = nil
 
 function TutorialPanel.show(cb: Callbacks)
 	if gui then
@@ -26,23 +26,30 @@ function TutorialPanel.show(cb: Callbacks)
 	local sg = Kit.screen("EoETutorial", 20)
 	local p = Kit.panel(sg, { size = UDim2.fromOffset(340, 0), position = UDim2.new(1, -8, 0, 84), anchor = Vector2.new(1, 0), padding = 14, transparency = 0.06 })
 	p.AutomaticSize = Enum.AutomaticSize.Y
-	Kit.list(p, 6)
-	counter = Kit.label(p, "", { size = UDim2.new(1, 0, 0, 16), textSize = 12, colour = Kit.MUTED })
-	local t = Kit.title(p, "", { size = UDim2.new(1, 0, 0, 26), textSize = 22, colour = Kit.GILT, rule = true })
+	-- the list goes on an inner frame: on the panel itself it would also stack the panel's trim
+	-- and rosettes, and the trim (sized to the panel) pushed every line below the screen
+	local content = Instance.new("Frame") :: Frame
+	content.Size = UDim2.new(1, 0, 0, 0)
+	content.AutomaticSize = Enum.AutomaticSize.Y
+	content.BackgroundTransparency = 1
+	content.Parent = p
+	Kit.list(content, 6)
+	counter = Kit.label(content, "", { size = UDim2.new(1, 0, 0, 16), textSize = 12, colour = Kit.MUTED })
+	local t = Kit.title(content, "", { size = UDim2.new(1, 0, 0, 26), textSize = 22, colour = Kit.GILT, rule = true })
 	t.LayoutOrder = 1
 	title = t
 	local spacer = Instance.new("Frame") :: Frame
 	spacer.Size = UDim2.fromOffset(1, 4)
 	spacer.BackgroundTransparency = 1
 	spacer.LayoutOrder = 2
-	spacer.Parent = p
-	local b = Kit.label(p, "", { size = UDim2.new(1, 0, 0, 0), textSize = 15, wrap = true })
+	spacer.Parent = content
+	local b = Kit.label(content, "", { size = UDim2.new(1, 0, 0, 0), textSize = 15, wrap = true })
 	b.AutomaticSize = Enum.AutomaticSize.Y
 	b.FontFace = Kit.ITALIC
 	b.TextSize = 18
 	b.LayoutOrder = 3
 	body = b
-	local d = Kit.label(p, "Well done.", { size = UDim2.new(1, 0, 0, 20), textSize = 15, colour = Kit.GILT_BRIGHT })
+	local d = Kit.label(content, "Well done.", { size = UDim2.new(1, 0, 0, 20), textSize = 15, colour = Kit.GILT_BRIGHT })
 	d.LayoutOrder = 4
 	d.Visible = false
 	doneLabel = d
@@ -50,7 +57,7 @@ function TutorialPanel.show(cb: Callbacks)
 	row.Size = UDim2.new(1, 0, 0, 28)
 	row.BackgroundTransparency = 1
 	row.LayoutOrder = 5
-	row.Parent = p
+	row.Parent = content
 	Kit.list(row, 8, true)
 	Kit.button(row, "Skip step", cb.skipStep, { size = UDim2.fromOffset(120, 28), order = 1, tooltip = "Move on to the next lesson" })
 	Kit.button(row, "Skip tutorial", cb.skipAll, { size = UDim2.fromOffset(140, 28), order = 2, tooltip = "Dismiss the aide-de-camp and fight the battle out" })
@@ -101,22 +108,19 @@ function TutorialPanel.ring(x: number?, y: number?, z: number?, r: number?)
 		return
 	end
 	if not ring then
-		local part = Instance.new("Part") :: Part
-		part.Name = "EoETutorialRing"
-		part.Shape = Enum.PartType.Cylinder
-		part.Material = Enum.Material.Neon
-		part.Color = Kit.GILT_BRIGHT
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.CastShadow = false
-		part.Parent = workspace
-		ring = part
+		-- a hollow cylinder: a solid neon Part drew as an opaque disc over the spot
+		local a = Instance.new("CylinderHandleAdornment") :: CylinderHandleAdornment
+		a.Name = "EoETutorialRing"
+		a.Color3 = Kit.GILT_BRIGHT
+		a.Height = 0.3
+		a.Adornee = workspace.Terrain -- terrain sits at the origin, so CFrame below is world space
+		a.Parent = workspace.Terrain
+		ring = a
 	end
-	local part = ring :: Part
-	part.Size = Vector3.new(0.3, r * 2, r * 2)
-	part.CFrame = CFrame.new(x, y + 0.6, z) * CFrame.Angles(0, 0, math.pi / 2)
+	local a = ring :: CylinderHandleAdornment
+	a.Radius = r
+	a.InnerRadius = math.max(0, r - 2.5)
+	a.CFrame = CFrame.new(x, y + 0.6, z) * CFrame.Angles(math.pi / 2, 0, 0)
 end
 
 function TutorialPanel.update(t: number)
@@ -137,7 +141,7 @@ function TutorialPanel.update(t: number)
 		end
 	end
 	if ring then
-		ring.Transparency = 0.55 + 0.3 * pulse
+		ring.Transparency = 0.15 + 0.35 * pulse
 	end
 end
 
