@@ -38,6 +38,7 @@ type Match = {
 	devTimer: number,
 	leftAt: number?, -- os.clock() when the commander left
 	campaignBattleId: string?,
+	tutorialStep: number?, -- tutorial scenario only: last step the commander reached
 }
 
 local MatchService = {}
@@ -148,6 +149,114 @@ local function destroyMatch()
 	match = nil
 end
 
+-- ------------------------------------------------------------------ tutorial
+-- The tutorial enemy is scripted, not AI-driven: it starts passive and the client's step
+-- progress (Control "tutorialStep") releases it lesson by lesson through sim:queueCommand.
+local TUTORIAL_FINAL = 12 -- "finish": accepted only once the player holds Ebersdorf
+local TUTORIAL_RELEASE = 11 -- the brigade fights in earnest (also what "Skip tutorial" sends)
+local TUTORIAL_UNITS = {
+	skirmishers = "Grenz-Infanterie Nr. 1",
+	cavalry = "Chevaulegers Nr. 3",
+	conscripts = "Conscrits de 1809",
+}
+
+local function tutorialIds(sim: Sim, faction: string, name: string?): { number }
+	local ids = {}
+	for _, id in sim.order do
+		local f = sim.formations[id]
+		if f and f.faction == faction and (name == nil or f.name == name) and f.state ~= "destroyed" and f.state ~= "exited" then
+			ids[#ids + 1] = id
+		end
+	end
+	return ids
+end
+
+local function tutorialOrder(sim: Sim, kind: string, ids: { number }, data: { [string]: any })
+	if #ids > 0 then
+		sim:queueCommand({ matchId = sim.matchId, requestId = "tutorial", kind = kind, ids = ids, data = data }, sim.enemyFaction)
+	end
+end
+
+local function tutorialStart(m: any)
+	m.tutorialStep = 0
+	m.sim.aiStep = nil
+	local all = tutorialIds(m.sim, m.sim.enemyFaction, nil)
+	tutorialOrder(m.sim, "Stance", all, { fireAtWill = false })
+	tutorialOrder(m.sim, "Hold", all, {})
+end
+
+-- Scripted enemy for entering `step`. One-shot events (the cavalry threat, the broken
+-- conscripts) run only on the step itself; releases also run when steps are skipped past.
+local function tutorialScript(m: any, step: number, target: number)
+	local sim: Sim = m.sim
+	local enemy = sim.enemyFaction
+	if step == 6 then
+		tutorialOrder(sim, "Stance", tutorialIds(sim, enemy, TUTORIAL_UNITS.skirmishers), { fireAtWill = true })
+	elseif step == 9 and target == 9 then
+		-- the cavalry rides at the nearest French battalion
+		local cav = tutorialIds(sim, enemy, TUTORIAL_UNITS.cavalry)
+		local from = if cav[1] then sim.formations[cav[1]].pos else { x = 0, z = 0 }
+		local best, bestD = nil, math.huge
+		for _, id in tutorialIds(sim, sim.playerFaction, nil) do
+			local f = sim.formations[id]
+			local d = (f.pos.x - from.x) ^ 2 + (f.pos.z - from.z) ^ 2
+			if f.class == "infantry" and f.state ~= "routing" and d < bestD then
+				best, bestD = f, d
+			end
+		end
+		if best then
+			tutorialOrder(sim, "AttackMove", cav, { pos = { x = best.pos.x, z = best.pos.z } })
+		end
+	elseif step == 10 and target == 10 then
+		-- the conscripts break (a scripted shock, so the rally lesson always has a subject)
+		for _, id in tutorialIds(sim, sim.playerFaction, TUTORIAL_UNITS.conscripts) do
+			local f = sim.formations[id]
+			if f.state ~= "routing" then
+				f.morale = math.min(f.morale, 10)
+			end
+		end
+	elseif step == TUTORIAL_RELEASE then
+		tutorialOrder(sim, "Stance", tutorialIds(sim, enemy, nil), { fireAtWill = true })
+		local ai = m.ai
+		if ai then
+			sim.aiStep = function(_s)
+				AI.step(ai)
+			end
+		end
+	end
+end
+
+-- Pure handler: validates and applies one tutorial step request. Exposed for tests.
+local function tutorialStep(m: any, commander: boolean, step: any): (boolean, string?)
+	if not commander then
+		return false, Protocol.Reasons.notCommander
+	end
+	if not m or m.tutorialStep == nil or m.scenario.id ~= "tutorial" or m.sim.state ~= "running" then
+		return false, Protocol.Reasons.badState
+	end
+	if type(step) ~= "number" or step ~= math.floor(step) or step <= m.tutorialStep or step > TUTORIAL_FINAL then
+		return false, Protocol.Reasons.badRequest
+	end
+	local sim: Sim = m.sim
+	if step == TUTORIAL_FINAL then
+		for _, o in sim.objectives do
+			if o.owner ~= sim.playerFaction then
+				return false, Protocol.Reasons.badState
+			end
+		end
+		sim.state = "ended"
+		sim.winner = sim.playerFaction
+		sim.result = sim:buildResults(sim.playerFaction, "Ebersdorf is taken: the training is complete")
+		m.tutorialStep = step
+		return true, nil
+	end
+	for s = m.tutorialStep + 1, step do
+		tutorialScript(m, s, step)
+	end
+	m.tutorialStep = step
+	return true, nil
+end
+
 local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: string?)
 	local map = mapFor(scenario.map)
 	matchCounter += 1
@@ -172,6 +281,9 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		leftAt = nil,
 		campaignBattleId = campaignBattleId,
 	}
+	if scenario.id == "tutorial" then
+		tutorialStart(match)
+	end
 end
 
 local function createMatch(scenarioId: string)
@@ -216,7 +328,7 @@ local function onControl(player: Player, msg: any)
 	end
 	if action == "difficulty" then
 		difficulty = msg.value
-		if m and m.state == "deployment" then
+		if m and m.state == "deployment" and m.tutorialStep == nil then
 			m.difficulty = difficulty
 			m.sim.difficulty = difficulty
 			m.ai = AI.new(m.sim, m.scenario.factions.enemy, difficulty)
@@ -272,6 +384,9 @@ local function onControl(player: Player, msg: any)
 		else
 			result(player, msg.requestId, false, Protocol.Reasons.badRequest)
 		end
+	elseif action == "tutorialStep" then
+		local tok, treason = tutorialStep(m, isCommander(player), msg.value)
+		result(player, msg.requestId, tok, treason)
 	elseif action == "quit" then
 		destroyMatch()
 		result(player, msg.requestId, true)
@@ -465,7 +580,7 @@ function MatchService.start()
 end
 
 -- Exposed for tests / tooling.
-MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatch, getMatch = function()
+MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatch, tutorialStart = tutorialStart, tutorialStep = tutorialStep, getMatch = function()
 	return match
 end }
 

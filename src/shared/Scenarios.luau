@@ -489,6 +489,33 @@ Scenarios.skirmish = {
 	timeLimit = nil,
 } :: Scenario
 
+-- Interactive tutorial (client UI/TutorialPanel + Tutorial, server MatchService tutorialStep).
+-- Not listed in Scenarios.list(). The enemy starts passive (fire at will off, holding) and is
+-- released step by step by the server; MatchService refers to these units by name.
+Scenarios.tutorial = {
+	id = "tutorial",
+	name = "Training ground",
+	map = "tutorial",
+	briefing = "Spring 1809, on the Danube. Mon général, an Austrian brigade holds Ebersdorf beyond the Mühlbach, with outposts on our side of the stream. Your aide-de-camp will see you through the handling of the army before we take the village.",
+	factions = { player = "france", enemy = "austria" },
+	factionNames = { france = "France", austria = "Austria" },
+	units = {
+		u("france", "HQ", "hq", "Général de brigade", 40, 2, 200, 100, NORTH, { commander = true }),
+		u("france", "Brigade", "infantry", "1er bataillon, 18e de Ligne", 600, 1, 240, 200, NORTH),
+		u("france", "Brigade", "infantry", "2e bataillon, 18e de Ligne", 600, 1, 320, 200, NORTH),
+		u("france", "Brigade", "infantry", "3e bataillon, 18e de Ligne", 600, 1, 400, 200, NORTH),
+		u("france", "Brigade", "infantry", "Conscrits de 1809", 500, 0, 270, 110, NORTH),
+		u("france", "Brigade", "artillery", "Batterie à pied, 5e d'artillerie", 120, 1, 480, 150, NORTH),
+		u("france", "Brigade", "cavalry", "8e Hussards", 400, 1, 540, 220, NORTH),
+		u("austria", "HQ", "hq", "Brigade-Hauptquartier", 40, 1, 860, 740, SOUTH, { commander = true }),
+		u("austria", "Vorposten", "infantry", "Grenz-Infanterie Nr. 1", 400, 1, 420, 430, SOUTH),
+		u("austria", "Brigade", "infantry", "IR 4 Hoch- und Deutschmeister", 600, 1, 800, 430, WEST),
+		u("austria", "Brigade", "infantry", "IR 49 Kerpen", 600, 1, 620, 690, SOUTH),
+		u("austria", "Brigade", "cavalry", "Chevaulegers Nr. 3", 400, 1, 880, 640, WEST),
+	},
+	timeLimit = 60 * 60,
+} :: Scenario
+
 -- Battles in display order; fixtures (stress, skirmish) are not listed.
 local DISPLAY_ORDER = { "jena", "auerstedt", "austerlitz", "waterloo" }
 

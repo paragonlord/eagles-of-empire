@@ -471,6 +471,35 @@ MAPS.village = {
 	valley = nil,
 }
 
+-- Tutorial field: a ridge, a wood, a stream with one bridge and a village beyond it. Small on
+-- purpose (1024 x 800) so every lesson happens within a camera's reach.
+MAPS.tutorial = {
+	name = "Training ground (tutorial)",
+	seed = 1809,
+	width = 1024,
+	depth = 800,
+	baseHeight = 20,
+	hills = {
+		{ name = "The ridge", pos = v(420, 330), rx = 260, rz = 70, h = 12, k = 0.7 },
+		{ pos = v(620, 740), rx = 220, rz = 90, h = 6, k = 0.8 },
+	},
+	villages = { { name = "Ebersdorf", pos = v(620, 690), radius = 50, count = 18 } },
+	woods = { { name = "Fasanerie wood", pos = v(220, 650), rx = 110, rz = 70 } },
+	roads = { { points = { v(620, 0), v(600, 300), v(620, 540), v(620, 690), v(640, 800) }, width = 6 } },
+	rivers = { { name = "Mühlbach", points = { v(0, 560), v(300, 548), v(620, 540), v(1024, 530) }, width = 12, level = 16 } },
+	bridges = { { a = v(620, 510), b = v(620, 570), width = 24 } },
+	labels = {
+		{ text = "The ridge", pos = v(420, 330), size = 1.0 },
+		{ text = "Mühlbach", pos = v(900, 520), size = 0.8 },
+	},
+	objectives = { { id = "ebersdorf", name = "Ebersdorf", pos = v(620, 690), radius = 60 } },
+	deployZones = {
+		france = { x0 = 60, z0 = 40, x1 = 600, z1 = 260 },
+		austria = { x0 = 300, z0 = 380, x1 = 1000, z1 = 780 },
+	},
+	valley = nil,
+}
+
 function MapGen.list(): { string }
 	return { "jena", "auerstedt", "austerlitz", "waterloo", "bridge", "village" }
 end

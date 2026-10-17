@@ -47,6 +47,7 @@ Protocol.ControlActions = {
 	difficulty = true,
 	quit = true,
 	spectate = true,
+	tutorialStep = true, -- tutorial scenario: value = step number reached (MatchService validates)
 }
 
 Protocol.Reasons = {
@@ -277,6 +278,10 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 		end
 	elseif msg.action == "difficulty" then
 		if type(msg.value) ~= "string" or not (Config.AI.Difficulties :: any)[msg.value] then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "tutorialStep" then
+		if type(msg.value) ~= "number" or msg.value ~= math.floor(msg.value) or msg.value < 1 or msg.value > 64 then
 			return false, Protocol.Reasons.badRequest
 		end
 	elseif msg.action == "start" or msg.action == "restart" then
