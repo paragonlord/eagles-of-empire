@@ -27,7 +27,7 @@ local function materialFor(cls: number, isBank: boolean): EnumMaterial
 	elseif cls == IDS.village then
 		return Enum.Material.Ground
 	elseif cls == IDS.road then
-		return Enum.Material.Cobblestone
+		return Enum.Material.Mud -- flat and smooth; Cobblestone read as rubble walls in Studio
 	elseif cls == IDS.steep then
 		return Enum.Material.Ground
 	elseif cls == IDS.cliff then
@@ -41,11 +41,13 @@ end
 local function applyPalette()
 	local P = Config.Visual.Palette
 	local t = workspace.Terrain
-	t:SetMaterialColor(Enum.Material.Grass, rgb(P.TerrainGrass):Lerp(Color3.fromRGB(176, 150, 72), 0.3)) -- olive-gold on lit plateaus
-	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(P.TerrainWoodsFloor):Lerp(Color3.new(0, 0, 0), 0.25))
-	t:SetMaterialColor(Enum.Material.Ground, rgb(P.TerrainSlope))
-	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(96, 84, 70))
-	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(196, 184, 156)) -- roads read as thin pale lines
+	-- Studio showed the palette olive reading brown under warm low light; these are tuned with
+	-- World/Lighting (ClockTime 10.2) toward the reference's olive-gold and green.
+	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(150, 150, 70)) -- olive-gold on lit plateaus
+	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(58, 78, 38))
+	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(120, 104, 62)) -- slopes: darker olive-brown
+	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(104, 94, 76))
+	t:SetMaterialColor(Enum.Material.Mud, Color3.fromRGB(190, 176, 138)) -- roads: thin pale lines
 	t:SetMaterialColor(Enum.Material.Sand, rgb(P.Bank))
 	t.WaterColor = rgb(P.Water)
 	t.WaterTransparency = 0.35

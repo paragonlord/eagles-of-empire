@@ -17,7 +17,7 @@ end
 
 local folder: Folder? = nil
 local zoneFolder: Folder? = nil
-local labelParts: { { part: Part, size: number } } = {}
+local labelParts: { { part: Part, size: number, len: number } } = {}
 local objectiveMarks: { [string]: { ring: { Part }, flag: Part } } = {}
 local generation = 0
 local currentMap: any = nil
@@ -124,12 +124,36 @@ local function buildBridge(parent: Instance, br: any)
 	end
 end
 
+local LABEL_MAX_K = 2.0 -- largest camera-height scale applied in updateLabels
+local LABEL_MAX_RISE = 5 -- studs of terrain rise tolerated under a plate before it is shortened
+
+-- Highest ground under a plate of half-length `hl` (world X) and half-depth `hd` (world Z).
+local function maxGroundUnder(x: number, z: number, hl: number, hd: number): (number, number)
+	local hi, lo = -math.huge, math.huge
+	for i = -6, 6 do
+		for j = -1, 1 do
+			local h = groundY(x + hl * i / 6, z + hd * j)
+			hi = math.max(hi, h)
+			lo = math.min(lo, h)
+		end
+	end
+	return hi, lo
+end
+
 local function buildLabel(parent: Instance, l: any)
 	local size = 20 * l.size -- modest, mixed case, cream serif
-	local y = groundY(l.pos.x, l.pos.z)
+	-- Shorten the plate on steep ground (it clipped at the ends on slopes in Studio), then lift it
+	-- above the highest terrain under its largest scaled footprint.
+	local len = size * 4
+	local hi, lo = maxGroundUnder(l.pos.x, l.pos.z, len * LABEL_MAX_K / 2, size * LABEL_MAX_K / 2)
+	while hi - lo > LABEL_MAX_RISE and len > size * 2.2 do
+		len *= 0.85
+		hi, lo = maxGroundUnder(l.pos.x, l.pos.z, len * LABEL_MAX_K / 2, size * LABEL_MAX_K / 2)
+	end
+	local y = hi
 	-- A Top-face gui runs its text along the part's -Z (checked in Studio), so the plate is long
 	-- in Z and turned 90° to read left-to-right from the default north-facing camera.
-	local p = part(parent, nil, Vector3.new(size, 0.2, size * 4), CFrame.new(l.pos.x, y + 0.35, l.pos.z) * CFrame.Angles(0, math.pi / 2, 0), Color3.new(1, 1, 1))
+	local p = part(parent, nil, Vector3.new(size, 0.2, len), CFrame.new(l.pos.x, y + 0.5, l.pos.z) * CFrame.Angles(0, math.pi / 2, 0), Color3.new(1, 1, 1))
 	p.Transparency = 1
 	p.CastShadow = false
 	local gui = Instance.new("SurfaceGui") :: SurfaceGui
@@ -147,7 +171,7 @@ local function buildLabel(parent: Instance, l: any)
 	text.TextColor3 = rgb(P.Cream)
 	text.TextTransparency = 0.4
 	text.Parent = gui
-	table.insert(labelParts, { part = p, size = size })
+	table.insert(labelParts, { part = p, size = size, len = len })
 end
 
 local function buildObjective(parent: Instance, o: any)
@@ -240,14 +264,13 @@ end
 -- Ground labels grow with camera height so they stay readable from any zoom.
 local lastLabelK = -1
 function Props.updateLabels(cameraHeight: number)
-	local k = math.clamp(cameraHeight / 420, 0.7, 2.0)
+	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
 	if math.abs(k - lastLabelK) < 0.05 then
 		return
 	end
 	lastLabelK = k
 	for _, l in labelParts do
-		local s = l.size * k
-		l.part.Size = Vector3.new(s, 0.2, s * 4)
+		l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
 	end
 end
 
@@ -319,6 +342,7 @@ function Props.clear()
 		zoneFolder = nil
 	end
 	table.clear(labelParts)
+	lastLabelK = -1
 	table.clear(objectiveMarks)
 end
 
