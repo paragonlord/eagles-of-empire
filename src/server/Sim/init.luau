@@ -513,7 +513,9 @@ local function autoEngage(self: Sim)
 				end
 			elseif f.class == "infantry" then
 				local range = Formation.unitConfig(f).musket.range
-				if best and bestD <= range * 0.95 then
+				-- A travel column cannot fire, so it marches on until it can re-form (halting would
+				-- also drop the path the column needs to restore its shape).
+				if best and bestD <= range * 0.95 and f.shape ~= "travel" and f.pendingShape ~= "travel" then
 					if f.state == "moving" then
 						f.path = nil
 						f.state = "idle"

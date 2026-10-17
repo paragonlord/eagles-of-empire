@@ -615,3 +615,21 @@ test("Contact reveals hidden defenders; frozen routers leave the field; chronicl
 	end
 	assertTrue(found, "log uses display names")
 end)
+
+test("Infantry on attack-move in travel column keeps marching instead of halting in range", function()
+	local sim = newSim({
+		unit("france", "infantry", "F", 600, 300, math.pi / 2),
+		unit("prussia", "infantry", "P", 600, 370, -math.pi / 2, 200),
+	})
+	sim.formations[2].fireAtWill = false
+	local f = sim.formations[1]
+	f.shape = "travel"
+	f.prevShape = nil -- hemmed in: the column cannot re-form yet
+	cmd(sim, "AttackMove", { 1 }, { pos = { x = 600, z = 700 } })
+	for _ = 1, 40 do
+		sim:step()
+	end
+	assertTrue(sim:isVisibleTo("france", 2), "the enemy is in sight")
+	assertTrue(Vec.dist(f.pos, sim.formations[2].pos) < 85, "the enemy is in musket range")
+	assertEq(f.state, "moving", "a column in range does not stand idle")
+end)
