@@ -395,6 +395,29 @@ Played Jan 1805 → Jan 1806: marches, end turns, Third Coalition, battle prompt
   (correct), shown to the player only via the raw reason id if `Logic.reason` lacks it.
 **With this, the Tutorial and the Grand Campaign pass as playable end to end.**
 
+**2026-10-18 round 11 (graphics: uniforms, effects, countryside, lighting), builds 2ace55f → 0c1438b.**
+Boots clean, no EoE errors. The countryside is a big step up (`countryside.jpg`): strip fields,
+hedgerows and walls, tree-lined roads, villages with churches and a windmill.
+- Performance, measured on this Mac (Jena, ×4, standard attack): 60 fps throughout. Bodies are
+  capped and the part count levels off (EoEFigures 640 → 940 → 830 over 5 game minutes at the
+  default height), so nothing piles up. **But zoomed in to the closest allowed height (120),
+  EoEFigures jumps to ~14,000 parts (workspace 24,500)**: ~717 figures × ~20 parts each, at the
+  default quality 2 (budget 800 figures). The budget counts figures, so the new detailed uniforms
+  multiplied the real cost ~4×; at quality 3 it would be ~24,000 parts for soldiers alone. Still
+  60 fps here, but phones are on the roadmap.
+- **Most of that detail can never be seen.** At the closest zoom (camera 120 up, nearest figure
+  151 studs, FOV 55) a soldier is ~13 px tall and a 0.1-stud cross-belt is 0.66 px
+  (`closest-zoom.jpg`). Either let the camera come lower so the uniforms are actually seen, or
+  drop the sub-pixel parts (belts, plumes, buttons, sword knots) beyond some distance and count
+  the budget in parts.
+- Dawn fog on Jena (`dawn-fog.jpg`): at the default height the field is a blue-white wash and the
+  unit plates are barely legible for the first five minutes (Atmosphere density 0.45); right for
+  "fog", but heavier than the reference and the colour is blue, not warm.
+- The open-field strips in bright yellow-green read neon under the sun next to the muted greens
+  (`countryside.jpg`); the reference fields are softer ochre and olive.
+- Checked, not a bug: double-clicking a unit card does jump the camera to it, if the two clicks are
+  under 0.35 s apart (my first test clicks were slower).
+
 ## Known failures
 
 None recorded yet.
