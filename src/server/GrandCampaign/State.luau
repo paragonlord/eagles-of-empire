@@ -1,0 +1,392 @@
+--!strict
+-- Grand campaign state: types, construction from EuropeData and the small helpers every rules
+-- module shares. Pure Luau; all randomness through `state.rng`; every loop whose order matters
+-- walks an array (NationOrder, ProvinceIds, armies by id), never `pairs` of a dictionary.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local RNG = require(Shared.RNG)
+local EuropeData = require(Shared.EuropeData)
+
+export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number }
+export type General = { name: string, rating: number }
+export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number }
+export type Siege = { by: string, turnsLeft: number }
+export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number }
+export type NationState = { treasury: number, manpower: number }
+export type War = { a: string, b: string, score: number, since: number } -- score > 0 favours a
+export type Peace = { winner: string, dictated: boolean, turn: number } -- winner "" = white peace
+export type Recruit = { nation: string, provinceId: string, unitType: string, turnsLeft: number }
+export type Offer = { id: string, from: string, to: string, kind: string, terms: { [string]: any }, turn: number }
+export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean }
+export type Applied = { battleId: string, winner: string, turn: number }
+export type InboxChoice = { id: string, label: string }
+export type Inbox = { id: string, title: string, text: string, turn: number, choices: { InboxChoice }? }
+export type Victory = { outcome: "victory" | "defeat" | "draw", reason: string }
+
+export type State = {
+	campaignId: string,
+	seed: number,
+	revision: number,
+	rng: RNG.RNG,
+	turn: number,
+	phase: "player" | "battle" | "ended",
+	playerNation: string,
+	provinces: { [string]: ProvinceState },
+	nations: { [string]: NationState },
+	relations: { [string]: number },
+	wars: { [string]: War },
+	alliances: { [string]: boolean },
+	truces: { [string]: number }, -- pair -> last turn of the truce
+	peaces: { [string]: Peace }, -- pair -> last peace
+	armies: { Army }, -- ascending creation order
+	recruitment: { Recruit },
+	flags: { [string]: boolean },
+	fired: { [string]: boolean },
+	inbox: { Inbox },
+	offers: { Offer },
+	counters: { [string]: number },
+	nextId: number,
+	log: { string },
+	pendingBattles: { Battle },
+	appliedBattles: { Applied },
+	usedSetPieces: { [string]: boolean },
+	abdicatedTo: { string }?,
+	victory: Victory?,
+}
+
+local State = {}
+
+State.LOG_MAX = 80
+State.APPLIED_MAX = 64
+State.MAX_UNITS = 20 -- per army
+State.MAX_ARMIES = 16 -- per nation
+State.MAX_QUEUE = { major = 6, minor = 2 }
+
+-- Basics -------------------------------------------------------------------------------------------
+
+function State.copy(v: any): any
+	if type(v) ~= "table" then
+		return v
+	end
+	local out = {}
+	for k, x in v do
+		out[k] = State.copy(x)
+	end
+	return out
+end
+
+function State.isNum(v: any): boolean
+	return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
+end
+
+function State.pair(a: string, b: string): string
+	return if a < b then a .. "|" .. b else b .. "|" .. a
+end
+
+function State.sortedKeys(t: { [string]: any }): { string }
+	local out = {}
+	for k in t do
+		out[#out + 1] = k
+	end
+	table.sort(out)
+	return out
+end
+
+function State.province(id: string): EuropeData.Province
+	return EuropeData.province(id) or error("unknown province " .. tostring(id))
+end
+
+function State.nationName(id: string): string
+	local n = EuropeData.Nations[id]
+	return if n then n.name else id
+end
+
+function State.log(s: State, text: string)
+	s.log[#s.log + 1] = EuropeData.dateOf(s.turn) .. ": " .. text
+	while #s.log > State.LOG_MAX do
+		table.remove(s.log, 1)
+	end
+end
+
+function State.newId(s: State, prefix: string): string
+	local id = prefix .. tostring(s.nextId)
+	s.nextId += 1
+	return id
+end
+
+-- Diplomacy look-ups -------------------------------------------------------------------------------
+
+function State.atWar(s: State, a: string, b: string): boolean
+	return a ~= b and s.wars[State.pair(a, b)] ~= nil
+end
+
+function State.allied(s: State, a: string, b: string): boolean
+	return a ~= b and s.alliances[State.pair(a, b)] == true
+end
+
+function State.friendly(s: State, a: string, b: string): boolean
+	return a == b or State.allied(s, a, b)
+end
+
+function State.relation(s: State, a: string, b: string): number
+	if a == b then
+		return 100
+	end
+	return s.relations[State.pair(a, b)] or 0
+end
+
+function State.addRelation(s: State, a: string, b: string, delta: number)
+	if a ~= b then
+		local k = State.pair(a, b)
+		s.relations[k] = math.clamp((s.relations[k] or 0) + delta, -100, 100)
+	end
+end
+
+function State.enemiesOf(s: State, nation: string): { string }
+	local out = {}
+	for _, n in EuropeData.NationOrder do
+		if State.atWar(s, nation, n) then
+			out[#out + 1] = n
+		end
+	end
+	return out
+end
+
+function State.alliesOf(s: State, nation: string): { string }
+	local out = {}
+	for _, n in EuropeData.NationOrder do
+		if State.allied(s, nation, n) then
+			out[#out + 1] = n
+		end
+	end
+	return out
+end
+
+-- Provinces --------------------------------------------------------------------------------------
+
+function State.controller(s: State, id: string): string
+	local ps = s.provinces[id]
+	return ps.occupiedBy or ps.owner
+end
+
+function State.provincesOwned(s: State, nation: string): { string }
+	local out = {}
+	for _, id in EuropeData.ProvinceIds do
+		if s.provinces[id].owner == nation then
+			out[#out + 1] = id
+		end
+	end
+	return out
+end
+
+function State.alive(s: State, nation: string): boolean
+	for _, id in EuropeData.ProvinceIds do
+		local ps = s.provinces[id]
+		if ps.owner == nation or ps.occupiedBy == nation then
+			return true
+		end
+	end
+	for _, a in s.armies do
+		if a.nation == nation then
+			return true
+		end
+	end
+	return false
+end
+
+-- Armies ------------------------------------------------------------------------------------------
+
+function State.armyById(s: State, id: string): Army?
+	for _, a in s.armies do
+		if a.id == id then
+			return a
+		end
+	end
+	return nil
+end
+
+function State.armiesIn(s: State, provinceId: string, nation: string?): { Army }
+	local out = {}
+	for _, a in s.armies do
+		if a.provinceId == provinceId and (nation == nil or a.nation == nation) then
+			out[#out + 1] = a
+		end
+	end
+	return out
+end
+
+function State.armiesOf(s: State, nation: string): { Army }
+	local out = {}
+	for _, a in s.armies do
+		if a.nation == nation then
+			out[#out + 1] = a
+		end
+	end
+	return out
+end
+
+function State.removeArmy(s: State, id: string)
+	for i, a in s.armies do
+		if a.id == id then
+			table.remove(s.armies, i)
+			return
+		end
+	end
+end
+
+function State.maxMoves(a: Army): number
+	return if a.general and a.general.rating >= 4 then 3 else 2
+end
+
+function State.unitPower(u: Unit): number
+	local c = EuropeData.UnitClasses[u.type]
+	return u.strength * (if c then c.power else 1) * (1 + 0.1 * u.experience)
+end
+
+function State.armyStrength(a: Army): number
+	local s = 0
+	for _, u in a.units do
+		s += State.unitPower(u)
+	end
+	return s * (1 + 0.05 * (if a.general then a.general.rating else 0))
+end
+
+function State.men(a: Army): number
+	local n = 0
+	for _, u in a.units do
+		n += u.strength
+	end
+	return n
+end
+
+-- Strength of armies at war with `nation` in a province.
+function State.hostileStrengthIn(s: State, provinceId: string, nation: string): number
+	local t = 0
+	for _, a in s.armies do
+		if a.provinceId == provinceId and State.atWar(s, nation, a.nation) then
+			t += State.armyStrength(a)
+		end
+	end
+	return t
+end
+
+function State.hostileArmyIn(s: State, provinceId: string, nation: string): boolean
+	for _, a in s.armies do
+		if a.provinceId == provinceId and State.atWar(s, nation, a.nation) then
+			return true
+		end
+	end
+	return false
+end
+
+local function ordinal(nation: string, n: number): string
+	if nation == "france" then
+		return if n == 1 then "1er" else tostring(n) .. "e"
+	elseif nation == "britain" or nation == "russia" then
+		local m100, m10 = n % 100, n % 10
+		local suf = if m100 >= 11 and m100 <= 13 then "th" elseif m10 == 1 then "st" elseif m10 == 2 then "nd" elseif m10 == 3 then "rd" else "th"
+		return tostring(n) .. suf
+	end
+	return tostring(n) .. "."
+end
+
+function State.newUnit(s: State, nation: string, unitType: string, experience: number?): Unit
+	local c = EuropeData.UnitClasses[unitType] or error("unknown unit type " .. tostring(unitType))
+	local ck = nation .. "." .. unitType
+	local n = (s.counters[ck] or 0) + 1
+	s.counters[ck] = n
+	local names = EuropeData.UnitNames[nation]
+	local name = if names and names[unitType] then string.format(names[unitType], ordinal(nation, n)) else string.format("%s %s %d", EuropeData.Nations[nation].adjective, c.name, n)
+	return { key = State.newId(s, "u"), type = unitType, name = name, strength = c.strength, maxStrength = c.strength, experience = experience or c.experience }
+end
+
+function State.newArmy(s: State, nation: string, name: string, provinceId: string, general: General?): Army
+	local a: Army = { id = State.newId(s, "a"), nation = nation, name = name, general = if general then { name = general.name, rating = general.rating } else nil, provinceId = provinceId, units = {}, movesLeft = 0 }
+	a.movesLeft = State.maxMoves(a)
+	s.armies[#s.armies + 1] = a
+	return a
+end
+
+-- Expands { line = 3, cavalry = 1 } in UnitTypeOrder.
+function State.addUnits(s: State, a: Army, units: { [string]: number }, experience: number)
+	for _, t in EuropeData.UnitTypeOrder do
+		for _ = 1, units[t] or 0 do
+			if #a.units < State.MAX_UNITS then
+				local exp = if t == "guard" then 3 else experience
+				a.units[#a.units + 1] = State.newUnit(s, a.nation, t, exp)
+			end
+		end
+	end
+end
+
+-- Generals can be in only one army at a time.
+function State.generalInService(s: State, name: string): boolean
+	for _, a in s.armies do
+		if a.general and a.general.name == name then
+			return true
+		end
+	end
+	return false
+end
+
+-- Construction ---------------------------------------------------------------------------------------
+
+function State.new(seed: number, playerNation: string?): State
+	seed = math.floor(seed)
+	local player = playerNation or "france"
+	assert(EuropeData.Nations[player] and EuropeData.Nations[player].playable, "nation not playable: " .. tostring(player))
+	local s: State = {
+		campaignId = string.format("g%d-%s", seed, player),
+		seed = seed,
+		revision = 0,
+		rng = RNG.new(seed * 2 + 1),
+		turn = EuropeData.StartTurn,
+		phase = "player",
+		playerNation = player,
+		provinces = {},
+		nations = {},
+		relations = {},
+		wars = {},
+		alliances = {},
+		truces = {},
+		peaces = {},
+		armies = {},
+		recruitment = {},
+		flags = {},
+		fired = {},
+		inbox = {},
+		offers = {},
+		counters = {},
+		nextId = 1,
+		log = {},
+		pendingBattles = {},
+		appliedBattles = {},
+		usedSetPieces = {},
+		abdicatedTo = nil,
+		victory = nil,
+	}
+	for _, p in EuropeData.Provinces do
+		s.provinces[p.id] = { owner = p.owner1805, occupiedBy = p.occupied1805, siege = nil, occupiedTurns = 0 }
+	end
+	for _, id in EuropeData.NationOrder do
+		local n = EuropeData.Nations[id]
+		s.nations[id] = { treasury = n.treasury, manpower = n.manpower }
+	end
+	for _, r: any in EuropeData.StartRelations do
+		s.relations[State.pair(r[1], r[2])] = r[3]
+	end
+	for _, w in EuropeData.StartWars do
+		s.wars[State.pair(w[1], w[2])] = { a = w[1], b = w[2], score = 0, since = 0 }
+	end
+	for _, al in EuropeData.StartAlliances do
+		s.alliances[State.pair(al[1], al[2])] = true
+	end
+	for _, def in EuropeData.StartArmies do
+		local a = State.newArmy(s, def.nation, def.name, def.province, def.general)
+		State.addUnits(s, a, def.units, def.experience)
+	end
+	State.log(s, string.format("The campaign opens. You lead the %s.", State.nationName(player)))
+	return s
+end
+
+return State
