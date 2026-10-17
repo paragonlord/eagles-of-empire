@@ -504,6 +504,10 @@ test("Campaign: checkpoint + commitBattle are atomic, idempotent, and reject sta
 	local state = Campaign.new(13)
 	state.revision = profile.revision
 	assertTrue(Campaign.checkpoint(store, 7, "s1", state))
+	assertEq(state.revision, 1, "the claim is lock-only and keeps the revision")
+	-- a lease renewal must not make the next checkpoint stale
+	assertTrue(store:claimSession(7, "s1", 30))
+	assertTrue(Campaign.checkpoint(store, 7, "s1", state), "checkpoint after a renewal")
 	assertEq(state.revision, 2)
 	assertTrue(Campaign.command(state, { kind = "move", armyId = 1, regionId = "jena" }))
 	local _, battles = Campaign.endTurn(state)

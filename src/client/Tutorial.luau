@@ -192,11 +192,22 @@ local STEPS: { Step } = {
 	},
 	{
 		title = "The guns",
-		text = "Limber the battery, bring it up to the ridge and unlimber it there: guns fire only when deployed. Round shot carries 450 paces across the stream; canister, inside 120, sweeps a front like a scythe.",
+		text = "The battery marches limbered. Bring it up to the crest and unlimber it there: guns fire only when deployed, at what they can see inside a narrow arc, so right-drag to aim them. Round shot carries 450 paces across the stream; canister, inside 120, sweeps a front like a scythe.",
 		ui = command("Limber"),
-		spot = at(480, 330, 35),
+		-- on the crest's far edge: at (480, 330) the guns stopped on the near slope and the ridge
+		-- hid the Grenzers. Deployed in the ring also counts: facing north from here the
+		-- Grenzers sit just outside the 30° arc, and the lesson is about unlimbering.
+		spot = at(480, 355, 35),
 		done = function(ctx: Ctx): boolean
-			return ctx.seen.cannon == true
+			if ctx.seen.cannon == true then
+				return true
+			end
+			for _, f in own() do
+				if f.class == "artillery" and f.shape == "deployed" and (f.x - 480) ^ 2 + (f.z - 355) ^ 2 <= 45 * 45 then
+					return true
+				end
+			end
+			return false
 		end,
 	},
 	{

@@ -6,7 +6,9 @@
 --   * `load` never returns a default on failure: status "error" means "do not touch this user".
 --   * `update` runs a pure, retry-safe mutate inside UpdateAsync (the callback may run more than
 --     once); it rejects when the stored revision differs from `expectedRevision` ("stale") and
---     bumps `revision` on every successful write.
+--     bumps `revision` on every successful content write. Lock-only writes (claim, renew,
+--     release) keep it: a renewal every minute used to bump it and turn every later checkpoint
+--     and battle commit "stale".
 --   * `claimSession`/`releaseSession` implement single-writer ownership with a timeout so a crashed
 --     server never locks a profile forever. `now` is injected (no wall clock here).
 --   * The memory adapter marks the store `sessionOnly = true`: data lives for this server only.
@@ -25,7 +27,7 @@ export type Store = {
 	sessionTimeout: number,
 	ds: any,
 	load: (Store, number) -> (Profile?, string),
-	update: (Store, number, number?, Mutate) -> (boolean, Profile?, string?),
+	update: (Store, number, number?, Mutate, boolean?) -> (boolean, Profile?, string?),
 	claimSession: (Store, number, string, number) -> (boolean, string?),
 	releaseSession: (Store, number, string) -> (boolean, string?),
 }
@@ -144,7 +146,7 @@ function ProfileStore.load(self: Store, userId: number): (Profile?, string)
 	return res, "ok"
 end
 
-function ProfileStore.update(self: Store, userId: number, expectedRevision: number?, mutate: Mutate): (boolean, Profile?, string?)
+function ProfileStore.update(self: Store, userId: number, expectedRevision: number?, mutate: Mutate, keepRevision: boolean?): (boolean, Profile?, string?)
 	local reason: string? = nil
 	local seen: any = nil
 	local ok, res = withRetry(self, function()
@@ -167,7 +169,7 @@ function ProfileStore.update(self: Store, userId: number, expectedRevision: numb
 				return nil
 			end
 			new.version = new.version or 1
-			new.revision = stored + 1
+			new.revision = if keepRevision then stored else stored + 1
 			return new
 		end)
 	end)
@@ -189,7 +191,7 @@ function ProfileStore.claimSession(self: Store, userId: number, sessionId: strin
 		end
 		p.session = { id = sessionId, expires = now + self.sessionTimeout }
 		return p, nil
-	end)
+	end, true)
 	return ok, reason
 end
 
@@ -200,7 +202,7 @@ function ProfileStore.releaseSession(self: Store, userId: number, sessionId: str
 		end
 		old.session = nil
 		return old, nil
-	end)
+	end, true)
 	return ok, reason
 end
 

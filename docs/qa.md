@@ -242,6 +242,67 @@ allies fold fast if the player does not move (`grand-dispatches.jpg`). Notes: th
 "Sep 1805: Trafalgar." has no text after the name; a long dispatch list is one tall parchment,
 fine at 12 lines, may need a scroll after a busy year.
 
+**2026-10-17 round 7 (Tutorial + Grand Campaign as France), builds 64f7aa3 → 8598156.**
+Shots in `docs/shots/`. No EoE script errors on client or server at any point.
+
+*Fixed here (please run `tools/check.sh`; I have no Luau CLI):*
+- **Campaign saves stop working one minute into every session, and a fought battle then rolls the
+  campaign back.** `ProfileStore.update` bumps `revision` on every write, including
+  `claimSession`, and `CampaignService` renews the claim every 60 s on both stores. From then on
+  the stored revision is ahead of `state.revision`: every checkpoint fails "stale" (the client
+  gets `kind=error … Could not save the grand campaign (stale)`, which the UI does not show), and
+  `onGrandBattleEnded` answers the "stale" commit by reloading the last good profile. Seen: Fight
+  at Nov 1806 turn 12, Return to Campaign showed Jan 1806 turn 7 with both armies back on the
+  Rhine. Same for the small campaign's `store`, and for live DataStores, not just Studio.
+  Lock-only writes (claim, renew, release) now keep the revision; test added to "checkpoint +
+  commitBattle …" (renew, then checkpoint succeeds); its revision assert is 1 after the claim
+  (was 2). Verified in Studio: 77 s into a session, 3 end turns and 4 more with marches, no save
+  errors; a fought battle at Jan 1806 returned to Jan 1806 with the defeat in the log.
+- **Tutorial lesson 7 (guns) could not be finished.** At the ring (480, 330) the battery stops at
+  z 303 below the crest and the ridge hides the Grenzers; on the crest, facing north from the
+  march, the Grenzers sit 38° off its 30° arc, so it never fires. Ring moved to (480, 355); the
+  lesson also counts a battery deployed inside the ring; text now says the battery starts
+  limbered (it did, the old text said "Limber the battery") and to right-drag to aim.
+
+*Tutorial, open:*
+1. Lesson 9 (Cavalry!) can stall: the chevaulegers were drawn into my lesson-8 hussar charge,
+   were last seen on our bank (744, 423), then went out of sight, and the one-shot step-9
+   AttackMove never brought them; 100 s with no cavalry, Skip step needed. Re-issue the order
+   while the step is active, or accept a square after N seconds.
+2. Lesson 11 (Ebersdorf): the brook fix works (battalions path over the bridge, none stuck in
+   water), but the brigade cannot take the village: units stop idle with status "No target"
+   60–70 studs short; Austrians inside Ebersdorf are invisible from there and silently block
+   movement (one battalion went into melee with something unseen); the routed Grenzers froze in
+   "routing" on the village centre (637, 690) for minutes; Charge on them is refused "Invalid
+   target"; the objective sat "contested", progress 0, for 20 game minutes
+   (`tutorial-bridge-jam.jpg`: four battalions piled on the bridge exit). A player sees a
+   brigade that ignores orders, with no message why.
+3. The lesson-6 battalion loses its firefight with the Grenzers alone and routes during lesson 7.
+4. The stale "Move on to the next lesson" tooltip still stays over the Skip buttons after a click.
+5. The debug beacon (top right, y 90) covers the panel's "AIDE-DE-CAMP · n/11" line.
+
+*Grand Campaign as France, open:* Third Coalition fires May 1805 → war with Austria, Russia,
+Naples, Sweden in Jul 1805, as history. Recruit, march (Normandy → Belgium → Rhineland in one
+turn), end turn, events, battle prompt, Fight → battle → results → Return to Campaign all work.
+1. The battle prompt lists one army per side (Grande Armée 6,040 v Army of Italy 7,040, "odds are
+   poor") but the battle used both French armies (9,600 v 13,623). Show every army that fights.
+2. The campaign battle is the Jena map: "Battle of Lower Austria" with Wenigenjena, Camsdorf and
+   Camsdorf bridge; its briefing says Sep 1806 while the campaign says Nov 1806.
+3. Results chronicle: "01:10 prussia captured Camsdorf" in a battle against Austria; raw lowercase
+   faction ids. Notes say "Your formations broke 8 times" next to a table that says Routed 1.
+4. Armies walked into Tyrol with 11,142 Austrians and no battle followed (they had left?); four
+   army figures in one province overlap (`grand-board.jpg`); province names and army plates are
+   too small to read on the board.
+5. "Kingdom of Prussia" runs into its flag on the nation picker (`grand-flags.jpg`).
+6. Casualties back to the campaign not verified: the battle I fought after the fix had no French
+   orders and maybe no French losses; armies kept 6,040 / 3,520.
+
+*Look (new lighting/terrain):* the teal wash is gone and roads are thin dark lines (good), but the
+ground is now saturated orange, reading as desert, not the olive-gold of the reference
+(`menu-orange.jpg`); the countryside outside each map shows flat dark-green cut-out patches;
+the tutorial brook ends abruptly at the map's east edge; the crimson rout ribbon in the ticker
+is unreadable (dark text on dark red, `campaign-battle.jpg`).
+
 ## Known failures
 
 None recorded yet.
