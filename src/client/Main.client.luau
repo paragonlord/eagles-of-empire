@@ -71,10 +71,23 @@ local function ensureWorld(mapId: string): boolean
 		return false
 	end
 	ok = Props.build(map, Settings.get().quality, function(p: number)
-		Loading.setProgress(0.7 + p * 0.3, "Planting woods and villages…")
+		Loading.setProgress(0.6 + p * 0.25, "Planting woods and villages…")
 	end)
 	if not ok or token ~= buildToken then
 		return false
+	end
+	-- Every voxel is written, but Roblox meshes a large map over several seconds (Studio showed
+	-- holes for ~15 s on Austerlitz). Hold the loading screen, looking over the field so the
+	-- centre meshes first, for a time scaled by map area.
+	Camera.reset(map.width / 2, map.depth * 0.4)
+	local settle = math.clamp(3 + 5 * (map.width * map.depth) / (1600 * 1200), 4, 14)
+	local t0 = os.clock()
+	while os.clock() - t0 < settle do
+		if token ~= buildToken then
+			return false
+		end
+		Loading.setProgress(0.85 + 0.15 * (os.clock() - t0) / settle, "Letting the ground settle…")
+		task.wait(0.1)
 	end
 	builtMapId = mapId
 	Loading.hide()
@@ -249,6 +262,7 @@ local function onMatchState(msg: any)
 	local sameMatch = msg.matchId == lastMatchId and msg.matchId ~= ""
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
 	BattleState.applyMatchState(msg)
+	WorldLighting.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
 	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
 	if pauseToggle then
@@ -394,7 +408,10 @@ local function wire()
 			DevPanel.setGoals(msg.aiGoals)
 		end
 	end))
-	table.insert(conns, BattleState.updated:Connect(function()
+	table.insert(conns, BattleState.updated:Connect(function(snap: any)
+		if type(snap) == "table" then
+			WorldLighting.setWeather(snap.weather)
+		end
 		Selection.prune()
 		Figures.onSnapshot()
 		Props.updateObjectives(BattleState.objectives)
