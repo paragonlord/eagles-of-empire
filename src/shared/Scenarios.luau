@@ -21,6 +21,7 @@ export type UnitDef = {
 	commander: boolean?, -- is the army HQ
 	key: string?, -- campaign identity of this unit (nil for standalone battles)
 	arrival: { seconds: number, pos: Vec }?, -- off-map reinforcement: enters at pos at that sim time
+	general: string?, -- HQ only: id in src/shared/Generals.luau (else matched from the name)
 }
 
 export type Scenario = {
@@ -47,7 +48,7 @@ local SOUTH = -math.pi / 2
 local EAST = 0
 local WEST = math.pi
 
-type Extra = { colour: string?, commander: boolean?, arrival: { seconds: number, pos: Vec }? }
+type Extra = { colour: string?, commander: boolean?, arrival: { seconds: number, pos: Vec }?, general: string? }
 
 local function u(faction: string, corps: string, class: "infantry" | "cavalry" | "artillery" | "hq", name: string, strength: number, exp: number, x: number, z: number, heading: number, extra: Extra?): UnitDef
 	local def: UnitDef = {
@@ -64,6 +65,7 @@ local function u(faction: string, corps: string, class: "infantry" | "cavalry" |
 		def.colour = extra.colour
 		def.commander = extra.commander
 		def.arrival = extra.arrival
+		def.general = extra.general
 	end
 	return def
 end
@@ -71,7 +73,7 @@ end
 local Scenarios = {}
 
 local JENA_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 40, 3, 800, 200, NORTH, { commander = true }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 40, 3, 800, 200, NORTH, { commander = true, general = "napoleon" }),
 	-- V Corps (Lannes) — centre
 	u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 700, 320, NORTH),
 	u("france", "V Corps · Lannes", "infantry", "34e de Ligne", 600, 1, 780, 320, NORTH),
@@ -97,7 +99,7 @@ local JENA_FRENCH = {
 }
 
 local JENA_PRUSSIAN = {
-	u("prussia", "HQ", "hq", "Hohenlohe — Army HQ", 40, 2, 760, 860, SOUTH, { commander = true }),
+	u("prussia", "HQ", "hq", "Hohenlohe — Army HQ", 40, 2, 760, 860, SOUTH, { commander = true, general = "hohenlohe" }),
 	-- Tauentzien's advance guard — forward, Closewitz/Cospeda
 	u("prussia", "Avantgarde · Tauentzien", "infantry", "Füsilier-Bataillon Pelet", 600, 1, 980, 580, SOUTH),
 	u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 20 Prinz Louis Ferdinand", 600, 1, 1060, 600, SOUTH),
@@ -149,7 +151,7 @@ end
 -- on the road from Kösen and enters as reinforcements.
 -- ---------------------------------------------------------------------------------------------
 local AUERSTEDT_FRENCH = {
-	u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 640, WEST, { commander = true }),
+	u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 640, WEST, { commander = true, general = "davout" }),
 	-- Gudin's division — Hassenhausen
 	u("france", "Division Gudin", "infantry", "25e de Ligne", 600, 2, 1080, 640, WEST),
 	u("france", "Division Gudin", "infantry", "85e de Ligne", 600, 2, 1080, 760, WEST),
@@ -174,7 +176,7 @@ local AUERSTEDT_FRENCH = {
 }
 
 local AUERSTEDT_PRUSSIAN = {
-	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 300, 800, EAST, { commander = true }),
+	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 300, 800, EAST, { commander = true, general = "brunswick" }),
 	-- Schmettau's division — first onto the field, centre
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 560, 760, EAST),
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 560, 660, EAST),
@@ -231,7 +233,7 @@ end
 -- army on the Pratzen. Friant's division enters from the south-west as reinforcements.
 -- ---------------------------------------------------------------------------------------------
 local AUSTERLITZ_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 40, 3, 450, 1250, EAST, { commander = true }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 40, 3, 450, 1250, EAST, { commander = true, general = "napoleon" }),
 	-- IV Corps (Soult) — centre, the hammer against the Pratzen
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 600, 1150, EAST),
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 600, 1070, EAST),
@@ -268,7 +270,7 @@ local AUSTERLITZ_FRENCH = {
 }
 
 local AUSTERLITZ_ALLIED = {
-	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1500, 950, WEST, { commander = true }),
+	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1500, 950, WEST, { commander = true, general = "kutuzov" }),
 	-- Kienmayer's Austrian advance guard — south, Telnitz
 	u("russia", "Avantgarde · Kienmayer", "cavalry", "Husaren-Regiment Hessen-Homburg", 400, 1, 1100, 260, WEST, { colour = "Austria" }),
 	u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1150, 200, WEST, { colour = "Austria" }),
@@ -336,7 +338,7 @@ end
 -- Anglo-allied army on it. Bülow's Prussians enter from the east from minute 12.
 -- ---------------------------------------------------------------------------------------------
 local WATERLOO_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 40, 3, 1260, 240, NORTH, { commander = true }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 40, 3, 1260, 240, NORTH, { commander = true, general = "napoleon" }),
 	-- Grand Battery — the ridge of La Belle Alliance
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1050, 560, NORTH),
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (6-livres)", 120, 2, 1350, 560, NORTH),
@@ -373,7 +375,7 @@ local WATERLOO_FRENCH = {
 }
 
 local WATERLOO_ALLIED = {
-	u("britain", "HQ", "hq", "Wellington — Army HQ", 40, 3, 1230, 1130, SOUTH, { commander = true }),
+	u("britain", "HQ", "hq", "Wellington — Army HQ", 40, 3, 1230, 1130, SOUTH, { commander = true, general = "wellington" }),
 	-- 3rd Division (Alten) — centre right, La Haye Sainte
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),
