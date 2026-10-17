@@ -9,6 +9,7 @@ local Data = require(script.Data)
 local Board = require(script.Board)
 local CampaignCamera = require(script.CampaignCamera)
 local UI = require(script.CampaignUI)
+local Logic = require(script.Logic)
 
 local Grand = {}
 
@@ -46,114 +47,15 @@ local function player(): string
 end
 
 local function armyById(id: any): any
-	if id == nil or not view then
-		return nil
-	end
-	for _, a in view.armies or {} do
-		if a.id == id then
-			return a
-		end
-	end
-	return nil
-end
-
-local function me(): any
-	return view and view.nations and view.nations[player()] or {}
+	return Logic.army(view, id)
 end
 
 local function canAct(): (boolean, string)
-	if not view then
-		return false, "Waiting for the campaign"
-	elseif view.victory then
-		return false, "The campaign is over"
-	elseif view.pendingBattle then
-		return false, "Resolve the pending battle first"
-	end
-	return true, ""
+	return Logic.canAct(view)
 end
 
-local function hostile(nation: string?): boolean
-	return nation ~= nil and table.find(me().atWarWith or {}, nation) ~= nil
-end
-
-local function ownerOf(id: string): string
-	local ps = view and view.provinces and view.provinces[id]
-	local p = Data.byId[id]
-	return if ps and ps.owner then ps.owner elseif p then p.owner1805 else ""
-end
-
--- Own, allied and enemy ground can be entered; neutrals need a declaration of war first.
-local function enterable(id: string): boolean
-	local o = ownerOf(id)
-	return o == player() or hostile(o) or table.find(me().allies or {}, o) ~= nil
-end
-
--- An enemy army stands in or next to the province: a march halts on entering it.
-local function zoc(id: string): boolean
-	local p = Data.byId[id]
-	if not p or not view then
-		return false
-	end
-	for _, a in view.armies or {} do
-		if hostile(a.nation) and (a.provinceId == id or table.find(p.neighbours, a.provinceId) ~= nil) then
-			return true
-		end
-	end
-	return false
-end
-
--- Shortest march (in provinces) from the army to `goal`, as board steps with turn numbers.
 local function route(a: any, goal: string): { Board.Step }?
-	local start = a.provinceId
-	if start == goal or not Data.byId[goal] then
-		return nil
-	end
-	local prev: { [string]: string } = { [start] = start }
-	local queue = { start }
-	local head = 1
-	while head <= #queue do
-		local cur = queue[head]
-		head += 1
-		if cur == goal then
-			break
-		end
-		if cur == start or not zoc(cur) then
-			for _, n in Data.byId[cur].neighbours do
-				if not prev[n] and enterable(n) then
-					prev[n] = cur
-					table.insert(queue, n)
-				end
-			end
-		end
-	end
-	if not prev[goal] then
-		return nil
-	end
-	local ids: { string } = {}
-	local c: string = goal
-	while c ~= start do
-		table.insert(ids, 1, c)
-		c = prev[c]
-	end
-	local left = tonumber(a.movesLeft) or 0
-	local per = math.max(1, tonumber(a.movesMax) or 2) -- ponytail: 2 marches per turn until the view carries movesMax
-	local steps: { Board.Step } = {}
-	for i, id in ids do
-		local turn = if i <= left then 1 else 2 + (i - left - 1) // per
-		table.insert(steps, { id = id, turn = turn, stop = zoc(id) })
-	end
-	return steps
-end
-
-local function reachable(a: any): { [string]: boolean }
-	local out = {}
-	for _, p in Data.Provinces do
-		local r = route(a, p.id)
-		if r and r[#r].turn == 1 then
-			out[p.id] = true
-		end
-	end
-	return out
+	return Logic.route(view, a, goal)
 end
 
 -- ------------------------------------------------------------------ render
@@ -177,7 +79,7 @@ local function render()
 	end
 	local ok, why = canAct()
 	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, province = selProv, others = others, canAct = ok, actReason = why })
-	Board.setSelection(selArmy, selProv, if own and ok then reachable(a) else nil)
+	Board.setSelection(selArmy, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
 	if own and ok then
 		path = if hoverProv then route(a, hoverProv) else nil
@@ -298,21 +200,6 @@ local function open()
 	end
 end
 
--- Log lines of the turn that just ended (entries are strings or {turn, text}).
-local function turnLines(v: any, turn: number): { string }
-	local out = {}
-	for _, e in v.log or {} do
-		if type(e) == "table" then
-			if e.turn == nil or e.turn == turn then
-				table.insert(out, tostring(e.text or e.message or ""))
-			end
-		else
-			table.insert(out, tostring(e))
-		end
-	end
-	return { table.unpack(out, math.max(1, #out - 13)) }
-end
-
 function Grand.init(h: Hooks)
 	hooks = h
 end
@@ -350,7 +237,7 @@ function Grand.handle(msg: any, canShow: boolean): boolean
 		end
 		if isOpen then
 			if prevTurn and lastTurn and lastTurn > prevTurn then
-				UI.showSummary("Dispatches · " .. tostring(view.date or ""), turnLines(view, prevTurn))
+				UI.showSummary("Dispatches · " .. tostring(view.date or ""), Logic.turnLines(view, prevTurn))
 			end
 			Board.setView(view)
 			render()

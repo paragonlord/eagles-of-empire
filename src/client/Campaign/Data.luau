@@ -17,25 +17,6 @@ for _, p in Data.Provinces do
 	Data.byId[p.id] = p
 end
 
--- Palette keys the shared Config does not carry (minor powers).
-local EXTRA: { [string]: { number } } = {
-	Spain = { 196, 152, 44 },
-	Portugal = { 52, 118, 92 },
-	Naples = { 214, 196, 130 },
-	Ottoman = { 118, 146, 84 },
-	Sweden = { 64, 108, 172 },
-	Denmark = { 186, 86, 76 },
-	Poland = { 196, 74, 98 },
-	Warsaw = { 196, 74, 98 },
-	Switzerland = { 176, 64, 60 },
-	Italy = { 84, 140, 110 },
-	Sardinia = { 150, 120, 170 },
-	Westphalia = { 140, 116, 168 },
-	Rhine = { 132, 110, 158 },
-	Wurttemberg = { 168, 132, 64 },
-	Hanover = { 200, 170, 90 },
-}
-
 local cache: { [string]: Color3 } = {}
 
 function Data.colour(nation: string?): Color3
@@ -46,8 +27,7 @@ function Data.colour(nation: string?): Color3
 	end
 	local n = Data.Nations[id]
 	local key = if n and type(n.colour) == "string" then n.colour else string.upper(string.sub(id, 1, 1)) .. string.sub(id, 2)
-	local t = EXTRA[key]
-	c = if t then Color3.fromRGB(t[1], t[2], t[3]) else Factions.colour(id, key)
+	c = Factions.colour(id, key)
 	cache[id] = c
 	return c
 end

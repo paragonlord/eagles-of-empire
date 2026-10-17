@@ -491,12 +491,12 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	cylinder(m, pos + Vector3.new(poleX, top + 5, 0), 10, 0.25, Kit.GILT_DARK)
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
-	bb.Size = UDim2.fromOffset(62, 18)
+	bb.Size = UDim2.fromOffset(78, 18)
 	bb.StudsOffset = Vector3.new(0, -1.6, 0)
 	bb.LightInfluence = 0
 	bb.Adornee = plinth
 	bb.Parent = m
-	local plate = Kit.label(bb, string.format("%d", math.floor(tonumber(a.strength) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	local plate = Kit.label(bb, string.format("%d · %d", math.floor(tonumber(a.men or a.strength) or 0), math.floor(tonumber(a.unitCount) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
 	plate.BackgroundTransparency = 0.1
 	plate.BackgroundColor3 = Kit.WALNUT
 	local st = Instance.new("UIStroke") :: UIStroke
@@ -589,7 +589,8 @@ function Board.setSelection(armyId: any?, provinceId: string?, reachable: { [str
 	end
 end
 
-export type Step = { id: string, turn: number, stop: boolean }
+local Logic = require(script.Parent.Logic)
+export type Step = Logic.Step
 
 -- Dotted march from `fromId` through `steps`; a numbered marker ends each turn's leg, red
 -- where the march halts in an enemy zone of control.

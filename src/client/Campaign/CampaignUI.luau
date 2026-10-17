@@ -6,6 +6,7 @@
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Data = require(script.Parent.Data)
+local Logic = require(script.Parent.Logic)
 
 local UI = {}
 
@@ -26,23 +27,10 @@ export type Ctx = {
 	actReason: string,
 }
 
-local REASONS: { [string]: string } = {
-	notYourArmy = "That army is not yours",
-	noMoves = "That army has no movement left this turn",
-	notAdjacent = "No road leads there",
-	notYourProvince = "You do not hold that province",
-	insufficientFunds = "Not enough treasury",
-	insufficientManpower = "Not enough manpower",
-	queueFull = "The recruitment queue is full",
-	wrongPhase = "Not now",
-	badArgs = "Malformed order",
-	unknownCommand = "The server does not know that order",
-	noCampaign = "No grand campaign in progress",
-}
-
 local gui: ScreenGui? = nil
 local cb: Callbacks? = nil
 local diplomacyOpen = false
+local objectivesOpen = false
 local pickerReason: string? = nil -- nation choice open (with the reason it opened)
 local summary: { lines: { string }, title: string }? = nil
 local dismissed: { [any]: boolean } = {}
@@ -163,7 +151,7 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	fl.Name = "Flag"
 	local who = item(2, 220)
 	Kit.title(who, Data.name(ctx.player), { size = UDim2.new(1, 0, 0, 22), textSize = 22, colour = Kit.GILT_BRIGHT })
-	local date = Kit.label(who, if view then string.format("%s · turn %s", tostring(view.date or "?"), tostring(view.turn or "?")) else "", { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 22), textSize = 14, colour = Kit.MUTED })
+	local date = Kit.label(who, if view then string.format("%s · turn %s of %s%s", tostring(view.date or "?"), tostring(view.turn or "?"), tostring(view.endTurn or "?"), if view.phase and view.phase ~= "player" then " · " .. (if view.phase == "battle" then "battle pending" else tostring(view.phase)) else "") else "", { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 22), textSize = 14, colour = Kit.MUTED })
 	date.FontFace = Kit.ITALIC
 	local money = item(3, 150)
 	Kit.label(money, "TREASURY", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
@@ -171,13 +159,20 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	local men = item(4, 150)
 	Kit.label(men, "MANPOWER", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
 	Kit.label(men, fmt(me.manpower), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond })
+	local flow = item(5, 150)
+	Kit.label(flow, "PER TURN", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
+	local net = (tonumber(me.income) or 0) - (tonumber(me.upkeep) or 0)
+	Kit.label(flow, string.format("%s%s", if net >= 0 then "+" else "", fmt(net)), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond, colour = if net < 0 then Kit.HOSTILE else Kit.IVORY })
+	Kit.hoverTip(flow, function(): string
+		return string.format("Income %s, upkeep %s, recruits +%s men", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome))
+	end)
 	if ctx.sessionOnly then
-		local warn = item(5, 200)
+		local warn = item(6, 200)
 		Kit.label(warn, "Saving unavailable: this campaign lasts the session only.", { size = UDim2.fromScale(1, 1), textSize = 12, wrap = true, colour = Kit.HOSTILE })
 	end
 	-- right-hand group
 	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.new(0, 470, 1, 0)
+	right.Size = UDim2.new(0, 600, 1, 0)
 	right.Position = UDim2.fromScale(1, 0)
 	right.AnchorPoint = Vector2.new(1, 0)
 	right.BackgroundTransparency = 1
@@ -190,6 +185,11 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		rerender()
 	end, { size = UDim2.fromOffset(120, 34), order = 1, tooltip = "Relations, wars and offers" })
 	Kit.setActiveLook(dip, diplomacyOpen)
+	local obj = Kit.button(right, "Objectives", function()
+		objectivesOpen = not objectivesOpen
+		rerender()
+	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "What wins the campaign" })
+	Kit.setActiveLook(obj, objectivesOpen)
 	Kit.button(right, "Main Menu", function()
 		if cb then
 			cb.menu()
@@ -224,9 +224,10 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	local t = Kit.title(head, tostring(a.name or "Army"), { size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 22, caps = false })
 	t.TextTruncate = Enum.TextTruncate.AtEnd
 	local prov = Data.byId[a.provinceId]
-	text(p, string.format("General %s · %s", tostring(a.general or "unknown"), tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
-	local moves = if a.movesLeft ~= nil then " · " .. plural(a.movesLeft, "march") .. " left" else ""
-	text(p, string.format("%s men%s", fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
+	local stars = if a.rating then "  " .. string.rep("★", math.clamp(math.floor(tonumber(a.rating) or 0), 0, 5)) else ""
+	text(p, string.format("%s%s · %s", if a.general then "General " .. tostring(a.general) else "No general", stars, tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
+	local moves = if a.movesLeft ~= nil then string.format(" · %d/%d moves", a.movesLeft, a.movesMax or a.movesLeft) else ""
+	text(p, string.format("%s men · %s · strength %s%s", fmt(a.men or a.strength), plural(tonumber(a.unitCount) or 0, "unit"), fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
 	local units: any = a.units
 	if type(units) == "table" and next(units) ~= nil and type(select(2, next(units))) ~= "table" then
 		local list = {}
@@ -305,28 +306,8 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 end
 
 local function recruitOptions(view: any, provinceId: string): { any }
-	local rec = view.recruitment or {}
-	local src = rec.options or {}
-	if type(rec[provinceId]) == "table" then
-		src = rec[provinceId].options or rec[provinceId]
-	end
-	local out = {}
-	for k, o in src do
-		if type(o) == "table" then
-			table.insert(out, { unitType = o.unitType or o.key or k, o = o })
-		end
-	end
-	if #out == 0 then
-		local names = Data.Europe.UnitNames[view.playerNation] or {}
-		for _, k in Data.Europe.UnitTypeOrder do
-			local c = Data.Europe.UnitClasses[k]
-			table.insert(out, { unitType = k, o = { name = names[k] or c.name, cost = c.cost, manpower = c.manpower, turns = c.turns, requires = if c.needs == "any" then nil else c.needs, majorOnly = c.majorOnly } })
-		end
-	end
-	table.sort(out, function(x: any, y: any): boolean
-		return (tonumber(x.o.cost) or 0) < (tonumber(y.o.cost) or 0)
-	end)
-	return out
+	local opts = view.recruitment and view.recruitment.options
+	return if type(opts) == "table" and type(opts[provinceId]) == "table" then opts[provinceId] else {}
 end
 
 local function provincePanel(parent: Instance, ctx: Ctx, order: number)
@@ -379,37 +360,12 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		return
 	end
 	Kit.title(panelF, "Recruit", { size = UDim2.new(1, 0, 0, 22), textSize = 18 }).LayoutOrder = 20
-	local me = nationOf(view, ctx.player)
-	local treasury, manpower = tonumber(me.treasury) or 0, tonumber(me.manpower) or 0
-	for i, opt in opts do
-		local o = opt.o
-		local cost, men, turns = tonumber(o.cost) or 0, tonumber(o.manpower or o.strength) or 0, tonumber(o.turns) or 1
-		local b = Kit.button(panelF, string.format("%s   ·   %s gold · %s men · %s", tostring(o.name or opt.unitType), fmt(cost), fmt(men), plural(turns, "turn")), function()
-			send("recruit", { provinceId = id, unitType = opt.unitType })
+	for i, o in opts do
+		local b = Kit.button(panelF, string.format("%s   ·   %s gold · %s men · %s · upkeep %s", tostring(o.name or o.unitType), fmt(o.cost), fmt(o.manpower), plural(tonumber(o.turns) or 1, "turn"), fmt(o.upkeep)), function()
+			send("recruit", { provinceId = id, unitType = o.unitType })
 		end, { size = UDim2.new(1, 0, 0, 28), order = 20 + i, textSize = 13, caps = false })
 		b.TextXAlignment = Enum.TextXAlignment.Left
-		local why: string? = nil
-		if not ctx.canAct then
-			why = ctx.actReason
-		elseif type(o.reason) == "string" and o.reason ~= "" then
-			why = REASONS[o.reason] or o.reason
-		elseif ps.occupiedBy and ps.occupiedBy ~= ctx.player then
-			why = "No recruiting in an occupied province"
-		elseif type(siege) == "table" then
-			why = "No recruiting under siege"
-		elseif o.requires == "port" and not p.isPort then
-			why = "Needs a port"
-		elseif o.requires == "capital" and not p.isCapital then
-			why = "Only raised in a capital"
-		elseif o.requires == "fort" and (p.fort or 0) == 0 then
-			why = "Needs a fortress"
-		elseif o.majorOnly and not (Data.Nations[ctx.player] and Data.Nations[ctx.player].major) then
-			why = "Only the great powers raise these"
-		elseif treasury < cost then
-			why = string.format("Not enough treasury (%s needed)", fmt(cost))
-		elseif manpower < men then
-			why = string.format("Not enough manpower (%s needed)", fmt(men))
-		end
+		local why: string? = if not ctx.canAct then ctx.actReason elseif o.available == false then Logic.reason(o.reason) else nil
 		Kit.setEnabled(b, why == nil, why)
 	end
 end
@@ -429,10 +385,7 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		local col = column(p, 2, 6)
 		for i, o in offers do
 			local box = panel(col, i, true)
-			text(box, string.format("%s proposes %s.", Data.name(o.from), tostring(o.kind)), 1, { textSize = 15, font = Enum.Font.Garamond })
-			if o.terms then
-				text(box, if type(o.terms) == "string" then o.terms else "Terms attached", 2, { textSize = 13 })
-			end
+			text(box, Logic.offerText(o), 1, { textSize = 15, font = Enum.Font.Garamond })
 			local br = buttonRow(box, 3, 28)
 			Kit.button(br, "Accept", function()
 				send("diplomacy", { nation = o.from, action = "accept", offerId = o.id })
@@ -468,11 +421,17 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 	for i, id in ids do
 		local n = view.nations[id]
 		local war, ally = contains(me.atWarWith, id), contains(me.allies, id)
+		local alive = n.alive ~= false
+		local truce = tonumber(n.truceUntil)
 		local r = row(list, i, 58)
 		r.Size = UDim2.new(1, -8, 0, 58)
 		flag(r, id, 28, 18, UDim2.fromOffset(0, 2))
-		Kit.label(r, Data.name(id), { size = UDim2.new(1, -150, 0, 20), position = UDim2.fromOffset(38, 0), textSize = 17, font = Enum.Font.Garamond })
-		local status = if war then "At war" elseif ally then "Allied" else "At peace"
+		local nameL = Kit.label(r, Data.name(id) .. (if n.major then "  ✦" else ""), { size = UDim2.new(1, -150, 0, 20), position = UDim2.fromOffset(38, 0), textSize = 17, font = Enum.Font.Garamond })
+		local cap = Data.byId[n.capital or ""]
+		Kit.hoverTip(nameL, function(): string
+			return (if n.major then "Great power. " else "") .. (if cap then "Capital: " .. cap.name else "")
+		end)
+		local status = if not alive then "Fallen" elseif war then (if n.warScore then string.format("At war (%+d)", n.warScore) else "At war") elseif ally then "Allied" elseif truce then "Truce to " .. Data.Europe.dateOf(truce) else "At peace"
 		Kit.label(r, status, { size = UDim2.fromOffset(100, 18), position = UDim2.new(1, -100, 0, 1), textSize = 13, align = Enum.TextXAlignment.Right, colour = if war then Kit.HOSTILE elseif ally then Kit.GILT_BRIGHT else Kit.MUTED })
 		local rel = math.clamp(tonumber(n.relationToPlayer) or 0, -100, 100)
 		local fill = Kit.bar(r, UDim2.new(1, -38, 0, 5), UDim2.fromOffset(38, 24), Color3.fromRGB(184, 52, 40):Lerp(Color3.fromRGB(96, 150, 70), (rel + 100) / 200))
@@ -492,9 +451,17 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 			end, { size = UDim2.fromOffset(96, 22), textSize = 12, primary = primary })
 			Kit.setEnabled(b, ok and ctx.canAct, if ctx.canAct then why else ctx.actReason)
 		end
-		act("Peace", "peace", war, "You are not at war")
-		act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
-		act("War", "war", not war and not ally, if ally then "You will not strike an ally" else "Already at war", true)
+		if not alive then
+			nameL.TextTransparency = 0.5
+			for _, c in r:GetDescendants() do
+				if c:IsA("Frame") then
+					(c :: Frame).BackgroundTransparency = math.max((c :: Frame).BackgroundTransparency, 0.6)
+				end
+			end
+		else
+			act("Peace", "peace", war, "You are not at war")
+			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
+			act("War", "war", not war and not ally and truce == nil, if ally then "You will not strike an ally" elseif truce then Logic.REASONS.truce else "Already at war", true)
 	end
 end
 
@@ -538,6 +505,7 @@ local function eventDoc(sg: ScreenGui, ev: any)
 	else
 		Kit.button(col, "Very well", function()
 			dismissed[ev.id] = true
+			send("eventChoice", { eventId = ev.id })
 			rerender()
 		end, { size = UDim2.new(1, 0, 0, 32), primary = true, textSize = 15 })
 	end
@@ -549,15 +517,15 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	local prov = Data.byId[pb.provinceId]
 	Kit.title(p, "Battle at " .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
 	local function side(v: any): (string, string)
-		for _, a in view.armies or {} do
-			if a.id == v then
-				return a.nation, string.format("%s · %s men", tostring(a.name), fmt(a.strength))
-			end
+		local a = Logic.army(view, v)
+		if a then
+			return a.nation, string.format("%s · %s men", tostring(a.name), fmt(a.men or a.strength))
 		end
 		return tostring(v), ""
 	end
 	local an, ad = side(pb.attacker)
 	local dn, dd = side(pb.defender)
+	an, dn = pb.attackerNation or an, pb.defenderNation or dn
 	local sides = row(p, 2, 70)
 	for i, s in { { an, ad, "Attacker" }, { dn, dd, "Defender" } } do
 		local f = Instance.new("Frame") :: Frame
@@ -604,9 +572,9 @@ local function summaryDoc(sg: ScreenGui, s: { lines: { string }, title: string }
 end
 
 local function victoryDoc(sg: ScreenGui, ctx: Ctx, v: any)
-	local won = v.outcome == "victory"
+	local won, draw = v.outcome == "victory", v.outcome == "draw"
 	local p = modal(sg, 520)
-	Kit.title(p, if won then "Victory" else "Defeat", { size = UDim2.new(1, 0, 0, 48), textSize = 44, spaced = true, align = Enum.TextXAlignment.Center, colour = if won then Kit.GILT_BRIGHT else Kit.HOSTILE, rule = true }).LayoutOrder = 1
+	Kit.title(p, if won then "Victory" elseif draw then "Draw" else "Defeat", { size = UDim2.new(1, 0, 0, 48), textSize = 44, spaced = true, align = Enum.TextXAlignment.Center, colour = if won then Kit.GILT_BRIGHT elseif draw then Kit.IVORY else Kit.HOSTILE, rule = true }).LayoutOrder = 1
 	Kit.tricolour(p, UDim2.fromOffset(150, 6), UDim2.new()).LayoutOrder = 2
 	text(p, tostring(v.reason or ""), 3, { align = Enum.TextXAlignment.Center, textSize = 18, font = Enum.Font.Garamond })
 	local br = buttonRow(p, 4, 36)
@@ -627,7 +595,7 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 	local sub = text(p, "Europe, January 1805. Eleven years to decide its fate.", 2, { align = Enum.TextXAlignment.Center, textSize = 16, colour = Kit.MUTED })
 	sub.FontFace = Kit.ITALIC
 	if reason ~= "" then
-		text(p, REASONS[reason] or reason, 3, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
+		text(p, Logic.reason(reason), 3, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
 	end
 	local grid = row(p, 4, 0)
 	grid.AutomaticSize = Enum.AutomaticSize.Y
@@ -696,7 +664,7 @@ function UI.render(ctx: Ctx)
 	armyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	left.Active = #left:GetChildren() > 1
-	if diplomacyOpen and view then
+	if (diplomacyOpen or objectivesOpen) and view then
 		local right = Instance.new("Frame") :: Frame
 		right.Size = UDim2.new(0, 380, 0, 0)
 		right.Position = UDim2.new(1, -12, 0, 72)
@@ -705,7 +673,16 @@ function UI.render(ctx: Ctx)
 		right.BackgroundTransparency = 1
 		right.Parent = sg
 		Kit.list(right, 8)
-		diplomacy(right, ctx)
+		if objectivesOpen then
+			local op = panel(right, 0)
+			Kit.title(op, "Objectives", { size = UDim2.new(1, 0, 0, 28), textSize = 24, rule = true }).LayoutOrder = 0
+			for i, o in view.objectives or {} do
+				text(op, (if o.done then "■  " else "□  ") .. tostring(o.text), i, { textSize = 15, font = Enum.Font.Garamond, colour = if o.done then Kit.GILT_BRIGHT else Kit.IVORY })
+			end
+		end
+		if diplomacyOpen then
+			diplomacy(right, ctx)
+		end
 	end
 	-- one document at a time, most pressing first
 	local ev = nil
@@ -749,8 +726,8 @@ function UI.escape(): boolean
 	if summary then
 		summary = nil
 		return true
-	elseif diplomacyOpen then
-		diplomacyOpen = false
+	elseif diplomacyOpen or objectivesOpen then
+		diplomacyOpen, objectivesOpen = false, false
 		return true
 	end
 	return false
@@ -774,7 +751,7 @@ function UI.toast(reason: string)
 		t = l
 	end
 	local label = t :: TextLabel
-	local msg = REASONS[reason] or reason
+	local msg = Logic.reason(reason)
 	label.Text = msg
 	label.Visible = true
 	task.delay(4, function()
@@ -789,7 +766,7 @@ function UI.destroy()
 		gui:Destroy()
 	end
 	gui, cb, toastLabel, summary, pickerReason, splitArmy = nil, nil, nil, nil, nil, nil
-	diplomacyOpen = false
+	diplomacyOpen, objectivesOpen = false, false
 	table.clear(split)
 	table.clear(dismissed)
 	Kit.hideTooltip()
