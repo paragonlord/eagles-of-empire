@@ -12314,30 +12314,106 @@ local function refreshDifficulty()
 	end
 end
 
+-- 1-3 gold stars from the note's opening word ("Even:", "Hard:", "Very hard:").
+local function stars(note: string?): number
+	local n = string.lower(note or "")
+	if string.find(n, "^very hard") then
+		return 3
+	elseif string.find(n, "^hard") then
+		return 2
+	end
+	return 1
+end
+
+local function star(parent: Instance, x: number, filled: boolean)
+	for _, rot in { 0, 45 } do
+		local d = Instance.new("Frame") :: Frame
+		d.Size = UDim2.fromOffset(9, 9)
+		d.AnchorPoint = Vector2.new(0.5, 0.5)
+		d.Position = UDim2.fromOffset(x, 8)
+		d.Rotation = rot
+		d.BackgroundColor3 = if filled then Kit.GILT else Kit.INSET
+		d.BorderSizePixel = 0
+		d.Parent = parent
+		local st = Instance.new("UIStroke") :: UIStroke
+		st.Color = Kit.GILT_DARK
+		st.Parent = d
+	end
+end
+
+local function sideIds(e: Entry): { string }
+	local ids = {}
+	for id in e.factionNames or {} do
+		table.insert(ids, id)
+	end
+	table.sort(ids, function(a: string, b: string)
+		if a == "france" or b == "france" then
+			return a == "france"
+		end
+		return a < b
+	end)
+	return ids
+end
+
+-- A framed "painting": gold-bordered dark card with the name, the date in italic, the two
+-- flags facing each other, the history on a parchment strip and the difficulty in stars.
 local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean)
 	local f = Kit.panel(parent, { size = UDim2.new(1, -8, 0, 150), position = UDim2.new(), dark = true, padding = 12 })
 	f.LayoutOrder = order
 	f.AutomaticSize = Enum.AutomaticSize.Y
-	Kit.title(f, e.name, { size = UDim2.new(1, -130, 0, 28), textSize = 24 })
-	Kit.label(f, string.format("%s   ·   %s", tostring(e.date or ""), sides(e)), { size = UDim2.new(1, -130, 0, 18), position = UDim2.new(0, 0, 0, 30), textSize = 12, colour = Kit.MUTED })
-	-- summary and note stacked, so a long summary pushes the note down instead of overlapping it
+	local fs = f:FindFirstChildOfClass("UIStroke") :: UIStroke?
+	if fs then
+		fs.Color = Kit.GILT
+		fs.Thickness = 2
+	end
+	local name = Kit.title(f, e.name, { size = UDim2.new(1, -240, 0, 28), textSize = 23, colour = Kit.IVORY })
+	name.TextTruncate = Enum.TextTruncate.AtEnd
+	local date = Kit.label(f, string.format("%s   ·   %s", tostring(e.date or ""), sides(e)), { size = UDim2.new(1, -240, 0, 20), position = UDim2.new(0, 0, 0, 28), textSize = 17, colour = Kit.MUTED })
+	date.FontFace = Kit.ITALIC
+	-- the colours, facing each other across the field
+	local ids = sideIds(e)
+	local flags = Instance.new("Frame") :: Frame
+	flags.Size = UDim2.fromOffset(112, 36)
+	flags.Position = UDim2.new(1, -232, 0, 4)
+	flags.BackgroundTransparency = 1
+	flags.Parent = f
+	if ids[1] then
+		Kit.flag(flags, ids[1], Vector2.new(36, 24), UDim2.fromOffset(0, 0))
+	end
+	local vs = Kit.label(flags, "vs", { size = UDim2.fromOffset(24, 24), position = UDim2.fromOffset(44, 0), textSize = 17, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
+	vs.FontFace = Kit.ITALIC
+	for i = 2, math.min(#ids, 3) do
+		Kit.flag(flags, ids[i], Vector2.new(36, 24), UDim2.fromOffset(72 + (i - 2) * 10, (i - 2) * 6), true)
+	end
+	-- summary on a parchment strip, then the difficulty
 	local body = Instance.new("Frame") :: Frame
-	body.Size = UDim2.new(1, -130, 0, 0)
-	body.Position = UDim2.new(0, 0, 0, 52)
+	body.Size = UDim2.new(1, -124, 0, 0)
+	body.Position = UDim2.new(0, 0, 0, 56)
 	body.AutomaticSize = Enum.AutomaticSize.Y
 	body.BackgroundTransparency = 1
 	body.Parent = f
-	Kit.list(body, 6)
-	local summary = Kit.label(body, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 0), textSize = 13, wrap = true })
+	Kit.list(body, 8)
+	local strip = Kit.panel(body, { size = UDim2.new(1, 0, 0, 0), position = UDim2.new(), parchment = true, padding = 10 })
+	strip.AutomaticSize = Enum.AutomaticSize.Y
+	strip.LayoutOrder = 1
+	local summary = Kit.label(strip, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 0), textSize = 16, font = Enum.Font.Garamond, wrap = true })
 	summary.AutomaticSize = Enum.AutomaticSize.Y
 	summary.TextYAlignment = Enum.TextYAlignment.Top
-	summary.LayoutOrder = 1
-	local note = Kit.label(body, if e.difficultyNote then "Difficulty: " .. tostring(e.difficultyNote) else "", { size = UDim2.new(1, 0, 0, 0), textSize = 12, colour = Kit.MUTED, wrap = true })
+	local diff = Instance.new("Frame") :: Frame
+	diff.Size = UDim2.new(1, 0, 0, 16)
+	diff.AutomaticSize = Enum.AutomaticSize.Y
+	diff.BackgroundTransparency = 1
+	diff.LayoutOrder = 2
+	diff.Parent = body
+	local n = stars(e.difficultyNote)
+	for i = 1, 3 do
+		star(diff, 6 + (i - 1) * 16, i <= n)
+	end
+	local note = Kit.label(diff, tostring(e.difficultyNote or ""), { size = UDim2.new(1, -56, 0, 0), position = UDim2.fromOffset(56, 0), textSize = 14, colour = Kit.MUTED, wrap = true })
 	note.AutomaticSize = Enum.AutomaticSize.Y
-	note.LayoutOrder = 2
 	local b = Kit.button(f, "Fight", function()
 		cb.fight(e.id)
-	end, { size = UDim2.fromOffset(110, 40), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), primary = true, textSize = 16 })
+	end, { size = UDim2.fromOffset(110, 40), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), primary = true, textSize = 18 })
 	Kit.setEnabled(b, isCommander, "Only the commander starts a battle")
 end
 
@@ -12345,9 +12421,9 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	BattleSelect.destroy()
 	local sg = Kit.screen("EoEBattleSelect", 31)
 	local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
-	Kit.title(panel, "Choose a battle", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
+	Kit.title(panel, "Choose a battle", { size = UDim2.new(1, -130, 0, 34), textSize = 28, spaced = true, colour = Kit.GILT, rule = true })
 	Kit.button(panel, "Back (Esc)", cb.back, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
-	Kit.label(panel, "Enemy difficulty", { size = UDim2.new(0, 160, 0, 30), position = UDim2.new(0, 0, 0, 44), textSize = 13, colour = Kit.MUTED })
+	Kit.label(panel, "Enemy difficulty", { size = UDim2.new(0, 160, 0, 30), position = UDim2.new(0, 0, 0, 44), textSize = 15, colour = Kit.MUTED })
 	local dRow = Instance.new("Frame") :: Frame
 	dRow.Size = UDim2.new(0, 300, 0, 30)
 	dRow.Position = UDim2.new(0, 150, 0, 44)
@@ -12371,6 +12447,7 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 6
+	scroll.ScrollBarImageColor3 = Kit.GILT
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.new()
 	scroll.Active = true
@@ -12874,10 +12951,10 @@ local function buildSide()
 
 	local obj = section(s, "Objectives", next())
 	for i, o in view.objectives.regions do
-		row(obj, (if o.held then "■  " else "□  ") .. o.name, i, { colour = if o.held then Kit.INK else Kit.MUTED })
+		row(obj, (if o.held then "■  " else "□  ") .. o.name, i, { colour = if o.held then Kit.IVORY else Kit.MUTED })
 	end
 	local ok = view.objectives.armyStrength >= view.objectives.minArmyStrength
-	row(obj, string.format("Army strength %d / %d required", view.objectives.armyStrength, view.objectives.minArmyStrength), 20, { colour = if ok then Kit.INK else Kit.MUTED })
+	row(obj, string.format("Army strength %d / %d required", view.objectives.armyStrength, view.objectives.minArmyStrength), 20, { colour = if ok then Kit.IVORY else Kit.MUTED })
 
 	local lg = section(s, "Dispatches", next())
 	local lines = view.log or {}
@@ -12956,7 +13033,8 @@ local function build()
 	back.Parent = sg
 	local mapPanel = Kit.panel(sg, { size = UDim2.new(1, -420, 1, -32), position = UDim2.new(0, 16, 0, 16), transparency = 0 })
 	mapPanel.BackgroundColor3 = OLIVE
-	local grad = Instance.new("UIGradient") :: UIGradient
+	local grad = (mapPanel:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")) :: UIGradient
+	mapPanel.BackgroundColor3 = Color3.new(1, 1, 1)
 	grad.Color = ColorSequence.new(OLIVE, OLIVE_DARK)
 	grad.Rotation = 60
 	grad.Parent = mapPanel
@@ -13178,7 +13256,7 @@ end
 -- Class glyph centred in a CARD_W x 26 area.
 local function glyph(parent: Frame, class: string)
 	local cx, cy = CARD_W / 2, 13
-	local ink = Kit.INK
+	local ink = Kit.IVORY
 	if class == "infantry" then -- crossed muskets
 		rect(parent, 2, 26, cx, cy, 35, ink)
 		rect(parent, 2, 26, cx, cy, -35, ink)
@@ -13195,7 +13273,7 @@ local function glyph(parent: Frame, class: string)
 	elseif class == "hq" then -- eight-point star
 		rect(parent, 14, 14, cx, cy, 0, Kit.GOLD)
 		rect(parent, 14, 14, cx, cy, 45, Kit.GOLD)
-		ring(parent, 5, cx, cy, ink, 1.5)
+		ring(parent, 5, cx, cy, Kit.INSET, 1.5)
 	end
 end
 
@@ -13262,7 +13340,7 @@ local function newCard(f: any): Card
 	local b = Instance.new("TextButton") :: TextButton
 	b.Name = "Card" .. id
 	b.Size = UDim2.fromOffset(CARD_W, CARD_H)
-	b.BackgroundColor3 = Kit.CREAM
+	b.BackgroundColor3 = Kit.WALNUT_LIGHT
 	b.BorderSizePixel = 0
 	b.AutoButtonColor = false
 	b.Text = ""
@@ -13270,15 +13348,26 @@ local function newCard(f: any): Card
 	b.Active = true
 	b.Parent = s
 	local stroke = Instance.new("UIStroke") :: UIStroke
-	stroke.Color = Kit.INK
+	stroke.Color = Kit.GILT_DARK
 	stroke.Thickness = 1
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = b
 	local header = Instance.new("Frame") :: Frame
-	header.Size = UDim2.new(1, 0, 0, 5)
+	header.Size = UDim2.new(1, 0, 0, 6)
 	header.BackgroundColor3 = Factions.colour(f.faction, f.colour)
 	header.BorderSizePixel = 0
 	header.Parent = b
+	-- enamel: a bright glaze over the top half, a gilt edge beneath
+	local glaze = Instance.new("UIGradient") :: UIGradient
+	glaze.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 150))
+	glaze.Rotation = 90
+	glaze.Parent = header
+	local edge = Instance.new("Frame") :: Frame
+	edge.Size = UDim2.new(1, 0, 0, 1)
+	edge.Position = UDim2.fromOffset(0, 6)
+	edge.BackgroundColor3 = Kit.GILT_DARK
+	edge.BorderSizePixel = 0
+	edge.Parent = b
 	local g = Instance.new("Frame") :: Frame
 	g.Size = UDim2.fromOffset(CARD_W, 26)
 	g.Position = UDim2.fromOffset(0, 7)
@@ -13301,7 +13390,7 @@ local function newCard(f: any): Card
 	Kit.list(row, 2, true)
 	local icons: { [string]: Frame } = {}
 	local reload = iconSlot(row, "reload", 1) -- cartridge box filling as the volley reloads
-	box(reload, 8, 5, 5, Kit.INK)
+	box(reload, 8, 5, 5, Kit.IVORY)
 	local reloadFill = Instance.new("Frame") :: Frame
 	reloadFill.AnchorPoint = Vector2.new(0, 1)
 	reloadFill.Position = UDim2.fromOffset(2, 8)
@@ -13315,12 +13404,12 @@ local function newCard(f: any): Card
 	rect(noAmmo, 2, 11, 5, 5, 45, Kit.HOSTILE)
 	icons.noAmmo = noAmmo
 	local square = iconSlot(row, "square", 3) -- hollow square
-	box(square, 8, 5, 5, Kit.INK)
-	box(square, 4, 5, 5, Kit.INK)
+	box(square, 8, 5, 5, Kit.IVORY)
+	box(square, 4, 5, 5, Kit.IVORY)
 	icons.square = square
 	local limbered = iconSlot(row, "limbered", 4) -- wheel and trail
-	ring(limbered, 7, 4, 5, Kit.INK, 1.5)
-	rect(limbered, 5, 2, 8, 6, 20, Kit.INK)
+	ring(limbered, 7, 4, 5, Kit.IVORY, 1.5)
+	rect(limbered, 5, 2, 8, 6, 20, Kit.IVORY)
 	icons.limbered = limbered
 	local holdFire = iconSlot(row, "holdFire", 5) -- red cross
 	rect(holdFire, 2, 11, 5, 5, 45, Kit.HOSTILE)
@@ -13404,11 +13493,11 @@ local function paint(c: Card, f: any)
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
 	local sel = Selection.isSelected(f.id)
-	c.stroke.Color = if sel then Kit.GOLD else Kit.INK
+	c.stroke.Color = if sel then Kit.GILT_BRIGHT else Kit.GILT_DARK
 	c.stroke.Thickness = if sel then 2 else 1
 	c.stroke.Transparency = if sel then 0 else 0.4
 	if not c.routing then
-		c.root.BackgroundColor3 = if c.shattered then Kit.MUTED elseif sel then Kit.SELECT else Kit.CREAM
+		c.root.BackgroundColor3 = if c.shattered then Kit.SLATE elseif sel then Kit.BLUE_LIGHT else Kit.WALNUT_LIGHT
 	end
 end
 
@@ -13416,8 +13505,8 @@ end
 local function retire(c: Card)
 	local cover = Instance.new("Frame") :: Frame
 	cover.Size = UDim2.fromScale(1, 1)
-	cover.BackgroundColor3 = Kit.MUTED
-	cover.BackgroundTransparency = 0.25
+	cover.BackgroundColor3 = Kit.INSET
+	cover.BackgroundTransparency = 0.3
 	cover.BorderSizePixel = 0
 	cover.ZIndex = 5
 	cover.Parent = c.root
@@ -13550,7 +13639,7 @@ function CardBar.create(sg: ScreenGui)
 	s.AutomaticCanvasSize = Enum.AutomaticSize.X
 	s.CanvasSize = UDim2.new()
 	s.ScrollBarThickness = 4
-	s.ScrollBarImageColor3 = Kit.INK
+	s.ScrollBarImageColor3 = Kit.GILT
 	s.Active = true
 	s.Parent = p
 	local layout = Kit.list(s, GAP, true)
@@ -13604,7 +13693,7 @@ function CardBar.animate()
 	local pulse = (math.sin(os.clock() * 8) + 1) / 2
 	for id, c in cards do
 		if c.routing then
-			c.root.BackgroundColor3 = Kit.CREAM:Lerp(Kit.MORALE.routing, 0.25 + 0.6 * pulse)
+			c.root.BackgroundColor3 = Kit.WALNUT_LIGHT:Lerp(Kit.MORALE.routing, 0.25 + 0.6 * pulse)
 		end
 		if c.icons.reload.Visible then
 			local f = BattleState.formations[id]
@@ -13656,9 +13745,9 @@ local startBtn: TextButton? = nil
 local HINTS = "· Left-drag a formation to re-place it inside your zone.\n· Right-drag from a formation to set its facing.\n· Objectives are marked with flags; north is up on the minimap."
 
 local function section(parent: Instance, heading: string, body: string, order: number, colour: Color3?)
-	local h = Kit.title(parent, heading, { size = UDim2.new(1, 0, 0, 22), textSize = 19 })
+	local h = Kit.title(parent, heading, { size = UDim2.new(1, 0, 0, 22), textSize = 18, spaced = true })
 	h.LayoutOrder = order
-	local b = Kit.label(parent, body, { size = UDim2.new(1, -6, 0, 0), wrap = true, textSize = 13, colour = colour })
+	local b = Kit.label(parent, body, { size = UDim2.new(1, -6, 0, 0), wrap = true, textSize = 16, font = Enum.Font.Garamond, colour = colour })
 	b.AutomaticSize = Enum.AutomaticSize.Y
 	b.TextYAlignment = Enum.TextYAlignment.Top
 	b.LayoutOrder = order + 1
@@ -13668,17 +13757,18 @@ function Deployment.show(cb: Callbacks)
 	Deployment.destroy()
 	local sg = Kit.screen("EoEDeploy", 20)
 	local sc = BattleState.scenario or {}
-	local panel = Kit.panel(sg, { size = UDim2.new(0, 420, 1, -96), position = UDim2.new(0, 24, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = 18 })
+	-- the dispatch: a parchment document sealed in crimson
+	local panel = Kit.panel(sg, { size = UDim2.new(0, 420, 1, -96), position = UDim2.new(0, 24, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = 18, parchment = true })
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(420, 660)
 	cap.Parent = panel
 
-	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, 0, 0, 34), textSize = 28 })
+	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = UDim2.new(1, -60, 0, 18), textSize = 17 })
+	dated.FontFace = Kit.ITALIC
+	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -60, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
 	title.TextTruncate = Enum.TextTruncate.AtEnd
+	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
 	local facts = {}
-	if sc.date then
-		table.insert(facts, sc.date)
-	end
 	local w = (Config.Weather :: any)[sc.weather or ""]
 	if w then
 		table.insert(facts, w.label)
@@ -13686,13 +13776,8 @@ function Deployment.show(cb: Callbacks)
 	if sc.timeLimit and sc.timeLimit > 0 then
 		table.insert(facts, string.format("%d minutes", math.floor(sc.timeLimit / 60)))
 	end
-	Kit.title(panel, table.concat(facts, "  ·  "), { size = UDim2.new(1, 0, 0, 20), position = UDim2.fromOffset(0, 36), textSize = 17, colour = Kit.MUTED })
-	local rule = Instance.new("Frame") :: Frame
-	rule.Size = UDim2.new(1, 0, 0, 1)
-	rule.Position = UDim2.fromOffset(0, 62)
-	rule.BackgroundColor3 = Kit.GOLD
-	rule.BorderSizePixel = 0
-	rule.Parent = panel
+	Kit.title(panel, table.concat(facts, "  ·  "), { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 47), textSize = 16, colour = Kit.MUTED, caps = false })
+	Kit.rule(panel, UDim2.fromOffset(0, 66))
 
 	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
 	body.Size = UDim2.new(1, 0, 1, -72 - 62)
@@ -13706,7 +13791,8 @@ function Deployment.show(cb: Callbacks)
 	body.Parent = panel
 	Kit.list(body, 4)
 	if sc.difficultyNote then
-		local note = Kit.label(body, sc.difficultyNote, { size = UDim2.new(1, -6, 0, 0), wrap = true, textSize = 13, font = Enum.Font.GothamBold, colour = Kit.HOSTILE })
+		local note = Kit.label(body, sc.difficultyNote, { size = UDim2.new(1, -6, 0, 0), wrap = true, textSize = 16, colour = Kit.CRIMSON })
+		note.FontFace = Kit.BOLD
 		note.AutomaticSize = Enum.AutomaticSize.Y
 		note.LayoutOrder = 1
 	end
@@ -13725,9 +13811,7 @@ function Deployment.show(cb: Callbacks)
 	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
 	local bs = b:FindFirstChildOfClass("UIStroke") :: UIStroke?
 	if bs then
-		bs.Color = Kit.GOLD
 		bs.Thickness = 2
-		bs.Transparency = 0
 	end
 	Kit.button(row, "Settings", cb.settings, { size = UDim2.new(0, 90, 1, 0), order = 2 })
 	if not BattleState.isCommander then
@@ -13926,7 +14010,20 @@ end
 -- ------------------------------------------------------------------ top bar
 
 local function buildTopBar(sg: ScreenGui)
-	local bar = Kit.panel(sg, { size = UDim2.new(1, 0, 0, 36), position = UDim2.new(0, 0, 0, 0), transparency = 0.08 })
+	-- dark band: no frame, a crimson hairline over a gold lower rule
+	local bar = Kit.panel(sg, { size = UDim2.new(1, 0, 0, 36), position = UDim2.new(0, 0, 0, 0), transparency = 0.04, plain = true })
+	local bs = bar:FindFirstChildOfClass("UIStroke") :: UIStroke?
+	if bs then
+		bs.Enabled = false
+	end
+	for _, r in { { 2, -2, Kit.GILT }, { 1, -3, Kit.CRIMSON } } do
+		local line = Instance.new("Frame") :: Frame
+		line.Size = UDim2.new(1, 0, 0, r[1] :: number)
+		line.Position = UDim2.new(0, 0, 1, r[2] :: number)
+		line.BackgroundColor3 = r[3] :: Color3
+		line.BorderSizePixel = 0
+		line.Parent = bar
+	end
 	local sc = BattleState.scenario
 	local name = Kit.title(bar, if sc then sc.name else "", { size = UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
@@ -13992,10 +14089,14 @@ local function buildTopBar(sg: ScreenGui)
 
 	-- balance of power: own strength against the enemy strength we can see
 	local bal = Kit.panel(sg, { size = UDim2.fromOffset(320, 12), position = UDim2.new(0.5, 0, 0, 42), anchor = Vector2.new(0.5, 0), transparency = 0, plain = true })
+	local bg = bal:FindFirstChildOfClass("UIGradient")
+	if bg then
+		bg:Destroy()
+	end
 	bal.BackgroundColor3 = Kit.factionColour(BattleState.enemyFaction)
 	local own = Instance.new("Frame") :: Frame
 	own.Size = UDim2.fromScale(0.5, 1)
-	own.BackgroundColor3 = Kit.factionColour(BattleState.viewerFaction)
+	own.BackgroundColor3 = Kit.BLUE_LIGHT
 	own.BorderSizePixel = 0
 	own.Parent = bal
 	local tick = Instance.new("Frame") :: Frame
@@ -14068,7 +14169,7 @@ local function updateObjectives()
 			pennant.Size = UDim2.new(0, 7, 1, 0)
 			pennant.BorderSizePixel = 0
 			pennant.Parent = f
-			local lbl = Kit.title(f, o.name, { size = UDim2.new(1, -14, 1, -3), position = UDim2.new(0, 11, 0, 0), textSize = 15, align = Enum.TextXAlignment.Center })
+			local lbl = Kit.title(f, o.name, { size = UDim2.new(1, -14, 1, -3), position = UDim2.new(0, 11, 0, 0), textSize = 15, align = Enum.TextXAlignment.Center, caps = false })
 			lbl.TextTruncate = Enum.TextTruncate.AtEnd
 			local bar = Instance.new("Frame") :: Frame
 			bar.Size = UDim2.new(0, 0, 0, 3)
@@ -14083,7 +14184,7 @@ local function updateObjectives()
 			objectiveChips[o.id] = chip
 		end
 		chip.pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.PANEL_DARK
-		chip.label.TextColor3 = if o.contested then Kit.HOSTILE else Kit.INK
+		chip.label.TextColor3 = if o.contested then Kit.HOSTILE else Kit.IVORY
 		chip.bar.BackgroundColor3 = Kit.factionColour(o.capturing or o.owner)
 		chip.bar.Size = UDim2.new(math.clamp(o.progress or 0, 0, 1), -7, 0, 3)
 	end
@@ -14149,8 +14250,8 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?)
 	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = colour or Kit.CREAM, rich = true })
 	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
 	l.AutomaticSize = Enum.AutomaticSize.X
-	l.BackgroundColor3 = Kit.INK
-	l.BackgroundTransparency = 0.5
+	l.BackgroundColor3 = Kit.INSET
+	l.BackgroundTransparency = 0.45
 	l.TextStrokeTransparency = 0.5
 	l.TextStrokeColor3 = Kit.INK
 	local pad = Instance.new("UIPadding") :: UIPadding
@@ -14198,7 +14299,7 @@ local INSPECTOR_FIELDS = { "corps", "class", "strength", "morale", "fatigue", "a
 
 local function buildInspector(sg: ScreenGui)
 	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
-	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21 })
+	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21, caps = false })
 	inspectorFields.name.TextTruncate = Enum.TextTruncate.AtEnd
 	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
 	inspectorBarFill = Kit.bar(p, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0, 30), Kit.FRANCE)
@@ -14239,7 +14340,7 @@ local function updateInspector()
 		inspectorBarFill.BackgroundColor3 = Kit.factionColour(f.faction)
 	end
 	F.morale.Text = string.format("%s%s", MORALE_WORD[f.moraleBand] or f.moraleBand, if f.morale then string.format(" (%d)", math.floor(f.morale)) else "")
-	F.morale.TextColor3 = if f.moraleBand == "steady" then Kit.INK else Kit.HOSTILE
+	F.morale.TextColor3 = if f.moraleBand == "steady" then Kit.IVORY else Kit.HOSTILE
 	F.fatigue.Text = if f.fatigue then (if f.fatigue < 30 then "Fresh" elseif f.fatigue < 70 then "Tired" else "Exhausted") .. string.format(" (%d)", math.floor(f.fatigue)) else "—"
 	if f.class == "artillery" then
 		F.ammo.Text = string.format("%s rounds · %s", if f.ammo then tostring(math.floor(f.ammo)) else "?", tostring(f.ammoMode or "auto"))
@@ -14347,17 +14448,13 @@ local function buildCommandPanel(sg: ScreenGui)
 		local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
 		tc.MaxTextSize = 11
 		tc.Parent = b
-		local pad = Instance.new("UIPadding") :: UIPadding
-		pad.PaddingLeft = UDim.new(0, 2)
-		pad.PaddingRight = UDim.new(0, 2)
-		pad.Parent = b
 		commandButtons[c.key] = b
 	end
 	-- rally cooldown: a gold bar along the bottom of the button that shrinks to nothing
 	local rb = commandButtons.rally
 	local bar = Instance.new("Frame") :: Frame
 	bar.AnchorPoint = Vector2.new(0, 1)
-	bar.Position = UDim2.new(0, -2, 1, 0)
+	bar.Position = UDim2.new(0, -3, 1, 0)
 	bar.Size = UDim2.new(0, 0, 0, 3)
 	bar.BackgroundColor3 = Kit.GOLD
 	bar.BorderSizePixel = 0
@@ -14419,7 +14516,7 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 		end
 		if rallyBar then
 			local frac = math.clamp(cd / Config.Units.hq.rally.cooldown, 0, 1)
-			rallyBar.Size = UDim2.new(frac, math.round(4 * frac), 0, 3)
+			rallyBar.Size = UDim2.new(frac, math.round(6 * frac), 0, 3)
 		end
 		if cd > 0 then
 			return string.format("Recharging (%ds)", math.ceil(cd))
@@ -14485,7 +14582,8 @@ local function buildMinimap(sg: ScreenGui)
 	Minimap.create(frame, UDim2.fromScale(1, 1), UDim2.new(), Vector2.new(0, 0))
 	local n = Kit.title(frame, "N", { size = UDim2.fromOffset(14, 14), position = UDim2.new(0.5, 0, 0, -6), anchor = Vector2.new(0.5, 0.5), textSize = 14, align = Enum.TextXAlignment.Center })
 	n.BackgroundTransparency = 0
-	n.BackgroundColor3 = Kit.CREAM
+	n.BackgroundColor3 = Kit.INSET
+	n.TextColor3 = Kit.GILT
 	n.ZIndex = 10
 	if m then
 		task.spawn(Minimap.paint, m)
@@ -14542,13 +14640,13 @@ function HUD.onEvent(ev: any)
 	if kind == "message" and ev.text then
 		HUD.message(ev.text)
 	elseif kind == "rout" and name then
-		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.SELECT, true)
+		HUD.message(name .. " is routing!", if ours then Kit.HOSTILE else Kit.GILT_BRIGHT, true)
 	elseif kind == "rally" and name then
 		HUD.message(name .. " has rallied.")
 	elseif kind == "capture" then
 		local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
 		local who = if ev.faction then (names[ev.faction] or Kit.factionName(ev.faction)) else "Someone"
-		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.SELECT else Kit.HOSTILE, true)
+		HUD.message(string.format("%s captured %s", who, ev.text or "an objective"), if ours then Kit.GILT_BRIGHT else Kit.HOSTILE, true)
 	elseif kind == "destroyed" and name then
 		HUD.message(name .. " is destroyed.", Kit.HOSTILE)
 	elseif kind == "charge" and name then
@@ -14700,8 +14798,10 @@ end
 
 return Help
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
--- Tiny native-GUI toolkit: cream panels, ink text, serif titles, Gotham data, buttons with
--- disabled-reason tooltips, sliders. Every panel is Active so clicks never reach the field.
+-- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
+-- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
+-- primary actions), parchment only for documents. Every panel is Active so clicks never reach
+-- the field. Screens build from these pieces, so restyling here restyles everything.
 
 local Players = game:GetService("Players") :: Players
 local UserInputService = game:GetService("UserInputService") :: UserInputService
@@ -14715,22 +14815,46 @@ local P = Config.Visual.Palette
 local function rgb(t: { number }): Color3
 	return Color3.fromRGB(t[1], t[2], t[3])
 end
+local function hex(h: number): Color3
+	return Color3.fromRGB(bit32.rshift(h, 16) % 256, bit32.rshift(h, 8) % 256, h % 256)
+end
 
-Kit.CREAM = rgb(P.Cream)
-Kit.INK = rgb(P.Ink)
+-- Imperial palette
+Kit.BLUE = hex(0x1E2A5A) -- imperial blue lacquer
+Kit.BLUE_LIGHT = hex(0x2E3F7E)
+Kit.CRIMSON = hex(0x8C1C1C)
+Kit.CRIMSON_LIGHT = hex(0xA8302A)
+Kit.GILT = hex(0xC9A24A)
+Kit.GILT_DARK = hex(0x8A6A2A)
+Kit.GILT_BRIGHT = hex(0xE6C46A)
+Kit.IVORY = hex(0xEFE6CF) -- text on dark
+Kit.WALNUT = hex(0x2A1E17) -- panel body, bottom
+Kit.WALNUT_LIGHT = hex(0x3B2A1F) -- panel body, top
+Kit.INSET = hex(0x14100D) -- wells, tracks, nested panels
+Kit.PARCHMENT = hex(0xE8DCC0) -- documents only
+Kit.PARCHMENT_EDGE = hex(0xC9B58A)
+Kit.INK = rgb(P.Ink) -- text on parchment
+Kit.INK_MUTED = hex(0x6E5A44)
+Kit.MUTED = hex(0xB3A285) -- secondary text on dark (resolves to INK_MUTED on parchment)
+Kit.SLATE = hex(0x4A4B52) -- disabled lacquer
+
+-- older names, kept for the screens that use them
+Kit.CREAM = Kit.IVORY
+Kit.GOLD = Kit.GILT
+Kit.PANEL_DARK = Kit.INSET
 Kit.SELECT = rgb(P.Select)
-Kit.HOSTILE = rgb(P.Hostile)
+Kit.HOSTILE = hex(0xC8463A) -- reads on dark and on parchment
 Kit.FRANCE = rgb(P.France)
 Kit.PRUSSIA = rgb(P.Prussia)
-Kit.MUTED = Color3.fromRGB(120, 108, 96)
-Kit.PANEL_DARK = Color3.fromRGB(224, 214, 190)
-Kit.GOLD = Color3.fromRGB(184, 148, 62)
 Kit.MORALE = {
-	steady = Color3.fromRGB(88, 128, 64),
-	shaken = Color3.fromRGB(206, 160, 52),
-	routing = Color3.fromRGB(178, 58, 44),
+	steady = Color3.fromRGB(96, 140, 70),
+	shaken = Color3.fromRGB(214, 168, 56),
+	routing = Color3.fromRGB(184, 52, 40),
 	shattered = Color3.fromRGB(70, 60, 54),
 }
+
+Kit.ITALIC = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Regular, Enum.FontStyle.Italic)
+Kit.BOLD = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Bold)
 
 function Kit.factionColour(faction: string?): Color3
 	if faction == nil or faction == "" then
@@ -14754,41 +14878,116 @@ function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenG
 	return sg
 end
 
+-- Capitals with wide tracking: "Eagles of Empire" -> "E A G L E S   O F   E M P I R E".
+function Kit.spaced(text: string): string
+	local out = {}
+	for _, cp in utf8.codes(string.upper(text)) do
+		local ch = utf8.char(cp)
+		table.insert(out, if ch == " " then "  " else ch)
+	end
+	return table.concat(out, " ")
+end
+
+-- True when `inst` sits on a parchment document (text defaults to ink there).
+local function onParchment(inst: Instance?): boolean
+	local i = inst
+	while i do
+		if i:GetAttribute("parchment") == true then
+			return true
+		end
+		if i:GetAttribute("parchment") == false then
+			return false
+		end
+		i = i.Parent
+	end
+	return false
+end
+
+local function gradient(parent: Instance, top: Color3, bottom: Color3, rotation: number?): UIGradient
+	local g = Instance.new("UIGradient") :: UIGradient
+	g.Color = ColorSequence.new(top, bottom)
+	g.Rotation = rotation or 90
+	g.Parent = parent
+	return g
+end
+Kit.gradient = gradient
+
+local function frame(parent: Instance, size: UDim2, pos: UDim2, colour: Color3): Frame
+	local f = Instance.new("Frame") :: Frame
+	f.Size = size
+	f.Position = pos
+	f.BackgroundColor3 = colour
+	f.BorderSizePixel = 0
+	f.Parent = parent
+	return f
+end
+
+-- Gold rosette: a rotated square under a small disc.
+function Kit.rosette(parent: Instance, pos: UDim2, size: number?): Frame
+	local d = size or 9
+	local holder = frame(parent, UDim2.fromOffset(d, d), pos, Kit.GILT)
+	holder.Name = "Rosette"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Rotation = 45
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = Kit.GILT_DARK
+	s.Parent = holder
+	local disc = frame(holder, UDim2.fromOffset(math.max(3, d - 5), math.max(3, d - 5)), UDim2.fromScale(0.5, 0.5), Kit.GILT_BRIGHT)
+	disc.AnchorPoint = Vector2.new(0.5, 0.5)
+	local c = Instance.new("UICorner") :: UICorner
+	c.CornerRadius = UDim.new(1, 0)
+	c.Parent = disc
+	return holder
+end
+
+-- Gold rule with a centred diamond; `width` in px (or the parent's width when nil).
+function Kit.rule(parent: Instance, pos: UDim2, width: number?, anchorX: number?): Frame
+	local r = frame(parent, if width then UDim2.fromOffset(width, 1) else UDim2.new(1, 0, 0, 1), pos, Kit.GILT)
+	r.Name = "Rule"
+	r.AnchorPoint = Vector2.new(anchorX or 0, 0.5)
+	local d = frame(r, UDim2.fromOffset(6, 6), UDim2.fromScale(0.5, 0.5), Kit.GILT)
+	d.AnchorPoint = Vector2.new(0.5, 0.5)
+	d.Rotation = 45
+	return r
+end
+
+-- Tricolour ribbon (blue, white, red), horizontal bands.
+function Kit.tricolour(parent: Instance, size: UDim2, pos: UDim2, anchor: Vector2?): Frame
+	local r = frame(parent, size, pos, Kit.IVORY)
+	r.AnchorPoint = anchor or Vector2.new(0, 0)
+	frame(r, UDim2.fromScale(1 / 3, 1), UDim2.new(), hex(0x22357A))
+	frame(r, UDim2.fromScale(1 / 3, 1), UDim2.fromScale(2 / 3, 0), hex(0xA8262C))
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = Kit.GILT_DARK
+	s.Parent = r
+	return r
+end
+
 export type PanelProps = {
 	size: UDim2,
 	position: UDim2,
 	anchor: Vector2?,
 	transparency: number?,
 	padding: number?,
-	dark: boolean?,
-	plain: boolean?, -- no inner border or gold corners (small chips, cards)
+	dark: boolean?, -- nested well: near-black inset with a dark-gold hairline
+	plain: boolean?, -- single thin frame, no rosettes (chips, bars)
+	parchment: boolean?, -- a document: briefing dispatch, report, history
 }
 
--- Period trim: an inner hairline border 3 px inside the outer stroke and gold corner studs.
--- Added first so content drawn later sits on top; never Active, never in a layout (panels hold
--- layouts only in child frames).
-local function trim(f: Frame, pad: number)
+-- Inner hairline 4 px inside the outer gold stroke, with rosettes at the corners.
+local function trim(f: Frame, pad: number, colour: Color3)
 	local inner = Instance.new("Frame") :: Frame
 	inner.Name = "Trim"
 	inner.BackgroundTransparency = 1
-	inner.Position = UDim2.fromOffset(3 - pad, 3 - pad)
-	inner.Size = UDim2.new(1, 2 * pad - 6, 1, 2 * pad - 6)
+	inner.Position = UDim2.fromOffset(4 - pad, 4 - pad)
+	inner.Size = UDim2.new(1, 2 * pad - 8, 1, 2 * pad - 8)
 	inner.Parent = f
 	local s = Instance.new("UIStroke") :: UIStroke
-	s.Color = Kit.GOLD
+	s.Color = colour
 	s.Thickness = 1
-	s.Transparency = 0.35
 	s.Parent = inner
 	for _, c in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
-		local d = Instance.new("Frame") :: Frame
-		d.Name = "Stud"
-		d.Size = UDim2.fromOffset(6, 6)
-		d.AnchorPoint = Vector2.new(0.5, 0.5)
-		d.Position = UDim2.fromScale(c.X, c.Y)
-		d.Rotation = 45
-		d.BackgroundColor3 = Kit.GOLD
-		d.BorderSizePixel = 0
-		d.Parent = inner
+		Kit.rosette(inner, UDim2.fromScale(c.X, c.Y))
 	end
 end
 
@@ -14797,19 +14996,43 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 	f.Size = props.size
 	f.Position = props.position
 	f.AnchorPoint = props.anchor or Vector2.new(0, 0)
-	f.BackgroundColor3 = if props.dark then Kit.PANEL_DARK else Kit.CREAM
-	f.BackgroundTransparency = props.transparency or 0.06
+	f.BackgroundTransparency = props.transparency or 0.04
 	f.BorderSizePixel = 0
 	f.Active = true
 	f.Parent = parent
 	local stroke = Instance.new("UIStroke") :: UIStroke
-	stroke.Color = Kit.INK
-	stroke.Thickness = 1
-	stroke.Transparency = if props.plain then 0.5 else 0.2
-	stroke.Parent = f
-	if not props.plain then
-		trim(f, props.padding or 0)
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	if props.parchment then
+		f:SetAttribute("parchment", true)
+		f.BackgroundColor3 = Color3.new(1, 1, 1)
+		local g = Instance.new("UIGradient") :: UIGradient
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Kit.PARCHMENT_EDGE),
+			ColorSequenceKeypoint.new(0.08, hex(0xEFE4CA)),
+			ColorSequenceKeypoint.new(0.85, Kit.PARCHMENT),
+			ColorSequenceKeypoint.new(1, Kit.PARCHMENT_EDGE),
+		})
+		g.Rotation = 90
+		g.Parent = f
+		stroke.Color = hex(0x9C8456)
+		stroke.Thickness = 2
+		trim(f, props.padding or 0, hex(0xB59E72))
+	elseif props.dark then
+		f:SetAttribute("parchment", false)
+		f.BackgroundColor3 = Kit.INSET
+		stroke.Color = Kit.GILT_DARK
+		stroke.Thickness = 1
+	else
+		f:SetAttribute("parchment", false)
+		f.BackgroundColor3 = Color3.new(1, 1, 1)
+		gradient(f, Kit.WALNUT_LIGHT, Kit.WALNUT)
+		stroke.Color = Kit.GILT
+		stroke.Thickness = if props.plain then 1 else 2
+		if not props.plain then
+			trim(f, props.padding or 0, Kit.GILT_DARK)
+		end
 	end
+	stroke.Parent = f
 	if props.padding then
 		local pad = Instance.new("UIPadding") :: UIPadding
 		pad.PaddingTop = UDim.new(0, props.padding)
@@ -14831,18 +15054,27 @@ export type TextProps = {
 	align: EnumTextXAlignment?,
 	wrap: boolean?,
 	rich: boolean?,
+	caps: boolean?, -- titles: false keeps mixed case (long names in tight spots)
+	spaced: boolean?, -- titles: wide-tracked capitals
+	rule: boolean?, -- titles: gold rule with a diamond underneath
 }
 
 function Kit.label(parent: Instance, text: string, props: TextProps?): TextLabel
 	local p: TextProps = props or {}
+	local doc = onParchment(parent)
+	local colour: Color3 = p.colour or (if doc then Kit.INK else Kit.IVORY)
+	if doc and colour == Kit.MUTED then
+		colour = Kit.INK_MUTED
+	end
 	local l = Instance.new("TextLabel") :: TextLabel
 	l.Size = p.size or UDim2.new(1, 0, 0, 20)
 	l.Position = p.position or UDim2.new(0, 0, 0, 0)
 	l.AnchorPoint = p.anchor or Vector2.new(0, 0)
 	l.BackgroundTransparency = 1
-	l.Font = p.font or Enum.Font.Gotham
-	l.TextSize = p.textSize or 14
-	l.TextColor3 = p.colour or Kit.INK
+	-- SourceSans sets small: one point up keeps the old Gotham sizes readable
+	l.Font = p.font or Enum.Font.SourceSans
+	l.TextSize = (p.textSize or 14) + (if p.font == nil then 1 else 0)
+	l.TextColor3 = colour
 	l.TextXAlignment = p.align or Enum.TextXAlignment.Left
 	l.TextWrapped = p.wrap == true
 	l.RichText = p.rich == true
@@ -14855,7 +15087,13 @@ function Kit.title(parent: Instance, text: string, props: TextProps?): TextLabel
 	local p: TextProps = props or {}
 	p.font = Enum.Font.Garamond
 	p.textSize = p.textSize or 26
-	return Kit.label(parent, text, p)
+	local t = if p.spaced then Kit.spaced(text) elseif p.caps == false then text else string.upper(text)
+	local l = Kit.label(parent, t, p)
+	if p.rule then
+		local centred = p.align == Enum.TextXAlignment.Center
+		Kit.rule(l, UDim2.new(if centred then 0.5 else 0, 0, 1, 3), 140, if centred then 0.5 else 0)
+	end
+	return l
 end
 
 -- Vertical list container. Children lay out top to bottom.
@@ -14868,6 +15106,71 @@ function Kit.list(parent: Instance, gap: number, horizontal: boolean?): UIListLa
 	return l
 end
 
+-- Wax seal: crimson disc with a darker rim and an "N".
+function Kit.seal(parent: Instance, pos: UDim2, d: number, anchor: Vector2?): Frame
+	local s = frame(parent, UDim2.fromOffset(d, d), pos, Kit.CRIMSON)
+	s.AnchorPoint = anchor or Vector2.new(0.5, 0.5)
+	local c = Instance.new("UICorner") :: UICorner
+	c.CornerRadius = UDim.new(1, 0)
+	c.Parent = s
+	gradient(s, Kit.CRIMSON_LIGHT, hex(0x5E1010), 45)
+	local st = Instance.new("UIStroke") :: UIStroke
+	st.Color = hex(0x5E1010)
+	st.Thickness = 3
+	st.Parent = s
+	local n = Kit.label(s, "N", { size = UDim2.fromScale(1, 1), textSize = math.floor(d * 0.6), font = Enum.Font.Garamond, colour = hex(0xD9A0A0), align = Enum.TextXAlignment.Center })
+	n.FontFace = Kit.BOLD
+	return s
+end
+
+-- A flag from Factions.flag: vertical bands or a plain field, with a simple mark.
+-- `poleRight` puts the staff on the right so two flags can face each other.
+function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, poleRight: boolean?): Frame
+	local fl = Factions.flag(faction)
+	local holder = Instance.new("Frame") :: Frame
+	holder.Size = UDim2.fromOffset(size.X + 4, size.Y + 10)
+	holder.Position = pos
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+	local pole = frame(holder, UDim2.new(0, 2, 1, 0), UDim2.fromScale(if poleRight then 1 else 0, 0), Kit.GILT)
+	pole.AnchorPoint = Vector2.new(if poleRight then 1 else 0, 0)
+	local cloth = frame(holder, UDim2.fromOffset(size.X, size.Y), UDim2.fromOffset(if poleRight then 0 else 4, 1), fl.field or Kit.IVORY)
+	local bands = fl.bands
+	if bands then
+		for i, c in bands do
+			frame(cloth, UDim2.fromScale(1 / #bands, 1), UDim2.fromScale((i - 1) / #bands, 0), c)
+		end
+	end
+	local m, mc = fl.mark, fl.markColour
+	local cx, cy = size.X / 2, size.Y / 2
+	local function bar(w: number, h: number, rot: number)
+		local b = frame(cloth, UDim2.fromOffset(w, h), UDim2.fromOffset(cx, cy), mc)
+		b.AnchorPoint = Vector2.new(0.5, 0.5)
+		b.Rotation = rot
+	end
+	local diag = size.Y * 1.15 -- rotated children are not clipped, so marks stay inside
+	if m == "diamond" then
+		bar(size.Y * 0.4, size.Y * 0.4, 45)
+	elseif m == "x" then
+		bar(diag, 3, 45)
+		bar(diag, 3, -45)
+	elseif m == "plus" then
+		bar(size.X, 3, 0)
+		bar(3, size.Y, 0)
+	elseif m == "double" then
+		bar(size.X, 2, 0)
+		local b = frame(cloth, UDim2.fromOffset(size.X, 2), UDim2.fromOffset(0, cy + 4), mc)
+		b.AnchorPoint = Vector2.new(0, 0.5)
+	elseif m == "diagonal" then
+		bar(diag, 3, -45)
+	end
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = Kit.INSET
+	s.Transparency = 0.3
+	s.Parent = cloth
+	return holder
+end
+
 -- ------------------------------------------------------------------ tooltip (one per screen)
 
 local tooltip: TextLabel? = nil
@@ -14877,16 +15180,22 @@ local function ensureTooltip()
 		return
 	end
 	local sg = Kit.screen("EoETooltip", 50, true)
-	local t = Kit.label(sg, "", { size = UDim2.fromOffset(240, 36), textSize = 13, wrap = true, align = Enum.TextXAlignment.Center })
-	t.BackgroundTransparency = 0.05
-	t.BackgroundColor3 = Kit.INK
-	t.TextColor3 = Kit.CREAM
+	local t = Kit.label(sg, "", { size = UDim2.fromOffset(240, 36), textSize = 15, wrap = true, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	t.BackgroundTransparency = 0.04
+	t.BackgroundColor3 = Kit.INSET
 	t.Visible = false
 	t.ZIndex = 100
 	t.AutomaticSize = Enum.AutomaticSize.Y
-	local c = Instance.new("UICorner") :: UICorner
-	c.CornerRadius = UDim.new(0, 3)
-	c.Parent = t
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = Kit.GILT
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = t
+	local pad = Instance.new("UIPadding") :: UIPadding
+	pad.PaddingTop = UDim.new(0, 4)
+	pad.PaddingBottom = UDim.new(0, 4)
+	pad.PaddingLeft = UDim.new(0, 6)
+	pad.PaddingRight = UDim.new(0, 6)
+	pad.Parent = t
 	tooltip = t
 end
 
@@ -14918,34 +15227,111 @@ export type ButtonProps = {
 	textSize: number?,
 	font: EnumFont?,
 	tooltip: string?,
-	primary: boolean?,
+	primary: boolean?, -- crimson plaque (Fight, Start Battle)
+	flat: boolean?, -- text-only gilt entry that underlines on hover (main menu)
+	caps: boolean?, -- false keeps the caller's case
 	order: number?,
 }
 
+-- One look function for every state combination, driven by attributes.
+local function restyle(b: TextButton)
+	local disabled = b:GetAttribute("disabled") == true
+	local active = b:GetAttribute("active") == true
+	local hover = b:GetAttribute("hover") == true and not disabled
+	local pressed = b:GetAttribute("pressed") == true and not disabled
+	local primary = b:GetAttribute("primary") == true
+	local stroke = b:FindFirstChild("Gilt") :: UIStroke?
+	local pad = b:FindFirstChild("Lift") :: UIPadding?
+	local grad = b:FindFirstChild("Lacquer") :: UIGradient?
+	if pad then
+		pad.PaddingBottom = UDim.new(0, if hover and not pressed then 2 else 0)
+	end
+	if b:GetAttribute("flat") == true then
+		local u = b:FindFirstChild("Underline") :: Frame?
+		if u then
+			u.Visible = hover or active
+		end
+		b.TextColor3 = if disabled then Kit.SLATE elseif hover then Kit.GILT_BRIGHT else Kit.GILT
+		return
+	end
+	local body = if disabled then Kit.SLATE elseif active then Kit.GILT_DARK elseif primary then Kit.CRIMSON else Kit.BLUE
+	if pressed then
+		body = body:Lerp(Color3.new(0, 0, 0), 0.35)
+	elseif hover then
+		body = body:Lerp(Color3.new(1, 1, 1), 0.1)
+	end
+	b.BackgroundColor3 = body
+	b.TextColor3 = Kit.IVORY
+	b.TextTransparency = if disabled then 0.5 else 0
+	if grad then
+		grad.Enabled = not pressed
+	end
+	if stroke then
+		stroke.Color = if disabled then Kit.GILT_DARK elseif hover or active then Kit.GILT_BRIGHT else Kit.GILT
+		stroke.Transparency = if disabled then 0.5 else 0
+	end
+end
+
 function Kit.button(parent: Instance, text: string, onClick: () -> (), props: ButtonProps?): TextButton
 	local p: ButtonProps = props or {}
+	local size = p.textSize or 14
 	local b = Instance.new("TextButton") :: TextButton
 	b.Size = p.size or UDim2.new(0, 110, 0, 30)
 	b.Position = p.position or UDim2.new(0, 0, 0, 0)
 	b.AnchorPoint = p.anchor or Vector2.new(0, 0)
-	b.BackgroundColor3 = if p.primary then Kit.INK else Kit.PANEL_DARK
-	b.TextColor3 = if p.primary then Kit.CREAM else Kit.INK
-	b.Font = p.font or Enum.Font.Gotham
-	b.TextSize = p.textSize or 14
-	b.Text = text
-	b.AutoButtonColor = true
+	b.Font = p.font or (if size >= 15 then Enum.Font.Garamond else Enum.Font.SourceSansSemibold)
+	b.TextSize = if b.Font == Enum.Font.Garamond then size + 2 else size
+	b.AutoButtonColor = false
 	b.BorderSizePixel = 0
 	b.LayoutOrder = p.order or 0
 	b.Active = true
 	b.Parent = parent
-	local c = Instance.new("UICorner") :: UICorner
-	c.CornerRadius = UDim.new(0, 3)
-	c.Parent = b
-	local s = Instance.new("UIStroke") :: UIStroke
-	s.Color = Kit.INK
-	s.Thickness = 1
-	s.Transparency = 0.6
-	s.Parent = b
+	local caps = p.caps ~= false
+	b.Text = if caps then string.upper(text) else text
+	if caps then
+		b:GetPropertyChangedSignal("Text"):Connect(function()
+			local up = string.upper(b.Text)
+			if up ~= b.Text then
+				b.Text = up
+			end
+		end)
+	end
+	local lift = Instance.new("UIPadding") :: UIPadding
+	lift.Name = "Lift"
+	lift.PaddingLeft = UDim.new(0, 3)
+	lift.PaddingRight = UDim.new(0, 3)
+	lift.Parent = b
+	if p.flat then
+		b.BackgroundTransparency = 1
+		local u = Instance.new("Frame") :: Frame
+		u.Name = "Underline"
+		u.AnchorPoint = Vector2.new(0, 1)
+		u.Position = UDim2.fromScale(0, 1)
+		u.Size = UDim2.new(1, 0, 0, 1)
+		u.BackgroundColor3 = Kit.GILT
+		u.BorderSizePixel = 0
+		u.Visible = false
+		u.Parent = b
+		b:SetAttribute("flat", true)
+	else
+		b.BackgroundColor3 = Color3.new(1, 1, 1)
+		local g = Instance.new("UIGradient") :: UIGradient
+		g.Name = "Lacquer"
+		-- top highlight fading into the lacquer
+		g.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.45, Color3.fromRGB(205, 205, 205)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 160, 160)),
+		})
+		g.Rotation = 90
+		g.Parent = b
+		local s = Instance.new("UIStroke") :: UIStroke
+		s.Name = "Gilt"
+		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		s.Thickness = 1
+		s.Parent = b
+	end
+	b:SetAttribute("primary", p.primary == true)
 	b:SetAttribute("reason", "")
 	b:SetAttribute("tip", p.tooltip or "")
 	b.Activated:Connect(function()
@@ -14955,6 +15341,8 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		onClick()
 	end)
 	b.MouseEnter:Connect(function()
+		b:SetAttribute("hover", true)
+		restyle(b)
 		local reason = b:GetAttribute("reason")
 		local tip = b:GetAttribute("tip")
 		if type(reason) == "string" and reason ~= "" then
@@ -14963,7 +15351,21 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 			showTooltip(tip)
 		end
 	end)
-	b.MouseLeave:Connect(hideTooltip)
+	b.MouseLeave:Connect(function()
+		b:SetAttribute("hover", false)
+		b:SetAttribute("pressed", false)
+		restyle(b)
+		hideTooltip()
+	end)
+	b.MouseButton1Down:Connect(function()
+		b:SetAttribute("pressed", true)
+		restyle(b)
+	end)
+	b.MouseButton1Up:Connect(function()
+		b:SetAttribute("pressed", false)
+		restyle(b)
+	end)
+	restyle(b)
 	return b
 end
 
@@ -14978,17 +15380,17 @@ function Kit.hoverTip(obj: GuiObject, text: () -> string)
 	obj.MouseLeave:Connect(hideTooltip)
 end
 
--- Disabled buttons stay visible (dimmed) and explain themselves on hover.
+-- Disabled buttons stay visible (desaturated) and explain themselves on hover.
 function Kit.setEnabled(b: TextButton, enabled: boolean, reason: string?)
 	b:SetAttribute("disabled", not enabled)
 	b:SetAttribute("reason", if enabled then "" else (reason or ""))
-	b.TextTransparency = if enabled then 0 else 0.55
-	b.AutoButtonColor = enabled
+	restyle(b)
 end
 
+-- Toggles and selectors: the chosen one turns gilt.
 function Kit.setActiveLook(b: TextButton, active: boolean)
-	b.BackgroundColor3 = if active then Kit.INK else Kit.PANEL_DARK
-	b.TextColor3 = if active then Kit.CREAM else Kit.INK
+	b:SetAttribute("active", active)
+	restyle(b)
 end
 
 -- ------------------------------------------------------------------ slider
@@ -15003,13 +15405,16 @@ function Kit.slider(parent: Instance, labelText: string, value: number, onChange
 	local track = Instance.new("TextButton") :: TextButton
 	track.Size = UDim2.new(1, 0, 0, 12)
 	track.Position = UDim2.new(0, 0, 0, 20)
-	track.BackgroundColor3 = Kit.PANEL_DARK
+	track.BackgroundColor3 = Kit.INSET
 	track.BorderSizePixel = 0
 	track.Text = ""
+	local ts = Instance.new("UIStroke") :: UIStroke
+	ts.Color = Kit.GILT_DARK
+	ts.Parent = track
 	track.AutoButtonColor = false
 	track.Parent = row
 	local fill = Instance.new("Frame") :: Frame
-	fill.BackgroundColor3 = Kit.INK
+	fill.BackgroundColor3 = Kit.GILT
 	fill.BorderSizePixel = 0
 	fill.Size = UDim2.new(value, 0, 1, 0)
 	fill.Parent = track
@@ -15059,7 +15464,7 @@ function Kit.toggle(parent: Instance, labelText: string, value: boolean, onChang
 		value = not value
 		b.Text = text(value)
 		onChange(value)
-	end, { size = UDim2.new(1, 0, 0, 28) })
+	end, { size = UDim2.new(1, 0, 0, 28), caps = false })
 	b.TextXAlignment = Enum.TextXAlignment.Left
 	return b
 end
@@ -15069,8 +15474,8 @@ function Kit.bar(parent: Instance, size: UDim2, position: UDim2, colour: Color3)
 	local track = Instance.new("Frame") :: Frame
 	track.Size = size
 	track.Position = position
-	track.BackgroundColor3 = Kit.INK
-	track.BackgroundTransparency = 0.65
+	track.BackgroundColor3 = Kit.INSET
+	track.BackgroundTransparency = 0.2
 	track.BorderSizePixel = 0
 	track.Parent = parent
 	local fill = Instance.new("Frame") :: Frame
@@ -15113,21 +15518,25 @@ local function build()
 	local sg = Kit.screen("EoELoading", 40, true)
 	local back = Instance.new("Frame") :: Frame
 	back.Size = UDim2.fromScale(1, 1)
-	back.BackgroundColor3 = Kit.CREAM
+	back.BackgroundColor3 = Color3.new(1, 1, 1)
+	Kit.gradient(back, Kit.BLUE, Kit.INSET)
 	back.BorderSizePixel = 0
 	back.Active = true
 	back.Parent = sg
-	Kit.title(back, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 60), position = UDim2.new(0, 0, 0.38, 0), textSize = 48, align = Enum.TextXAlignment.Center })
+	Kit.title(back, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 60), position = UDim2.new(0, 0, 0.38, -10), textSize = 48, align = Enum.TextXAlignment.Center, spaced = true, colour = Kit.GILT, rule = true })
 	local c = Kit.label(back, "Surveying the ground…", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0.38, 64), align = Enum.TextXAlignment.Center, colour = Kit.MUTED })
 	local track = Instance.new("Frame") :: Frame
 	track.Size = UDim2.new(0, 420, 0, 10)
 	track.Position = UDim2.new(0.5, -210, 0.38, 100)
-	track.BackgroundColor3 = Kit.PANEL_DARK
+	track.BackgroundColor3 = Kit.INSET
+	local ts = Instance.new("UIStroke") :: UIStroke
+	ts.Color = Kit.GILT_DARK
+	ts.Parent = track
 	track.BorderSizePixel = 0
 	track.Parent = back
 	local f = Instance.new("Frame") :: Frame
 	f.Size = UDim2.new(0, 0, 1, 0)
-	f.BackgroundColor3 = Kit.INK
+	f.BackgroundColor3 = Kit.GILT
 	f.BorderSizePixel = 0
 	f.Parent = track
 	gui = sg
@@ -15169,7 +15578,8 @@ end
 
 return Loading
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
--- Main menu over the live battlefield. Buttons call back into Main.
+-- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
+-- text entries) over the live battlefield. Entries call back into Main.
 
 local Kit = require(script.Parent.Kit)
 
@@ -15183,6 +15593,53 @@ export type Callbacks = {
 }
 
 local gui: ScreenGui? = nil
+
+-- Imperial badge: a gold laurel wreath (two branches of leaves open at the top) around an "N".
+local function badge(parent: Instance, centre: UDim2)
+	local holder = Instance.new("Frame") :: Frame
+	holder.Size = UDim2.fromOffset(120, 120)
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = centre
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+	local R = 46
+	for side = -1, 1, 2 do
+		for i = 0, 8 do
+			-- from the bottom (90 deg) up each side to about 35 deg short of the top
+			local deg = 90 + side * (14 + i * 17)
+			local th = math.rad(deg)
+			for _, off in { -1, 1 } do
+				local leaf = Instance.new("Frame") :: Frame
+				leaf.Size = UDim2.fromOffset(6, 13)
+				leaf.AnchorPoint = Vector2.new(0.5, 0.5)
+				local r = R + off * 5
+				leaf.Position = UDim2.fromOffset(60 + math.cos(th) * r, 60 + math.sin(th) * r)
+				leaf.Rotation = deg + off * side * 28
+				leaf.BackgroundColor3 = if off < 0 then Kit.GILT else Kit.GILT_DARK
+				leaf.BorderSizePixel = 0
+				leaf.Parent = holder
+				local c = Instance.new("UICorner") :: UICorner
+				c.CornerRadius = UDim.new(1, 0)
+				c.Parent = leaf
+			end
+		end
+	end
+	local n = Kit.title(holder, "N", { size = UDim2.fromScale(1, 1), textSize = 64, colour = Kit.GILT_BRIGHT, align = Enum.TextXAlignment.Center })
+	n.FontFace = Kit.BOLD
+	n.TextStrokeColor3 = Kit.GILT_DARK
+	n.TextStrokeTransparency = 0.4
+	-- a crowning star of three small diamonds
+	for i = -1, 1 do
+		local d = Instance.new("Frame") :: Frame
+		d.Size = UDim2.fromOffset(6, 6)
+		d.AnchorPoint = Vector2.new(0.5, 0.5)
+		d.Position = UDim2.fromOffset(60 + i * 11, 8 + math.abs(i) * 3)
+		d.Rotation = 45
+		d.BackgroundColor3 = Kit.GILT
+		d.BorderSizePixel = 0
+		d.Parent = holder
+	end
+end
 local campaignBtn: TextButton? = nil
 local playBtn: TextButton? = nil
 local note: TextLabel? = nil
@@ -15190,20 +15647,56 @@ local note: TextLabel? = nil
 function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boolean)
 	if not gui then
 		local sg = Kit.screen("EoEMenu", 30)
-		local panel = Kit.panel(sg, { size = UDim2.fromOffset(380, 400), position = UDim2.new(0, 48, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = 24 })
-		Kit.title(panel, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 48), textSize = 40 })
-		Kit.label(panel, "Napoleonic real-time tactics · Jena, 1806", { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 50), colour = Kit.MUTED })
+		-- full-height column on the left; the live battlefield stays visible on the right
+		local col = Instance.new("Frame") :: Frame
+		col.Size = UDim2.new(0, 400, 1, 0)
+		col.BackgroundColor3 = Color3.new(1, 1, 1)
+		col.BackgroundTransparency = 0.04
+		col.BorderSizePixel = 0
+		col.Active = true
+		col.Parent = sg
+		Kit.gradient(col, Kit.BLUE, Kit.INSET)
+		for _, e in { { 2, 0, Kit.GILT }, { 1, 3, Kit.CRIMSON }, { 1, 5, Kit.GILT_DARK } } do
+			local edge = Instance.new("Frame") :: Frame
+			edge.Size = UDim2.new(0, e[1] :: number, 1, 0)
+			edge.Position = UDim2.new(1, -(e[2] :: number) - (e[1] :: number), 0, 0)
+			edge.BackgroundColor3 = e[3] :: Color3
+			edge.BorderSizePixel = 0
+			edge.Parent = col
+		end
+		badge(col, UDim2.new(0.5, 0, 0, 96))
+		local t = Kit.title(col, "Eagles of Empire", { size = UDim2.new(1, -40, 0, 36), position = UDim2.new(0, 20, 0, 170), spaced = true, textSize = 30, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
+		t.TextScaled = true
+		local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+		tc.MaxTextSize = 30
+		tc.Parent = t
+		Kit.tricolour(col, UDim2.fromOffset(150, 6), UDim2.new(0.5, 0, 0, 214), Vector2.new(0.5, 0))
+		local sub = Kit.label(col, "Napoleonic real-time tactics", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0, 226), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		sub.FontFace = Kit.ITALIC
 		local list = Instance.new("Frame") :: Frame
-		list.Size = UDim2.new(1, 0, 0, 200)
-		list.Position = UDim2.new(0, 0, 0, 90)
+		list.Size = UDim2.new(1, -80, 0, 260)
+		list.Position = UDim2.new(0, 40, 0, 280)
 		list.BackgroundTransparency = 1
-		list.Parent = panel
-		Kit.list(list, 8)
-		playBtn = Kit.button(list, "Play Battle", cb.play, { size = UDim2.new(1, 0, 0, 40), primary = true, order = 1, textSize = 16 })
-		campaignBtn = Kit.button(list, "Campaign", cb.campaign, { size = UDim2.new(1, 0, 0, 40), order = 2, textSize = 16 })
-		Kit.button(list, "How to Command", cb.help, { size = UDim2.new(1, 0, 0, 40), order = 3, textSize = 16 })
-		Kit.button(list, "Settings", cb.settings, { size = UDim2.new(1, 0, 0, 40), order = 4, textSize = 16 })
-		note = Kit.label(panel, "", { size = UDim2.new(1, 0, 0, 40), position = UDim2.new(0, 0, 1, -44), wrap = true, colour = Kit.MUTED, textSize = 13 })
+		list.Parent = col
+		local ll = Kit.list(list, 6)
+		ll.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		local function item(text: string, fn: () -> (), order: number): TextButton
+			if order > 1 then
+				local sep = Instance.new("Frame") :: Frame
+				sep.Size = UDim2.fromOffset(80, 6)
+				sep.BackgroundTransparency = 1
+				sep.LayoutOrder = order * 2 - 1
+				sep.Parent = list
+				Kit.rule(sep, UDim2.fromScale(0, 0.5))
+			end
+			local b = Kit.button(list, Kit.spaced(text), fn, { size = UDim2.new(1, 0, 0, 40), flat = true, order = order * 2, textSize = 22 })
+			return b
+		end
+		playBtn = item("Play Battle", cb.play, 1)
+		campaignBtn = item("Campaign", cb.campaign, 2)
+		item("How to Command", cb.help, 3)
+		item("Settings", cb.settings, 4)
+		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
 		gui = sg
 	end
 	if campaignBtn then
@@ -15536,7 +16029,7 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local f = Kit.panel(parent, { size = UDim2.new(0.5, -6, 1, 0), position = UDim2.new(), dark = true, padding = 10 })
 	f.LayoutOrder = order
 	local colour = Kit.factionColour(faction)
-	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 24, colour = colour })
+	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 22, spaced = true, colour = Kit.GILT })
 	t.Name = "Title"
 	local deployed = math.max(s.deployed or 0, 1)
 	local lost = s.casualties or 0
@@ -15544,12 +16037,11 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local track = Instance.new("Frame") :: Frame
 	track.Size = UDim2.new(1, 0, 0, 14)
 	track.Position = UDim2.fromOffset(0, 32)
-	track.BackgroundColor3 = colour
+	track.BackgroundColor3 = if faction == BattleState.viewerFaction then Kit.BLUE_LIGHT else colour
 	track.BorderSizePixel = 0
 	track.Parent = f
 	local ts = Instance.new("UIStroke") :: UIStroke
-	ts.Color = Kit.INK
-	ts.Transparency = 0.3
+	ts.Color = Kit.GILT_DARK
 	ts.Parent = track
 	local fallen = Instance.new("Frame") :: Frame
 	fallen.AnchorPoint = Vector2.new(1, 0)
@@ -15577,7 +16069,7 @@ local function objectiveChip(parent: Instance, o: any, names: { [string]: string
 	f.LayoutOrder = order
 	local pennant = Instance.new("Frame") :: Frame
 	pennant.Size = UDim2.new(0, 8, 1, 0)
-	pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.PANEL_DARK
+	pennant.BackgroundColor3 = if o.owner then Kit.factionColour(o.owner) else Kit.SLATE
 	pennant.BorderSizePixel = 0
 	pennant.Parent = f
 	local owner = if o.owner then (names[o.owner] or Kit.factionName(o.owner)) else "unclaimed"
@@ -15588,7 +16080,7 @@ end
 function Results.show(results: any, cb: Callbacks)
 	Results.destroy()
 	local sg = Kit.screen("EoEResults", 38)
-	local panel = Kit.panel(sg, { size = UDim2.fromOffset(760, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 22 })
+	local panel = Kit.panel(sg, { size = UDim2.fromOffset(760, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 22, parchment = true })
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(760, 640)
 	cap.Parent = panel
@@ -15597,15 +16089,27 @@ function Results.show(results: any, cb: Callbacks)
 	local own, enemy = sides[BattleState.viewerFaction], sides[BattleState.enemyFaction]
 	local outcome = results.outcome or "draw"
 	local word = Results.verdict(results, own, enemy)
-	Kit.title(panel, word, { size = UDim2.new(1, 0, 0, 52), textSize = 50, align = Enum.TextXAlignment.Center, colour = if outcome == "victory" then Kit.GOLD elseif outcome == "defeat" then Kit.HOSTILE else Kit.INK })
+	-- the verdict on a ribbon: gold on crimson for victory, ivory on black for defeat
+	local ribbon = Instance.new("Frame") :: Frame
+	ribbon.Size = UDim2.new(1, 20, 0, 54)
+	ribbon.Position = UDim2.fromOffset(-10, -4)
+	ribbon.BackgroundColor3 = if outcome == "victory" then Kit.CRIMSON elseif outcome == "defeat" then Kit.INSET else Kit.BLUE
+	ribbon.BorderSizePixel = 0
+	ribbon.Parent = panel
+	ribbon:SetAttribute("parchment", false)
+	Kit.gradient(ribbon, Color3.new(1, 1, 1), Color3.fromRGB(170, 170, 170))
+	local rs = Instance.new("UIStroke") :: UIStroke
+	rs.Color = Kit.GILT
+	rs.Thickness = 2
+	rs.Parent = ribbon
+	for _, x in { 0, 1 } do
+		Kit.rosette(ribbon, UDim2.fromScale(x, 0.5), 12)
+	end
+	Kit.title(ribbon, word, { size = UDim2.fromScale(1, 1), textSize = 34, align = Enum.TextXAlignment.Center, spaced = true, colour = if outcome == "victory" then Kit.GILT_BRIGHT else Kit.IVORY })
 	local sub = BattleState.scenario and BattleState.scenario.name or ""
-	Kit.title(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 54), textSize = 17, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
-	local rule = Instance.new("Frame") :: Frame
-	rule.Size = UDim2.new(0.6, 0, 0, 1)
-	rule.Position = UDim2.new(0.2, 0, 0, 82)
-	rule.BackgroundColor3 = Kit.GOLD
-	rule.BorderSizePixel = 0
-	rule.Parent = panel
+	local subLine = Kit.label(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 56), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+	subLine.FontFace = Kit.ITALIC
+	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
 
 	local sidesRow = Instance.new("Frame") :: Frame
 	sidesRow.Size = UDim2.new(1, 0, 0, 160)
@@ -15622,7 +16126,7 @@ function Results.show(results: any, cb: Callbacks)
 		end
 	end
 
-	Kit.title(panel, "Objectives", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 264), textSize = 21 })
+	Kit.title(panel, "Objectives", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 264), textSize = 19, spaced = true })
 	local objRow = Instance.new("Frame") :: Frame
 	objRow.Size = UDim2.new(1, 0, 0, 26)
 	objRow.Position = UDim2.new(0, 0, 0, 290)
@@ -15638,7 +16142,7 @@ function Results.show(results: any, cb: Callbacks)
 		Kit.label(objRow, "None on this field.", { size = UDim2.new(1, 0, 1, 0), textSize = 12, colour = Kit.MUTED })
 	end
 
-	Kit.title(panel, "Notes from the field", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 326), textSize = 21 })
+	Kit.title(panel, "Notes from the field", { size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0, 0, 0, 326), textSize = 19, spaced = true })
 	local fb = Instance.new("ScrollingFrame") :: ScrollingFrame
 	fb.Size = UDim2.new(1, 0, 1, -352 - 52)
 	fb.Position = UDim2.new(0, 0, 0, 352)
@@ -15655,7 +16159,7 @@ function Results.show(results: any, cb: Callbacks)
 		lines = { "No particular lessons this time." }
 	end
 	for i, line in lines do
-		local l = Kit.label(fb, "· " .. tostring(line), { size = UDim2.new(1, -8, 0, 20), textSize = 13, wrap = true })
+		local l = Kit.label(fb, "· " .. tostring(line), { size = UDim2.new(1, -8, 0, 20), textSize = 17, font = Enum.Font.Garamond, wrap = true })
 		l.AutomaticSize = Enum.AutomaticSize.Y
 		l.LayoutOrder = i
 	end
