@@ -2602,6 +2602,7 @@ Protocol.Remotes = {
 	MatchState = "MatchState",
 	Campaign = "Campaign",
 	Debug = "Debug",
+	Ping = "Ping", -- server → client: { userId, name, x, z, kind, tick }
 }
 
 -- kind -> allowed unit classes (false = any class)
@@ -2632,7 +2633,10 @@ Protocol.ControlActions = {
 	ready = true,
 	difficulty = true,
 	quit = true,
-	spectate = true,
+	spectate = true, -- no value: resend state; value = true: become a spectator
+	join = true, -- spectator → officer when a slot is free
+	assign = true, -- commander: value = { ids = { formationId }, userId = n }
+	ping = true, -- value = { x, z, kind } (Protocol.PingKinds)
 	tutorialStep = true, -- tutorial scenario: value = step number reached (MatchService validates)
 }
 
@@ -2660,7 +2664,10 @@ Protocol.Reasons = {
 	deployZone = "Outside your deployment zone",
 	notPaused = "Only the commander may pause",
 	noTarget = "No formation within reach of the general",
+	notYours = "That formation belongs to another officer",
 }
+
+Protocol.PingKinds = { look = true, attack = true, defend = true }
 
 export type ValidateContext = {
 	matchId: string,
@@ -2678,22 +2685,33 @@ local function finiteNumber(n: any): boolean
 	return type(n) == "number" and n == n and math.abs(n) ~= math.huge
 end
 
-local function checkIds(ids: any, ctx: ValidateContext, kind: string): (boolean, string?)
+-- 1..MaxBatch distinct positive integers
+local function idList(ids: any): boolean
 	if type(ids) ~= "table" then
-		return false, Protocol.Reasons.badIds
+		return false
 	end
 	local n = #ids
 	if n < 1 or n > Config.Net.MaxBatch then
-		return false, Protocol.Reasons.badIds
+		return false
 	end
-	local allowed = Protocol.CommandKinds[kind]
 	local seen: { [number]: boolean } = {}
 	for i = 1, n do
 		local id = ids[i]
 		if type(id) ~= "number" or id ~= math.floor(id) or id < 1 or seen[id] then
-			return false, Protocol.Reasons.badIds
+			return false
 		end
 		seen[id] = true
+	end
+	return true
+end
+
+local function checkIds(ids: any, ctx: ValidateContext, kind: string): (boolean, string?)
+	if not idList(ids) then
+		return false, Protocol.Reasons.badIds
+	end
+	local allowed = Protocol.CommandKinds[kind]
+	for i = 1, #ids do
+		local id = ids[i]
 		if not ctx.isOwned(id) then
 			return false, Protocol.Reasons.notOwned
 		end
@@ -2878,6 +2896,23 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 		end
 	elseif msg.action == "start" or msg.action == "restart" then
 		if msg.value ~= nil and type(msg.value) ~= "string" then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "spectate" then
+		if msg.value ~= nil and msg.value ~= true then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "assign" then
+		local v = msg.value
+		if type(v) ~= "table" or not idList(v.ids) then
+			return false, Protocol.Reasons.badIds
+		end
+		if type(v.userId) ~= "number" or v.userId ~= math.floor(v.userId) or not finiteNumber(v.userId) then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "ping" then
+		local v = msg.value
+		if type(v) ~= "table" or not finiteNumber(v.x) or not finiteNumber(v.z) or type(v.kind) ~= "string" or not Protocol.PingKinds[v.kind] then
 			return false, Protocol.Reasons.badRequest
 		end
 	end
@@ -4360,7 +4395,7 @@ function Vec.distToSegment(p: Vec, a: Vec, b: Vec): number
 end
 
 return Vec
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000047"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000046"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000048"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000047"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Enemy commander. Pure Luau, deterministic: reads its own formations fully, the enemy only
 -- through sim.views[faction] (visible ids + last-known memory), randomness only via sim.rng.
 -- Orders go through sim:queueCommand with the same command kinds the player uses.
@@ -6935,7 +6970,194 @@ function CampaignService.sessionOnly(): boolean
 end
 
 return CampaignService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">Coop</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Co-op (2–4 players vs AI): roster roles and slots, the wing split and vote thresholds.
+-- Pure Luau; MatchService adapts it to Roblox players. Contract: docs/coop-contract.md.
+
+export type Role = "commander" | "officer" | "spectator"
+export type Member = { userId: number, name: string, role: Role, slot: number? }
+export type Roster = { members: { Member } } -- join order
+export type SplitFormation = { id: number, class: string, pos: { x: number, z: number } }
+export type Rect = { x0: number, z0: number, x1: number, z1: number }
+
+local Coop = {}
+
+Coop.MaxCommanding = 4
+
+function Coop.newRoster(): Roster
+	return { members = {} }
+end
+
+function Coop.find(roster: Roster, userId: number): Member?
+	for _, mem in roster.members do
+		if mem.userId == userId then
+			return mem
+		end
+	end
+	return nil
+end
+
+function Coop.roleOf(roster: Roster, userId: number): Role
+	local mem = Coop.find(roster, userId)
+	return if mem then mem.role else "spectator"
+end
+
+function Coop.commander(roster: Roster): Member?
+	for _, mem in roster.members do
+		if mem.role == "commander" then
+			return mem
+		end
+	end
+	return nil
+end
+
+-- Commanding players' userIds in join order.
+function Coop.commanding(roster: Roster): { number }
+	local out = {}
+	for _, mem in roster.members do
+		if mem.role ~= "spectator" then
+			out[#out + 1] = mem.userId
+		end
+	end
+	return out
+end
+
+local function freeSlot(roster: Roster): number?
+	local used: { [number]: boolean } = {}
+	for _, mem in roster.members do
+		if mem.slot then
+			used[mem.slot] = true
+		end
+	end
+	for s = 1, Coop.MaxCommanding do
+		if not used[s] then
+			return s
+		end
+	end
+	return nil
+end
+
+-- Makes `mem` commanding (commander if nobody commands). False when all four slots are taken.
+local function enlist(roster: Roster, mem: Member): boolean
+	if mem.role ~= "spectator" then
+		return true
+	end
+	local slot = freeSlot(roster)
+	if not slot then
+		return false
+	end
+	mem.slot = slot
+	mem.role = if Coop.commander(roster) then "officer" else "commander"
+	return true
+end
+
+function Coop.add(roster: Roster, userId: number, name: string): Member
+	local mem = Coop.find(roster, userId)
+	if mem then
+		return mem
+	end
+	local m: Member = { userId = userId, name = name, role = "spectator", slot = nil }
+	table.insert(roster.members, m)
+	enlist(roster, m)
+	return m
+end
+
+-- spectator → officer (or commander when nobody commands). False when no slot is free.
+function Coop.join(roster: Roster, userId: number): boolean
+	local mem = Coop.find(roster, userId)
+	return mem ~= nil and enlist(roster, mem)
+end
+
+-- officer → spectator. The commander cannot step down this way.
+function Coop.spectate(roster: Roster, userId: number): boolean
+	local mem = Coop.find(roster, userId)
+	if not mem or mem.role == "commander" then
+		return false
+	end
+	mem.role = "spectator"
+	mem.slot = nil
+	return true
+end
+
+-- Makes `userId` commander when nobody commands (a player claiming an empty seat).
+function Coop.claim(roster: Roster, userId: number): boolean
+	if Coop.commander(roster) then
+		return Coop.roleOf(roster, userId) == "commander"
+	end
+	local mem = Coop.find(roster, userId)
+	if not mem then
+		return false
+	end
+	mem.slot = mem.slot or freeSlot(roster) or 1
+	mem.role = "commander"
+	return true
+end
+
+-- Removes a player; a departing commander hands command to the next commanding player in join
+-- order, else to the first remaining spectator. Returns true when the commander left.
+function Coop.remove(roster: Roster, userId: number): boolean
+	local wasCommander = false
+	for i, mem in roster.members do
+		if mem.userId == userId then
+			wasCommander = mem.role == "commander"
+			table.remove(roster.members, i)
+			break
+		end
+	end
+	if wasCommander then
+		local nextId = Coop.commanding(roster)[1] or (roster.members[1] and roster.members[1].userId)
+		if nextId then
+			Coop.claim(roster, nextId)
+		end
+	end
+	return wasCommander
+end
+
+-- Wings: formations sorted along the deploy zone's long axis, cut into one contiguous wing per
+-- commanding player (join order). HQs always go to the commander. Returns { [formationId]: userId }.
+function Coop.split(forms: { SplitFormation }, zone: Rect?, players: { number }, commanderId: number): { [number]: number }
+	local out: { [number]: number } = {}
+	local alongX = zone == nil or (zone.x1 - zone.x0) >= (zone.z1 - zone.z0)
+	local line: { SplitFormation } = {}
+	for _, f in forms do
+		if f.class == "hq" or #players == 0 then
+			out[f.id] = commanderId
+		else
+			line[#line + 1] = f
+		end
+	end
+	table.sort(line, function(a: SplitFormation, b: SplitFormation): boolean
+		local ka = if alongX then a.pos.x else a.pos.z
+		local kb = if alongX then b.pos.x else b.pos.z
+		if ka ~= kb then
+			return ka < kb
+		end
+		return a.id < b.id
+	end)
+	local n, k = #players, #line
+	for i, f in line do
+		out[f.id] = players[math.floor((i - 1) * n / k) + 1]
+	end
+	return out
+end
+
+function Coop.votesNeeded(n: number): number
+	return math.max(1, math.ceil(n / 2))
+end
+
+-- Records a pause/resume vote. Passes at ⌈n/2⌉ votes, or at once when `decisive` (the
+-- commander's resume). Returns passed, votes cast.
+function Coop.vote(votes: { [number]: boolean }, userId: number, n: number, decisive: boolean): (boolean, number)
+	votes[userId] = true
+	local count = 0
+	for _ in votes do
+		count += 1
+	end
+	return decisive or count >= Coop.votesNeeded(n), count
+end
+
+return Coop
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign, Europe 1805–1815 (docs/campaign.md, docs/grand-campaign-contract.md). Pure Luau,
 -- deterministic through `state.rng`; no wall clock, no Roblox APIs.
 --
@@ -7548,7 +7770,7 @@ function GrandCampaign.commitBattle(store: Store, userId: number, sessionId: str
 end
 
 return GrandCampaign
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-nation AI. Same rules as the player (Movement.move, Economy.recruit, Diplomacy). Each army
 -- scores every province it can reach within three hops and marches toward the best:
 --   hold          20 (+50 at an own capital threatened beyond the other troops there, +35 while besieging, home guard +40)
@@ -7904,7 +8126,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Contacts, battles, sieges and occupation.
 --
 -- After every nation has moved, each province holding armies at war with each other produces one
@@ -8626,7 +8848,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 end
 
 return Battles
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- War, peace, alliances, offers and coalitions.
 --
 -- War score per pair (-100..100): battle won +8 (+4 if an enemy army is destroyed), province
@@ -9005,7 +9227,7 @@ function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 end
 
 return Diplomacy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Income, manpower, upkeep, recruitment and replenishment. Owners collect the full income and
 -- manpower of provinces they hold; an occupier requisitions half the income and no manpower; the
 -- dispossessed owner gets nothing. Upkeep is paid every turn; a shortfall empties the treasury and
@@ -9266,7 +9488,7 @@ function Economy.unrest(s: State, provinceId: string): number
 end
 
 return Economy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scripted events (EuropeData.Events): each fires once, at the first turn of its window whose
 -- conditions hold. Base effects apply at once; a chooser picks one of the choices: the player
 -- through a pop-up (default = the first choice, applied at the end of the turn if unanswered), an
@@ -9461,7 +9683,7 @@ function Events.closeTurn(s: State)
 end
 
 return Events
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Army movement by province path. Movement points per turn: 2, 3 under a general rated 4+.
 -- Entering a province costs 1, +1 inside an enemy zone of control (a neighbouring province holds
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
@@ -9700,7 +9922,7 @@ function Movement.relocateStrays(s: State)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Profile format for the grand campaign (DataStore-safe: string keys, arrays, finite numbers).
 -- `deserialize` validates everything it reads and returns nil rather than a half-valid state.
 
@@ -9913,7 +10135,7 @@ function Serialize.deserialize(p: any): State?
 end
 
 return Serialize
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign state: types, construction from EuropeData and the small helpers every rules
 -- module shares. Pure Luau; all randomness through `state.rng`; every loop whose order matters
 -- walks an array (NationOrder, ProvinceIds, armies by id), never `pairs` of a dictionary.
@@ -10320,11 +10542,11 @@ function State.new(seed: number, playerNation: string?): State
 end
 
 return State
-]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
 -- Server entry point.
 require(script.Parent.MatchService).start()
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
--- Match lifecycle, commander ownership, request handling, the server loop and replication.
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Match lifecycle, co-op roles and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
 
@@ -10344,6 +10566,7 @@ local Remotes = require(script.Parent.Net.Remotes)
 local CommandGate = require(script.Parent.Net.CommandGate)
 local MatchClock = require(script.Parent.Net.MatchClock)
 local CampaignService = require(script.Parent.CampaignService)
+local Coop = require(script.Parent.Coop)
 
 type Sim = Sim.Sim
 
@@ -10364,6 +10587,10 @@ type Match = {
 	leftAt: number?, -- os.clock() when the commander left
 	campaignBattleId: string?,
 	tutorialStep: number?, -- tutorial scenario only: last step the commander reached
+	controllers: { [number]: number }, -- formationId -> userId of the player commanding it
+	splitKey: string, -- commanding players the last auto-split was made for
+	ready: { [number]: boolean }, -- deployment: commanding players who sent ready
+	votes: { [number]: boolean }, -- pause votes while running, resume votes while paused
 }
 
 local MatchService = {}
@@ -10371,7 +10598,8 @@ local MatchService = {}
 local remotes: { [string]: RemoteEvent }
 local gate = CommandGate.new()
 local match: Match? = nil
-local commanderUserId: number? = nil
+local roster = Coop.newRoster()
+local lastPing: { [number]: number } = {}
 local difficulty = "normal"
 local mapCache: { [string]: MapGen.MapData } = {}
 local matchCounter = 0
@@ -10392,7 +10620,35 @@ local function playerFaction(m: Match?): string
 end
 
 local function isCommander(player: Player): boolean
-	return commanderUserId == player.UserId
+	return Coop.roleOf(roster, player.UserId) == "commander"
+end
+
+local function count(t: { [number]: boolean }): number
+	local n = 0
+	for _ in t do
+		n += 1
+	end
+	return n
+end
+
+local function playersPayload(m: Match?)
+	local out = {}
+	for _, mem in roster.members do
+		if mem.role ~= "spectator" then
+			out[#out + 1] = { userId = mem.userId, name = mem.name, role = mem.role, ready = m ~= nil and m.ready[mem.userId] == true, slot = mem.slot }
+		end
+	end
+	return out
+end
+
+local function controllersPayload(m: Match?): { [string]: number }
+	local out: { [string]: number } = {}
+	if m then
+		for id, uid in m.controllers do
+			out[tostring(id)] = uid
+		end
+	end
+	return out
 end
 
 local function matchStatePayload(player: Player)
@@ -10417,6 +10673,11 @@ local function matchStatePayload(player: Player)
 			else nil,
 		viewerFaction = playerFaction(m),
 		isCommander = isCommander(player),
+		role = Coop.roleOf(roster, player.UserId),
+		players = playersPayload(m),
+		controllers = controllersPayload(m),
+		pauseVotes = if m then count(m.votes) else 0,
+		pauseNeeded = Coop.votesNeeded(#Coop.commanding(roster)),
 		difficulty = if m then m.difficulty else difficulty,
 		speed = if m then m.clock.speed else 1,
 		results = if m then m.sim.result else nil,
@@ -10472,6 +10733,55 @@ local function destroyMatch()
 		m.sim.aiStep = nil
 	end
 	match = nil
+end
+
+-- Auto-split the player faction into wings, one per commanding player (Coop.split).
+local function resplit(m: Match)
+	local faction = playerFaction(m)
+	local forms: { Coop.SplitFormation } = {}
+	for _, id in m.sim.order do
+		local f = m.sim.formations[id]
+		if f and f.faction == faction then
+			forms[#forms + 1] = f :: any
+		end
+	end
+	local players = Coop.commanding(roster)
+	local cmd = Coop.commander(roster)
+	m.controllers = Coop.split(forms, m.sim.map.deployZones[faction], players, if cmd then cmd.userId else 0)
+	m.splitKey = table.concat(players, ",")
+end
+
+-- After any join, leave or role change: re-split when the commanding set changed, drop votes
+-- and ready flags of players who no longer command, and tell everyone.
+local function onRoster()
+	local m = match
+	if m then
+		local commanding: { [number]: boolean } = {}
+		for _, uid in Coop.commanding(roster) do
+			commanding[uid] = true
+		end
+		for uid in m.votes do
+			if not commanding[uid] then
+				m.votes[uid] = nil
+			end
+		end
+		for uid in m.ready do
+			if not commanding[uid] then
+				m.ready[uid] = nil
+			end
+		end
+		if table.concat(Coop.commanding(roster), ",") ~= m.splitKey then
+			resplit(m)
+		end
+	end
+	broadcastState()
+end
+
+-- A player claims command when nobody holds it (the first player in, or after everyone left).
+local function claim(player: Player)
+	if not Coop.commander(roster) and Coop.claim(roster, player.UserId) then
+		onRoster()
+	end
 end
 
 -- ------------------------------------------------------------------ tutorial
@@ -10685,7 +10995,12 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		devTimer = 0,
 		leftAt = nil,
 		campaignBattleId = campaignBattleId,
+		controllers = {},
+		splitKey = "",
+		ready = {},
+		votes = {},
 	}
+	resplit(match :: Match)
 	if scenario.id == "tutorial" then
 		tutorialStart(match)
 	end
@@ -10714,20 +11029,39 @@ local function onControl(player: Player, msg: any)
 		return
 	end
 	local action = msg.action
-	print(string.format("[EoE server] control %s from %s (commander=%s)", tostring(action), player.Name, tostring(isCommander(player))))
+	local uid = player.UserId
+	print(string.format("[EoE server] control %s from %s (role=%s)", tostring(action), player.Name, Coop.roleOf(roster, uid)))
 	if action == "spectate" then
-		remotes.MatchState:FireClient(player, matchStatePayload(player))
+		if msg.value == true then
+			-- step down to spectator (the commander cannot)
+			if not Coop.spectate(roster, uid) then
+				result(player, msg.requestId, false, Protocol.Reasons.badState)
+				return
+			end
+			onRoster()
+		else
+			-- plain state request
+			remotes.MatchState:FireClient(player, matchStatePayload(player))
+		end
 		if m then
 			sendSnapshot(player, true)
 		end
 		result(player, msg.requestId, true)
 		return
 	end
-	-- Claim command: the first player to start a match becomes commander for the server.
-	if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
-		commanderUserId = player.UserId
+	claim(player)
+	if action == "join" then
+		if Coop.join(roster, uid) then
+			result(player, msg.requestId, true)
+			onRoster()
+		else
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+		end
+		return
 	end
-	if not isCommander(player) then
+	local role = Coop.roleOf(roster, uid)
+	local anyone = action == "ready" or action == "pause" or action == "resume" or action == "ping"
+	if role == "spectator" or (role ~= "commander" and not anyone) then
 		result(player, msg.requestId, false, Protocol.Reasons.notCommander)
 		return
 	end
@@ -10764,19 +11098,39 @@ local function onControl(player: Player, msg: any)
 		publish(true)
 	elseif action == "ready" then
 		if m and m.state == "deployment" then
-			m.sim:start()
-			m.state = "running"
-			m.clock.paused = false
+			-- Starts once every commanding player is ready, or on the commander's second ready.
+			local force = role == "commander" and m.ready[uid] == true
+			m.ready[uid] = true
+			local all = true
+			for _, id in Coop.commanding(roster) do
+				all = all and m.ready[id] == true
+			end
 			result(player, msg.requestId, true)
-			broadcastState()
-			publish(true)
+			if force or all then
+				m.sim:start()
+				m.state = "running"
+				m.clock.paused = false
+				m.votes = {}
+				broadcastState()
+				publish(true)
+			else
+				broadcastState()
+			end
 		else
 			result(player, msg.requestId, false, Protocol.Reasons.badState)
 		end
 	elseif action == "pause" or action == "resume" then
 		if m and (m.state == "running" or m.state == "paused") then
-			m.state = if action == "pause" then "paused" else "running"
-			m.clock.paused = m.state == "paused"
+			local target: MatchState = if action == "pause" then "paused" else "running"
+			if m.state ~= target then
+				-- A vote: ⌈n/2⌉ commanding players, or the commander's resume alone. Solo acts at once.
+				local passed = Coop.vote(m.votes, uid, #Coop.commanding(roster), action == "resume" and role == "commander")
+				if passed then
+					m.state = target
+					m.clock.paused = target == "paused"
+					m.votes = {}
+				end
+			end
 			result(player, msg.requestId, true)
 			broadcastState()
 		else
@@ -10789,8 +11143,50 @@ local function onControl(player: Player, msg: any)
 		else
 			result(player, msg.requestId, false, Protocol.Reasons.badRequest)
 		end
+	elseif action == "assign" then
+		local v = msg.value
+		if not m then
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+			return
+		end
+		if Coop.roleOf(roster, v.userId) == "spectator" then
+			result(player, msg.requestId, false, Protocol.Reasons.badTarget)
+			return
+		end
+		local faction = playerFaction(m)
+		for _, id in v.ids do
+			local f = m.sim.formations[id]
+			if not f or f.faction ~= faction then
+				result(player, msg.requestId, false, Protocol.Reasons.notOwned)
+				return
+			end
+		end
+		for _, id in v.ids do
+			m.controllers[id] = v.userId
+		end
+		result(player, msg.requestId, true)
+		broadcastState()
+	elseif action == "ping" then
+		local v = msg.value
+		local now = os.clock()
+		if not m then
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+		elseif now - (lastPing[uid] or -math.huge) < 1 then
+			result(player, msg.requestId, false, Protocol.Reasons.rateLimited)
+		elseif v.x < 0 or v.z < 0 or v.x >= m.sim.map.width or v.z >= m.sim.map.depth then
+			result(player, msg.requestId, false, Protocol.Reasons.badPosition)
+		else
+			lastPing[uid] = now
+			local ping = { userId = uid, name = player.Name, x = v.x, z = v.z, kind = v.kind, tick = m.sim.tick }
+			for _, p in Players:GetPlayers() do
+				if Coop.roleOf(roster, p.UserId) ~= "spectator" then
+					remotes.Ping:FireClient(p, ping)
+				end
+			end
+			result(player, msg.requestId, true)
+		end
 	elseif action == "tutorialStep" then
-		local tok, treason = tutorialStep(m, isCommander(player), msg.value)
+		local tok, treason = tutorialStep(m, true, msg.value)
 		result(player, msg.requestId, tok, treason)
 	elseif action == "quit" then
 		destroyMatch()
@@ -10809,6 +11205,7 @@ local function onCommand(player: Player, cmd: any)
 	end
 	local sim = m.sim
 	local faction = playerFaction(m)
+	local role = Coop.roleOf(roster, player.UserId)
 	local ctx: Protocol.ValidateContext = {
 		matchId = m.id,
 		state = m.state,
@@ -10816,7 +11213,7 @@ local function onCommand(player: Player, cmd: any)
 		mapDepth = sim.map.depth,
 		isOwned = function(id: number): boolean
 			local f = sim.formations[id]
-			return f ~= nil and f.faction == faction and isCommander(player)
+			return f ~= nil and f.faction == faction and role ~= "spectator"
 		end,
 		classOf = function(id: number): string?
 			local f = sim.formations[id]
@@ -10830,9 +11227,18 @@ local function onCommand(player: Player, cmd: any)
 	local ok, reason = Protocol.validateCommand(cmd, ctx)
 	if not ok then
 		if type(cmd) == "table" and type(cmd.requestId) == "string" then
-			result(player, cmd.requestId, false, if not isCommander(player) then Protocol.Reasons.notCommander else reason)
+			result(player, cmd.requestId, false, if role == "spectator" then Protocol.Reasons.notCommander else reason)
 		end
 		return
+	end
+	-- Officers command only their own wing; the commander may command any formation.
+	if role ~= "commander" then
+		for _, id in cmd.ids do
+			if m.controllers[id] ~= player.UserId then
+				result(player, cmd.requestId, false, Protocol.Reasons.notYours)
+				return
+			end
+		end
 	end
 	local gok, greason = CommandGate.check(gate, player.UserId, cmd.requestId, os.clock())
 	if not gok then
@@ -10901,33 +11307,29 @@ local function onHeartbeat(realDt: number)
 		m.devTimer += realDt
 		if m.devTimer >= 1 then
 			m.devTimer = 0
-			local commander = if commanderUserId then Players:GetPlayerByUserId(commanderUserId) else nil
+			local cmd = Coop.commander(roster)
+			local commander = if cmd then Players:GetPlayerByUserId(cmd.userId) else nil
 			if commander then
 				remotes.Debug:FireClient(commander, { aiGoals = AI.debugView(m.ai) })
 			end
 		end
 	end
-	-- Commander departure: pause, then reset after the grace period.
+	-- Everyone left: pause, then reset after the grace period.
 	if m.leftAt and os.clock() - m.leftAt > Config.Match.ReconnectGrace then
 		destroyMatch()
-		commanderUserId = nil
 		broadcastState()
 	end
 end
 
 local function onPlayerAdded(player: Player)
-	-- The first player present is the commander; later joiners spectate until they leave.
-	if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
-		commanderUserId = player.UserId
+	-- The first player in commands; the next three are officers; later joiners spectate.
+	local mem = Coop.add(roster, player.UserId, player.Name)
+	local m = match
+	if m and mem.role == "commander" then
+		m.leftAt = nil
 	end
-	if commanderUserId == player.UserId then
-		local m = match
-		if m then
-			m.leftAt = nil
-		end
-	end
-	print(string.format("[EoE server] player %s (%d) joined; commander=%s", player.Name, player.UserId, tostring(isCommander(player))))
-	remotes.MatchState:FireClient(player, matchStatePayload(player))
+	print(string.format("[EoE server] player %s (%d) joined as %s", player.Name, player.UserId, mem.role))
+	onRoster()
 	if match then
 		sendSnapshot(player, true)
 	end
@@ -10935,25 +11337,20 @@ end
 
 local function onPlayerRemoving(player: Player)
 	CommandGate.forget(gate, player.UserId)
+	lastPing[player.UserId] = nil
+	-- A departing commander hands command on (Coop.remove); their wing returns via the re-split.
+	local wasCommander = Coop.remove(roster, player.UserId)
 	local m = match
-	if m and isCommander(player) then
+	if m and wasCommander and not Coop.commander(roster) then
+		-- Nobody left: pause, and reset after the grace period unless they come back.
 		if m.state == "running" then
 			m.state = "paused"
 			m.clock.paused = true
 		end
+		m.votes = {}
 		m.leftAt = os.clock()
-		broadcastState()
-	elseif not m and isCommander(player) then
-		-- No match in progress: hand command to whoever is still here.
-		commanderUserId = nil
-		for _, p in Players:GetPlayers() do
-			if p ~= player then
-				commanderUserId = p.UserId
-				break
-			end
-		end
-		broadcastState()
 	end
+	onRoster()
 end
 
 function MatchService.start()
@@ -10973,9 +11370,7 @@ function MatchService.start()
 	print("[EoE server] match service started")
 	CampaignService.start(remotes.Campaign, {
 		isCommander = function(player: Player): boolean
-			if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
-				commanderUserId = player.UserId
-			end
+			claim(player)
 			return isCommander(player)
 		end,
 		startBattle = function(scenario: Scenarios.Scenario, battleId: string)
@@ -10993,7 +11388,7 @@ MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatc
 end }
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000032"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000033"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-player request gate: rate limiting and request-id de-duplication. Pure Luau; the
 -- caller injects real elapsed time (never the paused battle clock).
 
@@ -11058,7 +11453,7 @@ function CommandGate.forget(gate: Gate, key: any)
 end
 
 return CommandGate
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Real time → logical ticks. Speed scales the accumulator, never the step. Work per frame is
 -- bounded; sustained overload shows up as simLag instead of a giant step.
 
@@ -11115,7 +11510,7 @@ function MatchClock.advance(clock: Clock, realDt: number, step: () -> ()): numbe
 end
 
 return MatchClock
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Creates the RemoteEvents under ReplicatedStorage/EoE/Remotes (server only).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11148,7 +11543,7 @@ function Remotes.create(): { [string]: RemoteEvent }
 end
 
 return Remotes
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000034"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000035"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Versioned profile store on top of DataStoreService.UpdateAsync. Pure Luau; the DataStore
 -- service is injected so tests run in the CLI with the memory adapter.
 --
@@ -11357,7 +11752,7 @@ function ProfileStore.releaseSession(self: Store, userId: number, sessionId: str
 end
 
 return ProfileStore
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The authoritative battle simulation. Pure Luau: no Roblox APIs, no wall-clock time.
 -- Owns formations, commands, the fixed tick, visibility, objectives, victory and snapshots.
 -- Tick order is documented in docs/architecture.md and implemented in Sim:step().
@@ -12204,7 +12599,7 @@ function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Resu
 end
 
 return Sim
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Generals in battle: trait modifiers recomputed every tick (bounded) and the HQ's active ability.
 -- Data and plain-text descriptions live in src/shared/Generals.luau; docs/rules.md ("Generals")
 -- is the contract. Pure Luau, deterministic, no randomness.
@@ -12622,7 +13017,7 @@ function Abilities.view(sim: SimLike, f: Formation, v: any)
 end
 
 return Abilities
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Fire, artillery, melee and charge resolution. Step 6 gathers attacks from a frozen view of
 -- the tick (positions/states as they are after movement); step 7 applies them. Both sides
 -- resolve simultaneously; ordering is ascending formation id for determinism.
@@ -13103,7 +13498,7 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 end
 
 return Combat
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Map edges as a faction's "home" (where routers flee, where rallied units turn back from).
 -- A home is one of four sides, chosen as the side facing away from the enemy's deployment.
 -- Edges are identified from the home point, which always lies just beyond its edge.
@@ -13178,7 +13573,7 @@ function Edges.home(own: Point, enemy: Point?, w: number, d: number, margin: num
 end
 
 return Edges
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation records: creation from scenario definitions, footprint geometry, shape changes,
 -- legality helpers. Pure Luau; no Roblox APIs.
 
@@ -13499,7 +13894,7 @@ function Formation.frontCentre(f: Formation): Vec
 end
 
 return Formation
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Evaluates the scenario's historical moments (src/shared/Moments.luau) every
 -- Moments.EveryTicks ticks, after objectives. Pure and deterministic: reads sim state only,
 -- fires each moment at most once, in list order.
@@ -13666,7 +14061,7 @@ function Moments.update(sim: any)
 end
 
 return Moments
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morale, fatigue effects, rout / rally / shatter transitions, destruction. Step 8.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -13942,7 +14337,7 @@ function Morale.hqRally(sim: SimLike, hq: Formation): (boolean, string?)
 end
 
 return Morale
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Timed transitions (shape/limber/rally/charge recovery), navigation, movement, facing,
 -- choke-point travel columns, avoidance, stuck detection and routing flight.
 -- Runs in tick steps 3 and 4. Formations are processed in ascending id order.
@@ -14399,7 +14794,7 @@ function Movement.update(sim: SimLike, f: Formation)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation navigation on a coarse grid derived from the terrain grid.
 -- Nodes are Config.Map.NavCellSize studs; a node is walkable when its clearance allows at
 -- least a travel column (half-width 8). Cost = distance / infantry terrain speed.
@@ -14721,7 +15116,7 @@ function Nav.segmentMinClearance(nav: NavGrid, a: Vec, b: Vec): number
 end
 
 return Nav
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Objective capture (step 9) and the single victory evaluator (step 10).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -14946,7 +15341,7 @@ function Objectives.evaluate(sim: SimLike): (string?, string?)
 end
 
 return Objectives
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-faction visibility: which enemy formations are currently seen, and last-known memory.
 -- Recomputed every Config.Sim.VisibilityEveryTicks ticks (step 5). The AI and the snapshot
 -- filter both read this; nothing else decides what a faction knows.
@@ -15085,7 +15480,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000091"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000090"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000089"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000092"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000091"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000090"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -15104,6 +15499,7 @@ local REGISTRY: { [string]: Entry } = {
 	rally = { id = "", category = "sfx", volume = 0.5, pool = 2 },
 	capture = { id = "", category = "sfx", volume = 0.6, pool = 2 },
 	click = { id = "", category = "sfx", volume = 0.4, pool = 2 },
+	ping = { id = "", category = "sfx", volume = 0.5, pool = 2 }, -- co-op map ping
 	battleMusic = { id = "", category = "music", volume = 0.5, pool = 1 },
 }
 
@@ -15203,7 +15599,7 @@ function Audio.destroy()
 end
 
 return Audio
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side mirror of the match: merged snapshot data, pending orders, match metadata.
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
@@ -15305,6 +15701,14 @@ BattleState.state = "menu"
 BattleState.viewerFaction = ""
 BattleState.enemyFaction = ""
 BattleState.isCommander = false
+-- co-op (docs/coop-contract.md). Absent from an old server / solo: everything is yours.
+BattleState.role = "spectator" -- commander | officer | spectator
+BattleState.players = {} :: { { userId: number, name: string, role: string, ready: boolean?, slot: number? } }
+BattleState.controllers = {} :: { [string]: number } -- formation id (string) -> userId
+BattleState.pauseVotes = 0
+BattleState.pauseNeeded = 0
+BattleState.pings = {} :: { { x: number, z: number, slot: number, kind: string, t0: number } } -- for the minimap
+BattleState.userId = 0 -- the local player's, set by Main at boot
 BattleState.difficulty = "normal"
 BattleState.speed = 1
 BattleState.scenario = nil :: any
@@ -15333,6 +15737,7 @@ function BattleState.reset()
 	BattleState.objectives = {}
 	BattleState.reinforcements = {}
 	table.clear(BattleState.pending)
+	table.clear(BattleState.pings)
 	BattleState.clock = 0
 	BattleState.tick = 0
 	BattleState.simLag = 0
@@ -15344,6 +15749,11 @@ function BattleState.applyMatchState(msg: any)
 	BattleState.state = msg.state or "menu"
 	BattleState.viewerFaction = msg.viewerFaction or ""
 	BattleState.isCommander = msg.isCommander == true
+	BattleState.role = if type(msg.role) == "string" then msg.role elseif BattleState.isCommander then "commander" else "spectator"
+	BattleState.players = if type(msg.players) == "table" then msg.players else {}
+	BattleState.controllers = if type(msg.controllers) == "table" then msg.controllers else {}
+	BattleState.pauseVotes = tonumber(msg.pauseVotes) or 0
+	BattleState.pauseNeeded = tonumber(msg.pauseNeeded) or 0
 	BattleState.difficulty = msg.difficulty or "normal"
 	BattleState.speed = msg.speed or 1
 	BattleState.scenario = msg.scenario
@@ -15435,6 +15845,80 @@ function BattleState.isOwn(f: { faction: string }): boolean
 	return f.faction == BattleState.viewerFaction
 end
 
+-- ------------------------------------------------------------------ co-op
+
+-- More than one player in the match: co-op UI shows; otherwise it stays inert.
+function BattleState.coop(): boolean
+	return #BattleState.players > 1
+end
+
+-- May this client give orders at all (commander or officer)?
+function BattleState.canOrder(): boolean
+	return BattleState.role == "commander" or BattleState.role == "officer"
+end
+
+function BattleState.controllerOf(id: number): number?
+	return BattleState.controllers[tostring(id)]
+end
+
+-- Own faction and in this player's wing. Solo, or no wings sent: every own formation.
+function BattleState.isMine(id: number): boolean
+	local f = BattleState.formations[id]
+	if not f or f.faction ~= BattleState.viewerFaction then
+		return false
+	end
+	if not BattleState.coop() or next(BattleState.controllers) == nil then
+		return true
+	end
+	local c = BattleState.controllerOf(id)
+	if c == nil then
+		return BattleState.role == "commander" -- unassigned stays with the commander
+	end
+	return c == BattleState.userId
+end
+
+-- Selectable / orderable: your wing, or any own formation for the commander.
+function BattleState.canCommand(id: number): boolean
+	if BattleState.isMine(id) then
+		return true
+	end
+	local f = BattleState.formations[id]
+	return BattleState.role == "commander" and f ~= nil and f.faction == BattleState.viewerFaction
+end
+
+function BattleState.player(userId: number?): any
+	for _, p in BattleState.players do
+		if p.userId == userId then
+			return p
+		end
+	end
+	return nil
+end
+
+-- The ally commanding a formation that is not ours (nil when it is ours or solo).
+function BattleState.allyOf(id: number): any
+	if not BattleState.coop() or BattleState.isMine(id) then
+		return nil
+	end
+	return BattleState.player(BattleState.controllerOf(id))
+end
+
+-- Pause button text in co-op ("Vote pause (1/2)"); nil solo.
+function BattleState.pauseLabel(): string?
+	local n = 0
+	for _, p in BattleState.players do
+		if p.role ~= "spectator" then
+			n += 1
+		end
+	end
+	if n <= 1 then
+		return nil
+	end
+	local need = if BattleState.pauseNeeded > 0 then BattleState.pauseNeeded else math.ceil(n / 2)
+	local verb = if BattleState.state == "paused" then "resume" else "pause"
+	return string.format("Vote %s (%d/%d)", verb, BattleState.pauseVotes, need)
+end
+
 function BattleState.ownFormations(): { Formation }
 	local out = {}
 	for _, f in BattleState.formations do
@@ -15472,10 +15956,7 @@ function BattleState.validateContext(): any
 		state = BattleState.state,
 		mapWidth = if BattleState.map then BattleState.map.width else 1600,
 		mapDepth = if BattleState.map then BattleState.map.depth else 1200,
-		isOwned = function(id: number): boolean
-			local f = BattleState.formations[id]
-			return f ~= nil and f.faction == BattleState.viewerFaction
-		end,
+		isOwned = BattleState.canCommand,
 		classOf = function(id: number): string?
 			local f = BattleState.formations[id]
 			return if f then f.class else nil
@@ -15496,7 +15977,7 @@ function BattleState.validateContext(): any
 end
 
 return BattleState
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scriptable RTS camera: bounded pan, rotate, zoom, pitch; never clips into hills.
 -- Height is measured above the terrain under the focus point.
 
@@ -15827,7 +16308,7 @@ function Camera.destroy()
 end
 
 return Camera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign client: the server's grandView is the only state. Owns the board, the
 -- camera, the panels and the board input while open; `close()` removes all of it (Main calls
 -- it on every lifecycle change) and `request()` asks for the view again (menu, back from battle).
@@ -16111,7 +16592,7 @@ function Grand.close()
 end
 
 return Grand
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign tabletop: Europe as a painted relief board on a walnut table, far from the
 -- battlefield. Static geometry (land, sea, mountains, towns, forts, piers, names) builds once;
 -- owner colours, borders, occupation hatching, armies, highlights and the path preview follow
@@ -16822,7 +17303,7 @@ function Board.updateLabels(cameraHeight: number)
 end
 
 return Board
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Board camera: orbit (middle drag), pan (WASD / arrows), zoom (wheel), clamped to the board
 -- and smoothed. Runs after the battlefield camera in the render step, so it owns the view
 -- while the campaign is open; the battlefield camera is told to ignore its keys meanwhile.
@@ -16960,7 +17441,7 @@ function CampaignCamera.stop()
 end
 
 return CampaignCamera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign panels in the Kit style: top bar, selected army and province (left),
 -- diplomacy (right) and the documents on top: event dispatches, the battle dialog, the
 -- turn summary, victory/defeat and the choice of nation. Rebuilt from the view on each
@@ -17746,7 +18227,7 @@ function UI.destroy()
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign static data (shared EuropeData) and the nation look-ups the board and panels
 -- share: colour, name, flag.
 
@@ -17800,7 +18281,7 @@ function Data.flag(nation: string?): Factions.Flag
 end
 
 return Data
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure grand-campaign view logic (no Roblox types, so tests run it in the Luau CLI): who may act,
 -- march routes mirroring the server's Movement rules, reachable provinces, readable reasons,
 -- the turn summary and offer terms.
@@ -18074,7 +18555,7 @@ function Logic.offerText(o: any): string
 end
 
 return Logic
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
 -- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
 -- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~6 s.
@@ -18187,7 +18668,8 @@ showNext = function()
 	local reduced = Settings.get().reducedEffects == true
 	local card = build(ev, not reduced)
 	current = card
-	if BattleState.isCommander and BattleState.state == "running" and #Players:GetPlayers() == 1 then
+	-- co-op: pause is a vote, so moment cards pause only a solo match
+	if BattleState.isCommander and BattleState.state == "running" and #BattleState.players <= 1 and #Players:GetPlayers() == 1 then
 		card.paused = Net.control("pause") ~= nil
 	end
 	tween(card.group, FADE, { GroupTransparency = 0 })
@@ -18244,7 +18726,7 @@ function Cinematic.clear()
 end
 
 return Cinematic
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pooled one-shot visual effects driven by snapshot events only. Smoke and dust are soft
 -- translucent particles (built-in smoke texture, no asset ids) burst from a small round-robin
 -- pool of emitter parts; flashes, earth spray and rout markers are short-lived pooled parts.
@@ -18533,6 +19015,34 @@ function Effects.update(_dt: number)
 	end
 end
 
+-- Co-op ping: a banner pole in the sender's slot colour, struck after 6 s.
+function Effects.ping(x: number, z: number, colour: Color3)
+	local f = folder
+	if not f then
+		return
+	end
+	local y = groundY(x, z)
+	local pole = makePart()
+	pole.Shape = Enum.PartType.Block
+	pole.Transparency = 0
+	pole.Color = Color3.fromRGB(70, 60, 50)
+	pole.Size = Vector3.new(0.4, 18, 0.4)
+	pole.CFrame = CFrame.new(x, y + 9, z)
+	pole.Parent = f
+	local banner = makePart()
+	banner.Shape = Enum.PartType.Block
+	banner.Transparency = 0
+	banner.Material = Enum.Material.Fabric
+	banner.Color = colour
+	banner.Size = Vector3.new(0.15, 4, 6)
+	banner.CFrame = CFrame.new(x, y + 16, z + 3.2)
+	banner.Parent = f
+	task.delay(6, function()
+		pole:Destroy()
+		banner:Destroy()
+	end)
+end
+
 function Effects.clear()
 	for _, a in active do
 		a.part:Destroy()
@@ -18552,7 +19062,7 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
 -- unit `colour` override, else the faction), display names and marker-flag designs.
 
@@ -18646,7 +19156,7 @@ function Factions.slabDarken(faction: string?): number
 end
 
 return Factions
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
@@ -18695,6 +19205,7 @@ type Marker = {
 	statusLabel: TextLabel,
 	bar: Frame,
 	barFill: Frame,
+	stripe: Frame, -- co-op: the commanding officer's slot colour down the plate's left edge
 	height: number,
 	priority: number,
 }
@@ -19232,6 +19743,11 @@ local function buildMarker(g: Group, f: any): Marker
 	fill.BackgroundColor3 = g.colour
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
+	local stripe = Instance.new("Frame") :: Frame
+	stripe.Size = UDim2.new(0, 5, 1, 0)
+	stripe.BorderSizePixel = 0
+	stripe.Visible = false
+	stripe.Parent = plate
 	return {
 		parts = parts,
 		locals = locals,
@@ -19247,6 +19763,7 @@ local function buildMarker(g: Group, f: any): Marker
 		statusLabel = statusLabel,
 		bar = bar,
 		barFill = fill,
+		stripe = stripe,
 		height = poleH + 0.5,
 		priority = if hq then 4 elseif g.ghost then 0 else 1,
 	}
@@ -19756,6 +20273,8 @@ function Figures.update(dt: number)
 	local moveParts: { BasePart } = {}
 	local moveCfs: { CFrame } = {}
 	local hovered = Selection.hovered()
+	local coop = BattleState.coop()
+	local deploying = BattleState.state == "deployment"
 	local farD = Config.Visual.FarLodDistance
 
 	for id, g in groups do
@@ -19899,7 +20418,15 @@ function Figures.update(dt: number)
 			local showStatus = selected or id == hovered
 			local m = g.marker
 			if not g.ghost then
-				m.statusLabel.Text = if showStatus then statusText(f) else ""
+				-- co-op: allies' wings carry their officer's colour (every wing while deploying)
+				local owner = if coop and g.faction == BattleState.viewerFaction then BattleState.player(BattleState.controllerOf(id)) else nil
+				local ally = owner ~= nil and not BattleState.isMine(id)
+				local striped = owner ~= nil and (deploying or ally)
+				m.stripe.Visible = striped
+				if striped then
+					m.stripe.BackgroundColor3 = Kit.slotColour(owner.slot)
+				end
+				m.statusLabel.Text = if not showStatus then "" elseif ally then tostring(owner.name) .. " · " .. statusText(f) else statusText(f)
 				m.bar.Visible = showStatus
 				if showStatus then
 					m.barFill.Size = UDim2.fromScale(math.clamp(f.strength / math.max(f.startStrength, 1), 0, 1), 1)
@@ -19940,7 +20467,7 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -19976,6 +20503,7 @@ local box: Frame? = nil
 local left: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local right: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local deployHeading: { [number]: number } = {}
+local middleAt: Vector2? = nil -- middle-button press point: a click (not a rotate drag) pings
 local armed: string? = nil -- "Charge": the next right-click charges instead of moving
 
 -- ------------------------------------------------------------------ picking
@@ -20029,7 +20557,7 @@ local function pickAt(p: Vec): (number?, string?)
 		end
 	end
 	for _, f in BattleState.formations do
-		test(f, if f.faction == BattleState.viewerFaction then "own" else "enemy")
+		test(f, if f.faction ~= BattleState.viewerFaction then "enemy" elseif BattleState.canCommand(f.id) then "own" else "ally")
 	end
 	if bestId == nil then
 		for _, lk in BattleState.lastKnown do
@@ -20274,7 +20802,23 @@ local function cancelDrags()
 	Figures.setPreview(nil)
 end
 
+-- Co-op ping: G look, Shift+G attack, Ctrl+G defend (middle click: look). Inert solo.
+local function ping(): boolean
+	if not BattleState.coop() then
+		return false
+	end
+	local g = groundUnderMouse()
+	if g then
+		local kind = if shift() then "attack" elseif ctrl() then "defend" else "look"
+		Net.control("ping", { x = g.x, z = g.z, kind = kind })
+	end
+	return true
+end
+
 local function onLeftDown()
+	if UserInputService:IsKeyDown(Enum.KeyCode.G) and ping() then
+		return
+	end
 	local m = mousePos()
 	left.down = true
 	left.dragging = false
@@ -20525,6 +21069,8 @@ function Input.init()
 			onLeftDown()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightDown()
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
+			middleAt = mousePos()
 		end
 	end))
 	table.insert(connections, UserInputService.InputEnded:Connect(function(input: InputObject, _gp: boolean)
@@ -20536,6 +21082,12 @@ function Input.init()
 			onLeftUp()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightUp()
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 and middleAt then
+			local m, a = mousePos(), middleAt :: Vector2
+			middleAt = nil
+			if math.abs(m.X - a.X) <= DRAG_PX and math.abs(m.Y - a.Y) <= DRAG_PX then
+				ping()
+			end
 		end
 	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, _gp: boolean)
@@ -20596,7 +21148,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, builds the world per map, wires the
 -- modules together and drives the match lifecycle from MatchState messages.
 
@@ -20617,6 +21169,7 @@ local Effects = require(script.Parent.Effects)
 local Terrain = require(script.Parent.World.Terrain)
 local Props = require(script.Parent.World.Props)
 local WorldLighting = require(script.Parent.World.Lighting)
+local Kit = require(script.Parent.UI.Kit)
 local Menu = require(script.Parent.UI.Menu)
 local HUD = require(script.Parent.UI.HUD)
 local Deployment = require(script.Parent.UI.Deployment)
@@ -20861,12 +21414,20 @@ local function onMatchState(msg: any)
 	local prevState = BattleState.state
 	local sameMatch = msg.matchId == lastMatchId and msg.matchId ~= ""
 	local pauseToggle = sameMatch and ((prevState == "running" and msg.state == "paused") or (prevState == "paused" and msg.state == "running"))
+	local wasCoop = BattleState.coop()
 	BattleState.applyMatchState(msg)
+	-- co-op: votes, ready ticks, joins and wing changes resend the same state; refresh in place
+	local s = BattleState.state
+	local coopRefresh = sameMatch and s == prevState and (wasCoop or BattleState.coop()) and (s == "deployment" or s == "running" or s == "paused")
 	WorldLighting.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
 	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
-	if pauseToggle then
+	if pauseToggle or coopRefresh then
 		-- keep figures, selection and HUD; just reflect the new state
+		if coopRefresh then
+			Input.setMode(if not BattleState.canOrder() then "off" elseif s == "deployment" then "deploy" else "battle")
+			Deployment.refresh()
+		end
 		BattleState.updated:Fire(nil)
 		return
 	end
@@ -20913,11 +21474,21 @@ local function onMatchState(msg: any)
 		Deployment.show({
 			ready = function()
 				Net.control("ready")
-				Deployment.setWaiting("Forming up…")
+				if BattleState.coop() and BattleState.role == "commander" then
+					Deployment.setWaiting("Start now", true) -- a second ready forces the start
+				else
+					Deployment.setWaiting("Forming up…")
+				end
+			end,
+			assign = function(userId: number)
+				local ids = Selection.ids()
+				if #ids > 0 then
+					Net.control("assign", { ids = ids, userId = userId })
+				end
 			end,
 			settings = openSettings,
 		})
-		Input.setMode(if BattleState.isCommander then "deploy" else "off")
+		Input.setMode(if BattleState.canOrder() then "deploy" else "off")
 		Camera.setEnabled(true)
 		if zone then
 			Camera.reset((zone.x0 + zone.x1) / 2, (zone.z0 + zone.z1) / 2)
@@ -20931,7 +21502,7 @@ local function onMatchState(msg: any)
 		Figures.init()
 		Effects.init()
 		HUD.show(hudCallbacks)
-		Input.setMode(if BattleState.isCommander then "battle" else "off")
+		Input.setMode(if BattleState.canOrder() then "battle" else "off")
 		Camera.setEnabled(true)
 		if msg.reason then
 			HUD.message(tostring(msg.reason))
@@ -20997,6 +21568,27 @@ local function wire()
 		task.spawn(onMatchState, msg)
 	end))
 	table.insert(conns, Net.onSnapshot:Connect(onSnapshot))
+	table.insert(conns, Net.onPing:Connect(function(msg: any)
+		if type(msg) ~= "table" or type(msg.x) ~= "number" or type(msg.z) ~= "number" then
+			return
+		end
+		local p = BattleState.player(msg.userId)
+		local slot = if p and type(p.slot) == "number" then p.slot else 0
+		local now = os.clock()
+		local keep = {}
+		for _, pg in BattleState.pings do
+			if now - pg.t0 < 6 then
+				table.insert(keep, pg)
+			end
+		end
+		local kind = if msg.kind == "attack" or msg.kind == "defend" then msg.kind else "look"
+		table.insert(keep, { x = msg.x, z = msg.z, slot = slot, kind = kind, t0 = now })
+		BattleState.pings = keep
+		Effects.ping(msg.x, msg.z, Kit.slotColour(slot))
+		Audio.play("ping")
+		local word = if kind == "attack" then "attack here!" elseif kind == "defend" then "hold here." else "look here."
+		HUD.message(string.format("%s: %s", tostring(msg.name or (p and p.name) or "An officer"), word), Kit.slotColour(slot))
+	end))
 	table.insert(conns, Net.onCampaign:Connect(onCampaign))
 	table.insert(conns, Net.onResult:Connect(function(res: any)
 		if type(res) == "table" then
@@ -21066,6 +21658,7 @@ end
 -- Morning light, haze and post effects (World/Lighting); re-applied when quality changes.
 WorldLighting.apply(Settings.get().quality)
 
+BattleState.userId = ((game:GetService("Players") :: Players).LocalPlayer :: Player).UserId
 Audio.init()
 Camera.init()
 Input.init()
@@ -21108,7 +21701,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -21127,6 +21720,7 @@ Net.onMatchState = Signal.new()
 Net.onResult = Signal.new()
 Net.onDebug = Signal.new()
 Net.onCampaign = Signal.new() -- ({kind="view"|"error", ...})
+Net.onPing = Signal.new() -- ({userId, name, x, z, kind, tick}) co-op map pings
 
 local remotes: { [string]: RemoteEvent } = {}
 local connections: { RBXScriptConnection } = {}
@@ -21187,6 +21781,15 @@ function Net.init()
 	hook(Protocol.Remotes.Debug, Net.onDebug)
 	hook(Protocol.Remotes.Campaign, Net.onCampaign)
 	table.insert(connections, RunService.Heartbeat:Connect(drain))
+	-- co-op remote: an older server has none, so never block start-up on it
+	task.spawn(function()
+		local r = folder:WaitForChild("Ping", 60) :: RemoteEvent?
+		if r then
+			table.insert(connections, r.OnClientEvent:Connect(function(payload: any)
+				Net.onPing:Fire(payload)
+			end))
+		end
+	end)
 end
 
 function Net.setMatch(id: string, validateCtx: (() -> any)?)
@@ -21242,7 +21845,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -21282,10 +21885,13 @@ function Selection.isSelected(id: number): boolean
 	return selected[id] == true
 end
 
+-- Only formations this player may command (co-op: own wing; the commander: all of ours).
 function Selection.set(ids: { number })
 	table.clear(selected)
 	for _, id in ids do
-		selected[id] = true
+		if BattleState.canCommand(id) then
+			selected[id] = true
+		end
 	end
 	fire()
 end
@@ -21293,7 +21899,7 @@ end
 function Selection.toggle(id: number)
 	if selected[id] then
 		selected[id] = nil
-	else
+	elseif BattleState.canCommand(id) then
 		selected[id] = true
 	end
 	fire()
@@ -21301,7 +21907,9 @@ end
 
 function Selection.add(ids: { number })
 	for _, id in ids do
-		selected[id] = true
+		if BattleState.canCommand(id) then
+			selected[id] = true
+		end
 	end
 	fire()
 end
@@ -21318,8 +21926,7 @@ end
 function Selection.prune()
 	local changed = false
 	for id in selected do
-		local f = BattleState.formations[id]
-		if not f or f.faction ~= BattleState.viewerFaction then
+		if not BattleState.canCommand(id) then
 			selected[id] = nil
 			changed = true
 		end
@@ -21364,7 +21971,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local Signal = require(script.Parent.Signal)
@@ -21410,7 +22017,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -21454,7 +22061,7 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -21860,7 +22467,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000083"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000084"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: Quick battles (each battle a framed painting header over its two episode
 -- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
@@ -22179,7 +22786,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -22870,7 +23477,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -22913,6 +23520,7 @@ type Card = {
 	morale: Frame,
 	icons: { [string]: Frame },
 	reloadFill: Frame,
+	dim: Frame, -- co-op: veils an ally's card
 	view: any, -- last FormationView table seen (identity changes when the server resends it)
 	seenAt: number,
 	lastClick: number,
@@ -23052,6 +23660,10 @@ local function tipFor(id: number): string
 			end
 		end
 	end
+	local ally = BattleState.allyOf(id)
+	if ally then
+		table.insert(lines, "Commanded by " .. tostring(ally.name))
+	end
 	return table.concat(lines, "\n")
 end
 
@@ -23141,6 +23753,14 @@ local function newCard(f: any): Card
 	local general = iconSlot(row, "general", 6) -- gilt diamond: a general's trait or ability applies
 	rect(general, 6, 6, 5, 5, 45, Kit.GILT_BRIGHT)
 	icons.general = general
+	local dim = Instance.new("Frame") :: Frame
+	dim.Size = UDim2.fromScale(1, 1)
+	dim.BackgroundColor3 = Kit.INSET
+	dim.BackgroundTransparency = 0.45
+	dim.BorderSizePixel = 0
+	dim.ZIndex = 4
+	dim.Visible = false
+	dim.Parent = b
 
 	local card: Card = {
 		root = b,
@@ -23151,6 +23771,7 @@ local function newCard(f: any): Card
 		morale = morale,
 		icons = icons,
 		reloadFill = reloadFill,
+		dim = dim,
 		view = nil,
 		seenAt = 0,
 		lastClick = 0,
@@ -23164,7 +23785,7 @@ local function newCard(f: any): Card
 			if cur then
 				Camera.focusOn(cur.x, cur.z)
 			end
-		elseif Input.mode() ~= "off" then
+		elseif Input.mode() ~= "off" and BattleState.canCommand(id) then
 			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
 				Selection.toggle(id)
 			else
@@ -23219,6 +23840,7 @@ local function paint(c: Card, f: any)
 	c.icons.general.Visible = type(f.tags) == "string" and f.tags ~= ""
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
+	c.dim.Visible = BattleState.allyOf(f.id) ~= nil
 	local sel = Selection.isSelected(f.id)
 	c.stroke.Color = if sel then Kit.GILT_BRIGHT else Kit.GILT_DARK
 	c.stroke.Thickness = if sel then 2 else 1
@@ -23327,10 +23949,13 @@ local function relayout(forms: { any })
 			c = newCard(f)
 			cards[f.id] = c
 		end
-		c.root.LayoutOrder = rank * 100000 + f.id * 2
-		if rank > 0 and not spaced[rank] then
-			spaced[rank] = true
-			spacer(rank * 100000)
+		-- co-op: your wing first, allies' cards after it
+		local wing = if BattleState.isMine(f.id) then 0 else 500000000
+		c.root.LayoutOrder = wing + rank * 100000 + f.id * 2
+		local key = wing + rank * 100000
+		if key > 0 and not spaced[key] then
+			spaced[key] = true
+			spacer(key)
 		end
 	end
 	for id, c in cards do
@@ -23443,7 +24068,7 @@ function CardBar.update()
 	local forms = BattleState.ownFormations()
 	local ids = {}
 	for _, f in forms do
-		table.insert(ids, f.id)
+		table.insert(ids, if BattleState.isMine(f.id) then f.id else -f.id - 0.5) -- wing changes relayout
 	end
 	for _, r in BattleState.reinforcements do
 		table.insert(ids, -r.id)
@@ -23507,7 +24132,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -23519,10 +24144,12 @@ local BattleState = require(script.Parent.Parent.BattleState)
 
 local Deployment = {}
 
-export type Callbacks = { ready: () -> (), settings: () -> () }
+export type Callbacks = { ready: () -> (), settings: () -> (), assign: ((userId: number) -> ())? }
 
 local gui: ScreenGui? = nil
 local startBtn: TextButton? = nil
+local playersBox: Frame? = nil -- co-op roster (hidden solo)
+local callbacks: Callbacks? = nil
 
 local HINTS = "· Left-drag a formation to re-place it inside your zone.\n· Right-drag from a formation to set its facing.\n· Objectives are marked with flags; north is up on the minimap."
 
@@ -23578,6 +24205,16 @@ function Deployment.show(cb: Callbacks)
 		note.AutomaticSize = Enum.AutomaticSize.Y
 		note.LayoutOrder = 1
 	end
+	local pb = Instance.new("Frame") :: Frame
+	pb.Size = UDim2.new(1, -6, 0, 0)
+	pb.AutomaticSize = Enum.AutomaticSize.Y
+	pb.BackgroundTransparency = 1
+	pb.LayoutOrder = 5
+	pb.Visible = false
+	pb.Parent = body
+	Kit.list(pb, 3)
+	playersBox = pb
+	callbacks = cb
 	section(body, "Orders", sc.briefing or "", 10)
 	section(body, "Deployment", HINTS, 20, Kit.MUTED)
 	if sc.summary then
@@ -23596,17 +24233,68 @@ function Deployment.show(cb: Callbacks)
 		bs.Thickness = 2
 	end
 	Kit.button(row, "Settings", cb.settings, { size = UDim2.new(0, 90, 1, 0), order = 2 })
-	if not BattleState.isCommander then
+	if BattleState.coop() and BattleState.role == "officer" then
+		b.Text = "Ready"
+	elseif not BattleState.isCommander then
 		Kit.setEnabled(b, false, "Waiting for the commander to start the battle")
 	end
 	startBtn = b
 	gui = sg
+	Deployment.refresh()
 end
 
-function Deployment.setWaiting(text: string)
+-- Co-op roster: slot colour, name, ready tick; the commander can hand the selection to an ally.
+function Deployment.refresh()
+	local pb = playersBox
+	if not pb then
+		return
+	end
+	for _, c in pb:GetChildren() do
+		if not c:IsA("UIListLayout") then
+			c:Destroy()
+		end
+	end
+	pb.Visible = BattleState.coop()
+	if not pb.Visible then
+		return
+	end
+	local h = Kit.title(pb, "Officers", { size = UDim2.new(1, 0, 0, 22), textSize = 18, spaced = true })
+	h.LayoutOrder = 0
+	local giver = BattleState.role == "commander" and callbacks and callbacks.assign
+	for i, p in BattleState.players do
+		if p.role ~= "spectator" then
+			local row = Instance.new("Frame") :: Frame
+			row.Size = UDim2.new(1, 0, 0, 22)
+			row.BackgroundTransparency = 1
+			row.LayoutOrder = i * 2
+			row.Parent = pb
+			local chip = Instance.new("Frame") :: Frame
+			chip.Size = UDim2.fromOffset(12, 12)
+			chip.Position = UDim2.fromOffset(0, 5)
+			chip.BackgroundColor3 = Kit.slotColour(p.slot)
+			chip.BorderSizePixel = 0
+			chip.Parent = row
+			local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then "  ✓" else "")
+			Kit.label(row, who, { size = UDim2.new(1, -20, 1, 0), position = UDim2.fromOffset(20, 0), textSize = 16, font = Enum.Font.Garamond })
+			if giver and p.userId ~= BattleState.userId then
+				local uid = p.userId
+				local g = Kit.button(pb, "Give selected to " .. tostring(p.name), function()
+					giver(uid)
+				end, { size = UDim2.new(1, 0, 0, 24), order = i * 2 + 1, textSize = 14, tooltip = "Hand the selected formations to this officer" })
+				g.LayoutOrder = i * 2 + 1
+			end
+		end
+	end
+end
+
+function Deployment.setWaiting(text: string, keepEnabled: boolean?)
 	if startBtn then
 		startBtn.Text = text
-		Kit.setEnabled(startBtn, false, "The battle is starting")
+		if keepEnabled then
+			Kit.setEnabled(startBtn, true, "Start without waiting for every officer")
+		else
+			Kit.setEnabled(startBtn, false, "The battle is starting")
+		end
 	end
 end
 
@@ -23615,11 +24303,13 @@ function Deployment.destroy()
 		gui:Destroy()
 		gui = nil
 		startBtn = nil
+		playersBox = nil
+		callbacks = nil
 	end
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -23704,7 +24394,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -23750,6 +24440,8 @@ local objectiveChips: { [string]: { frame: Frame, pennant: Frame, label: TextLab
 -- ticker
 local tickerLines: { { label: TextLabel, t0: number, base: number } } = {}
 local tickerFrame: Frame? = nil
+local playerList: Frame? = nil -- co-op roster under the top bar (hidden solo)
+local playersKey = ""
 local tickerOrder = 0
 local TICKER_LIFE = 9
 
@@ -24003,9 +24695,11 @@ local function updateTopBar()
 		Kit.setEnabled(b, BattleState.isCommander, "Only the commander sets the speed")
 	end
 	if pauseButton then
-		pauseButton.Text = if paused then ">" else "II"
+		local vote = BattleState.pauseLabel() -- co-op only
+		pauseButton.Text = vote or (if paused then ">" else "II")
+		pauseButton.Size = UDim2.fromOffset(if vote then 140 else 34, 26)
 		Kit.setActiveLook(pauseButton, paused)
-		Kit.setEnabled(pauseButton, BattleState.isCommander, "Only the commander may pause")
+		Kit.setEnabled(pauseButton, BattleState.isCommander or (vote ~= nil and BattleState.canOrder()), "Only the commander may pause")
 	end
 	updateBalance()
 end
@@ -24020,6 +24714,63 @@ local function buildTicker(sg: ScreenGui)
 	f.Parent = sg
 	Kit.list(f, 3)
 	tickerFrame = f
+	local pl = Instance.new("Frame") :: Frame
+	pl.Size = UDim2.fromOffset(220, 0)
+	pl.AutomaticSize = Enum.AutomaticSize.Y
+	pl.Position = UDim2.new(0, 12, 0, 44)
+	pl.BackgroundTransparency = 1
+	pl.Visible = false
+	pl.Parent = sg
+	Kit.list(pl, 2)
+	playerList = pl
+end
+
+-- Co-op roster: slot colour, name, ready tick; the ticker moves down beneath it.
+local function updatePlayers()
+	local pl, tf = playerList, tickerFrame
+	if not pl or not tf then
+		return
+	end
+	local rows = {}
+	if BattleState.coop() then
+		for _, p in BattleState.players do
+			if p.role ~= "spectator" then
+				table.insert(rows, p)
+			end
+		end
+	end
+	local parts = {}
+	for _, p in rows do
+		table.insert(parts, string.format("%s|%s|%s|%s", tostring(p.slot), tostring(p.name), tostring(p.role), tostring(p.ready)))
+	end
+	local key = table.concat(parts, ";")
+	if key == playersKey then
+		return
+	end
+	playersKey = key
+	for _, c in pl:GetChildren() do
+		if not c:IsA("UIListLayout") then
+			c:Destroy()
+		end
+	end
+	pl.Visible = #rows > 0
+	for i, p in rows do
+		local row = Instance.new("Frame") :: Frame
+		row.Size = UDim2.new(1, 0, 0, 18)
+		row.BackgroundTransparency = 1
+		row.LayoutOrder = i
+		row.Parent = pl
+		local chip = Instance.new("Frame") :: Frame
+		chip.Size = UDim2.fromOffset(10, 10)
+		chip.Position = UDim2.fromOffset(0, 4)
+		chip.BackgroundColor3 = Kit.slotColour(p.slot)
+		chip.BorderSizePixel = 0
+		chip.Parent = row
+		local text = tostring(p.name) .. (if p.role == "commander" then " ★" else "") .. (if p.ready then "  ✓" else "")
+		local l = Kit.label(row, text, { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(16, 0), textSize = 14, colour = if p.userId == BattleState.userId then Kit.GILT_BRIGHT else Kit.IVORY })
+		l.TextStrokeTransparency = 0.5
+	end
+	tf.Position = UDim2.new(0, 12, 0, 44 + (if #rows > 0 then #rows * 20 + 6 else 0))
 end
 
 local function escape(s: string): string
@@ -24370,9 +25121,9 @@ local function refreshAbility()
 	b.Text = string.format("%s\n<font size=\"12\">%s %s</font>", ab.name, g.rank, Generals.displayName(g, f.name))
 	b:SetAttribute("tip", ab.name .. ": " .. ab.text)
 	local left = abilityLeft(f)
-	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")
+	local commander = BattleState.canOrder() and (BattleState.state == "running" or BattleState.state == "paused")
 	if not commander then
-		Kit.setEnabled(b, false, if BattleState.isCommander then "Not during this phase" else "Spectators cannot give orders")
+		Kit.setEnabled(b, false, if BattleState.canOrder() then "Not during this phase" else "Spectators cannot give orders")
 	elseif f.state == "routing" or f.state == "rallying" then
 		Kit.setEnabled(b, false, "The staff is in flight")
 	elseif left > 0 then
@@ -24391,7 +25142,7 @@ local function animateAbility()
 	local g = Generals.byId[f.general]
 	local left = abilityLeft(f)
 	sweep.Size = UDim2.fromScale(if g then math.clamp(left / g.ability.cooldown, 0, 1) else 0, 1)
-	if left <= 0 and abilityButton and abilityButton:GetAttribute("disabled") == true and BattleState.isCommander and BattleState.state == "running" then
+	if left <= 0 and abilityButton and abilityButton:GetAttribute("disabled") == true and BattleState.canOrder() and BattleState.state == "running" then
 		refreshAbility()
 	end
 end
@@ -24456,7 +25207,7 @@ end
 
 function HUD.refreshCommands()
 	local forms = selectedFormations()
-	local commander = BattleState.isCommander and (BattleState.state == "running" or BattleState.state == "paused")
+	local commander = BattleState.canOrder() and (BattleState.state == "running" or BattleState.state == "paused")
 	local has: { [string]: boolean } = {}
 	local allRouting = #forms > 0
 	for _, f in forms do
@@ -24467,7 +25218,7 @@ function HUD.refreshCommands()
 	end
 	local function why(classes: { string }): (boolean, string?)
 		if not commander then
-			return false, if BattleState.isCommander then "Not during this phase" else "Spectators cannot give orders"
+			return false, if BattleState.canOrder() then "Not during this phase" else "Spectators cannot give orders"
 		end
 		if #forms == 0 then
 			return false, "Select a formation"
@@ -24521,6 +25272,7 @@ end
 
 local function refreshAll()
 	updateTopBar()
+	updatePlayers()
 	updateObjectives()
 	CardBar.update()
 	updateInspector()
@@ -24619,6 +25371,8 @@ function HUD.destroy()
 	balanceOwn = nil
 	objectiveStrip = nil
 	tickerFrame = nil
+	playerList = nil
+	playersKey = ""
 	inspector = nil
 	inspectorBarFill = nil
 	rallyBar = nil
@@ -24634,7 +25388,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -24737,7 +25491,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents. Every panel is Active so clicks never reach
@@ -24796,6 +25550,12 @@ Kit.MORALE = {
 
 Kit.ITALIC = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Regular, Enum.FontStyle.Italic)
 Kit.BOLD = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Bold)
+
+-- Co-op player slots: 1 gold, 2 sky blue, 3 crimson, 4 ivory green.
+Kit.SLOT = { Kit.GILT_BRIGHT, hex(0x6FA8DC), Kit.CRIMSON_LIGHT, hex(0xB8CFA0) }
+function Kit.slotColour(slot: number?): Color3
+	return Kit.SLOT[slot or 0] or Kit.MUTED
+end
 
 function Kit.factionColour(faction: string?): Color3
 	if faction == nil or faction == "" then
@@ -25514,7 +26274,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
 -- What the client saw of its own army during one battle, for the results report: one record per
 -- own formation (start, last strength, final status) and counts of squares, charges, routs,
 -- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
@@ -25666,7 +26426,7 @@ function Ledger.counts(): Counts
 end
 
 return Ledger
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (terrain + props build).
 
 local Kit = require(script.Parent.Kit)
@@ -25743,7 +26503,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -25902,7 +26662,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -26120,6 +26880,14 @@ function Minimap.update()
 	for _, lk in BattleState.lastKnown do
 		place(lk.x, lk.z, Kit.factionColour(lk.faction):Lerp(Kit.MUTED, 0.6), 0.3, 4)
 	end
+	-- co-op pings: a pulsing blip in the sender's slot colour for 6 s
+	local now = os.clock()
+	for _, pg in BattleState.pings do
+		local age = now - pg.t0
+		if age < 6 then
+			place(pg.x, pg.z, Kit.slotColour(pg.slot), age / 8, 7 + 3 * math.sin(age * 8))
+		end
+	end
 	for j = i + 1, #dots do
 		dots[j].Visible = false
 	end
@@ -26161,7 +26929,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -26509,7 +27277,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
@@ -26638,7 +27406,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -26808,7 +27576,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000088"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000089"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morning battlefield light: warm sun from the south-east, light haze, soft clouds, slight
 -- warmth and contrast. Built-in defaults only (no asset ids). Quality 1 drops the costly bits.
 
@@ -26937,7 +27705,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -27314,7 +28082,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -27643,7 +28411,7 @@ function Soldiers.gun(add: Add, faction: string, coat: Color3, limbered: boolean
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
@@ -28045,4 +28813,4 @@ function Terrain.clear()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000092"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000093"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000094"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000093"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000094"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000095"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
