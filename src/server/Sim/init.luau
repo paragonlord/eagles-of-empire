@@ -250,6 +250,20 @@ end
 
 -- Synchronous legality that the network layer can report immediately.
 function Sim.precheck(self: Sim, cmd: Types.Command): (boolean, string?)
+	-- A group order goes to the formations that can take it: one routing battalion in a box
+	-- selection used to get the whole order refused, so the rest of the brigade stood still.
+	if #cmd.ids > 1 and cmd.kind ~= "Deploy" then
+		local able: { number } = {}
+		for _, id in cmd.ids do
+			local f = self.formations[id]
+			if f and Formation.canTakeOrders(f) then
+				able[#able + 1] = id
+			end
+		end
+		if #able > 0 then
+			cmd.ids = able
+		end
+	end
 	for _, id in cmd.ids do
 		local f = self.formations[id]
 		if not f then
@@ -515,14 +529,19 @@ local function autoEngage(self: Sim)
 				local range = Formation.unitConfig(f).musket.range
 				-- A travel column cannot fire, so it marches on until it can re-form (halting would
 				-- also drop the path the column needs to restore its shape).
-				if best and bestD <= range * 0.95 and f.shape ~= "travel" and f.pendingShape ~= "travel" then
+				-- Halt only where it can shoot: a line halted with the target hidden (village, crest,
+				-- friends in the lane) neither fired nor marched on, and stood idle for good.
+				local why = if best and bestD <= range * 0.95 then Combat.fireBlockReason(self :: any, f, best) else "Out of range"
+				local canShoot = why == nil or why == "Reloading" or why == "Target not to the front"
+				if best and canShoot and f.shape ~= "travel" and f.pendingShape ~= "travel" then
 					if f.state == "moving" then
 						f.path = nil
 						f.state = "idle"
 						f.targetId = best.id
-						-- face the target; the line wheels in place
-						f.heading = f.heading + Vec.angleDiff(f.heading, Vec.heading(Vec.sub(best.pos, f.pos))) * 0.5
 					end
+					-- face the target; the line wheels in place (every pass, or a target outside the
+					-- arc after the first half-turn is never fired on)
+					f.heading = f.heading + Vec.angleDiff(f.heading, Vec.heading(Vec.sub(best.pos, f.pos))) * 0.5
 				elseif f.state == "idle" or f.state == "firing" then
 					f.state = "moving" -- nothing in range any more: resume the march
 					f.targetId = nil

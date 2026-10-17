@@ -352,6 +352,32 @@ fields read right at last (`menu-olive.jpg`). No EoE errors.
   colour (`far-banners.jpg`), so the line of battalions is a row of identical white flags; a
   faction-colour fill or the unit's number would make them useful.
 
+**2026-10-18 round 10b (tutorial replay), builds 742bc5b → c01302d.** Played lessons 6–11 for real
+(1–5 skipped; they passed twice before). **The tutorial now completes:** "Decisive victory ·
+Ebersdorf is taken: the training is complete · 14:11" (`tutorial-won.jpg`). Lesson 6 ends with the
+Grenzers withdrawing (battalion 561 v 250); lesson 7 passes with the battery in the ring; lesson 9's
+chevaulegers come within 15 s; lesson 10 rallies. No EoE errors, co-op build included.
+Two engine bugs blocked lesson 11; both fixed here (please run `tools/check.sh`):
+- **One routing unit made a whole group order fail.** `Sim.precheck` refused the command if any id
+  could not take orders, so a box-selected brigade with the broken conscripts in it got "routing"
+  and nobody moved (seen twice: lesson 11 right after lesson 10's scripted rout). A group order now
+  goes to the formations that can take it; a single routing formation is still refused. Test:
+  "A group order skips routing formations instead of being refused whole".
+- **Attack-move froze in musket range of a target it could not shoot.** `autoEngage` halted
+  infantry for any visible enemy inside 0.95 × musket range, turned it halfway once, and never
+  re-checked: with the target in Ebersdorf behind houses (or outside the 60° arc after the half
+  turn) the line reported "No target", neither fired nor marched, forever (battalions idle at
+  85–90 studs from IR 49 Kerpen for 5+ game minutes). It now halts only when it can fire
+  (`fireBlockReason` nil, reloading, or only the arc), keeps wheeling toward the target while
+  halted, and otherwise marches on. Test: "Infantry on attack-move does not halt in range of an
+  enemy it cannot fire on". The existing "halts in musket range and fires", travel-column and new
+  tests were run on the real Sim in Studio: all pass.
+- Balance note, not fixed: the first assault (all four battalions, attack-move) broke both Austrian
+  battalions in melee, then routed itself with ~15 % losses; a second attack-move after rallying
+  took the village. Fine for a final exam, but a beginner may give up after the first rout; the
+  aide-de-camp could say "Rally and go again" when the brigade breaks.
+- Small: while the lesson panel changes, the title is blank for a moment ("2 / 11 |  |").
+
 ## Known failures
 
 None recorded yet.

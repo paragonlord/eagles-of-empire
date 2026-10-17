@@ -369,6 +369,24 @@ test("Engage on an unseen enemy becomes an attack-move to its last-known positio
 	assertTrue(not ok2 and reason2 == "badTarget", "never-seen target refused")
 end)
 
+test("A group order skips routing formations instead of being refused whole", function()
+	local sim = newSim({
+		unit("france", "infantry", "A", 500, 300, 0),
+		unit("france", "infantry", "B", 560, 300, 0),
+		unit("prussia", "infantry", "P", 1500, 1300, 0),
+	})
+	run(sim, 1)
+	sim.formations[2].state = "routing"
+	local c = { matchId = "m", requestId = "g", kind = "Move", ids = { 1, 2 }, data = { pos = { x = 500, z = 500 } } }
+	local ok = sim:precheck(c)
+	assertTrue(ok, "the able formation still gets the order")
+	assertEq(#c.ids, 1)
+	assertEq(c.ids[1], 1)
+	local alone = { matchId = "m", requestId = "g2", kind = "Move", ids = { 2 }, data = { pos = { x = 500, z = 500 } } }
+	local ok2, why2 = sim:precheck(alone)
+	assertTrue(not ok2 and why2 == "routing", "a routing formation alone is refused")
+end)
+
 test("Reinforcements stay off the map until their arrival time and never count as broken", function()
 	local late = unit("france", "infantry", "Late", 800, 100, math.pi / 2)
 	late.arrival = { seconds = 30, pos = { x = 800, z = 100 } }
@@ -614,6 +632,24 @@ test("Contact reveals hidden defenders; frozen routers leave the field; chronicl
 		end
 	end
 	assertTrue(found, "log uses display names")
+end)
+
+test("Infantry on attack-move does not halt in range of an enemy it cannot fire on", function()
+	local sim = newSim({
+		unit("france", "infantry", "F", 600, 300, math.pi / 2),
+		unit("france", "infantry", "Screen", 600, 345, math.pi / 2),
+		unit("prussia", "infantry", "P", 600, 390, -math.pi / 2, 200),
+	})
+	sim.formations[3].fireAtWill = false
+	local f = sim.formations[1]
+	cmd(sim, "AttackMove", { 1 }, { pos = { x = 700, z = 700 } })
+	for _ = 1, 40 do
+		sim:step()
+	end
+	assertTrue(Vec.dist(f.pos, sim.formations[3].pos) < 85, "the enemy is in musket range")
+	local why = Combat.fireBlockReason(sim, f, sim.formations[3])
+	assertTrue(why ~= nil and why ~= "Reloading" and why ~= "Target not to the front", "but it cannot fire on it: " .. tostring(why))
+	assertEq(f.state, "moving", "it marches on instead of standing idle")
 end)
 
 test("Infantry on attack-move in travel column keeps marching instead of halting in range", function()
