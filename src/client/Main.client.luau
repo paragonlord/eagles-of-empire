@@ -178,6 +178,8 @@ local function teardown()
 	CampaignScreen.hide()
 end
 
+local gotServerState = false
+
 local function onMatchState(msg: any)
 	if type(msg) ~= "table" then
 		return
@@ -291,6 +293,7 @@ end
 
 local function wire()
 	table.insert(conns, Net.onMatchState:Connect(function(msg: any)
+		gotServerState = true
 		task.spawn(onMatchState, msg)
 	end))
 	table.insert(conns, Net.onSnapshot:Connect(onSnapshot))
@@ -393,9 +396,11 @@ end)
 -- Until the server speaks, show the menu over the default battlefield.
 task.spawn(function()
 	task.wait(1)
-	Net.control("spectate")
+	if not gotServerState then
+		Net.control("spectate")
+	end
 	task.wait(1.5)
-	if BattleState.matchId == "" and builtMapId == nil then
+	if not gotServerState then
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
