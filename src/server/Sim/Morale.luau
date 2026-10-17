@@ -107,8 +107,8 @@ function Morale.rally(sim: SimLike, f: Formation, by: string)
 	f.path = nil
 	-- Rallied at the rear edge: walk back onto the field to a slot spread by id, so rallied
 	-- formations do not pile on top of each other.
-	local homeFn: any = sim.homeEdge
-	local home = if homeFn then homeFn(sim, f.faction) else nil
+	local homeFn = sim.homeEdge :: ((any, string) -> { x: number, z: number })?
+	local home = if homeFn ~= nil then (homeFn :: (any, string) -> { x: number, z: number })(sim, f.faction) else nil
 	local grid = sim.grid
 	if home and grid then
 		local side = Edges.sideOf(home, grid.width, grid.depth)
