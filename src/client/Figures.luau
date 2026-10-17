@@ -23,9 +23,6 @@ local CREAM = rgb(P.Cream)
 local INK = rgb(P.Ink)
 local SELECT = rgb(P.Select)
 local HOSTILE = rgb(P.Hostile)
-local SKIN = Color3.fromRGB(214, 180, 140)
-local HORSE = Color3.fromRGB(96, 70, 48)
-local WOOD = Color3.fromRGB(70, 50, 34)
 
 local SNAP_DT = 0.1
 local MAX_EXTRAP = 0.15
@@ -85,7 +82,6 @@ local thinK = 1
 local labelClock = 0
 local pendingKey = ""
 local prevSelected: { [number]: boolean } = {}
-local figureHeight = 3.2
 
 -- ------------------------------------------------------------------ part helpers
 
@@ -101,12 +97,6 @@ local function mk(className: string, size: Vector3, color: Color3): BasePart
 	p.CastShadow = true
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	return p
-end
-
-local function ball(size: number, color: Color3): BasePart
-	local p = mk("Part", Vector3.new(size, size, size), color) :: Part
-	p.Shape = Enum.PartType.Ball
 	return p
 end
 
