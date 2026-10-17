@@ -347,7 +347,13 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 			frame(cloth, UDim2.fromScale(1 / #bands, 1), UDim2.fromScale((i - 1) / #bands, 0), c)
 		end
 	end
-	local m, mc = fl.mark, fl.markColour
+	local stripes = fl.stripes
+	if stripes then
+		for i, c in stripes do
+			frame(cloth, UDim2.fromScale(1, 1 / #stripes), UDim2.fromScale(0, (i - 1) / #stripes), c)
+		end
+	end
+	local m, mc = (if stripes then nil else fl.mark), fl.markColour
 	local cx, cy = size.X / 2, size.Y / 2
 	local function bar(w: number, h: number, rot: number)
 		local b = frame(cloth, UDim2.fromOffset(w, h), UDim2.fromOffset(cx, cy), mc)
@@ -358,8 +364,11 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 	if m == "diamond" then
 		bar(size.Y * 0.4, size.Y * 0.4, 45)
 	elseif m == "x" then
-		bar(diag, 3, 45)
-		bar(diag, 3, -45)
+		-- saltire corner to corner (a hair short: rotated children are not clipped)
+		local a = math.deg(math.atan2(size.Y, size.X))
+		local len = math.sqrt(size.X * size.X + size.Y * size.Y) - 3
+		bar(len, 4, a)
+		bar(len, 4, -a)
 	elseif m == "plus" then
 		bar(size.X, 3, 0)
 		bar(3, size.Y, 0)
@@ -369,6 +378,18 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 		b.AnchorPoint = Vector2.new(0, 0.5)
 	elseif m == "diagonal" then
 		bar(diag, 3, -45)
+	end
+	local cross = fl.cross
+	if cross then
+		-- white edging under the red cross, as on the Union flag
+		local ew = frame(cloth, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0.5, -3), Kit.IVORY)
+		ew.ZIndex = 2
+		local eh = frame(cloth, UDim2.new(0, 6, 1, 0), UDim2.new(0.5, -3, 0, 0), Kit.IVORY)
+		eh.ZIndex = 2
+		local rw = frame(cloth, UDim2.new(1, 0, 0, 3), UDim2.new(0, 0, 0.5, -1), cross)
+		rw.ZIndex = 3
+		local rh = frame(cloth, UDim2.new(0, 3, 1, 0), UDim2.new(0.5, -1, 0, 0), cross)
+		rh.ZIndex = 3
 	end
 	local s = Instance.new("UIStroke") :: UIStroke
 	s.Color = Kit.INSET

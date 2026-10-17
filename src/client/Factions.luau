@@ -57,9 +57,11 @@ end
 
 export type Flag = {
 	bands: { Color3 }?, -- vertical bands, left to right
+	stripes: { Color3 }?, -- horizontal bands, top to bottom (drawn over field/mark when supported)
 	field: Color3?, -- plain field when there are no bands
 	mark: string?, -- "diamond" | "x" | "plus" | "double" | "diagonal"
 	markColour: Color3,
+	cross: Color3?, -- an upright cross over the mark (Union flag: red cross over a white saltire)
 }
 
 local WHITE = Color3.fromRGB(242, 240, 232)
@@ -68,10 +70,12 @@ local GOLD = Color3.fromRGB(205, 168, 62)
 
 local FLAGS: { [string]: Flag } = {
 	france = { bands = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }, mark = "diamond", markColour = GOLD },
-	prussia = { field = WHITE, mark = "x", markColour = BLACK },
+	-- black-white-black; renderers without `stripes` fall back to white with two black bars
+	prussia = { stripes = { BLACK, WHITE, BLACK }, field = WHITE, mark = "double", markColour = BLACK },
 	russia = { field = Color3.fromRGB(40, 96, 56), mark = "diamond", markColour = GOLD },
 	austria = { field = WHITE, mark = "double", markColour = BLACK },
-	britain = { field = Color3.fromRGB(178, 36, 42), mark = "plus", markColour = WHITE },
+	-- Union flag approximation: blue field, white saltire, red upright cross
+	britain = { field = Color3.fromRGB(28, 44, 110), mark = "x", markColour = WHITE, cross = Color3.fromRGB(190, 34, 44) },
 }
 
 function Factions.flag(faction: string?): Flag
