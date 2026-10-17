@@ -99,7 +99,7 @@ Client → server
   `Protocol.CommandKinds` (Move, AttackMove, Engage, Stop, Hold, Face, Retreat, Shape, Stance,
   Charge, Rally, Limber, Deploy). `data` is bounded and validated field by field.
 - `Control` `{matchId, requestId, action, value}`; actions: `start, pause, resume, speed,
-  restart, ready`.
+  restart, ready, difficulty, quit, spectate, join, assign, ping, tutorialStep`.
 
 Server → client
 - `CommandResult` `{requestId, accepted, reason, effectiveTick}`.
@@ -113,10 +113,15 @@ batches ≤ 24 formation ids, payload numbers must be finite and inside map boun
 
 ## Session model (Release A)
 
-One commander per server: the first player to join an idle match becomes commander. Any other
-client is a spectator receiving the commander-faction snapshots and no control. Commander
-departure pauses the match; reconnection within `Config.Match.ReconnectGrace` resumes it,
-otherwise the match resets to the menu.
+Co-op (2–4 players vs one AI, `docs/coop-contract.md`): the first player in is **commander**
+(battle, difficulty, speed, wing assignment, HQ), the next three are **officers**, later joiners
+are **spectators** (shared faction snapshots, no control). `src/server/Coop.luau` (pure) holds
+the roster, the wing auto-split (`m.controllers`, contiguous along the deploy zone's long axis,
+re-run when the commanding set changes) and vote thresholds; MatchService gates commands by
+wing (`notYours`), starts on ready-all (or the commander's second ready), pauses/resumes by
+⌈n/2⌉ votes and relays pings on the `Ping` remote. A departing commander hands command to the
+next player in join order; only when nobody is left does the match pause, resuming on
+reconnection within `Config.Match.ReconnectGrace`, otherwise resetting to the menu.
 
 Lifecycle: `menu → loading → deployment → running ⇄ paused → results → (restart|campaign)`.
 `MatchService:destroyMatch()` disconnects every connection, stops the loop and clears

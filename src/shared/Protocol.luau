@@ -17,6 +17,7 @@ Protocol.Remotes = {
 	MatchState = "MatchState",
 	Campaign = "Campaign",
 	Debug = "Debug",
+	Ping = "Ping", -- server → client: { userId, name, x, z, kind, tick }
 }
 
 -- kind -> allowed unit classes (false = any class)
@@ -47,7 +48,10 @@ Protocol.ControlActions = {
 	ready = true,
 	difficulty = true,
 	quit = true,
-	spectate = true,
+	spectate = true, -- no value: resend state; value = true: become a spectator
+	join = true, -- spectator → officer when a slot is free
+	assign = true, -- commander: value = { ids = { formationId }, userId = n }
+	ping = true, -- value = { x, z, kind } (Protocol.PingKinds)
 	tutorialStep = true, -- tutorial scenario: value = step number reached (MatchService validates)
 }
 
@@ -75,7 +79,10 @@ Protocol.Reasons = {
 	deployZone = "Outside your deployment zone",
 	notPaused = "Only the commander may pause",
 	noTarget = "No formation within reach of the general",
+	notYours = "That formation belongs to another officer",
 }
+
+Protocol.PingKinds = { look = true, attack = true, defend = true }
 
 export type ValidateContext = {
 	matchId: string,
@@ -93,22 +100,33 @@ local function finiteNumber(n: any): boolean
 	return type(n) == "number" and n == n and math.abs(n) ~= math.huge
 end
 
-local function checkIds(ids: any, ctx: ValidateContext, kind: string): (boolean, string?)
+-- 1..MaxBatch distinct positive integers
+local function idList(ids: any): boolean
 	if type(ids) ~= "table" then
-		return false, Protocol.Reasons.badIds
+		return false
 	end
 	local n = #ids
 	if n < 1 or n > Config.Net.MaxBatch then
-		return false, Protocol.Reasons.badIds
+		return false
 	end
-	local allowed = Protocol.CommandKinds[kind]
 	local seen: { [number]: boolean } = {}
 	for i = 1, n do
 		local id = ids[i]
 		if type(id) ~= "number" or id ~= math.floor(id) or id < 1 or seen[id] then
-			return false, Protocol.Reasons.badIds
+			return false
 		end
 		seen[id] = true
+	end
+	return true
+end
+
+local function checkIds(ids: any, ctx: ValidateContext, kind: string): (boolean, string?)
+	if not idList(ids) then
+		return false, Protocol.Reasons.badIds
+	end
+	local allowed = Protocol.CommandKinds[kind]
+	for i = 1, #ids do
+		local id = ids[i]
 		if not ctx.isOwned(id) then
 			return false, Protocol.Reasons.notOwned
 		end
@@ -293,6 +311,23 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 		end
 	elseif msg.action == "start" or msg.action == "restart" then
 		if msg.value ~= nil and type(msg.value) ~= "string" then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "spectate" then
+		if msg.value ~= nil and msg.value ~= true then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "assign" then
+		local v = msg.value
+		if type(v) ~= "table" or not idList(v.ids) then
+			return false, Protocol.Reasons.badIds
+		end
+		if type(v.userId) ~= "number" or v.userId ~= math.floor(v.userId) or not finiteNumber(v.userId) then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "ping" then
+		local v = msg.value
+		if type(v) ~= "table" or not finiteNumber(v.x) or not finiteNumber(v.z) or type(v.kind) ~= "string" or not Protocol.PingKinds[v.kind] then
 			return false, Protocol.Reasons.badRequest
 		end
 	end

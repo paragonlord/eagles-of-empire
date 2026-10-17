@@ -1,5 +1,5 @@
 --!strict
--- Match lifecycle, commander ownership, request handling, the server loop and replication.
+-- Match lifecycle, co-op roles and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
 
@@ -19,6 +19,7 @@ local Remotes = require(script.Parent.Net.Remotes)
 local CommandGate = require(script.Parent.Net.CommandGate)
 local MatchClock = require(script.Parent.Net.MatchClock)
 local CampaignService = require(script.Parent.CampaignService)
+local Coop = require(script.Parent.Coop)
 
 type Sim = Sim.Sim
 
@@ -39,6 +40,10 @@ type Match = {
 	leftAt: number?, -- os.clock() when the commander left
 	campaignBattleId: string?,
 	tutorialStep: number?, -- tutorial scenario only: last step the commander reached
+	controllers: { [number]: number }, -- formationId -> userId of the player commanding it
+	splitKey: string, -- commanding players the last auto-split was made for
+	ready: { [number]: boolean }, -- deployment: commanding players who sent ready
+	votes: { [number]: boolean }, -- pause votes while running, resume votes while paused
 }
 
 local MatchService = {}
@@ -46,7 +51,8 @@ local MatchService = {}
 local remotes: { [string]: RemoteEvent }
 local gate = CommandGate.new()
 local match: Match? = nil
-local commanderUserId: number? = nil
+local roster = Coop.newRoster()
+local lastPing: { [number]: number } = {}
 local difficulty = "normal"
 local mapCache: { [string]: MapGen.MapData } = {}
 local matchCounter = 0
@@ -67,7 +73,35 @@ local function playerFaction(m: Match?): string
 end
 
 local function isCommander(player: Player): boolean
-	return commanderUserId == player.UserId
+	return Coop.roleOf(roster, player.UserId) == "commander"
+end
+
+local function count(t: { [number]: boolean }): number
+	local n = 0
+	for _ in t do
+		n += 1
+	end
+	return n
+end
+
+local function playersPayload(m: Match?)
+	local out = {}
+	for _, mem in roster.members do
+		if mem.role ~= "spectator" then
+			out[#out + 1] = { userId = mem.userId, name = mem.name, role = mem.role, ready = m ~= nil and m.ready[mem.userId] == true, slot = mem.slot }
+		end
+	end
+	return out
+end
+
+local function controllersPayload(m: Match?): { [string]: number }
+	local out: { [string]: number } = {}
+	if m then
+		for id, uid in m.controllers do
+			out[tostring(id)] = uid
+		end
+	end
+	return out
 end
 
 local function matchStatePayload(player: Player)
@@ -92,6 +126,11 @@ local function matchStatePayload(player: Player)
 			else nil,
 		viewerFaction = playerFaction(m),
 		isCommander = isCommander(player),
+		role = Coop.roleOf(roster, player.UserId),
+		players = playersPayload(m),
+		controllers = controllersPayload(m),
+		pauseVotes = if m then count(m.votes) else 0,
+		pauseNeeded = Coop.votesNeeded(#Coop.commanding(roster)),
 		difficulty = if m then m.difficulty else difficulty,
 		speed = if m then m.clock.speed else 1,
 		results = if m then m.sim.result else nil,
@@ -147,6 +186,55 @@ local function destroyMatch()
 		m.sim.aiStep = nil
 	end
 	match = nil
+end
+
+-- Auto-split the player faction into wings, one per commanding player (Coop.split).
+local function resplit(m: Match)
+	local faction = playerFaction(m)
+	local forms: { Coop.SplitFormation } = {}
+	for _, id in m.sim.order do
+		local f = m.sim.formations[id]
+		if f and f.faction == faction then
+			forms[#forms + 1] = f :: any
+		end
+	end
+	local players = Coop.commanding(roster)
+	local cmd = Coop.commander(roster)
+	m.controllers = Coop.split(forms, m.sim.map.deployZones[faction], players, if cmd then cmd.userId else 0)
+	m.splitKey = table.concat(players, ",")
+end
+
+-- After any join, leave or role change: re-split when the commanding set changed, drop votes
+-- and ready flags of players who no longer command, and tell everyone.
+local function onRoster()
+	local m = match
+	if m then
+		local commanding: { [number]: boolean } = {}
+		for _, uid in Coop.commanding(roster) do
+			commanding[uid] = true
+		end
+		for uid in m.votes do
+			if not commanding[uid] then
+				m.votes[uid] = nil
+			end
+		end
+		for uid in m.ready do
+			if not commanding[uid] then
+				m.ready[uid] = nil
+			end
+		end
+		if table.concat(Coop.commanding(roster), ",") ~= m.splitKey then
+			resplit(m)
+		end
+	end
+	broadcastState()
+end
+
+-- A player claims command when nobody holds it (the first player in, or after everyone left).
+local function claim(player: Player)
+	if not Coop.commander(roster) and Coop.claim(roster, player.UserId) then
+		onRoster()
+	end
 end
 
 -- ------------------------------------------------------------------ tutorial
@@ -360,7 +448,12 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		devTimer = 0,
 		leftAt = nil,
 		campaignBattleId = campaignBattleId,
+		controllers = {},
+		splitKey = "",
+		ready = {},
+		votes = {},
 	}
+	resplit(match :: Match)
 	if scenario.id == "tutorial" then
 		tutorialStart(match)
 	end
@@ -389,20 +482,39 @@ local function onControl(player: Player, msg: any)
 		return
 	end
 	local action = msg.action
-	print(string.format("[EoE server] control %s from %s (commander=%s)", tostring(action), player.Name, tostring(isCommander(player))))
+	local uid = player.UserId
+	print(string.format("[EoE server] control %s from %s (role=%s)", tostring(action), player.Name, Coop.roleOf(roster, uid)))
 	if action == "spectate" then
-		remotes.MatchState:FireClient(player, matchStatePayload(player))
+		if msg.value == true then
+			-- step down to spectator (the commander cannot)
+			if not Coop.spectate(roster, uid) then
+				result(player, msg.requestId, false, Protocol.Reasons.badState)
+				return
+			end
+			onRoster()
+		else
+			-- plain state request
+			remotes.MatchState:FireClient(player, matchStatePayload(player))
+		end
 		if m then
 			sendSnapshot(player, true)
 		end
 		result(player, msg.requestId, true)
 		return
 	end
-	-- Claim command: the first player to start a match becomes commander for the server.
-	if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
-		commanderUserId = player.UserId
+	claim(player)
+	if action == "join" then
+		if Coop.join(roster, uid) then
+			result(player, msg.requestId, true)
+			onRoster()
+		else
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+		end
+		return
 	end
-	if not isCommander(player) then
+	local role = Coop.roleOf(roster, uid)
+	local anyone = action == "ready" or action == "pause" or action == "resume" or action == "ping"
+	if role == "spectator" or (role ~= "commander" and not anyone) then
 		result(player, msg.requestId, false, Protocol.Reasons.notCommander)
 		return
 	end
@@ -439,19 +551,39 @@ local function onControl(player: Player, msg: any)
 		publish(true)
 	elseif action == "ready" then
 		if m and m.state == "deployment" then
-			m.sim:start()
-			m.state = "running"
-			m.clock.paused = false
+			-- Starts once every commanding player is ready, or on the commander's second ready.
+			local force = role == "commander" and m.ready[uid] == true
+			m.ready[uid] = true
+			local all = true
+			for _, id in Coop.commanding(roster) do
+				all = all and m.ready[id] == true
+			end
 			result(player, msg.requestId, true)
-			broadcastState()
-			publish(true)
+			if force or all then
+				m.sim:start()
+				m.state = "running"
+				m.clock.paused = false
+				m.votes = {}
+				broadcastState()
+				publish(true)
+			else
+				broadcastState()
+			end
 		else
 			result(player, msg.requestId, false, Protocol.Reasons.badState)
 		end
 	elseif action == "pause" or action == "resume" then
 		if m and (m.state == "running" or m.state == "paused") then
-			m.state = if action == "pause" then "paused" else "running"
-			m.clock.paused = m.state == "paused"
+			local target: MatchState = if action == "pause" then "paused" else "running"
+			if m.state ~= target then
+				-- A vote: ⌈n/2⌉ commanding players, or the commander's resume alone. Solo acts at once.
+				local passed = Coop.vote(m.votes, uid, #Coop.commanding(roster), action == "resume" and role == "commander")
+				if passed then
+					m.state = target
+					m.clock.paused = target == "paused"
+					m.votes = {}
+				end
+			end
 			result(player, msg.requestId, true)
 			broadcastState()
 		else
@@ -464,8 +596,50 @@ local function onControl(player: Player, msg: any)
 		else
 			result(player, msg.requestId, false, Protocol.Reasons.badRequest)
 		end
+	elseif action == "assign" then
+		local v = msg.value
+		if not m then
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+			return
+		end
+		if Coop.roleOf(roster, v.userId) == "spectator" then
+			result(player, msg.requestId, false, Protocol.Reasons.badTarget)
+			return
+		end
+		local faction = playerFaction(m)
+		for _, id in v.ids do
+			local f = m.sim.formations[id]
+			if not f or f.faction ~= faction then
+				result(player, msg.requestId, false, Protocol.Reasons.notOwned)
+				return
+			end
+		end
+		for _, id in v.ids do
+			m.controllers[id] = v.userId
+		end
+		result(player, msg.requestId, true)
+		broadcastState()
+	elseif action == "ping" then
+		local v = msg.value
+		local now = os.clock()
+		if not m then
+			result(player, msg.requestId, false, Protocol.Reasons.badState)
+		elseif now - (lastPing[uid] or -math.huge) < 1 then
+			result(player, msg.requestId, false, Protocol.Reasons.rateLimited)
+		elseif v.x < 0 or v.z < 0 or v.x >= m.sim.map.width or v.z >= m.sim.map.depth then
+			result(player, msg.requestId, false, Protocol.Reasons.badPosition)
+		else
+			lastPing[uid] = now
+			local ping = { userId = uid, name = player.Name, x = v.x, z = v.z, kind = v.kind, tick = m.sim.tick }
+			for _, p in Players:GetPlayers() do
+				if Coop.roleOf(roster, p.UserId) ~= "spectator" then
+					remotes.Ping:FireClient(p, ping)
+				end
+			end
+			result(player, msg.requestId, true)
+		end
 	elseif action == "tutorialStep" then
-		local tok, treason = tutorialStep(m, isCommander(player), msg.value)
+		local tok, treason = tutorialStep(m, true, msg.value)
 		result(player, msg.requestId, tok, treason)
 	elseif action == "quit" then
 		destroyMatch()
@@ -484,6 +658,7 @@ local function onCommand(player: Player, cmd: any)
 	end
 	local sim = m.sim
 	local faction = playerFaction(m)
+	local role = Coop.roleOf(roster, player.UserId)
 	local ctx: Protocol.ValidateContext = {
 		matchId = m.id,
 		state = m.state,
@@ -491,7 +666,7 @@ local function onCommand(player: Player, cmd: any)
 		mapDepth = sim.map.depth,
 		isOwned = function(id: number): boolean
 			local f = sim.formations[id]
-			return f ~= nil and f.faction == faction and isCommander(player)
+			return f ~= nil and f.faction == faction and role ~= "spectator"
 		end,
 		classOf = function(id: number): string?
 			local f = sim.formations[id]
@@ -505,9 +680,18 @@ local function onCommand(player: Player, cmd: any)
 	local ok, reason = Protocol.validateCommand(cmd, ctx)
 	if not ok then
 		if type(cmd) == "table" and type(cmd.requestId) == "string" then
-			result(player, cmd.requestId, false, if not isCommander(player) then Protocol.Reasons.notCommander else reason)
+			result(player, cmd.requestId, false, if role == "spectator" then Protocol.Reasons.notCommander else reason)
 		end
 		return
+	end
+	-- Officers command only their own wing; the commander may command any formation.
+	if role ~= "commander" then
+		for _, id in cmd.ids do
+			if m.controllers[id] ~= player.UserId then
+				result(player, cmd.requestId, false, Protocol.Reasons.notYours)
+				return
+			end
+		end
 	end
 	local gok, greason = CommandGate.check(gate, player.UserId, cmd.requestId, os.clock())
 	if not gok then
@@ -576,33 +760,29 @@ local function onHeartbeat(realDt: number)
 		m.devTimer += realDt
 		if m.devTimer >= 1 then
 			m.devTimer = 0
-			local commander = if commanderUserId then Players:GetPlayerByUserId(commanderUserId) else nil
+			local cmd = Coop.commander(roster)
+			local commander = if cmd then Players:GetPlayerByUserId(cmd.userId) else nil
 			if commander then
 				remotes.Debug:FireClient(commander, { aiGoals = AI.debugView(m.ai) })
 			end
 		end
 	end
-	-- Commander departure: pause, then reset after the grace period.
+	-- Everyone left: pause, then reset after the grace period.
 	if m.leftAt and os.clock() - m.leftAt > Config.Match.ReconnectGrace then
 		destroyMatch()
-		commanderUserId = nil
 		broadcastState()
 	end
 end
 
 local function onPlayerAdded(player: Player)
-	-- The first player present is the commander; later joiners spectate until they leave.
-	if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
-		commanderUserId = player.UserId
+	-- The first player in commands; the next three are officers; later joiners spectate.
+	local mem = Coop.add(roster, player.UserId, player.Name)
+	local m = match
+	if m and mem.role == "commander" then
+		m.leftAt = nil
 	end
-	if commanderUserId == player.UserId then
-		local m = match
-		if m then
-			m.leftAt = nil
-		end
-	end
-	print(string.format("[EoE server] player %s (%d) joined; commander=%s", player.Name, player.UserId, tostring(isCommander(player))))
-	remotes.MatchState:FireClient(player, matchStatePayload(player))
+	print(string.format("[EoE server] player %s (%d) joined as %s", player.Name, player.UserId, mem.role))
+	onRoster()
 	if match then
 		sendSnapshot(player, true)
 	end
@@ -610,25 +790,20 @@ end
 
 local function onPlayerRemoving(player: Player)
 	CommandGate.forget(gate, player.UserId)
+	lastPing[player.UserId] = nil
+	-- A departing commander hands command on (Coop.remove); their wing returns via the re-split.
+	local wasCommander = Coop.remove(roster, player.UserId)
 	local m = match
-	if m and isCommander(player) then
+	if m and wasCommander and not Coop.commander(roster) then
+		-- Nobody left: pause, and reset after the grace period unless they come back.
 		if m.state == "running" then
 			m.state = "paused"
 			m.clock.paused = true
 		end
+		m.votes = {}
 		m.leftAt = os.clock()
-		broadcastState()
-	elseif not m and isCommander(player) then
-		-- No match in progress: hand command to whoever is still here.
-		commanderUserId = nil
-		for _, p in Players:GetPlayers() do
-			if p ~= player then
-				commanderUserId = p.UserId
-				break
-			end
-		end
-		broadcastState()
 	end
+	onRoster()
 end
 
 function MatchService.start()
@@ -648,9 +823,7 @@ function MatchService.start()
 	print("[EoE server] match service started")
 	CampaignService.start(remotes.Campaign, {
 		isCommander = function(player: Player): boolean
-			if commanderUserId == nil or Players:GetPlayerByUserId(commanderUserId) == nil then
-				commanderUserId = player.UserId
-			end
+			claim(player)
 			return isCommander(player)
 		end,
 		startBattle = function(scenario: Scenarios.Scenario, battleId: string)

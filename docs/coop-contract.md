@@ -7,8 +7,12 @@ One server, one match, one human faction. Players split that faction's army by w
 - **commander**: the first player (existing rule). Picks the battle, difficulty and speed; can
   reassign wings; keeps the HQ.
 - **officer**: every other player while fewer than 4 command. Commands only their own wing.
-- **spectator**: the 5th player onward, or anyone who sends `spectate`. Sending `join` makes
-  them an officer again if a slot is free.
+- **spectator**: the 5th player onward, or an officer who sends `spectate` with `value = true`
+  (a plain `spectate` with no value stays a state refresh, as the client sends on startup; the
+  commander cannot spectate: `badState`). Sending `join` makes them an officer again if a slot
+  is free (`badState` when all four are taken).
+- **Commander leaving**: command passes to the next commanding player in join order (else to a
+  spectator). Only when nobody is left does the match pause for `ReconnectGrace`, as today.
 
 ## Wings
 
@@ -16,10 +20,12 @@ One server, one match, one human faction. Players split that faction's army by w
 
 - **Auto-split** happens on match create, when a player joins, or when a player leaves (before
   or during battle). It sorts the player faction's formations by position along the deploy
-  zone's long axis, left to right, and cuts them into N contiguous wings, one per commanding
-  player in join order. The HQ always goes to the commander.
+  zone's long axis (x when the zone is at least as wide as deep, else z; ascending), and cuts them into N contiguous wings, one per commanding
+  player in join order. The HQ always goes to the commander. A join or leave that leaves the
+  commanding set unchanged (a spectator) does not re-split; a re-split discards manual assigns.
 - **Reassign**: a control `assign` with `value = { ids = {..}, userId = n }`, commander only.
-  The target must be a commanding player.
+  The target must be a commanding player (`badTarget`); every id must be a player-faction
+  formation (`notOwned`).
 - **Leaving**: an officer who leaves hands their formations back through the auto-split.
 
 ## Requests
@@ -29,7 +35,8 @@ One server, one match, one human faction. Players split that faction's army by w
   command any formation (needed to take over an idle ally's units).
 - **Commander-only controls:** `start`, `restart`, `difficulty`, `speed`, `assign`, `quit`, and
   the speed cap.
-- **`ready`:** any player may send it. The battle starts when every commanding player is
+- Spectators get `notCommander` for everything except `spectate` and `join`.
+- **`ready`:** any commanding player may send it. The battle starts when every commanding player is
   ready, or when the commander sends `ready` a second time (force).
 - **`pause` / `resume` are votes:**
   - Each commanding player holds one vote.
@@ -41,15 +48,16 @@ One server, one match, one human faction. Players split that faction's army by w
     only when `#players == 1`.
 - **`ping`:** `value = { x, z, kind }` where kind is `look`, `attack` or `defend`. At most one
   per player per second. It is sent to every non-spectator player on the new remote `Ping` as
-  `{ userId, name, x, z, kind, tick }`.
+  `{ userId, name, x, z, kind, tick }`. Faster pings get `rateLimited`; off-map ones
+  `badPosition`.
 
 ## MatchState payload additions
 
 ```lua
 role = "commander" | "officer" | "spectator",
-players = { { userId, name, role, ready, slot } }, -- slot 1..4, stable while the player stays
+players = { { userId, name, role, ready, slot } }, -- commanding players only; slot 1..4, stable while the player stays
 controllers = { [formationId (string key)]: userId },
-pauseVotes = n, pauseNeeded = n,
+pauseVotes = n, pauseNeeded = n, -- votes toward pausing while running, toward resuming while paused
 ```
 
 Slot colours on the client: 1 gold, 2 sky blue, 3 crimson, 4 ivory green.
