@@ -30,12 +30,14 @@ local LABEL_INTERVAL = 0.15
 
 -- x/z: slot offset in the formation; sx/sz: routing scatter; ox/oz + vx/vz: personal flocking
 -- offset and velocity; tx/tz: decaying slide from the previous layout; left/right: rank neighbours.
-type Slot = { x: number, z: number, sx: number, sz: number, phase: number, ox: number, oz: number, vx: number, vz: number, tx: number, tz: number, left: number, right: number }
+type Slot = { x: number, z: number, sx: number, sz: number, phase: number, ox: number, oz: number, vx: number, vz: number, tx: number, tz: number, left: number, right: number, face: number? }
 type Marker = {
 	parts: { BasePart },
 	locals: { CFrame },
-	plate: Part,
-	gui: SurfaceGui,
+	plate: Part, -- invisible anchor for the billboard
+	gui: BillboardGui,
+	pxW: number, -- billboard size in screen pixels (for label deconfliction)
+	pxH: number,
 	nameLabel: TextLabel,
 	statusLabel: TextLabel,
 	bar: Frame,
@@ -122,11 +124,6 @@ local function factionColour(faction: string, colourKey: string?): Color3
 	return Factions.colour(faction, colourKey)
 end
 
-local function desaturate(c: Color3): Color3
-	local g = (c.R + c.G + c.B) / 3
-	return Color3.new(g, g, g):Lerp(c, 0.25):Lerp(Color3.new(0.75, 0.72, 0.68), 0.3)
-end
-
 local function figureCount(class: string, strength: number?): number
 	strength = strength or 0
 	if class == "hq" then
@@ -139,8 +136,90 @@ end
 
 -- ------------------------------------------------------------------ layout
 
+-- Infantry draws shoulder to shoulder: files every FILE_W studs across the real frontage, so a
+-- line reads as a solid block of three ranks (Studio showed thin files with wide gaps). The
+-- budget factor k widens the files and drops a line to two ranks instead of punching holes.
+local FILE_W = 0.8
+
+local function denseInfantry(shape: string, width: number, depth: number, k: number): { { x: number, z: number, face: number } }
+	local out = {}
+	local fw = FILE_W * math.sqrt(k)
+	if shape == "square" then
+		local side = math.max(width, depth)
+		for ring = 0, (if k >= 2 then 0 else 1) do
+			local half = side / 2 - 0.5 - ring * 1.1
+			local n = math.max(2, math.floor(2 * half / fw))
+			for i = 0, n - 1 do
+				local u = -half + (i + 0.5) * 2 * half / n
+				table.insert(out, { x = half, z = u, face = 0 }) -- front face looks forward
+				table.insert(out, { x = -half, z = -u, face = math.pi })
+				table.insert(out, { x = -u, z = half, face = math.pi / 2 })
+				table.insert(out, { x = u, z = -half, face = -math.pi / 2 })
+			end
+		end
+		return out
+	end
+	local shapeDef = (Config.Shapes :: any)[shape]
+	local ranks = if shapeDef and shapeDef.ranks > 0 then shapeDef.ranks else 3
+	if shape == "line" and k >= 2 then
+		ranks = 2
+	end
+	ranks = math.max(1, math.min(ranks, math.floor(depth / 0.9)))
+	local files = math.max(2, math.floor(width / fw))
+	for r = 0, ranks - 1 do
+		for f = 0, files - 1 do
+			table.insert(out, { x = depth / 2 - (r + 0.5) * depth / ranks, z = (f + 0.5) * width / files - width / 2, face = 0 })
+		end
+	end
+	return out
+end
+
+-- Figures the near LOD will draw for a formation (budget accounting).
+local function visualCount(f: any): number
+	if f.class == "infantry" then
+		return #denseInfantry(f.shape, f.width, f.depth, 1)
+	end
+	return figureCount(f.class, f.strength)
+end
+
+local function linkRanks(slots: { Slot })
+	-- rank neighbours: slots sharing x, ordered by z (O(n log n) once per layout)
+	local order = {}
+	for i = 1, #slots do
+		order[i] = i
+	end
+	table.sort(order, function(a: number, b: number)
+		local sa, sb = slots[a], slots[b]
+		if math.abs(sa.x - sb.x) > 0.01 then
+			return sa.x < sb.x
+		end
+		return sa.z < sb.z
+	end)
+	for j = 2, #order do
+		local a, b = order[j - 1], order[j]
+		if math.abs(slots[a].x - slots[b].x) <= 0.01 then
+			slots[a].right = b
+			slots[b].left = a
+		end
+	end
+end
+
 -- Returns local (x forward, z right) offsets for n figures in the formation footprint.
 local function layoutSlots(class: string, shape: string, n: number, width: number, depth: number, k: number, seed: number): { Slot }
+	if class == "infantry" then
+		local rng = Random.new(seed)
+		local slots: { Slot } = {}
+		for _, c in denseInfantry(shape, width, depth, k) do
+			table.insert(slots, {
+				x = c.x, z = c.z, face = c.face,
+				sx = (rng:NextNumber() - 0.5) * 6, sz = (rng:NextNumber() - 0.5) * 6,
+				phase = rng:NextNumber() * math.pi * 2,
+				ox = 0, oz = 0, vx = 0, vz = 0, tx = 0, tz = 0, left = 0, right = 0,
+			})
+		end
+		linkRanks(slots)
+		return slots
+	end
 	local cells: { { number } } = {} -- {file, rank, files, ranks}
 	local shapeDef = (Config.Shapes :: any)[shape]
 	local ranks = if shapeDef then shapeDef.ranks else 3
@@ -208,25 +287,7 @@ local function layoutSlots(class: string, shape: string, n: number, width: numbe
 			})
 		end
 	end
-	-- rank neighbours: slots sharing x, ordered by z (O(n log n) once per layout)
-	local order = {}
-	for i = 1, #slots do
-		order[i] = i
-	end
-	table.sort(order, function(a: number, b: number)
-		local sa, sb = slots[a], slots[b]
-		if math.abs(sa.x - sb.x) > 0.01 then
-			return sa.x < sb.x
-		end
-		return sa.z < sb.z
-	end)
-	for j = 2, #order do
-		local a, b = order[j - 1], order[j]
-		if math.abs(slots[a].x - slots[b].x) <= 0.01 then
-			slots[a].right = b
-			slots[b].left = a
-		end
-	end
+	linkRanks(slots)
 	return slots
 end
 
@@ -263,18 +324,19 @@ local function buildNear(g: Group, f: any)
 			addPart(g, p, cf, si, anim, pivot)
 		end
 	end
+	local coat = Soldiers.coat(g.faction, f.colour, g.colour)
 	local base = #g.slots
 	for i = 1, base do
 		slotIndex = i
 		local add = adder()
 		if g.class == "infantry" then
-			Soldiers.infantry(add, g.faction, g.colour, detail, "line")
+			Soldiers.infantry(add, g.faction, coat, detail, "line")
 		elseif g.class == "cavalry" then
-			Soldiers.rider(add, g.faction, g.colour, Soldiers.riderKind(f.name), detail, g.id + i)
+			Soldiers.rider(add, g.faction, coat, Soldiers.riderKind(f.name), detail, g.id + i)
 		elseif g.class == "hq" then
-			Soldiers.rider(add, g.faction, g.colour, "officer", detail, g.id + i)
+			Soldiers.rider(add, g.faction, coat, "officer", detail, g.id + i)
 		elseif g.class == "artillery" then
-			Soldiers.gun(add, g.faction, g.colour, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
+			Soldiers.gun(add, g.faction, coat, f.shape == "limbered" or f.limbered == true, detail, g.id + i)
 		end
 	end
 	if g.class == "infantry" then
@@ -283,9 +345,9 @@ local function buildNear(g: Group, f: any)
 			slotIndex = #g.slots
 			local add = adder()
 			if s.role == "officer" then
-				Soldiers.rider(add, g.faction, g.colour, "officer", detail, g.id)
+				Soldiers.rider(add, g.faction, coat, "officer", detail, g.id)
 			else
-				Soldiers.infantry(add, g.faction, g.colour, detail, if s.role == "colour" then "colour" else "drummer")
+				Soldiers.infantry(add, g.faction, coat, detail, if s.role == "colour" then "colour" else "drummer")
 			end
 		end
 	end
@@ -298,8 +360,7 @@ local SLAB_H = 1.2
 
 -- Reference look: French deep cobalt, Prussian near-black charcoal; ghosts desaturated.
 local function slabColour(g: Group): Color3
-	local c = g.colour:Lerp(BLACK, Factions.slabDarken(g.faction))
-	return if g.ghost then desaturate(c) else c
+	return g.colour:Lerp(BLACK, Factions.slabDarken(g.faction))
 end
 
 -- Flat slab: thin dark edge, body colour, slightly lighter top face.
@@ -311,7 +372,7 @@ local function slab(g: Group, cx: number, cz: number, sx: number, sz: number)
 	top.CastShadow = false
 	for _, part in { edge, body, top } do
 		if g.ghost then
-			part.Transparency = 0.4
+			part.Transparency = 0.62 -- a translucent sighting, not a unit
 		end
 	end
 	addPart(g, edge, CFrame.new(cx, SLAB_H / 2, cz), 0)
@@ -340,7 +401,31 @@ local function stripes(g: Group, sx: number, sz: number)
 	end
 end
 
+-- Dashed outline round a last-known footprint.
+local function dashedOutline(g: Group, w: number, d: number)
+	local hw, hd = w / 2 + 1.2, d / 2 + 1.2
+	local function edge(ax: number, az: number, bx: number, bz: number)
+		local len = math.sqrt((bx - ax) ^ 2 + (bz - az) ^ 2)
+		local n = math.max(1, math.floor(len / 3.2))
+		local ang = math.atan2(bz - az, bx - ax)
+		for i = 0, n - 1 do
+			local t = (i + 0.5) / n
+			local dash = mk("Part", Vector3.new(len / n * 0.55, 0.2, 0.35), g.colour:Lerp(Color3.new(1, 1, 1), 0.55))
+			dash.CastShadow = false
+			dash.Transparency = 0.2
+			addPart(g, dash, CFrame.new(ax + (bx - ax) * t, 0.35, az + (bz - az) * t) * CFrame.Angles(0, -ang, 0), 0)
+		end
+	end
+	edge(hd, -hw, hd, hw)
+	edge(-hd, -hw, -hd, hw)
+	edge(-hd, -hw, hd, -hw)
+	edge(-hd, hw, hd, hw)
+end
+
 local function buildFar(g: Group, f: any)
+	if g.ghost then
+		dashedOutline(g, f.width, f.depth)
+	end
 	if g.class == "cavalry" then
 		slab(g, 0, 0, f.depth, f.width)
 		stripes(g, f.depth, f.width)
@@ -379,81 +464,68 @@ local POLE = Color3.fromRGB(150, 150, 150)
 local IVORY = Color3.fromRGB(246, 241, 226)
 local GOLD = Color3.fromRGB(205, 168, 62)
 
--- Marker: pole (formation space), then camera-facing parts whose locals are offsets from the
--- plate centre: frame, plate, square flag. parts[1] is always the pole.
+-- Commander marker: a grey pole, a framed ivory name plate (screen-size BillboardGui, readable
+-- at any zoom) and the faction flag beneath it. Last-known ghosts get a small "?" banner.
+-- parts[1] is the pole (formation space); parts[2] the plate anchor; the rest (flag) are
+-- camera-facing with locals relative to the plate centre.
 local function buildMarker(g: Group, f: any): Marker
 	local hq = g.class == "hq"
 	local scale = if hq then 1.5 else 1
-	local poleH = 13 * scale
-	local plateW = if hq then 12 else 8
-	local plateH = if hq then 4.2 else 2.8
+	local poleH = if g.ghost then 7 else 13 * scale
 	local parts: { BasePart } = {}
 	local locals: { CFrame } = {}
-	local function face(p: BasePart, cf: CFrame)
-		p.CastShadow = false
-		table.insert(parts, p)
-		table.insert(locals, cf)
-	end
 	local pole = cylinder(poleH, 0.1, POLE)
 	pole.CastShadow = false
 	table.insert(parts, pole)
 	table.insert(locals, CFrame.new(0, poleH / 2, 0) * CFrame.Angles(0, 0, math.pi / 2))
-	local framePart = mk("Part", Vector3.new(plateW + 0.4, plateH + 0.4, 0.2), if hq then GOLD else INK)
-	face(framePart, CFrame.new(0, 0, 0.12))
-	local plate = mk("Part", Vector3.new(plateW, plateH, 0.3), IVORY) :: Part
-	face(plate, CFrame.new())
-	-- square flag below the plate, beside the pole; design per faction
-	local s = 2.4 * scale
-	local fx = s / 2 + 0.2
-	local fy = -(plateH / 2 + s / 2 + 0.3)
-	local flag = Factions.flag(g.faction)
-	if flag.bands then
-		local n = #flag.bands
-		for i, c in flag.bands do
-			face(mk("Part", Vector3.new(s / n, s, 0.12), c), CFrame.new(fx + (i - (n + 1) / 2) * s / n, fy, 0))
-		end
-	else
-		face(mk("Part", Vector3.new(s, s, 0.12), flag.field or g.colour), CFrame.new(fx, fy, 0))
-	end
-	local mc = flag.markColour
-	local markCf = CFrame.new(fx, fy, -0.08)
-	if flag.mark == "diamond" then
-		face(mk("Part", Vector3.new(0.55 * scale, 0.55 * scale, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
-	elseif flag.mark == "x" then
-		for _, a in { 45, -45 } do
-			face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(a)))
-		end
-	elseif flag.mark == "plus" then
-		face(mk("Part", Vector3.new(s, 0.3, 0.14), mc), markCf)
-		face(mk("Part", Vector3.new(0.3, s, 0.14), mc), markCf)
-	elseif flag.mark == "double" then
-		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, s * 0.18, 0))
-		face(mk("Part", Vector3.new(s, 0.24, 0.14), mc), markCf * CFrame.new(0, -s * 0.18, 0))
-	elseif flag.mark == "diagonal" then
-		face(mk("Part", Vector3.new(s * 1.3, 0.22, 0.14), mc), markCf * CFrame.Angles(0, 0, math.rad(45)))
+	local anchor = mk("Part", Vector3.new(0.2, 0.2, 0.2), IVORY) :: Part
+	anchor.Transparency = 1
+	anchor.CastShadow = false
+	table.insert(parts, anchor)
+	table.insert(locals, CFrame.new())
+	if not g.ghost then
+		local s = 2.4 * scale
+		Soldiers.flag(function(p: BasePart, cf: CFrame)
+			p.CastShadow = false
+			table.insert(parts, p)
+			table.insert(locals, cf)
+		end, g.faction, CFrame.new(0.2, -(s / 2 + 1.6), 0) * CFrame.Angles(0, math.pi, 0), s, s * 0.75)
 	end
 	for _, p in parts do
-		if g.ghost then
-			p.Transparency = 0.35
-		end
 		p.Parent = folder
 	end
 
-	local gui = Instance.new("SurfaceGui") :: SurfaceGui
-	gui.Face = Enum.NormalId.Front
-	gui.CanvasSize = Vector2.new(plateW * 60, plateH * 60)
+	local pxW = if g.ghost then 56 elseif hq then 230 else 168
+	local pxH = if g.ghost then 34 elseif hq then 58 else 44
+	local gui = Instance.new("BillboardGui") :: BillboardGui
+	gui.Size = UDim2.fromOffset(pxW, pxH + 16)
+	gui.SizeOffset = Vector2.new(0, 0.1)
 	gui.LightInfluence = 0
-	gui.Parent = plate
-	local function line(sizeY: number, posY: number, text: string, font: EnumFont): TextLabel
+	gui.MaxDistance = 4000
+	gui.AlwaysOnTop = false
+	gui.ResetOnSpawn = false
+	gui.Adornee = anchor
+	gui.Parent = anchor
+	local plate = Instance.new("Frame") :: Frame
+	plate.Size = UDim2.new(1, 0, 0, pxH)
+	plate.BackgroundColor3 = if g.ghost then g.colour else IVORY
+	plate.BackgroundTransparency = if g.ghost then 0.35 else 0.02
+	plate.BorderSizePixel = 0
+	plate.Parent = gui
+	local stroke = Instance.new("UIStroke") :: UIStroke
+	stroke.Color = if hq then GOLD else INK
+	stroke.Thickness = if hq then 3 else 2
+	stroke.Parent = plate
+	local function text(sizeY: number, posY: number, value: string, font: EnumFont, colour: Color3, parent: Instance): TextLabel
 		local l = Instance.new("TextLabel") :: TextLabel
 		l.BackgroundTransparency = 1
-		l.Size = UDim2.new(1, -16, sizeY, 0)
-		l.Position = UDim2.new(0, 8, posY, 0)
+		l.Size = UDim2.new(1, -10, sizeY, 0)
+		l.Position = UDim2.new(0, 5, posY, 0)
 		l.Font = font
 		l.TextScaled = true
-		l.TextColor3 = INK
-		l.Text = text
-		l.Parent = gui
+		l.TextColor3 = colour
+		l.Text = value
+		l.Parent = parent
 		return l
 	end
 	local nameText = string.upper(tostring(f.name or ("#" .. g.id)))
@@ -465,16 +537,27 @@ local function buildMarker(g: Group, f: any): Marker
 			nameText, corpsText = a, b
 		end
 	end
-	local nameLabel = line(if hq then 0.5 else 0.46, 0.04, nameText, Enum.Font.Garamond)
-	line(if hq then 0.22 else 0.26, if hq then 0.54 else 0.48, corpsText, Enum.Font.Garamond)
-	local statusLabel = line(0.22, if hq then 0.76 else 0.74, "", Enum.Font.Gotham)
+	local nameLabel: TextLabel
+	if g.ghost then
+		nameLabel = text(0.9, 0.05, "?", Enum.Font.Garamond, Color3.fromRGB(246, 241, 226), plate)
+	else
+		nameLabel = text(0.56, 0.06, nameText, Enum.Font.Garamond, INK, plate)
+		local corps = text(0.32, 0.62, corpsText, Enum.Font.Garamond, INK, plate)
+		corps.TextTransparency = 0.15
+	end
+	-- status line under the plate (selected/hovered, or the age of a sighting)
+	local statusLabel = text(0, 0, "", Enum.Font.GothamBold, IVORY, gui)
+	statusLabel.Size = UDim2.new(1, 0, 0, 14)
+	statusLabel.Position = UDim2.new(0, 0, 0, pxH + 2)
+	statusLabel.TextStrokeTransparency = 0.3
+	statusLabel.TextStrokeColor3 = INK
 	local bar = Instance.new("Frame") :: Frame
-	bar.Size = UDim2.new(1, -16, 0, 6)
-	bar.Position = UDim2.new(0, 8, 1, -8)
+	bar.Size = UDim2.new(1, -10, 0, 4)
+	bar.Position = UDim2.new(0, 5, 1, -6)
 	bar.BackgroundColor3 = INK
 	bar.BorderSizePixel = 0
 	bar.Visible = false
-	bar.Parent = gui
+	bar.Parent = plate
 	local fill = Instance.new("Frame") :: Frame
 	fill.Size = UDim2.fromScale(1, 1)
 	fill.BackgroundColor3 = g.colour
@@ -483,14 +566,16 @@ local function buildMarker(g: Group, f: any): Marker
 	return {
 		parts = parts,
 		locals = locals,
-		plate = plate,
+		plate = anchor,
 		gui = gui,
+		pxW = pxW,
+		pxH = pxH,
 		nameLabel = nameLabel,
 		statusLabel = statusLabel,
 		bar = bar,
 		barFill = fill,
-		height = poleH + plateH / 2,
-		priority = if hq then 4 else 1,
+		height = poleH + 0.5,
+		priority = if hq then 4 elseif g.ghost then 0 else 1,
 	}
 end
 
@@ -549,7 +634,7 @@ local function rebuildBody(g: Group, f: any)
 end
 
 local function layoutKeyOf(g: Group, f: any): string
-	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), figureCount(g.class, f.strength), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
+	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), visualCount(f), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
 end
 
 local function newGroup(id: number, f: any, ghost: boolean): Group
@@ -616,7 +701,10 @@ local function onSnapshot()
 	local total = 0
 	for id, f in BattleState.formations do
 		seen[id] = true
-		total += figureCount(f.class, f.strength)
+		local near = groups[id]
+		if near and near.lod == "near" then
+			total += visualCount(f) -- the budget only spends figures on near-LOD blocks
+		end
 		local existing: Group? = groups[id]
 		if existing and existing.ghost then
 			destroyGroup(existing)
@@ -798,10 +886,8 @@ end
 -- ------------------------------------------------------------------ labels
 
 local function deconflictLabels(cam: Camera)
-	local vp = cam.ViewportSize
 	local list: { { g: Group, x: number, y: number, w: number, h: number, pri: number } } = {}
 	local hovered = Selection.hovered()
-	local fov = math.rad(cam.FieldOfView)
 	for id, g in groups do
 		local m = g.marker
 		local pri = m.priority
@@ -813,10 +899,7 @@ local function deconflictLabels(cam: Camera)
 		local world = Vector3.new(g.rx, groundY(g.rx, g.rz) + m.height, g.rz)
 		local sp, onScreen = cam:WorldToViewportPoint(world)
 		if onScreen and sp.Z > 0 then
-			local scale = vp.Y / (2 * sp.Z * math.tan(fov / 2))
-			local w = m.plate.Size.X * scale
-			local h = m.plate.Size.Y * scale
-			table.insert(list, { g = g, x = sp.X, y = sp.Y, w = w, h = h, pri = pri })
+			table.insert(list, { g = g, x = sp.X, y = sp.Y - m.pxH / 2, w = m.pxW, h = m.pxH, pri = pri })
 		else
 			m.gui.Enabled = false
 		end
@@ -1041,7 +1124,7 @@ function Figures.update(dt: number)
 						y += math.abs(math.cos(ph)) * 0.12
 					end
 					swing[si] = sw
-					local h = g.rh
+					local h = g.rh + (s.face or 0)
 					if routing then
 						h += math.pi + (s.phase - math.pi) * 0.35
 					end

@@ -25,9 +25,33 @@ local FUR = Color3.fromRGB(52, 40, 32)
 local RED = Color3.fromRGB(176, 40, 44)
 local GOLD = Color3.fromRGB(205, 168, 62)
 
+-- Up-close uniforms (far LOD keeps the palette cobalt vs charcoal): coat, collar/facings.
+local COATS: { [string]: Color3 } = {
+	france = Color3.fromRGB(34, 62, 156), -- cobalt
+	prussia = Color3.fromRGB(30, 34, 54), -- dark blue-black
+	britain = Color3.fromRGB(172, 34, 38),
+	russia = Color3.fromRGB(42, 70, 44),
+	austria = Color3.fromRGB(226, 222, 210),
+}
+local FACINGS: { [string]: Color3 } = {
+	france = Color3.fromRGB(196, 36, 40), -- red collar (white lapels drawn separately)
+	prussia = Color3.fromRGB(196, 36, 40), -- red collar
+	britain = Color3.fromRGB(232, 222, 190),
+	russia = Color3.fromRGB(196, 36, 40),
+	austria = Color3.fromRGB(150, 40, 60),
+}
+
+-- Coat colour for a figure: a unit palette override (e.g. Saxony) keeps its own colour.
+function Soldiers.coat(faction: string, override: string?, fallback: Color3): Color3
+	if override then
+		return fallback
+	end
+	return COATS[faction] or fallback
+end
+
 local TROUSERS: { [string]: Color3 } = {
-	france = Color3.fromRGB(226, 222, 208),
-	prussia = Color3.fromRGB(214, 210, 198),
+	france = Color3.fromRGB(232, 228, 216), -- white breeches
+	prussia = Color3.fromRGB(128, 128, 124), -- grey
 	britain = Color3.fromRGB(98, 100, 108),
 	russia = Color3.fromRGB(220, 218, 206),
 	austria = Color3.fromRGB(224, 222, 214),
@@ -117,24 +141,36 @@ end
 
 -- Flag in the local X-Y plane, hoist at x = 0, flying toward -X.
 function Soldiers.flag(add: Add, faction: string, origin: CFrame, w: number, h: number)
-	local design = Factions.flag(faction)
+	local design = Factions.flag(faction) :: any
+	local c = origin * CFrame.new(-w / 2, 0, 0)
+	local t = 0.08
+	local stripes = design.stripes
+	if stripes then
+		-- horizontal bands, top to bottom (Prussia black-white-black); no mark
+		local n = #stripes
+		for i, col in stripes do
+			add(mk(Vector3.new(w, h / n, 0.05), col), c * CFrame.new(0, h / 2 - (i - 0.5) * h / n, 0), 0, 0)
+		end
+		return
+	end
 	local bands = design.bands
 	if bands then
 		local n = #bands
-		for i, c in bands do
-			add(mk(Vector3.new(w / n, h, 0.05), c), origin * CFrame.new(-(i - 0.5) * w / n, 0, 0), 0, 0)
+		for i, col in bands do
+			add(mk(Vector3.new(w / n, h, 0.05), col), origin * CFrame.new(-(i - 0.5) * w / n, 0, 0), 0, 0)
 		end
 	else
-		add(mk(Vector3.new(w, h, 0.05), design.field or WHITE), origin * CFrame.new(-w / 2, 0, 0), 0, 0)
+		add(mk(Vector3.new(w, h, 0.05), design.field or WHITE), c, 0, 0)
 	end
-	local c = origin * CFrame.new(-w / 2, 0, 0)
-	local mc = design.markColour
-	local t = 0.08
+	local mc: Color3 = design.markColour
+	local diag = math.deg(math.atan2(h, w))
 	if design.mark == "diamond" then
 		add(mk(Vector3.new(h * 0.32, h * 0.32, t), mc), c * CFrame.Angles(0, 0, math.rad(45)), 0, 0)
 	elseif design.mark == "x" then
-		for _, a in { 35, -35 } do
-			add(mk(Vector3.new(w * 1.15, h * 0.12, t), mc), c * CFrame.Angles(0, 0, math.rad(a)), 0, 0)
+		-- saltire corner to corner
+		local len = math.sqrt(w * w + h * h)
+		for _, a in { diag, -diag } do
+			add(mk(Vector3.new(len, h * 0.16, t), mc), c * CFrame.Angles(0, 0, math.rad(a)), 0, 0)
 		end
 	elseif design.mark == "plus" then
 		add(mk(Vector3.new(w, h * 0.16, t), mc), c, 0, 0)
@@ -143,7 +179,15 @@ function Soldiers.flag(add: Add, faction: string, origin: CFrame, w: number, h: 
 		add(mk(Vector3.new(w, h * 0.1, t), mc), c * CFrame.new(0, h * 0.18, 0), 0, 0)
 		add(mk(Vector3.new(w, h * 0.1, t), mc), c * CFrame.new(0, -h * 0.18, 0), 0, 0)
 	elseif design.mark == "diagonal" then
-		add(mk(Vector3.new(w * 1.15, h * 0.12, t), mc), c * CFrame.Angles(0, 0, math.rad(35)), 0, 0)
+		add(mk(Vector3.new(math.sqrt(w * w + h * h), h * 0.12, t), mc), c * CFrame.Angles(0, 0, math.rad(diag)), 0, 0)
+	end
+	local cross: Color3? = design.cross
+	if cross then
+		-- upright cross over the saltire (Union flag): a white edge under a red centre
+		add(mk(Vector3.new(w, h * 0.26, t + 0.01), WHITE), c, 0, 0)
+		add(mk(Vector3.new(w * 0.18, h, t + 0.01), WHITE), c, 0, 0)
+		add(mk(Vector3.new(w, h * 0.15, t + 0.02), cross), c, 0, 0)
+		add(mk(Vector3.new(w * 0.1, h, t + 0.02), cross), c, 0, 0)
 	end
 end
 
@@ -156,6 +200,10 @@ function Soldiers.infantry(add: Add, faction: string, coat: Color3, detail: bool
 	add(mk(Vector3.new(0.3, 1.1, 0.26), legs), CFrame.new(0, 0.55, -0.16), 1, 1.1)
 	add(mk(Vector3.new(0.3, 1.1, 0.26), legs), CFrame.new(0, 0.55, 0.16), 2, 1.1)
 	add(mk(Vector3.new(0.42, 1.05, 0.66), coat), CFrame.new(0, 1.6, 0), 0, 0)
+	add(mk(Vector3.new(0.46, 0.14, 0.62), FACINGS[faction] or coat), CFrame.new(0, 2.1, 0), 0, 0) -- collar
+	if detail and faction == "france" then
+		add(mk(Vector3.new(0.04, 0.6, 0.34), WHITE), CFrame.new(0.22, 1.78, 0), 0, 0) -- white lapels
+	end
 	if detail then
 		-- white cross-belts over the coat front
 		add(mk(Vector3.new(0.05, 1.15, 0.09), WHITE), CFrame.new(0.22, 1.6, 0) * CFrame.Angles(0.6, 0, 0), 0, 0)
