@@ -1,6 +1,6 @@
 --!strict
--- Battle select: the scenarios from Scenarios.list() (fallback: Scenarios.jena alone), each with
--- name, date, sides, summary, difficulty note and a Fight button; a difficulty selector on top.
+-- Battle select: Quick battles (each battle a framed painting header over its two episode
+-- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
 local RunService = game:GetService("RunService") :: RunService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -16,7 +16,10 @@ export type Callbacks = {
 	back: () -> (),
 }
 
-type Entry = { id: string, name: string, date: string?, map: string?, factionNames: { [string]: string }?, summary: string?, difficultyNote: string? }
+type Entry = { id: string, name: string, date: string?, map: string?, factionNames: { [string]: string }?, summary: string?, difficultyNote: string?, mode: string?, parent: string?, timeLimit: number? }
+
+-- "quick" (episodes) or "full"; session-local, quick first so a new player starts short
+local mode = "quick"
 
 local gui: ScreenGui? = nil
 local difficultyButtons: { [string]: TextButton } = {}
@@ -94,7 +97,43 @@ end
 
 -- A framed "painting": gold-bordered dark card with the name, the date in italic, the two
 -- flags facing each other, the history on a parchment strip and the difficulty in stars.
-local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean)
+local function minutes(e: Entry, fallback: number): string
+	return string.format("%d min", math.floor((e.timeLimit or fallback * 60) / 60 + 0.5))
+end
+
+-- A smaller card for one episode of a battle: name, length, date, short summary, stars, Fight.
+local function episodeCard(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean)
+	local f = Kit.panel(parent, { size = UDim2.new(0.5, -5, 0, 150), position = UDim2.new(), plain = true, padding = 10 })
+	f.LayoutOrder = order
+	local name = Kit.title(f, e.name, { size = UDim2.new(1, 0, 0, 22), textSize = 19, caps = false, colour = Kit.IVORY })
+	name.TextTruncate = Enum.TextTruncate.AtEnd
+	local kind = Kit.label(f, "Quick battle · " .. minutes(e, 10) .. (if e.date then "   ·   " .. e.date else ""), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 22), textSize = 16, colour = Kit.GILT })
+	kind.FontFace = Kit.ITALIC
+	kind.TextTruncate = Enum.TextTruncate.AtEnd
+	local summary = Kit.label(f, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 52), position = UDim2.fromOffset(0, 42), textSize = 15, font = Enum.Font.Garamond, wrap = true, colour = Kit.MUTED })
+	summary.TextYAlignment = Enum.TextYAlignment.Top
+	summary.TextTruncate = Enum.TextTruncate.AtEnd
+	local diff = Instance.new("Frame") :: Frame
+	diff.Size = UDim2.fromOffset(60, 16)
+	diff.Position = UDim2.new(0, 0, 1, -22)
+	diff.BackgroundTransparency = 1
+	diff.Parent = f
+	local n = stars(e.difficultyNote)
+	for i = 1, 3 do
+		star(diff, 6 + (i - 1) * 16, i <= n)
+	end
+	Kit.hoverTip(diff, function(): string
+		return tostring(e.difficultyNote or "")
+	end)
+	local b = Kit.button(f, "Fight", function()
+		cb.fight(e.id)
+	end, { size = UDim2.fromOffset(90, 32), position = UDim2.new(1, 0, 1, 0), anchor = Vector2.new(1, 1), primary = true, textSize = 16 })
+	Kit.setEnabled(b, isCommander, "Only the commander starts a battle")
+end
+
+-- `episodes` given: the painting is a header (name, date, flags) over its quick-battle cards;
+-- otherwise the full battle with its history and Fight.
+local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, isCommander: boolean, episodes: { Entry }?)
 	local f = Kit.panel(parent, { size = UDim2.new(1, -8, 0, 150), position = UDim2.new(), dark = true, padding = 12 })
 	f.LayoutOrder = order
 	f.AutomaticSize = Enum.AutomaticSize.Y
@@ -122,6 +161,20 @@ local function card(parent: Instance, e: Entry, order: number, cb: Callbacks, is
 	for i = 2, math.min(#ids, 3) do
 		Kit.flag(flags, ids[i], Vector2.new(36, 24), UDim2.fromOffset(72 + (i - 2) * 10, (i - 2) * 6), true)
 	end
+	if episodes then
+		local row = Instance.new("Frame") :: Frame
+		row.Size = UDim2.new(1, 0, 0, 150)
+		row.Position = UDim2.new(0, 0, 0, 56)
+		row.BackgroundTransparency = 1
+		row.Parent = f
+		Kit.list(row, 10, true)
+		for i, ep in episodes do
+			episodeCard(row, ep, i, cb, isCommander)
+		end
+		return
+	end
+	local fullLen = Kit.label(f, "Full battle · " .. minutes(e, 25), { size = UDim2.fromOffset(110, 18), position = UDim2.new(1, 0, 0, 44), anchor = Vector2.new(1, 0), textSize = 15, colour = Kit.GILT, align = Enum.TextXAlignment.Right })
+	fullLen.FontFace = Kit.ITALIC
 	-- summary on a parchment strip, then the difficulty
 	local body = Instance.new("Frame") :: Frame
 	body.Size = UDim2.new(1, -124, 0, 0)
@@ -178,9 +231,15 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 		difficultyButtons[key] = b
 	end
 	refreshDifficulty()
+	local tabs = Instance.new("Frame") :: Frame
+	tabs.Size = UDim2.new(1, 0, 0, 32)
+	tabs.Position = UDim2.new(0, 0, 0, 84)
+	tabs.BackgroundTransparency = 1
+	tabs.Parent = panel
+	Kit.list(tabs, 8, true)
 	local scroll = Instance.new("ScrollingFrame") :: ScrollingFrame
-	scroll.Size = UDim2.new(1, 0, 1, -86)
-	scroll.Position = UDim2.new(0, 0, 0, 82)
+	scroll.Size = UDim2.new(1, 0, 1, -126)
+	scroll.Position = UDim2.new(0, 0, 0, 124)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 6
@@ -189,11 +248,42 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	scroll.CanvasSize = UDim2.new()
 	scroll.Active = true
 	scroll.Parent = panel
-	Kit.list(scroll, 10)
 	local list = entries()
-	for i, e in list do
-		card(scroll, e, i, cb, isCommander)
+	local tabButtons: { [string]: TextButton } = {}
+	local function fill()
+		for _, c in scroll:GetChildren() do
+			c:Destroy()
+		end
+		Kit.list(scroll, 10)
+		for key, b in tabButtons do
+			Kit.setActiveLook(b, key == mode)
+		end
+		local byParent: { [string]: { Entry } } = {}
+		for _, e in list do
+			if e.mode == "episode" and e.parent then
+				byParent[e.parent] = byParent[e.parent] or {}
+				table.insert(byParent[e.parent], e)
+			end
+		end
+		local i = 0
+		for _, e in list do
+			if e.mode ~= "episode" then
+				i += 1
+				local eps = byParent[e.id]
+				-- a battle without episodes still shows in full in the quick list
+				card(scroll, e, i, cb, isCommander, if mode == "quick" and eps and #eps > 0 then eps else nil)
+			end
+		end
+		scroll.CanvasPosition = Vector2.new(0, 0)
 	end
+	for i, t in { { "quick", "Quick battles (8–10 min)" }, { "full", "Full battles (25–30 min)" } } do
+		local key = t[1]
+		tabButtons[key] = Kit.button(tabs, t[2], function()
+			mode = key
+			fill()
+		end, { size = UDim2.fromOffset(250, 32), order = i, textSize = 16, caps = false })
+	end
+	fill()
 	-- Roblox can leave a card under the scroll window's clip half-drawn on the first frame;
 	-- nudging the canvas after the first layout pass forces a full redraw.
 	task.spawn(function()

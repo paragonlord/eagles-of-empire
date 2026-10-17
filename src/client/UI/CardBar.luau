@@ -171,8 +171,9 @@ local function tipFor(id: number): string
 		lines[4] ..= " · " .. f.status
 	end
 	-- generals' traits and abilities acting on it now (the gilt star on the card)
-	if type(f.tags) == "string" then
-		for tag in string.gmatch(f.tags, "[^,]+") do
+	local tags = (f :: any).tags -- not in BattleState.Formation yet
+	if type(tags) == "string" then
+		for tag in string.gmatch(tags, "[^,]+") do
 			local name, text = Generals.tagInfo(tag)
 			if name then
 				table.insert(lines, "★ " .. name .. ": " .. tostring(text))
