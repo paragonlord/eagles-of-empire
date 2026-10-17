@@ -186,7 +186,8 @@ Config.Slope = {
 Config.Vision = {
 	EyeHeight = 4.0, -- mounted officers / colour party; sees over small bulges of a slope
 	SightTolerance = 0.5, -- studs the terrain may rise above the sight line before it blocks
-	WoodsReveal = 60, -- a formation inside woods/village is only spotted within this distance
+	WoodsReveal = 90, -- a formation inside woods/village is only spotted within this distance
+	ContactReveal = 15, -- footprints this close (beyond touching) always see each other
 	LastKnownForgetSeconds = 180,
 }
 
@@ -438,6 +439,8 @@ export type Province = {
 	isCapital: boolean,
 	isPort: boolean,
 	fort: number, -- 0..2
+	towns: { string }, -- real places in the province, for the battle map's villages and labels
+	river: string?, -- the river a battle there is fought over, if any
 }
 
 export type UnitClass = {
@@ -550,6 +553,8 @@ local function prov(id: string, name: string, lon: number, lat: number, owner: s
 		isCapital = opts.capital == true,
 		isPort = opts.port == true,
 		fort = opts.fort or 0,
+		towns = {},
+		river = nil,
 	}
 end
 
@@ -611,6 +616,63 @@ EuropeData.Provinces = {
 	prov("constantinople", "Rumelia", 26.5, 41.6, "ottoman", "austerlitz", 140, 1000, { "serbia" }, { capital = true, port = true, fort = 2 }),
 	prov("serbia", "Serbia & the Danube", 21.5, 44.3, "ottoman", "bridge", 50, 600, { "dalmatia", "hungary", "constantinople", "ukraine" }),
 }
+
+-- Real places for province battle maps (`MapGen.generate("province:<id>")`, docs/campaign.md):
+-- three towns each (first = main village) and the river, if the landscape has one.
+local PLACES: { [string]: { any } } = {
+	paris = { { "Meaux", "Saint-Denis", "Versailles" }, "Seine" },
+	normandy = { { "Caen", "Rouen", "Rennes" }, "Orne" },
+	aquitaine = { { "Bordeaux", "Bayonne", "Agen" }, "Garonne" },
+	provence = { { "Lyon", "Avignon", "Toulon" }, "Rhône" },
+	champagne = { { "Reims", "Metz", "Nancy" }, "Moselle" },
+	belgium = { { "Ligny", "Wavre", "Quatre-Bras" }, "Dyle" },
+	rhineland = { { "Mainz", "Koblenz", "Cologne" }, "Rhine" },
+	piedmont = { { "Marengo", "Alessandria", "Turin" }, "Bormida" },
+	holland = { { "Utrecht", "Arnhem", "Haarlem" }, "Waal" },
+	lombardy = { { "Lodi", "Mantua", "Milan" }, "Adda" },
+	england = { { "Canterbury", "Maidstone", "Dover" }, "Medway" },
+	ireland = { { "Wexford", "Kilkenny", "Athlone" }, "Shannon" },
+	hanover = { { "Celle", "Stade", "Hanover" }, "Leine" },
+	vienna = { { "Aspern", "Essling", "Wagram" }, "Danube" },
+	venetia = { { "Caldiero", "Verona", "Vicenza" }, "Adige" },
+	dalmatia = { { "Knin", "Zara", "Spalato" }, "Krka" },
+	tyrol = { { "Innsbruck", "Brixen", "Wörgl" }, "Inn" },
+	bohemia = { { "Kulm", "Pilsen", "Prague" }, "Elbe" },
+	moravia = { { "Znaim", "Olmütz", "Brünn" }, "Thaya" },
+	hungary = { { "Raab", "Komorn", "Pest" }, "Raab" },
+	galicia = { { "Tarnów", "Cracow", "Lemberg" }, "Vistula" },
+	brandenburg = { { "Potsdam", "Spandau", "Küstrin" }, "Havel" },
+	silesia = { { "Schweidnitz", "Glogau", "Breslau" }, "Oder" },
+	eastprussia = { { "Eylau", "Friedland", "Königsberg" }, "Alle" },
+	westphalia = { { "Minden", "Paderborn", "Münster" }, "Weser" },
+	warsaw = { { "Pultusk", "Golymin", "Praga" }, "Narew" },
+	saxony = { { "Lützen", "Bautzen", "Dresden" }, "Elbe" },
+	thuringia = { { "Saalfeld", "Schleiz", "Erfurt" }, "Saale" },
+	bavaria = { { "Eckmühl", "Abensberg", "Landshut" }, "Isar" },
+	wurttemberg = { { "Elchingen", "Ulm", "Stuttgart" }, "Danube" },
+	stpetersburg = { { "Narva", "Pskov", "Novgorod" }, "Luga" },
+	lithuania = { { "Kovno", "Vilna", "Riga" }, "Niemen" },
+	smolensk = { { "Krasnoi", "Valutino", "Smolensk" }, "Dnieper" },
+	moscow = { { "Borodino", "Mozhaisk", "Maloyaroslavets" }, "Kolocha" },
+	ukraine = { { "Dubno", "Brody", "Kiev" }, "Styr" },
+	madrid = { { "Talavera", "Ocaña", "Somosierra" }, "Tagus" },
+	catalonia = { { "Gerona", "Saragossa", "Barcelona" }, "Ebro" },
+	andalusia = { { "Bailén", "Seville", "Cádiz" }, "Guadalquivir" },
+	lisbon = { { "Vimeiro", "Roliça", "Oporto" }, "Douro" },
+	naples = { { "Maida", "Capua", "Gaeta" }, "Volturno" },
+	sicily = { { "Messina", "Palermo", "Syracuse" } },
+	stockholm = { { "Uppsala", "Norrköping", "Örebro" } },
+	denmark = { { "Køge", "Kiel", "Copenhagen" }, "Eider" },
+	constantinople = { { "Adrianople", "Philippopolis", "Sofia" }, "Maritsa" },
+	serbia = { { "Nish", "Rustchuk", "Belgrade" }, "Morava" },
+}
+for _, p in EuropeData.Provinces do
+	local pl = PLACES[p.id]
+	if pl then
+		p.towns = pl[1]
+		p.river = pl[2]
+	end
+end
 
 -- Port-to-port crossings (also listed in both provinces' neighbours). Only ports may use them.
 EuropeData.SeaLanes = {
@@ -3954,7 +4016,7 @@ Scenarios.tutorial = {
 		u("france", "Brigade", "artillery", "Batterie à pied, 5e d'artillerie", 120, 1, 480, 150, NORTH),
 		u("france", "Brigade", "cavalry", "8e Hussards", 400, 1, 540, 220, NORTH),
 		u("austria", "HQ", "hq", "Brigade-Hauptquartier", 40, 1, 860, 740, SOUTH, { commander = true }),
-		u("austria", "Vorposten", "infantry", "Grenz-Infanterie Nr. 1", 400, 1, 420, 430, SOUTH),
+		u("austria", "Vorposten", "infantry", "Grenz-Infanterie Nr. 1", 300, 0, 420, 430, SOUTH),
 		u("austria", "Brigade", "infantry", "IR 4 Hoch- und Deutschmeister", 600, 1, 800, 430, WEST),
 		u("austria", "Brigade", "infantry", "IR 49 Kerpen", 600, 1, 620, 690, SOUTH),
 		u("austria", "Brigade", "cavalry", "Chevaulegers Nr. 3", 400, 1, 880, 640, WEST),
@@ -7373,7 +7435,17 @@ function GrandCampaign.view(s: State): { [string]: any }
 	local pending: { [string]: any }? = nil
 	local b = firstPlayerBattle(s)
 	if b then
+		local ids: { [string]: { string } } = { attackers = {}, defenders = {} }
+		local men: { [string]: number } = { attackers = 0, defenders = 0 }
+		for _, a in Battles.armies(s, b) do
+			local side = Battles.sideOf(b, a.nation) :: string
+			table.insert(ids[side], a.id)
+			men[side] += State.men(a)
+		end
 		pending = {
+			armies = { attacker = ids.attackers, defender = ids.defenders },
+			attackerMen = men.attackers,
+			defenderMen = men.defenders,
 			battleId = b.battleId,
 			provinceId = b.provinceId,
 			attacker = strongestArmy(s, b.provinceId, b.attacker),
@@ -8290,6 +8362,13 @@ local function clampTo(z: MapGen.Rect, x: number, y: number): (number, number)
 	return math.clamp(x, z.x0 + m, z.x1 - m), math.clamp(y, z.z0 + m, z.z1 - m)
 end
 
+-- Battle map for a province: the province's own generated map (`"province:<id>"`, villages and
+-- river named from EuropeData towns/river, landscape from `terrain`) once MapGen provides it
+-- (`MapGen.provinceMaps`); until then the authored map named by `terrain`.
+function Battles.mapId(p: EuropeData.Province): string
+	return if (MapGen :: any).provinceMaps == true then "province:" .. p.id else p.terrain
+end
+
 -- Zone key (the map's deploy-zone faction id) used for each side.
 function Battles.zoneKeys(s: State, b: Battle, map: MapGen.MapData): { [string]: string }
 	local keys = State.sortedKeys(map.deployZones)
@@ -8423,7 +8502,7 @@ local function setPieceScenario(s: State, b: Battle, base: Scenarios.Scenario): 
 		id = b.battleId,
 		name = base.name,
 		map = base.map,
-		briefing = base.briefing .. string.format(" (Grand campaign, %s: the historical order of battle, scaled to the armies present.)", EuropeData.dateOf(b.turn)),
+		briefing = base.briefing .. string.format(" (Grand campaign, %s: the historical order of battle, scaled to the armies present.)", EuropeData.dateOf(s.turn)),
 		factions = { player = playerFaction, enemy = enemyFaction },
 		factionNames = base.factionNames,
 		units = units,
@@ -8453,7 +8532,8 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 		end
 	end
 	local p = State.province(battle.provinceId)
-	local map = mapFor(p.terrain)
+	local mapId = Battles.mapId(p)
+	local map = mapFor(mapId)
 	local zk = Battles.zoneKeys(s, battle, map)
 	local units: { Scenarios.UnitDef } = {}
 	local names: { [string]: string } = {}
@@ -8534,14 +8614,14 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 	return {
 		id = battle.battleId,
 		name = "Battle of " .. p.name,
-		map = p.terrain,
-		briefing = string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(battle.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
+		map = mapId,
+		briefing = string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
 		factions = { player = zk[ps], enemy = zk[enemySide] },
 		factionNames = names,
 		units = units,
 		timeLimit = nil,
-		date = EuropeData.dateOf(battle.turn),
-		year = EuropeData.StartYear + ((battle.turn - 1) * 2) // 12,
+		date = EuropeData.dateOf(s.turn),
+		year = EuropeData.StartYear + ((s.turn - 1) * 2) // 12,
 	}
 end
 
@@ -9387,7 +9467,9 @@ return Events
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
 -- (battle) or that a nation at war with the mover controls (siege / occupation). Sea lanes join two
 -- ports, need a full allowance and use all of it; after Trafalgar no nation at war with Britain
--- may use them. Armies may enter only their own, allied or enemy (at war) provinces.
+-- may use them. Armies may enter only their own, allied or enemy (at war) provinces. Contacts are
+-- resolved at the end of the turn, after every nation has moved: an army that shares its province
+-- with a hostile army may still march off before then (refusing battle), and that is logged.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local EuropeData = require(Shared.EuropeData)
@@ -9497,6 +9579,8 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 		return false, "badPath", nil
 	end
 	local army = a :: Army
+	local from = army.provinceId
+	local contact = State.hostileArmyIn(s, from, nation)
 	local entered: { string } = {}
 	local maxMoves = State.maxMoves(army)
 	for i, to in path do
@@ -9520,6 +9604,9 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 		if army.movesLeft <= 0 then
 			break
 		end
+	end
+	if contact and #entered > 0 then
+		State.log(s, string.format("%s withdraws from %s before the enemy, refusing battle.", army.name, State.province(from).name))
 	end
 	return true, nil, entered
 end
@@ -10396,7 +10483,12 @@ local TUTORIAL_UNITS = {
 	skirmishers = "Grenz-Infanterie Nr. 1",
 	cavalry = "Chevaulegers Nr. 3",
 	conscripts = "Conscrits de 1809",
+	garrison = "IR 49 Kerpen",
 }
+local TUTORIAL_CAV_REPEAT = 10 -- s between renewed cavalry attacks while lesson 9 runs
+local TUTORIAL_GRENZ_BREAK = 0.75 -- Grenzers withdraw below this fraction of their strength
+local TUTORIAL_GRENZ_FALLBACK = { x = 430, z = 650 } -- over the Mühlbach, west of Ebersdorf
+local TUTORIAL_GARRISON_FALLBACK = { x = 900, z = 760 } -- out of Ebersdorf to the north-east
 
 local function tutorialIds(sim: Sim, faction: string, name: string?): { number }
 	local ids = {}
@@ -10431,20 +10523,7 @@ local function tutorialScript(m: any, step: number, target: number)
 	if step == 6 then
 		tutorialOrder(sim, "Stance", tutorialIds(sim, enemy, TUTORIAL_UNITS.skirmishers), { fireAtWill = true })
 	elseif step == 9 and target == 9 then
-		-- the cavalry rides at the nearest French battalion
-		local cav = tutorialIds(sim, enemy, TUTORIAL_UNITS.cavalry)
-		local from = if cav[1] then sim.formations[cav[1]].pos else { x = 0, z = 0 }
-		local best, bestD = nil, math.huge
-		for _, id in tutorialIds(sim, sim.playerFaction, nil) do
-			local f = sim.formations[id]
-			local d = (f.pos.x - from.x) ^ 2 + (f.pos.z - from.z) ^ 2
-			if f.class == "infantry" and f.state ~= "routing" and d < bestD then
-				best, bestD = f, d
-			end
-		end
-		if best then
-			tutorialOrder(sim, "AttackMove", cav, { pos = { x = best.pos.x, z = best.pos.z } })
-		end
+		m.tutorialCavAt = 0 -- tutorialTick sends the cavalry now and renews the attack
 	elseif step == 10 and target == 10 then
 		-- the conscripts break (a scripted shock, so the rally lesson always has a subject)
 		for _, id in tutorialIds(sim, sim.playerFaction, TUTORIAL_UNITS.conscripts) do
@@ -10459,6 +10538,73 @@ local function tutorialScript(m: any, step: number, target: number)
 		if ai then
 			sim.aiStep = function(_s)
 				AI.step(ai)
+			end
+		end
+	end
+end
+
+-- The cavalry rides at the nearest French battalion it can see (any, if it sees none).
+local function tutorialCavalryAttack(sim: Sim)
+	local cav = tutorialIds(sim, sim.enemyFaction, TUTORIAL_UNITS.cavalry)
+	local c = cav[1] and sim.formations[cav[1]]
+	if not c or c.state == "routing" then
+		return
+	end
+	local best, bestD, bestSeen = nil, math.huge, false
+	for _, id in tutorialIds(sim, sim.playerFaction, nil) do
+		local f = sim.formations[id]
+		local seen = sim:isVisibleTo(sim.enemyFaction, id)
+		local d = (f.pos.x - c.pos.x) ^ 2 + (f.pos.z - c.pos.z) ^ 2
+		if f.class == "infantry" and f.state ~= "routing" and ((seen and not bestSeen) or (seen == bestSeen and d < bestD)) then
+			best, bestD, bestSeen = f, d, seen
+		end
+	end
+	if best then
+		tutorialOrder(sim, "AttackMove", cav, { pos = { x = best.pos.x, z = best.pos.z } })
+	end
+end
+
+local function tutorialWithdraw(sim: Sim, f: any, pos: { x: number, z: number }, text: string)
+	tutorialOrder(sim, "Stance", { f.id }, { fireAtWill = false })
+	tutorialOrder(sim, "Retreat", { f.id }, { pos = pos })
+	sim:emit({ kind = "message", tick = sim.tick, text = text })
+end
+
+-- Per-frame upkeep of the scripted enemy (pure; exposed for tests): renews the cavalry attack
+-- while lesson 9 runs, pulls the Grenzers back once bloodied so lesson 6 ends in a win, and
+-- has the Kerpen battalion abandon Ebersdorf when two French battalions are in its streets.
+local function tutorialTick(m: any)
+	local step = m.tutorialStep
+	local sim: Sim = m.sim
+	if step == nil or sim.state ~= "running" then
+		return
+	end
+	if step == 9 and m.tutorialCavAt and sim.clock >= m.tutorialCavAt then
+		m.tutorialCavAt = sim.clock + TUTORIAL_CAV_REPEAT
+		tutorialCavalryAttack(sim)
+	end
+	if step >= 6 and not m.tutorialGrenzOut then
+		for _, id in tutorialIds(sim, sim.enemyFaction, TUTORIAL_UNITS.skirmishers) do
+			local f = sim.formations[id]
+			if f.state ~= "routing" and f.strength < f.startStrength * TUTORIAL_GRENZ_BREAK then
+				m.tutorialGrenzOut = true
+				tutorialWithdraw(sim, f, TUTORIAL_GRENZ_FALLBACK, "The Grenzers give ground and fall back over the Mühlbach")
+			end
+		end
+	end
+	if step >= TUTORIAL_RELEASE and not m.tutorialGarrisonOut then
+		for _, id in tutorialIds(sim, sim.enemyFaction, TUTORIAL_UNITS.garrison) do
+			local g = sim.formations[id]
+			local close = 0
+			for _, fid in tutorialIds(sim, sim.playerFaction, nil) do
+				local f = sim.formations[fid]
+				if f.class == "infantry" and f.state ~= "routing" and (f.pos.x - g.pos.x) ^ 2 + (f.pos.z - g.pos.z) ^ 2 <= 80 * 80 then
+					close += 1
+				end
+			end
+			if close >= 2 and g.state ~= "routing" then
+				m.tutorialGarrisonOut = true
+				tutorialWithdraw(sim, g, TUTORIAL_GARRISON_FALLBACK, g.name .. " abandons Ebersdorf")
 			end
 		end
 	end
@@ -10695,6 +10841,9 @@ local function onHeartbeat(realDt: number)
 		return
 	end
 	if m.state == "running" then
+		if m.tutorialStep then
+			tutorialTick(m)
+		end
 		local ticks = MatchClock.advance(m.clock, realDt, function()
 			m.sim:step()
 		end)
@@ -10818,7 +10967,7 @@ function MatchService.start()
 end
 
 -- Exposed for tests / tooling.
-MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatch, tutorialStart = tutorialStart, tutorialStep = tutorialStep, getMatch = function()
+MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatch, tutorialStart = tutorialStart, tutorialStep = tutorialStep, tutorialTick = tutorialTick, getMatch = function()
 	return match
 end }
 
@@ -11966,11 +12115,12 @@ end
 function Sim.buildResults(self: Sim, winner: string, reason: string): Types.Results
 	local sides: { [string]: any } = {}
 	for _, faction in self.factions do
-		local s = { deployed = self.deployed[faction] or 0, casualties = 0, remaining = 0, surviving = 0, routed = 0, shattered = 0, destroyed = 0, exited = 0, formations = 0 }
+		local s = { deployed = self.deployed[faction] or 0, casualties = 0, remaining = 0, surviving = 0, routed = 0, shattered = 0, destroyed = 0, exited = 0, formations = 0, routEvents = 0 }
 		for _, id in self.order do
 			local f = self.formations[id]
 			if f and f.faction == faction then
 				s.formations += 1
+				s.routEvents += f.routCount -- every rout during the battle, including those that rallied
 				if f.state == "offmap" then
 					s.remaining += f.strength
 					s.surviving += 1
@@ -13067,6 +13217,7 @@ export type Formation = {
 		chargeRecover: number,
 		rallyCd: number,
 		routing: number,
+		routStill: number, -- seconds a routing formation has made no progress
 		rallying: number,
 		bayonet: number,
 		noDamage: number,
@@ -13099,6 +13250,7 @@ export type Formation = {
 	visibleTo: { [string]: boolean },
 	inWoods: boolean,
 	arrivalTick: number?, -- reinforcements: tick at which the formation enters the field
+	routCheckPos: Vec?, -- where a routing formation was last seen making progress
 	mods: Mods,
 }
 
@@ -13177,6 +13329,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 			chargeRecover = 0,
 			rallyCd = 0,
 			routing = 0,
+			routStill = 0,
 			rallying = 0,
 			bayonet = 0,
 			noDamage = 999,
@@ -13209,6 +13362,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		visibleTo = {},
 		inWoods = false,
 		arrivalTick = nil,
+		routCheckPos = nil,
 		mods = Formation.neutralMods(),
 	}
 	-- Off-map reinforcements: `arrival = { seconds, pos }` on the unit definition.
@@ -14140,6 +14294,20 @@ function Movement.update(sim: SimLike, f: Formation)
 		if not waiting then
 			routeToHome(sim, f)
 			followPath(sim, f, 1)
+			-- A flight that has gone nowhere for 20 s (hemmed in, path lost) leaves the field
+			-- rather than freezing in place forever.
+			local check = f.routCheckPos
+			if check == nil or Vec.dist(check, f.pos) > 5 then
+				f.routCheckPos = { x = f.pos.x, z = f.pos.z }
+				f.timers.routStill = 0
+			else
+				f.timers.routStill += Config.Sim.DT
+				if f.timers.routStill >= 20 then
+					f.state = "exited"
+					sim.emit(sim, { kind = "destroyed", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. " has scattered" })
+					return
+				end
+			end
 		end
 		-- At the home edge a routing formation waits in the rear and may still rally; only a
 		-- shattered formation (or one hopelessly stuck / off the map) leaves the field for good.
@@ -14627,7 +14795,11 @@ function Objectives.update(sim: SimLike)
 				obj.capturing = nil
 				obj.progress = 0
 				sim.emit(sim, { kind = "capture", tick = sim.tick, faction = only, x = obj.def.pos.x, z = obj.def.pos.z, text = obj.def.name .. " taken" })
-				sim.log(sim, string.format("%s captured %s%s", only, obj.def.name, if prev then " from " .. prev else ""))
+				local names = ((sim :: any).scenario and (sim :: any).scenario.factionNames) or {}
+				local function nameOf(fid: string): string
+					return names[fid] or (string.upper(string.sub(fid, 1, 1)) .. string.sub(fid, 2))
+				end
+				sim.log(sim, string.format("%s captured %s%s", nameOf(only), obj.def.name, if prev then " from " .. nameOf(prev) else ""))
 			end
 		elseif factionsPresent == 0 then
 			-- Progress decays when nobody is present.
@@ -14792,6 +14964,10 @@ end
 local function canSee(sim: SimLike, observer: Formation, target: Formation): boolean
 	local spot = Formation.unitConfig(observer).spot * ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).spot
 	local d = Vec.dist(observer.pos, target.pos)
+	-- Bumping into a formation always reveals it, whatever the cover or weather.
+	if d <= observer.halfRadius + target.halfRadius + Config.Vision.ContactReveal then
+		return true
+	end
 	if target.inWoods then
 		spot = math.min(spot, Config.Vision.WoodsReveal)
 	end
@@ -15825,6 +16001,9 @@ local function open()
 	CampaignCamera.start(x0, z0, x1, z1, y, focus.X, focus.Z)
 	table.insert(conns, UserInputService.InputBegan:Connect(onInput))
 	table.insert(conns, UserInputService.InputChanged:Connect(onMove))
+	table.insert(conns, (game:GetService("RunService") :: RunService).RenderStepped:Connect(function()
+		Board.updateLabels(CampaignCamera.height())
+	end))
 	if hooks then
 		hooks.shown()
 	end
@@ -15955,6 +16134,10 @@ type Edge = { a: { x: number, z: number }, b: { x: number, z: number }, provs: {
 local edges: { [string]: Edge } = {}
 local armyModels: { [any]: Model } = {}
 local highlight: Highlight? = nil
+type Label = { part: BasePart, base: number, at: Vector3 }
+local labels: { Label } = {}
+local labelK = 0
+local FIG = 1.6 -- figure scale
 
 function Board.toWorld(x: number, z: number, y: number?): Vector3
 	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or LAND), ORIGIN.Z - z * S)
@@ -16119,7 +16302,7 @@ end
 
 -- Same technique as World/Props ground labels: a Top-face SurfaceGui (400×100 canvas) whose
 -- text runs along the part's -Z, here turned -90° so it reads left-to-right looking along -Z.
-local function groundLabel(parent: Instance, text: string, pos: Vector3, height: number)
+local function groundLabel(parent: Instance, text: string, pos: Vector3, height: number): BasePart
 	local len = height * 4
 	local p = part(parent, Vector3.new(height, 0.2, len), CFrame.new(pos) * CFrame.Angles(0, -math.pi / 2, 0), Color3.new(1, 1, 1))
 	p.Transparency = 1
@@ -16140,6 +16323,7 @@ local function groundLabel(parent: Instance, text: string, pos: Vector3, height:
 	l.TextStrokeTransparency = 0.55
 	l.TextTransparency = 0.1
 	l.Parent = gui
+	return p
 end
 
 local function house(parent: Instance, pos: Vector3, w: number, d: number, h: number, yaw: number)
@@ -16269,12 +16453,15 @@ function Board.build()
 			end
 		end
 		local c = Board.toWorld(p.centre.x, p.centre.z)
-		groundLabel(statics, p.name, c + Vector3.new(0, 0.25, 10), 4.5)
+		local nation = Data.Nations[p.owner1805]
+		local base = if p.isCapital and nation and nation.capital == p.id and nation.major then 9 elseif p.isCapital then 7.5 else 6
+		local at = c + Vector3.new(0, 0.25, 0)
+		table.insert(labels, { part = groundLabel(statics, p.name, at + Vector3.new(0, 0, 14 + base * 0.5), base), base = base, at = at })
 		if p.isCapital then
-			capital(statics, c + Vector3.new(-7, 0, -9))
+			capital(statics, c + Vector3.new(-17, 0, -15))
 		end
 		if (p.fort or 0) > 0 then
-			bastion(statics, c + Vector3.new(8, 0, -9), p.fort)
+			bastion(statics, c + Vector3.new(17, 0, -15), p.fort)
 		end
 	end
 	-- piers on the nearest stretch of coast of each port
@@ -16402,18 +16589,21 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	cylinder(m, pos + Vector3.new(poleX, top + 5, 0), 10, 0.25, Kit.GILT_DARK)
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
-	bb.Size = UDim2.fromOffset(78, 18)
-	bb.StudsOffset = Vector3.new(0, -1.6, 0)
+	bb.Size = UDim2.new(7, 64, 1.4, 16) -- grows when zoomed in, never below 64×16 px
+	bb.StudsOffset = Vector3.new(0, -2.5, 0)
 	bb.LightInfluence = 0
 	bb.Adornee = plinth
 	bb.Parent = m
 	local plate = Kit.label(bb, string.format("%d · %d", math.floor(tonumber(a.men or a.strength) or 0), math.floor(tonumber(a.unitCount) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	plate.TextScaled = true
 	plate.BackgroundTransparency = 0.1
 	plate.BackgroundColor3 = Kit.WALNUT
 	local st = Instance.new("UIStroke") :: UIStroke
 	st.Color = Kit.GILT
 	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	st.Parent = plate
+	m.WorldPivot = CFrame.new(pos)
+	m:ScaleTo(FIG)
 	m.Parent = parent
 	return m
 end
@@ -16464,8 +16654,11 @@ function Board.setView(view: any?)
 				return tostring(x.id) < tostring(y.id)
 			end)
 			local c = Board.toWorld(p.centre.x, p.centre.z)
+			local n = #list
+			local r = if n == 1 then 0 else 5 + 2.4 * n * FIG
 			for i, a in list do
-				armyModels[a.id] = figure(d, a, c + Vector3.new((i - 1) * 8.5 - (#list - 1) * 4.25, 0, 0))
+				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
+				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
 			end
 		end
 	end
@@ -16587,6 +16780,22 @@ function Board.destroy()
 	table.clear(baseColour)
 	table.clear(edges)
 	table.clear(armyModels)
+	table.clear(labels)
+	labelK = 0
+end
+
+-- Names grow with the camera height so they stay readable (never below their table size).
+function Board.updateLabels(cameraHeight: number)
+	local k = math.clamp(cameraHeight / 220, 1, 2.6)
+	if math.abs(k - labelK) < 0.03 then
+		return
+	end
+	labelK = k
+	for _, l in labels do
+		local h = l.base * k
+		l.part.Size = Vector3.new(h, 0.2, h * 4)
+		l.part.CFrame = CFrame.new(l.at + Vector3.new(0, 0, 14 + h * 0.5)) * CFrame.Angles(0, -math.pi / 2, 0)
+	end
 end
 
 return Board
@@ -16704,6 +16913,10 @@ function CampaignCamera.focusOn(x: number, z: number, snap: boolean?)
 	if snap then
 		cur = table.clone(target)
 	end
+end
+
+function CampaignCamera.height(): number
+	return cur.height
 end
 
 function CampaignCamera.stop()
@@ -17250,29 +17463,27 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	local p = modal(sg, 520)
 	local prov = Data.byId[pb.provinceId]
 	Kit.title(p, "Battle at " .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
-	local function side(v: any): (string, string)
-		local a = Logic.army(view, v)
-		if a then
-			return a.nation, string.format("%s · %s men", tostring(a.name), fmt(a.men or a.strength))
-		end
-		return tostring(v), ""
-	end
-	local an, ad = side(pb.attacker)
-	local dn, dd = side(pb.defender)
-	an, dn = pb.attackerNation or an, pb.defenderNation or dn
-	local sides = row(p, 2, 70)
-	for i, s in { { an, ad, "Attacker" }, { dn, dd, "Defender" } } do
+	local att, def, odds = Logic.battleSides(view, pb)
+	local sides = row(p, 2, 0)
+	sides.AutomaticSize = Enum.AutomaticSize.Y
+	for i, sd in { att, def } do
 		local f = Instance.new("Frame") :: Frame
-		f.Size = UDim2.new(0.5, -30, 1, 0)
-		f.Position = if i == 1 then UDim2.new() else UDim2.new(0.5, 30, 0, 0)
+		f.Size = UDim2.new(0.5, -24, 0, 0)
+		f.AutomaticSize = Enum.AutomaticSize.Y
+		f.Position = if i == 1 then UDim2.new() else UDim2.new(0.5, 24, 0, 0)
 		f.BackgroundTransparency = 1
 		f.Parent = sides
-		flag(f, s[1], 36, 24, UDim2.new(0.5, -20, 0, 0))
-		Kit.label(f, string.format("%s: %s", s[3], Data.name(s[1])), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 36), textSize = 15, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center })
-		Kit.label(f, s[2], { size = UDim2.new(1, 0, 0, 14), position = UDim2.fromOffset(0, 54), textSize = 12, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		local l = Kit.list(f, 3)
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		flag(row(f, 0, 30), sd.nation, 36, 24, UDim2.new(0.5, -20, 0, 0))
+		text(f, string.format("%s: %s", if i == 1 then "Attacker" else "Defender", Data.name(sd.nation)), 1, { textSize = 15, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center })
+		text(f, fmt(sd.men) .. " men", 2, { textSize = 18, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.GILT_BRIGHT })
+		for j, a in sd.armies do
+			local general = if a.general then string.format("%s%s", tostring(a.general), if a.rating then " " .. string.rep("★", math.clamp(math.floor(tonumber(a.rating) or 0), 0, 5)) else "") else "no general"
+			text(f, string.format("%s · %s men\n%s", tostring(a.name), fmt(a.men or a.strength), general), 2 + j, { textSize = 12, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		end
 	end
-	Kit.title(sides, "vs", { size = UDim2.fromOffset(60, 30), position = UDim2.new(0.5, 0, 0, 0), anchor = Vector2.new(0.5, 0), textSize = 22, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
-	local odds = tostring(pb.odds or "even")
+	Kit.title(sides, "vs", { size = UDim2.fromOffset(48, 30), position = UDim2.new(0.5, 0, 0, 0), anchor = Vector2.new(0.5, 0), textSize = 22, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
 	text(p, "The odds are " .. odds .. ".", 3, { align = Enum.TextXAlignment.Center, textSize = 16, colour = if odds == "favourable" then Kit.MORALE.steady elseif odds == "poor" then Kit.HOSTILE else Kit.IVORY })
 	if pb.scenarioId then
 		text(p, "This is the field of a famous battle: the historical engagement will be fought.", 4, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
@@ -17324,7 +17535,7 @@ local function victoryDoc(sg: ScreenGui, ctx: Ctx, v: any)
 end
 
 local function pickerDoc(sg: ScreenGui, reason: string)
-	local p = modal(sg, 560)
+	local p = modal(sg, 680)
 	Kit.title(p, "Choose your nation", { size = UDim2.new(1, 0, 0, 32), textSize = 26, align = Enum.TextXAlignment.Center, rule = true }).LayoutOrder = 1
 	local sub = text(p, "Europe, January 1805. Eleven years to decide its fate.", 2, { align = Enum.TextXAlignment.Center, textSize = 16, colour = Kit.MUTED })
 	sub.FontFace = Kit.ITALIC
@@ -17334,7 +17545,7 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 	local grid = row(p, 4, 0)
 	grid.AutomaticSize = Enum.AutomaticSize.Y
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(160, 44)
+	g.CellSize = UDim2.fromOffset(200, 44)
 	g.CellPadding = UDim2.fromOffset(8, 8)
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -17352,9 +17563,14 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 		local b = Kit.button(grid, Data.name(id), function()
 			pickerReason = nil
 			send("newCampaign", { nation = id })
-		end, { order = i :: number, textSize = 16, caps = false })
-		b.TextXAlignment = Enum.TextXAlignment.Right
-		flag(b, id, 30, 20, UDim2.fromOffset(6, 7))
+		end, { order = i :: number, textSize = 15, caps = false })
+		b.TextXAlignment = Enum.TextXAlignment.Left
+		b.TextTruncate = Enum.TextTruncate.AtEnd
+		local lift = b:FindFirstChild("Lift") :: UIPadding?
+		if lift then
+			lift.PaddingLeft = UDim.new(0, 46)
+		end
+		flag(b, id, 30, 20, UDim2.fromOffset(8 - 46, 7)) -- the padding moves children too
 	end
 	Kit.button(p, "Main Menu", function()
 		if cb then
@@ -17785,6 +18001,37 @@ local function nationName(id: string?): string
 	return if n then n.name else tostring(id)
 end
 
+export type Side = { nation: string, armies: { any }, men: number }
+
+-- Both sides of a pending battle: every army that fights (`pb.armies`, else the lead armies),
+-- the side totals (`attackerMen`/`defenderMen`, else summed) and the odds from the player's side.
+function Logic.battleSides(view: any, pb: any): (Side, Side, string)
+	local function side(key: string, nation: any, lead: any, total: any): Side
+		local ids = if type(pb.armies) == "table" and type(pb.armies[key]) == "table" then pb.armies[key] else { lead }
+		local list, sum = {}, 0
+		for _, id in ids do
+			local a = Logic.army(view, id)
+			if a then
+				table.insert(list, a)
+				sum += tonumber(a.men or a.strength) or 0
+			end
+		end
+		local first = list[1]
+		return { nation = tostring(nation or (if first then first.nation else "")), armies = list, men = tonumber(total) or sum }
+	end
+	local att = side("attacker", pb.attackerNation, pb.attacker, pb.attackerMen)
+	local def = side("defender", pb.defenderNation, pb.defender, pb.defenderMen)
+	local player = view.playerNation
+	local mineIsDefender = att.nation ~= player and (def.nation == player or table.find(pb.defenders or {}, player) ~= nil)
+	local mine, theirs = if mineIsDefender then def.men else att.men, if mineIsDefender then att.men else def.men
+	local odds = tostring(pb.odds or "even")
+	if mine > 0 and theirs > 0 then
+		local r = mine / theirs
+		odds = if r >= 1.25 then "favourable" elseif r <= 0.8 then "poor" else "even"
+	end
+	return att, def, odds
+end
+
 -- One readable sentence for a diplomatic offer.
 function Logic.offerText(o: any): string
 	local t = o.terms
@@ -17807,26 +18054,31 @@ return Logic
 ]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
 -- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
--- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~4 s.
+-- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~6 s.
+-- In a solo battle the commander's client pauses the match while the card is up (and resumes it
+-- after, unless it was already paused), so no game time passes at x4 while the player reads.
 -- Any key, click or touch skips it (the camera snaps back at once). The card never takes input:
 -- nothing here is Active, so clicks fall through to the field. No pan while a mouse button is
 -- held (the player is dragging) or while the intro plays; with reduced effects, only the card.
 
+local Players = game:GetService("Players") :: Players
 local TweenService = game:GetService("TweenService") :: TweenService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Kit = require(script.Parent.UI.Kit)
 local HUD = require(script.Parent.UI.HUD)
 local Camera = require(script.Parent.Camera)
 local Settings = require(script.Parent.Settings)
+local Net = require(script.Parent.Net)
+local BattleState = require(script.Parent.BattleState)
 
 local Cinematic = {}
 
 local FADE = 0.45
-local HOLD = 4 -- seconds the card stays up (the pan's length)
-local PAN_BACK_AT = 3 -- seconds into the hold the camera starts back
+local HOLD = 6 -- seconds the card stays up (the pan's length)
+local PAN_BACK_AT = 4.5 -- seconds into the hold the camera starts back
 local BAR = 0.085 -- letterbox bar height, fraction of the screen
 
-type Card = { gui: ScreenGui, group: CanvasGroup, bars: { Frame }, back: ((snap: boolean) -> ())? }
+type Card = { gui: ScreenGui, group: CanvasGroup, bars: { Frame }, back: ((snap: boolean) -> ())?, paused: boolean? }
 
 local queue: { any } = {}
 local current: Card? = nil
@@ -17846,6 +18098,9 @@ local function close(card: Card, fast: boolean)
 	if card.back then
 		card.back(fast) -- skipped: snap back so a drag starting now sees a still camera
 		card.back = nil
+	end
+	if card.paused and BattleState.state == "paused" then
+		Net.control("resume")
 	end
 	local t = if fast then 0.2 else FADE
 	tween(card.group, t, { GroupTransparency = 1 })
@@ -17878,7 +18133,7 @@ local function build(ev: any, letterbox: boolean): Card
 	g.Position = UDim2.fromScale(0.5, 0.62)
 	g.Size = UDim2.new(1, 0, 0, 118)
 	g.BackgroundColor3 = Kit.INSET
-	g.BackgroundTransparency = 0.3
+	g.BackgroundTransparency = 0.1
 	g.BorderSizePixel = 0
 	g.GroupTransparency = 1
 	g.Active = false
@@ -17909,6 +18164,9 @@ showNext = function()
 	local reduced = Settings.get().reducedEffects == true
 	local card = build(ev, not reduced)
 	current = card
+	if BattleState.isCommander and BattleState.state == "running" and #Players:GetPlayers() == 1 then
+		card.paused = Net.control("pause") ~= nil
+	end
 	tween(card.group, FADE, { GroupTransparency = 0 })
 	for i, b in card.bars do
 		tween(b, FADE, { Position = if i == 1 then UDim2.fromScale(0, 0) else UDim2.fromScale(0, 1 - BAR) })
@@ -18406,6 +18664,10 @@ type Marker = {
 	gui: BillboardGui,
 	pxW: number, -- billboard size in screen pixels (for label deconfliction)
 	pxH: number,
+	frame: Frame, -- the ivory plate inside the billboard
+	texts: { TextLabel }, -- name/corps lines (hidden in banner mode)
+	curW: number, -- current on-screen plate width (px)
+	curH: number,
 	nameLabel: TextLabel,
 	statusLabel: TextLabel,
 	bar: Frame,
@@ -18906,17 +19168,20 @@ local function buildMarker(g: Group, f: any): Marker
 		end
 	end
 	local nameLabel: TextLabel
+	local texts: { TextLabel } = {}
 	if g.ghost then
 		nameLabel = text(0.9, 0.05, "?", Enum.Font.Garamond, Color3.fromRGB(246, 241, 226), plate)
 	else
 		nameLabel = text(0.56, 0.06, nameText, Enum.Font.Garamond, INK, plate)
 		local corps = text(0.32, 0.62, corpsText, Enum.Font.Garamond, INK, plate)
 		corps.TextTransparency = 0.15
+		texts = { nameLabel, corps }
 	end
 	-- status line under the plate (selected/hovered, or the age of a sighting)
 	local statusLabel = text(0, 0, "", Enum.Font.GothamBold, IVORY, gui)
 	statusLabel.Size = UDim2.new(1, 0, 0, 14)
-	statusLabel.Position = UDim2.new(0, 0, 0, pxH + 2)
+	statusLabel.Position = UDim2.new(1, 0, 1, -14)
+	statusLabel.AnchorPoint = Vector2.new(1, 0)
 	statusLabel.TextStrokeTransparency = 0.3
 	statusLabel.TextStrokeColor3 = INK
 	local bar = Instance.new("Frame") :: Frame
@@ -18938,6 +19203,10 @@ local function buildMarker(g: Group, f: any): Marker
 		gui = gui,
 		pxW = pxW,
 		pxH = pxH,
+		frame = plate,
+		texts = texts,
+		curW = pxW,
+		curH = pxH,
 		nameLabel = nameLabel,
 		statusLabel = statusLabel,
 		bar = bar,
@@ -19253,9 +19522,30 @@ end
 
 -- ------------------------------------------------------------------ labels
 
+-- Plates scale with distance between a floor and their design size (so they never cover the
+-- field at the deployment zoom). Far away, only HQs, the selection and the hovered unit keep a
+-- full plate; the rest shrink to a small blank banner.
+local PLATE_STUDS = 24 -- world width a plate represents before clamping
+local PLATE_MIN_W = 84
+local BANNER_W, BANNER_H = 34, 10
+local FULL_PLATE_DEPTH = 560 -- camera depth beyond which ordinary plates become banners
+
+local function sizePlate(m: Marker, w: number, h: number, banner: boolean)
+	if math.abs(m.curW - w) < 2 and math.abs(m.curH - h) < 1 then
+		return
+	end
+	m.curW, m.curH = w, h
+	m.gui.Size = UDim2.fromOffset(w, h + 16)
+	m.frame.Size = UDim2.new(1, 0, 0, h)
+	for _, l in m.texts do
+		l.Visible = not banner
+	end
+end
+
 local function deconflictLabels(cam: Camera)
 	local list: { { g: Group, x: number, y: number, w: number, h: number, pri: number } } = {}
 	local hovered = Selection.hovered()
+	local pxPerStudAt1 = cam.ViewportSize.Y / (2 * math.tan(math.rad(cam.FieldOfView) / 2))
 	for id, g in groups do
 		local m = g.marker
 		local pri = m.priority
@@ -19267,7 +19557,17 @@ local function deconflictLabels(cam: Camera)
 		local world = Vector3.new(g.rx, groundY(g.rx, g.rz) + m.height, g.rz)
 		local sp, onScreen = cam:WorldToViewportPoint(world)
 		if onScreen and sp.Z > 0 then
-			table.insert(list, { g = g, x = sp.X, y = sp.Y - m.pxH / 2, w = m.pxW, h = m.pxH, pri = pri })
+			local w, h
+			local banner = not g.ghost and pri < 2 and sp.Z > FULL_PLATE_DEPTH
+			if banner then
+				w, h = BANNER_W, BANNER_H
+			else
+				local scale = if m.priority >= 4 then 1.3 else 1
+				w = math.clamp(PLATE_STUDS * scale * pxPerStudAt1 / sp.Z, math.min(PLATE_MIN_W, m.pxW), m.pxW)
+				h = w * m.pxH / m.pxW
+			end
+			sizePlate(m, w, h, banner)
+			table.insert(list, { g = g, x = sp.X, y = sp.Y - h / 2, w = w, h = h, pri = pri })
 		else
 			m.gui.Enabled = false
 		end
@@ -21141,7 +21441,7 @@ local RELEASE = 11 -- server step that frees the enemy brigade (also sent by Ski
 local ADVANCE_DELAY = 1.6
 
 type Vec = { x: number, z: number }
-type Ctx = { t: number, seen: { [string]: boolean }, cam: { x: number, z: number, yaw: number, h: number }?, shapes: { [string]: boolean } }
+type Ctx = { t: number, seen: { [string]: boolean }, cam: { x: number, z: number, yaw: number, h: number }?, shapes: { [string]: boolean }, squareSince: number? }
 type Step = {
 	title: string,
 	text: string,
@@ -21302,7 +21602,7 @@ local STEPS: { Step } = {
 	},
 	{
 		title = "Fire",
-		text = "Grenzers hold the far side of the ridge: from its foot you cannot see them, nor they you. Advance a battalion in line to the crest; with fire at will it volleys once in range, then needs fifteen seconds to reload.",
+		text = "Grenzers hold the far side of the ridge: from its foot you cannot see them, nor they you. Advance a battalion in line to the crest; with fire at will it volleys once in range, then needs fifteen seconds to reload. Bloodied, the Grenzers will give ground.",
 		ui = command("Fire at will"),
 		spot = at(420, 345, 45),
 		done = function(ctx: Ctx): boolean
@@ -21343,13 +21643,19 @@ local STEPS: { Step } = {
 		text = "Austrian chevaulegers are crossing the Mühlbach at the gallop. Form square with the battalion they ride for: horsemen break on a square but cut a line to pieces.",
 		ui = command("Square"),
 		spot = near("Chevaulegers Nr. 3", { x = 620, z = 540 }, 40),
-		done = function(): boolean
+		done = function(ctx: Ctx): boolean
+			-- the square under threat, or held 20 s if the horsemen never come
+			local square = false
 			for _, f in own() do
-				if f.class == "infantry" and f.shape == "square" and enemyCavalryNear(f, 320) then
-					return true
+				if f.class == "infantry" and f.shape == "square" then
+					if enemyCavalryNear(f, 320) then
+						return true
+					end
+					square = true
 				end
 			end
-			return false
+			ctx.squareSince = if square then (ctx.squareSince or ctx.t) else nil
+			return ctx.squareSince ~= nil and ctx.t - ctx.squareSince >= 20
 		end,
 	},
 	{
@@ -21363,7 +21669,7 @@ local STEPS: { Step } = {
 	},
 	{
 		title = "Ebersdorf",
-		text = "Mon général, the enemy holds the village beyond the bridge, and the brigade is yours to command. Take Ebersdorf and keep it until the colours fly.",
+		text = "Mon général, the enemy holds the village beyond the bridge, and the brigade is yours to command. Press into Ebersdorf with two battalions and keep it until the colours fly.",
 		spot = at(620, 690, 60),
 		done = function(): boolean
 			for _, o in BattleState.objectives do
@@ -23697,12 +24003,14 @@ function HUD.message(text: string, colour: Color3?, bold: boolean?, ribbon: Colo
 		end
 	end
 	local l = Kit.label(f, escape(text), { size = UDim2.fromOffset(0, 20), textSize = 17, colour = if ribbon then Kit.IVORY else (colour or Kit.CREAM), rich = true })
-	l.FontFace = if bold then GARAMOND_BOLD else GARAMOND
+	-- ribbons use a heavy built-in face: a Garamond bold weight may not exist and then draws
+	-- faint or not at all on the crimson
+	l.FontFace = if ribbon then Font.fromEnum(Enum.Font.SourceSansBold) elseif bold then GARAMOND_BOLD else GARAMOND
 	l.AutomaticSize = Enum.AutomaticSize.X
 	l.BackgroundColor3 = ribbon or Kit.INSET
-	local base = if ribbon then 0.08 else 0.45
+	local base = if ribbon then 0 else 0.45
 	l.BackgroundTransparency = base
-	l.TextStrokeTransparency = 0.5
+	l.TextStrokeTransparency = if ribbon then 0.7 else 0.5
 	l.TextStrokeColor3 = Kit.INK
 	local pad = Instance.new("UIPadding") :: UIPadding
 	pad.PaddingLeft = UDim.new(0, 8)
@@ -24403,6 +24711,7 @@ local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
+local BattleState = require(script.Parent.Parent.BattleState)
 
 local Kit = {}
 
@@ -24458,7 +24767,13 @@ function Kit.factionColour(faction: string?): Color3
 	return Factions.colour(faction)
 end
 
+-- The scenario's display name ("Russia & Austria") when the match gives one, else the faction's.
 function Kit.factionName(faction: string?): string
+	local sc = BattleState.scenario
+	local names = if sc and type(sc.factionNames) == "table" then sc.factionNames else nil
+	if names and faction and names[faction] then
+		return tostring(names[faction])
+	end
 	return Factions.name(faction)
 end
 
@@ -24752,6 +25067,27 @@ function Kit.flag(parent: Instance, faction: string, size: Vector2, pos: UDim2, 
 	holder.Position = pos
 	holder.BackgroundTransparency = 1
 	holder.Parent = parent
+	-- Inline on a button or label (left-hand flag): reserve its width in the text padding so
+	-- the text can never run under it, and let long names shrink or wrap to fit.
+	if (parent:IsA("TextButton") or parent:IsA("TextLabel")) and not poleRight and pos.X.Scale == 0 then
+		local t = parent :: any
+		local pad = (parent:FindFirstChild("Lift") or parent:FindFirstChildOfClass("UIPadding")) :: UIPadding?
+		if not pad then
+			local np = Instance.new("UIPadding") :: UIPadding
+			np.Parent = parent
+			pad = np
+		end
+		local old = (pad :: UIPadding).PaddingLeft.Offset
+		local reserve = pos.X.Offset + size.X + 4 + 6
+		;(pad :: UIPadding).PaddingLeft = UDim.new(0, reserve)
+		holder.Position = UDim2.new(0, pos.X.Offset - (reserve - old), pos.Y.Scale, pos.Y.Offset)
+		local cap = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+		cap.MaxTextSize = t.TextSize
+		cap.MinTextSize = 9
+		cap.Parent = parent
+		t.TextWrapped = true
+		t.TextScaled = true
+	end
 	local pole = frame(holder, UDim2.new(0, 2, 1, 0), UDim2.fromScale(if poleRight then 1 else 0, 0), Kit.GILT)
 	pole.AnchorPoint = Vector2.new(if poleRight then 1 else 0, 0)
 	local cloth = frame(holder, UDim2.fromOffset(size.X, size.Y), UDim2.fromOffset(if poleRight then 0 else 4, 1), fl.field or Kit.IVORY)
@@ -25792,6 +26128,8 @@ return Minimap
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Scenarios = require(Shared.Scenarios)
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 
@@ -25858,7 +26196,7 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local rows = {
 		{ "Remaining", thousands(s.remaining or 0) },
 		{ "Formations surviving", tostring(s.surviving or 0) },
-		{ "Routed / shattered", string.format("%d / %d", s.routed or 0, s.shattered or 0) },
+		{ "Routed at the end / shattered", string.format("%d / %d", s.routed or 0, s.shattered or 0) },
 		{ "Destroyed / exited", string.format("%d / %d", s.destroyed or 0, s.exited or 0) },
 	}
 	for i, r in rows do
@@ -25887,8 +26225,19 @@ notes = function(results: any): { string }
 	if c.ownCharges + c.enemyCharges > 0 then
 		table.insert(out, string.format("You launched %s; the enemy %d.", plural(c.ownCharges, "charge", "charges"), c.enemyCharges))
 	end
-	if c.ownRouts + c.enemyRouts > 0 then
-		table.insert(out, string.format("Your formations broke %s and rallied %s; the enemy broke %s that you saw.", plural(c.ownRouts, "time", "times"), plural(c.ownRallies, "time", "times"), plural(c.enemyRouts, "time", "times")))
+	local re = results.routEvents
+	if type(re) == "table" then
+		-- the server's count per faction, which also covers routs we never saw
+		local parts = {}
+		for faction, k in re do
+			table.insert(parts, string.format("%s %d", Kit.factionName(faction), tonumber(k) or 0))
+		end
+		table.sort(parts)
+		table.insert(out, "Routs during the battle: " .. table.concat(parts, ", ") .. ".")
+	elseif type(re) == "number" then
+		table.insert(out, if re > 0 then string.format("Routs during the battle: %d on both sides.", re) else "No formation on either side broke: the lines never came to a decision.")
+	elseif c.ownRouts + c.enemyRouts > 0 then
+		table.insert(out, string.format("Routs during the battle: yours %d (rallied %d), the enemy's %d that you saw. The table shows who was still routed at the end.", c.ownRouts, c.ownRallies, c.enemyRouts))
 	else
 		table.insert(out, "No formation on either side broke: the lines never came to a decision.")
 	end
@@ -25935,6 +26284,15 @@ formationTable = function(parent: Instance, order: number)
 	if #recs == 0 then
 		row({ "No formations recorded", "", "", "", "" }, 1, false)
 	end
+end
+
+-- Server log lines name factions by id ("prussia captured …"): show the display names.
+local function displayNames(line: string): string
+	local sc = BattleState.scenario
+	for id in (if sc and type(sc.factionNames) == "table" then sc.factionNames else {}) :: { [string]: any } do
+		line = string.gsub(line, "%f[%w]" .. id .. "%f[%W]", Kit.factionName(id))
+	end
+	return line
 end
 
 local function objectiveChip(parent: Instance, o: any, names: { [string]: string }, order: number)
@@ -26052,10 +26410,16 @@ function Results.show(results: any, cb: Callbacks)
 		para("· " .. line)
 	end
 
+	-- historical moments are logged as "MM:SS <title>" (Sim/Moments)
+	local momentTitles: { [string]: boolean } = {}
+	local sc = BattleState.scenario and Scenarios.get(tostring(BattleState.scenario.id))
+	for _, m in (sc and sc.moments) or {} do
+		momentTitles[m.title] = true
+	end
 	local chronicle: { string } = {}
 	for _, line in results.log or {} do
-		local l = tostring(line)
-		if string.find(l, " broke ", 1, true) or string.find(l, "abandoned", 1, true) or string.find(l, "destroyed", 1, true) or string.find(l, "captured", 1, true) or string.find(l, " fell", 1, true) then
+		local l = displayNames(tostring(line))
+		if momentTitles[string.sub(l, 7)] or string.find(l, " broke ", 1, true) or string.find(l, "abandoned", 1, true) or string.find(l, "destroyed", 1, true) or string.find(l, "captured", 1, true) or string.find(l, " fell", 1, true) then
 			table.insert(chronicle, l)
 		end
 	end
@@ -26263,7 +26627,7 @@ function TutorialPanel.show(cb: Callbacks)
 		return
 	end
 	local sg = Kit.screen("EoETutorial", 20)
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(340, 0), position = UDim2.new(1, -8, 0, 84), anchor = Vector2.new(1, 0), padding = 14, transparency = 0.06 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(340, 0), position = UDim2.new(1, -8, 0, 120), anchor = Vector2.new(1, 0), padding = 14, transparency = 0.06 })
 	p.AutomaticSize = Enum.AutomaticSize.Y
 	-- the list goes on an inner frame: on the panel itself it would also stack the panel's trim
 	-- and rosettes, and the trim (sized to the panel) pushed every line below the screen
@@ -26298,8 +26662,15 @@ function TutorialPanel.show(cb: Callbacks)
 	row.LayoutOrder = 5
 	row.Parent = content
 	Kit.list(row, 8, true)
-	Kit.button(row, "Skip step", cb.skipStep, { size = UDim2.fromOffset(120, 28), order = 1, tooltip = "Move on to the next lesson" })
-	Kit.button(row, "Skip tutorial", cb.skipAll, { size = UDim2.fromOffset(140, 28), order = 2, tooltip = "Dismiss the aide-de-camp and fight the battle out" })
+	-- the button stays under the pointer (or is destroyed) after a click: drop its tooltip
+	Kit.button(row, "Skip step", function()
+		Kit.hideTooltip()
+		cb.skipStep()
+	end, { size = UDim2.fromOffset(120, 28), order = 1, tooltip = "Move on to the next lesson" })
+	Kit.button(row, "Skip tutorial", function()
+		Kit.hideTooltip()
+		cb.skipAll()
+	end, { size = UDim2.fromOffset(140, 28), order = 2, tooltip = "Dismiss the aide-de-camp and fight the battle out" })
 
 	local f = Instance.new("Frame") :: Frame
 	f.BackgroundTransparency = 1
@@ -26385,6 +26756,7 @@ function TutorialPanel.update(t: number)
 end
 
 function TutorialPanel.hide()
+	Kit.hideTooltip()
 	TutorialPanel.highlight(nil)
 	TutorialPanel.ring(nil, nil, nil, nil)
 	if gui then
@@ -26439,20 +26811,23 @@ end
 local currentQuality = 2
 local currentWeather: string? = nil
 
--- Weather tints only the distance: fog is a pale warm grey that thickens far away.
+-- Weather tints only the distance. Atmosphere haze turned the whole field teal in Studio
+-- under fog, so fog weather switches the Atmosphere off and uses plain distance fog in a pale
+-- warm grey, which leaves the near ground untouched.
 local function applyHaze(L: Lighting, atmo: Atmosphere?)
 	local foggy = currentWeather == "fog"
 	if atmo then
-		atmo.Density = if foggy then 0.32 else 0.1
-		atmo.Offset = if foggy then 0.05 else 0.25
-		atmo.Color = if foggy then Color3.fromRGB(214, 206, 190) else Color3.fromRGB(232, 216, 182)
-		atmo.Decay = if foggy then Color3.fromRGB(196, 188, 170) else Color3.fromRGB(206, 182, 140)
+		atmo.Parent = if foggy then nil else L
+		atmo.Density = 0.08
+		atmo.Offset = 0.3
+		atmo.Color = Color3.fromRGB(226, 216, 190)
+		atmo.Decay = Color3.fromRGB(196, 184, 150)
 		atmo.Glare = 0
-		atmo.Haze = if foggy then 1.4 else 0.3
+		atmo.Haze = 0.2
 	end
-	L.FogColor = Color3.fromRGB(214, 206, 188)
-	L.FogStart = if foggy then 500 else 1600
-	L.FogEnd = if foggy then 2200 else 4200
+	L.FogColor = Color3.fromRGB(206, 200, 186)
+	L.FogStart = if foggy then 380 else 1800
+	L.FogEnd = if foggy then 1700 else 4600
 end
 
 local atmosphere: Atmosphere? = nil
@@ -26482,9 +26857,9 @@ function Lighting.apply(quality: number)
 	sky.SunAngularSize = 14
 
 	local cc = own(Instance.new("ColorCorrectionEffect") :: ColorCorrectionEffect, L)
-	cc.TintColor = Color3.fromRGB(255, 244, 222) -- warm, never cyan
-	cc.Contrast = 0.18
-	cc.Saturation = 0.22
+	cc.TintColor = Color3.fromRGB(255, 250, 240) -- a touch warm, never cyan or orange
+	cc.Contrast = 0.16
+	cc.Saturation = 0.08
 	cc.Brightness = 0.02
 
 	local bloom = own(Instance.new("BloomEffect") :: BloomEffect, L)
@@ -27298,7 +27673,8 @@ local function applyPalette()
 	local t = workspace.Terrain
 	-- Studio showed the palette olive reading brown under warm low light; these are tuned with
 	-- World/Lighting (ClockTime 10.2) toward the reference's olive-gold and green.
-	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(162, 150, 58)) -- saturated olive-gold
+	-- olive-gold with green (Studio: 162,150,58 read orange/desert under the low warm sun)
+	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(126, 136, 62))
 	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(52, 74, 30))
 	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads and village lanes
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
@@ -27466,6 +27842,32 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	bounds = { minY = math.floor((minH - 8) / VOXEL) * VOXEL, maxY = 0 }
 	ensurePickPlane(map, minH)
 
+	-- River ends that touch the border, extended 800 studs outward along their last segment.
+	local outs: { { a: { x: number, z: number }, b: { x: number, z: number }, half: number, level: number } } = {}
+	for _, river in map.rivers do
+		local pts = river.points
+		for _, ends in { { pts[1], pts[2] }, { pts[#pts], pts[#pts - 1] } } do
+			local e, prev = ends[1], ends[2]
+			if e and prev then
+				local nearEdge = e.x < 60 or e.z < 60 or e.x > map.width - 60 or e.z > map.depth - 60
+				if nearEdge then
+					local dir = Vec.normalize(Vec.sub(e, prev))
+					table.insert(outs, { a = e, b = Vec.add(e, Vec.scale(dir, 800)), half = river.width / 2, level = river.level })
+				end
+			end
+		end
+	end
+	local function riverOut(x: number, z: number): (number, number?, number)
+		local best, lvl, half = math.huge, nil, 0
+		for _, o in outs do
+			local d = Vec.distToSegment({ x = x, z = z }, o.a, o.b)
+			if d < best then
+				best, lvl, half = d, o.level, o.half
+			end
+		end
+		return best, lvl, half
+	end
+
 	-- Column at cell (cx, cz), possibly outside the map: ground height, material, water level.
 	local function column(cx: number, cz: number): (number, EnumMaterial, number?)
 		if cx >= 0 and cz >= 0 and cx < cols and cz < rows then
@@ -27489,17 +27891,22 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 		local rough = math.min(1, d / 120)
 		local h = g.height[eidx] + (plain - g.height[eidx]) * s
 			+ ((noise(x, z, 150, seed) - 0.5) * 18 + (noise(x, z, 44, seed + 1) - 0.5) * 5) * rough
-		local lvl = water[eidx]
-		if lvl and d < 240 then
-			-- rivers run on past the edge
-			return math.min(h, lvl - 3), Enum.Material.Sand, lvl
+		-- rivers run on past the edge along their end segments; banks rise above the water
+		local rd, rlvl, rhalf = riverOut(x, z)
+		if rlvl then
+			if rd < rhalf then
+				return math.min(h, rlvl - 3), Enum.Material.Sand, rlvl
+			elseif rd < rhalf + 30 then
+				h = math.max(h, rlvl + 0.6 + (rd - rhalf) * 0.08)
+				if rd < rhalf + 6 then
+					return h, Enum.Material.Sand, nil
+				end
+			end
 		end
 		if d < 40 and g.class[eidx] == IDS.road and not roadOff[eidx] then
 			return h, Enum.Material.Ground, nil
 		end
-		if noise(x, z, 90, seed + 2) > 0.7 then
-			return h, Enum.Material.LeafyGrass, nil
-		end
+		-- one continuous field colour: copy the edge's ground only where it is plain grass
 		return h, Enum.Material.Grass, nil
 	end
 
