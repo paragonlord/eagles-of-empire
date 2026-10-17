@@ -1,6 +1,7 @@
 --!strict
--- Pooled one-shot visual effects driven by snapshot events only: lingering volley smoke banks,
--- muzzle flashes, cannon plumes and shot strikes, charge dust, routing markers.
+-- Pooled one-shot visual effects driven by snapshot events only. Smoke and dust are soft
+-- translucent particles (built-in smoke texture, no asset ids) burst from a small round-robin
+-- pool of emitter parts; flashes, earth spray and rout markers are short-lived pooled parts.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Grid = require(Shared.Grid)
@@ -25,9 +26,18 @@ type Active = {
 	alpha0: number,
 }
 
--- Lingering smoke needs a deep pool; reduced effects halves it (and the puffs per event).
-local BASE_POOL = { [1] = 120, [2] = 260, [3] = 420 }
-local WIND_X, WIND_Z = 0.9, 0.35 -- studs/s drift, light breeze from the south-west
+-- Part pool for short-lived effects; reduced effects halves it and the particles per event.
+local BASE_POOL = { [1] = 40, [2] = 80, [3] = 140 } -- flashes, earth, rout markers only
+
+-- Built-in client texture used by Roblox's own Smoke instance (rbxasset content, not an asset id).
+local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
+local WIND = Vector3.new(0.7, 0.35, 0.3) -- drift and a slow rise
+
+type EmitterKind = "smoke" | "plume" | "dust"
+local EMITTERS: { [EmitterKind]: number } = { smoke = 10, plume = 4, dust = 6 }
+local emitters: { [EmitterKind]: { { part: Part, pe: ParticleEmitter } } } = { smoke = {}, plume = {}, dust = {} }
+local cursor: { [EmitterKind]: number } = { smoke = 0, plume = 0, dust = 0 }
+local qualityScale = 1
 
 local folder: Folder? = nil
 local free: { Part } = {}
@@ -36,9 +46,6 @@ local capacity = 0
 local density = 1
 local rng = Random.new(1806)
 
-local SMOKE = Color3.fromRGB(236, 234, 228)
-local SMOKE_GREY = Color3.fromRGB(200, 198, 192)
-local DUST = Color3.fromRGB(184, 166, 124)
 local EARTH = Color3.fromRGB(110, 92, 64)
 local FLASH = Color3.fromRGB(255, 214, 120)
 local ROUT = Color3.fromRGB(150, 60, 50)
@@ -62,6 +69,69 @@ local function makePart(): Part
 	return p
 end
 
+local function makeEmitter(kind: EmitterKind, parent: Instance): { part: Part, pe: ParticleEmitter }
+	local part = Instance.new("Part") :: Part
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Transparency = 1
+	part.Size = Vector3.new(4, 1, 1)
+	part.Parent = parent
+	local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+	pe.Texture = SMOKE_TEXTURE
+	pe.Rate = 0
+	pe.Enabled = true
+	pe.LockedToPart = false
+	pe.EmissionDirection = Enum.NormalId.Front
+	pe.Rotation = NumberRange.new(0, 360)
+	pe.RotSpeed = NumberRange.new(-12, 12)
+	pe.LightEmission = 0
+	pe.LightInfluence = 1
+	pe.Acceleration = WIND
+	pe.Drag = 0.9
+	if kind == "smoke" then
+		pe.Lifetime = NumberRange.new(4.5, 7)
+		pe.Speed = NumberRange.new(1, 3)
+		pe.SpreadAngle = Vector2.new(25, 25)
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(0.25, 4), NumberSequenceKeypoint.new(1, 7.5) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(0.3, 0.68), NumberSequenceKeypoint.new(1, 1) })
+		pe.Color = ColorSequence.new(Color3.fromRGB(236, 234, 228), Color3.fromRGB(196, 194, 188))
+	elseif kind == "plume" then
+		pe.Lifetime = NumberRange.new(5.5, 8)
+		pe.Speed = NumberRange.new(3, 7)
+		pe.SpreadAngle = Vector2.new(18, 18)
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(0.25, 6.5), NumberSequenceKeypoint.new(1, 11) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(0.3, 0.62), NumberSequenceKeypoint.new(1, 1) })
+		pe.Color = ColorSequence.new(Color3.fromRGB(230, 228, 222), Color3.fromRGB(184, 182, 176))
+	else
+		pe.Lifetime = NumberRange.new(1.8, 3)
+		pe.Speed = NumberRange.new(1, 4)
+		pe.SpreadAngle = Vector2.new(60, 60)
+		pe.EmissionDirection = Enum.NormalId.Top
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.5), NumberSequenceKeypoint.new(1, 5.5) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1) })
+		pe.Color = ColorSequence.new(Color3.fromRGB(176, 158, 116))
+	end
+	pe.Parent = part
+	return { part = part, pe = pe }
+end
+
+-- Burst `n` particles from a box at `cf` (-Z = emission direction for smoke/plume).
+local function emit(kind: EmitterKind, cf: CFrame, size: Vector3, n: number)
+	local list = emitters[kind]
+	if #list == 0 then
+		return
+	end
+	local i = cursor[kind] % #list + 1
+	cursor[kind] = i
+	local e = list[i]
+	e.part.Size = size
+	e.part.CFrame = cf
+	e.pe:Emit(math.max(1, math.round(n * density * qualityScale)))
+end
+
 function Effects.init()
 	if folder then
 		return
@@ -70,12 +140,18 @@ function Effects.init()
 	f.Name = "EoEEffects"
 	f.Parent = workspace
 	folder = f
+	for kind, n in EMITTERS do
+		for _ = 1, n do
+			table.insert(emitters[kind], makeEmitter(kind, f))
+		end
+	end
 	Effects.applySettings()
 end
 
 function Effects.applySettings()
 	local s = Settings.get()
 	capacity = BASE_POOL[math.clamp(s.quality, 1, 3)]
+	qualityScale = ({ 0.6, 1, 1.4 })[math.clamp(s.quality, 1, 3)]
 	density = 1
 	if s.reducedEffects then
 		capacity = capacity // 2
@@ -100,42 +176,29 @@ local function spawn(x: number, y: number, z: number, color: Color3, size0: numb
 	table.insert(active, { part = p, t0 = os.clock(), life = life, size0 = size0, size1 = size1, rise = rise, x = x, y = y, z = z, vx = vx or 0, vz = vz or 0, alpha0 = alpha0 })
 end
 
-local function puffs(x: number, z: number, n: number, spread: number, color: Color3, size: number, life: number, rise: number)
-	local y = groundY(x, z) + 1.5
-	for _ = 1, count(n) do
-		local ox = (rng:NextNumber() - 0.5) * spread
-		local oz = (rng:NextNumber() - 0.5) * spread
-		spawn(x + ox, y + rng:NextNumber() * 1.5, z + oz, color, size * 0.6, size * (1.4 + rng:NextNumber() * 0.6), life, rise, 0.3, ox * 0.4, oz * 0.4)
-	end
-end
-
--- A bank of overlapping smoke along the firing front: flashes first, then smoke that swells,
--- drifts with the breeze and fades over ~6 s.
+-- Flashes along the firing front, then a soft bank of smoke that swells, drifts and fades (~6 s).
 local function volley(ev: any)
 	local f = BattleState.formations[ev.id or -1]
 	if not f then
 		if ev.x then
-			puffs(ev.x, ev.z, 5, 14, SMOKE, 4, 5, 2)
+			local y = groundY(ev.x, ev.z) + 2
+			emit("smoke", CFrame.new(ev.x, y, ev.z), Vector3.new(12, 1, 2), 10)
 		end
 		return
 	end
-	local fx, fz = math.cos(f.heading), math.sin(f.heading)
-	local rx, rz = -fz, fx
-	local frontX = f.x + fx * (f.depth / 2 + 1.5)
-	local frontZ = f.z + fz * (f.depth / 2 + 1.5)
-	local n = count(math.clamp(math.floor(f.width / 3.5), 4, 22))
+	local fwd = Vector3.new(math.cos(f.heading), 0, math.sin(f.heading))
+	local rx, rz = -fwd.Z, fwd.X
+	local cx = f.x + fwd.X * (f.depth / 2 + 1.5)
+	local cz = f.z + fwd.Z * (f.depth / 2 + 1.5)
+	local n = count(math.clamp(math.floor(f.width / 3), 3, 14))
 	for i = 1, n do
 		local t = (i - 0.5) / n - 0.5 + (rng:NextNumber() - 0.5) / n
-		local px = frontX + rx * f.width * t
-		local pz = frontZ + rz * f.width * t
-		local y = groundY(px, pz) + 1.9
-		spawn(px, y, pz, FLASH, 0.9, 0.3, 0.1, 0, 0.05)
-		-- muzzle puff thrown forward, then the bank behind it
-		spawn(px + fx * 1.5, y + 0.3, pz + fz * 1.5, SMOKE, 1.6, 5 + rng:NextNumber() * 2, 6 + rng:NextNumber() * 1.5, 3, 0.25, fx * 1.2 + WIND_X, fz * 1.2 + WIND_Z)
-		if rng:NextNumber() < 0.6 then
-			spawn(px + fx * 3, y + 1.2, pz + fz * 3, SMOKE_GREY, 2.5, 6.5, 5.5, 4, 0.45, fx * 0.6 + WIND_X, fz * 0.6 + WIND_Z)
-		end
+		local px, pz = cx + rx * f.width * t, cz + rz * f.width * t
+		spawn(px, groundY(px, pz) + 1.9, pz, FLASH, 0.8, 0.25, 0.09, 0, 0.1)
 	end
+	local y = groundY(cx, cz) + 2.2
+	local origin = Vector3.new(cx, y, cz)
+	emit("smoke", CFrame.lookAt(origin, origin + fwd), Vector3.new(f.width, 1.2, 1.5), math.clamp(f.width * 0.9, 8, 40))
 	Camera.shake(0.2)
 end
 
@@ -144,26 +207,23 @@ local function cannon(ev: any)
 		return
 	end
 	local y = groundY(ev.x, ev.z) + 1.6
-	local dx, dz = 0, 0
+	local dx, dz = 1, 0
 	if ev.tx then
 		local l = math.sqrt((ev.tx - ev.x) ^ 2 + (ev.tz - ev.z) ^ 2)
 		if l > 1 then
 			dx, dz = (ev.tx - ev.x) / l, (ev.tz - ev.z) / l
 		end
 	end
-	spawn(ev.x + dx * 3.5, y, ev.z + dz * 3.5, FLASH, 2.5, 0.6, 0.14, 0, 0.05)
-	-- a thick plume rolling out of the muzzle
-	for i = 1, count(6) do
-		local d = 3 + i * 2.2
-		spawn(ev.x + dx * d, y + 0.5 + i * 0.3, ev.z + dz * d, if i % 2 == 0 then SMOKE_GREY else SMOKE, 2.5 + i * 0.6, 8 + i * 1.2, 6.5, 4, 0.2, dx * 1.5 + WIND_X, dz * 1.5 + WIND_Z)
-	end
+	spawn(ev.x + dx * 3.5, y, ev.z + dz * 3.5, FLASH, 2.2, 0.5, 0.12, 0, 0.1)
+	local muzzle = Vector3.new(ev.x + dx * 4, y + 0.4, ev.z + dz * 4)
+	emit("plume", CFrame.lookAt(muzzle, muzzle + Vector3.new(dx, 0.1, dz)), Vector3.new(2, 1.5, 1.5), 14)
 	if ev.tx then
-		-- round shot strikes: a spray of earth and a dust puff
+		-- round shot strikes: a short spray of earth and a dust puff
 		local ty = groundY(ev.tx, ev.tz)
 		for _ = 1, count(4) do
-			spawn(ev.tx + (rng:NextNumber() - 0.5) * 3, ty + 0.5, ev.tz + (rng:NextNumber() - 0.5) * 3, EARTH, 1.2, 2.5, 0.9, 4, 0.1, dx * 3, dz * 3)
+			spawn(ev.tx + (rng:NextNumber() - 0.5) * 3, ty + 0.5, ev.tz + (rng:NextNumber() - 0.5) * 3, EARTH, 0.8, 1.6, 0.8, 4, 0.1, dx * 3, dz * 3)
 		end
-		puffs(ev.tx, ev.tz, 3, 6, DUST, 3, 2.2, 1.5)
+		emit("dust", CFrame.new(ev.tx, ty + 0.5, ev.tz), Vector3.new(3, 1, 3), 6)
 	end
 	Camera.shake(1.2)
 end
@@ -172,17 +232,11 @@ end
 local function charge(ev: any)
 	local f = BattleState.formations[ev.id or -1]
 	if f then
-		local fx, fz = math.cos(f.heading), math.sin(f.heading)
-		local rx, rz = -fz, fx
-		local n = count(10)
-		for i = 1, n do
-			local t = (i - 0.5) / n - 0.5
-			local px = f.x - fx * f.depth / 2 + rx * f.width * t
-			local pz = f.z - fz * f.depth / 2 + rz * f.width * t
-			spawn(px, groundY(px, pz) + 1, pz, DUST, 2, 6, 3, 2, 0.35, -fx * 2 + WIND_X, -fz * 2 + WIND_Z)
-		end
+		local bx = f.x - math.cos(f.heading) * f.depth / 2
+		local bz = f.z - math.sin(f.heading) * f.depth / 2
+		emit("dust", CFrame.new(bx, groundY(bx, bz) + 0.8, bz) * CFrame.Angles(0, -f.heading, 0), Vector3.new(4, 1, f.width), math.clamp(f.width * 0.5, 6, 20))
 	elseif ev.x then
-		puffs(ev.x, ev.z, 8, 26, DUST, 3.5, 2.5, 2)
+		emit("dust", CFrame.new(ev.x, groundY(ev.x, ev.z) + 0.8, ev.z), Vector3.new(20, 1, 20), 14)
 	end
 end
 
@@ -197,13 +251,13 @@ function Effects.onEvent(ev: any)
 		cannon(ev)
 	elseif kind == "melee" then
 		if ev.x then
-			puffs(ev.x, ev.z, 5, 18, DUST, 3, 1.6, 1.5)
+			emit("dust", CFrame.new(ev.x, groundY(ev.x, ev.z) + 0.8, ev.z), Vector3.new(16, 1, 16), 8)
 		end
 	elseif kind == "charge" then
 		charge(ev)
 	elseif kind == "rout" then
 		if ev.x then
-			puffs(ev.x, ev.z, 3, 14, DUST, 2.5, 1.4, 1)
+			emit("dust", CFrame.new(ev.x, groundY(ev.x, ev.z) + 0.8, ev.z), Vector3.new(12, 1, 12), 5)
 			spawn(ev.x, groundY(ev.x, ev.z) + 6, ev.z, ROUT, 3, 1, 2.5, 6, 0.3)
 		end
 	end
@@ -242,6 +296,9 @@ function Effects.clear()
 		p:Destroy()
 	end
 	table.clear(free)
+	for kind in EMITTERS do
+		table.clear(emitters[kind])
+	end
 	if folder then
 		folder:Destroy()
 		folder = nil
