@@ -710,6 +710,25 @@ build de3fbe0.** No errors on either side.
   cream with a swirl, so they read as cupcakes (`r24-haystacks.jpg`); a warmer, darker straw
   (~170,140,80) would read as hay.
 
+**2026-10-18 round 25 (audio layer, ids empty), build e3cedb3.** No errors.
+- Pass: every hook fires. With the Audio log on and the French sent into the Prussians on Jena
+  (x4, 90 s): 56 volley events gave 47 `musketVolley` (cooldown/caps), 18 charges gave 12
+  `bugleCharge` + 12 `cavalryCharge`, 13 routs gave 12 `rout`, plus `bugleRally` ×4,
+  `unitDestroyed` ×2, `capture`, `momentSting`, `meleeClash`, `drumsMarchPr`; `ambienceFog` at
+  deployment, `ambienceField` once the fog lifts; `battleMusicCalm`/`battleMusicTense` switch with
+  the fighting; `uiHover` on the plaques. No cannon fired in that window, so `cannonFire` and
+  `cannonBounce` were not seen.
+- Fixed: **the Audio log printed every id-less loop every frame** (`ambienceField` 1786 times in
+  45 s, `drumsMarchPr` 172), burying everything else. A loop with no id never enters `loops`, so
+  each frame's `setLoop` logged it again. Each id-less loop now logs once until it stops (and is
+  only marked logged while the log is on, so loops already running show when it is switched on).
+- Fixed: **the new audio rows pushed AI difficulty out of the desktop Settings panel**
+  (`r25-settings-cut-off.jpg`); the list scrolled but had no scrollbar on desktop, so the row was
+  unreachable. The list now shows its scrollbar on desktop too (`r25-settings-scrolls.jpg`).
+- Note: the music changed calm ↔ tense 5 times in 90 s of fighting; with real tracks that is a
+  crossfade every ~18 s. A longer hold before switching back (or hysteresis on the tension score)
+  would sit better.
+
 ## Known failures
 
 None recorded yet.

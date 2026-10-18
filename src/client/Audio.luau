@@ -281,6 +281,10 @@ end
 
 -- Holds a loop at `level` (0..1 of its slot volume): started on the first call above 0,
 -- faded by Audio.update, stopped and destroyed once faded out. No id: nothing.
+-- Id-less loops never enter `loops`, so they are re-requested every frame: log each once until it
+-- stops (the audio log printed ambienceField ~40 times a second in Studio).
+local silentLoops: { [string]: boolean } = {}
+
 local function setLoop(key: string, level: number)
 	local l = loops[key]
 	if l then
@@ -288,6 +292,7 @@ local function setLoop(key: string, level: number)
 		return
 	end
 	if level <= 0 then
+		silentLoops[key] = nil
 		return
 	end
 	local slot = SOUNDS[key]
@@ -295,8 +300,16 @@ local function setLoop(key: string, level: number)
 		return
 	end
 	local id, variant = idOf(key)
-	debug(key, variant, nil, slot.volume * level, if id then " loop" else " loop (no id)")
-	if not id or not master then
+	if not id then
+		-- marked only while the log is on, so loops already running show when it is switched on
+		if not silentLoops[key] and Settings.get().debugAudio then
+			silentLoops[key] = true
+			debug(key, variant, nil, slot.volume * level, " loop (no id)")
+		end
+		return
+	end
+	debug(key, variant, nil, slot.volume * level, " loop")
+	if not master then
 		return
 	end
 	local s = makeSound(key, id, slot, busOf(key))

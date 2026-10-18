@@ -32,7 +32,7 @@ function SettingsPanel.show()
 		local sg = Kit.screen("EoESettings", 36)
 		local touch = Kit.touch()
 		-- on a phone the sheet takes the height it can get and the list scrolls inside it
-		-- desktop: 710 tall so the AI difficulty row clears the bottom edge (the list has no scrollbar)
+		-- desktop: 710 tall; rows past that scroll (the audio rows pushed AI difficulty out of sight)
 		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 710), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
 		if touch then
 			local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
@@ -46,17 +46,15 @@ function SettingsPanel.show()
 		list.Position = UDim2.new(0, 0, 0, 44)
 		list.BackgroundTransparency = 1
 		list.BorderSizePixel = 0
-		list.ScrollBarThickness = if touch then 6 else 0
+		list.ScrollBarThickness = 6
 		list.ScrollBarImageColor3 = Kit.GILT
 		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		list.CanvasSize = UDim2.new()
 		list.Parent = panel
-		if touch then
-			-- the content column stops short of the scrollbar so nothing sits under it
-			local pad = Instance.new("UIPadding") :: UIPadding
-			pad.PaddingRight = UDim.new(0, list.ScrollBarThickness + 6)
-			pad.Parent = list
-		end
+		-- the content column stops short of the scrollbar so nothing sits under it
+		local pad = Instance.new("UIPadding") :: UIPadding
+		pad.PaddingRight = UDim.new(0, list.ScrollBarThickness + 6)
+		pad.Parent = list
 		Kit.list(list, 10)
 		local order = 0
 		local function next(): number
