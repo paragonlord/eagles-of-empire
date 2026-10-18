@@ -8,6 +8,7 @@ local Config = require(script.Parent.Config)
 local Vec = require(script.Parent.Vec)
 local RNG = require(script.Parent.RNG)
 local Grid = require(script.Parent.Grid)
+local Assets = require(script.Parent.Assets)
 
 local WorldGen = {}
 
@@ -33,6 +34,9 @@ export type Spec = {
 	castShadow: boolean,
 	canQuery: boolean?,
 	name: string?,
+	buried: boolean?, -- meant to sit in the ground (piers, plinths, planes): the clip check skips it
+	fileMesh: string?, -- Assets slot key: WorldBuild renders this part as that mesh
+	texture: string?, -- Assets slot key: WorldBuild textures the part's faces when the slot has one
 }
 
 export type Options = {
@@ -686,6 +690,91 @@ local function blob(group: string, size: Vector3, cf: CFrame, color: Color3): Sp
 	return p
 end
 
+local currentMap: any = nil
+local model: TerrainModel
+
+-- Clipping. Sample points on a spec in its local frame (half-extent units): box corners, or
+-- points on an ellipsoid for spheres and sphere meshes.
+local CORNERS = { { -1, -1, -1 }, { 1, -1, -1 }, { -1, -1, 1 }, { 1, -1, 1 }, { -1, 1, -1 }, { 1, 1, -1 }, { -1, 1, 1 }, { 1, 1, 1 } }
+local ELLIPSOID = { { 0, -1, 0 }, { 0.55, -0.8, 0 }, { -0.55, -0.8, 0 }, { 0, -0.8, 0.55 }, { 0, -0.8, -0.55 }, { 0, 1, 0 } }
+
+-- How far the lowest sample point of `s` sits below the terrain (positive = clipping), and
+-- the world Y of its lowest point.
+local function shortfall(s: Spec): (number, number)
+	local cf, sz = s.cframe, s.size
+	local pts = if s.shape == Enum.PartType.Ball or s.mesh then ELLIPSOID else CORNERS
+	local worst, low = -math.huge, math.huge
+	for _, o in pts do
+		local q = cf * Vector3.new(o[1] * sz.X / 2, o[2] * sz.Y / 2, o[3] * sz.Z / 2)
+		local gy = model.heightAt(q.X, q.Z)
+		worst = math.max(worst, gy - q.Y)
+		low = math.min(low, q.Y)
+	end
+	return worst, low
+end
+
+-- Every object is placed on the surface, never through it: the specs a builder emits inside
+-- `obj` are lifted together by the largest shortfall of their sample points against the
+-- terrain model. Footprint objects (houses, churches, mills) that had to rise more than 0.15
+-- get a stone plinth under the base down into the ground, so nothing floats on a slope.
+type ObjKind = "point" | "linear" | "footprint"
+type Footprint = { cframe: CFrame, w: number, d: number }
+local STONE = c3(156, 146, 128)
+
+local function settle(a: number, b: number, kind: ObjKind, fp: Footprint?)
+	if b < a then
+		return
+	end
+	local lift, lowY = 0, math.huge
+	local lowSpec: Spec? = nil
+	for i = a, b do
+		local sp = out[i]
+		if not sp.buried then
+			local sf, low = shortfall(sp)
+			lift = math.max(lift, sf)
+			if low < lowY then
+				lowY, lowSpec = low, sp
+			end
+		end
+	end
+	if lift <= 0.02 then
+		return
+	end
+	local up = Vector3.new(0, lift, 0)
+	for i = a, b do
+		out[i].cframe = out[i].cframe + up
+	end
+	if kind == "footprint" and lift > 0.15 and lowSpec then
+		local depth = lift + 0.6
+		local cf: CFrame, w: number, d: number
+		if fp then
+			cf, w, d = fp.cframe, fp.w, fp.d
+		else
+			cf, w, d = lowSpec.cframe, lowSpec.size.X, lowSpec.size.Z
+		end
+		local rot = cf - cf.Position
+		local top = lowY + lift
+		local plinth = part(lowSpec.group, nil, Vector3.new(w + 0.3, depth, d + 0.3), rot + Vector3.new(cf.X, top - depth / 2 + 0.05, cf.Z), STONE:Lerp(c3(110, 104, 92), 0.3), Enum.Material.Cobblestone)
+		plinth.buried = true
+	end
+end
+
+local function obj(kind: ObjKind, f: () -> (), fp: Footprint?)
+	local a = #out + 1
+	f()
+	settle(a, #out, kind, fp)
+end
+
+-- One mesh part in place of a part assembly when the Assets slot is filled; false otherwise.
+local function meshObject(group: string, key: string, x: number, z: number, heading: number, w: number, h: number, d: number): boolean
+	if not Assets.get(key) then
+		return false
+	end
+	local p = part(group, nil, Vector3.new(w, h, d), CFrame.new(x, Grid.heightAt(currentMap.grid, x, z) + h / 2, z) * CFrame.Angles(0, -heading, 0), Color3.new(1, 1, 1), Enum.Material.Plastic)
+	p.fileMesh = key
+	return true
+end
+
 local function withQ(q: number, f: () -> ())
 	local prev = emitQ
 	emitQ = math.max(prev, q)
@@ -706,14 +795,11 @@ local function yaw(x: number, y: number, z: number, heading: number): CFrame
 end
 
 -- Gable roof over `base` (eave level, ridge along local X): two wedges back to back along Z.
-local function gable(group: string, base: CFrame, length: number, span: number, height: number, color: Color3, material: EnumMaterial?)
+local function gable(group: string, base: CFrame, length: number, span: number, height: number, color: Color3, material: EnumMaterial?, texture: string?)
 	local mid = base * CFrame.new(0, height / 2, 0)
-	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, -span / 4), color, material)
-	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, span / 4) * CFrame.Angles(0, math.pi, 0), color, material)
+	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, -span / 4), color, material).texture = texture
+	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, span / 4) * CFrame.Angles(0, math.pi, 0), color, material).texture = texture
 end
-
-local currentMap: any = nil
-local model: TerrainModel
 
 local function groundY(x: number, z: number): number
 	return Grid.heightAt(currentMap.grid, x, z)
@@ -806,7 +892,7 @@ local LOOKS: { [string]: Look } = {
 local look: Look = LOOKS.autumn
 local BEAM = c3(66, 48, 36)
 local TRUNK = c3(70, 54, 40)
-local STONE = c3(156, 146, 128)
+
 
 ---------------------------------------------------------------------------------------- trees
 
@@ -827,7 +913,7 @@ end
 type Species = "oak" | "beech" | "pine" | "poplar" | "willow"
 
 local function trunkPart(group: string, x: number, gy: number, z: number, h: number, d: number, color: Color3)
-	part(group, Enum.PartType.Cylinder, Vector3.new(h, d, d), CFrame.new(x, gy + h / 2 - 0.3, z) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.Material.Wood)
+	part(group, Enum.PartType.Cylinder, Vector3.new(h, d, d), CFrame.new(x, gy + h / 2, z) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.Material.Wood).texture = "bark"
 end
 
 local function branch(group: string, x: number, y: number, z: number, len: number, d: number, dirAngle: number, tilt: number, color: Color3)
@@ -836,7 +922,8 @@ local function branch(group: string, x: number, y: number, z: number, len: numbe
 	part(group, Enum.PartType.Cylinder, Vector3.new(len, d, d), cf, color, Enum.Material.Wood)
 end
 
-local function tree(group: string, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
+local SPECIES_KEY: { [string]: string } = { oak = "treeOak", beech = "treeBeech", pine = "treePine", poplar = "treePoplar", willow = "treeWillow" }
+local function treeParts(group: string, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
 	local gy = y or groundY(x, z)
 	local seed = h01(x, z, 43)
 	local base = crownColor(x, z)
@@ -895,9 +982,21 @@ local function tree(group: string, species: Species, x: number, z: number, r: nu
 	end
 end
 
+local function tree(group: string, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
+	local hgt = if species == "poplar" then r * 3.2 elseif species == "pine" then r * 2.8 elseif species == "willow" then r * 2 else r * 2.6
+	if meshObject(group, SPECIES_KEY[species], x, z, h01(x, z, 43) * 6.28, r * 2.4, hgt, r * 2.4) then
+		return
+	end
+	obj("point", function()
+		treeParts(group, species, x, z, r, full, y)
+	end)
+end
+
 local function bush(group: string, x: number, z: number, r: number)
-	local p = blob(group, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.35, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(56, 72, 40), h01(z, x, 48) * 0.4))
-	p.castShadow = false
+	obj("point", function()
+		local p = blob(group, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.55, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(56, 72, 40), h01(z, x, 48) * 0.4))
+		p.castShadow = false
+	end)
 end
 
 -- Woods: edge trees are full (trunk, branches, lobes, undergrowth); the interior is a closed
@@ -932,7 +1031,7 @@ local WALL_H = 2.6
 
 type HouseKind = "white" | "timber" | "brick" | "barn"
 
-local function house(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
+local function houseParts(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
 	local y = groundY(x, z)
 	local wallH = if kind == "barn" then WALL_H + 0.6 else WALL_H
 	local wallC: Color3
@@ -943,8 +1042,8 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 	else
 		wallC = pick(look.walls, h01(x, z, salt))
 	end
-	local body = yaw(x, y + wallH / 2 - 0.5, z, heading)
-	part(group, nil, Vector3.new(w, wallH + 1, d), body, wallC, if kind == "barn" then Enum.Material.WoodPlanks else Enum.Material.SmoothPlastic)
+	local body = yaw(x, y + wallH / 2, z, heading)
+	part(group, nil, Vector3.new(w, wallH, d), body, wallC, if kind == "barn" then Enum.Material.WoodPlanks else Enum.Material.SmoothPlastic).texture = if kind == "barn" then nil else "wall"
 	if kind == "timber" then
 		-- dark beams: a band at the upper floor and two posts that show on both long sides
 		part(group, nil, Vector3.new(w + 0.08, 0.3, d + 0.08), body * CFrame.new(0, 0.35, 0), BEAM)
@@ -955,7 +1054,7 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 	local thatch = kind ~= "brick" and h01(z, x, salt + 1) < look.thatch
 	local roofC = if thatch then c3(128, 112, 80) elseif kind == "barn" then c3(96, 58, 44) else pick(look.roofs, h01(z, x, salt + 2))
 	local roofH = d * (if thatch then 0.7 else 0.62)
-	gable(group, yaw(x, y + wallH, z, heading), w + 0.6, d + 0.8, roofH, roofC, if thatch then Enum.Material.Grass else Enum.Material.Slate)
+	gable(group, yaw(x, y + wallH, z, heading), w + 0.6, d + 0.8, roofH, roofC, if thatch then Enum.Material.Grass else Enum.Material.Slate, if thatch then "thatch" else "roofTile")
 	if kind ~= "barn" and h01(x, z, salt + 3) < 0.45 then
 		local cx = (h01(z, x, salt + 4) - 0.5) * w * 0.6
 		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
@@ -987,43 +1086,63 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 end
 
 -- Village furniture: a cart, barrels by the well, a haystack by a barn, a wayside shrine.
-local function cart(group: string, x: number, z: number, heading: number)
-	local y = groundY(x, z)
-	local base = yaw(x, y, z, heading)
-	part(group, nil, Vector3.new(3.6, 0.9, 1.8), base * CFrame.new(0, 1.3, 0), c3(110, 86, 60), Enum.Material.WoodPlanks)
-	for side = -1, 1, 2 do
-		part(group, Enum.PartType.Cylinder, Vector3.new(0.2, 1.6, 1.6), base * CFrame.new(0.3, 0.8, side * 1.05), c3(70, 54, 40), Enum.Material.Wood)
+local function house(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
+	local key = if kind == "barn" then "barn" else pick({ "houseA", "houseB", "houseC" }, h01(x, z, salt + 8))
+	if meshObject(group, key, x, z, heading, w, WALL_H + d * 0.62, d) then
+		return
 	end
-	part(group, nil, Vector3.new(2.6, 0.2, 0.2), base * CFrame.new(-3, 0.7, 0.5) * CFrame.Angles(0, 0, 0.15), BEAM)
+	obj("footprint", function()
+		houseParts(group, x, z, heading, w, d, kind, salt)
+	end, { cframe = yaw(x, 0, z, heading), w = w, d = d })
+end
+
+local function cart(group: string, x: number, z: number, heading: number)
+	obj("point", function()
+		local y = groundY(x, z)
+		local base = yaw(x, y, z, heading)
+		part(group, nil, Vector3.new(3.6, 0.9, 1.8), base * CFrame.new(0, 1.3, 0), c3(110, 86, 60), Enum.Material.WoodPlanks)
+		for side = -1, 1, 2 do
+			part(group, Enum.PartType.Cylinder, Vector3.new(0.2, 1.6, 1.6), base * CFrame.new(0.3, 0.8, side * 1.05), c3(70, 54, 40), Enum.Material.Wood)
+		end
+		part(group, nil, Vector3.new(2.6, 0.2, 0.2), base * CFrame.new(-3, 0.7, 0.5) * CFrame.Angles(0, 0, 0.15), BEAM)
+	end)
 end
 
 local function barrels(group: string, x: number, z: number)
-	local y = groundY(x, z)
-	for i = 0, 1 do
-		part(group, Enum.PartType.Cylinder, Vector3.new(1.1, 0.8, 0.8), CFrame.new(x + i * 0.9, y + 0.55, z + i * 0.3) * CFrame.Angles(0, 0, math.pi / 2), c3(96, 74, 50), Enum.Material.Wood)
-	end
+	obj("point", function()
+		local y = groundY(x, z)
+		for i = 0, 1 do
+			part(group, Enum.PartType.Cylinder, Vector3.new(1.1, 0.8, 0.8), CFrame.new(x + i * 0.9, y + 0.55, z + i * 0.3) * CFrame.Angles(0, 0, math.pi / 2), c3(96, 74, 50), Enum.Material.Wood)
+		end
+	end)
 end
 
 local function haystack(group: string, x: number, z: number)
-	local y = groundY(x, z)
-	local p = blob(group, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.5, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
-	p.material = Enum.Material.Sand
-	part(group, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+	obj("point", function()
+		local y = groundY(x, z)
+		local p = blob(group, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.8, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
+		p.material = Enum.Material.Sand
+		part(group, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+	end)
 end
 
 local function shrine(group: string, x: number, z: number, heading: number)
-	local y = groundY(x, z)
-	local base = yaw(x, y, z, heading)
-	part(group, nil, Vector3.new(0.5, 2.6, 0.5), base * CFrame.new(0, 1.3, 0), STONE, Enum.Material.Slate)
-	part(group, nil, Vector3.new(1.4, 0.9, 1.0), base * CFrame.new(0, 2.8, 0), c3(214, 206, 190))
-	gable(group, base * CFrame.new(0, 3.25, 0), 1.7, 1.3, 0.7, c3(100, 56, 42), Enum.Material.Slate)
+	obj("point", function()
+		local y = groundY(x, z)
+		local base = yaw(x, y, z, heading)
+		part(group, nil, Vector3.new(0.5, 2.6, 0.5), base * CFrame.new(0, 1.3, 0), STONE, Enum.Material.Slate)
+		part(group, nil, Vector3.new(1.4, 0.9, 1.0), base * CFrame.new(0, 2.8, 0), c3(214, 206, 190))
+		gable(group, base * CFrame.new(0, 3.25, 0), 1.7, 1.3, 0.7, c3(100, 56, 42), Enum.Material.Slate)
+	end)
 end
 
 -- A low wall round the churchyard, open toward the street.
 local function churchyard(group: string, base: CFrame)
 	local wall = c3(176, 166, 148)
 	for _, seg in { { 0, 10.5, 30, 0 }, { -15, 0, 0, 21 }, { 15, 0, 0, 21 }, { -8, -10.5, 10, 0 }, { 8, -10.5, 10, 0 } } do
-		part(group, nil, Vector3.new(math.max(seg[3], 0.7), 1.3, math.max(seg[4], 0.7)), base * CFrame.new(seg[1], 0.4, seg[2]), wall, Enum.Material.Cobblestone)
+		obj("linear", function()
+			part(group, nil, Vector3.new(math.max(seg[3], 0.7), 1.3, math.max(seg[4], 0.7)), base * CFrame.new(seg[1], 0.4, seg[2]), wall, Enum.Material.Cobblestone)
+		end)
 	end
 end
 
@@ -1060,32 +1179,45 @@ local function buildBuilding(group: string, b: any, centre: any, radius: number)
 	end
 end
 
+local churchParts
 -- Village church: nave with a steep roof, west tower with a spire (two crossed steep gables) or,
 -- in Moravia, a baroque onion dome.
 local function church(group: string, x: number, z: number, heading: number)
+	if meshObject(group, "church", x, z, heading, 22, 22, 7.4) then
+		return
+	end
+	obj("footprint", function()
+		churchParts(group, x, z, heading)
+	end, { cframe = yaw(x, 0, z, heading) * CFrame.new(-4, 0, 0), w = 22, d = 7.4 })
+end
+
+function churchParts(group: string, x: number, z: number, heading: number)
 	local y = groundY(x, z)
 	local wall = look.walls[1]
 	local roof = look.roofs[1]:Lerp(c3(60, 40, 34), 0.2)
 	local nave = yaw(x, y, z, heading)
-	part(group, nil, Vector3.new(13, 6.5, 6.5), nave * CFrame.new(0, 2.75, 0), wall)
-	gable(group, nave * CFrame.new(0, 6, 0), 13.6, 7.4, 4.8, roof, Enum.Material.Slate)
+	part(group, nil, Vector3.new(13, 6.5, 6.5), nave * CFrame.new(0, 3.25, 0), wall).texture = "wall"
+	gable(group, nave * CFrame.new(0, 6.5, 0), 13.6, 7.4, 4.8, roof, Enum.Material.Slate, "roofTile")
 	local tower = nave * CFrame.new(-8.6, 0, 0)
-	part(group, nil, Vector3.new(4.4, 14, 4.4), tower * CFrame.new(0, 6.5, 0), wall)
-	churchyard(group, nave * CFrame.new(-2, 0, 0))
+	part(group, nil, Vector3.new(4.4, 14, 4.4), tower * CFrame.new(0, 7, 0), wall).texture = "wall"
 	if look.dome then
-		part(group, Enum.PartType.Ball, Vector3.one * 5.2, tower * CFrame.new(0, 14.6, 0), c3(84, 102, 84), Enum.Material.Metal)
-		part(group, nil, Vector3.new(0.5, 3.5, 0.5), tower * CFrame.new(0, 18.4, 0), c3(170, 150, 90), Enum.Material.Metal)
+		part(group, Enum.PartType.Ball, Vector3.one * 5.2, tower * CFrame.new(0, 15.1, 0), c3(84, 102, 84), Enum.Material.Metal)
+		part(group, nil, Vector3.new(0.5, 3.5, 0.5), tower * CFrame.new(0, 18.9, 0), c3(170, 150, 90), Enum.Material.Metal)
 	else
 		local spire = c3(70, 72, 76)
-		gable(group, tower * CFrame.new(0, 13.5, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
-		gable(group, tower * CFrame.new(0, 13.5, 0) * CFrame.Angles(0, math.pi / 2, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
+		gable(group, tower * CFrame.new(0, 14, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
+		gable(group, tower * CFrame.new(0, 14, 0) * CFrame.Angles(0, math.pi / 2, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
 	end
+	-- the churchyard wall follows the ground, segment by segment
+	churchyard(group, nave * CFrame.new(-2, 0, 0))
 end
 
 local function well(group: string, x: number, z: number)
-	local y = groundY(x, z)
-	part(group, Enum.PartType.Cylinder, Vector3.new(1.4, 2.4, 2.4), CFrame.new(x, y + 0.5, z) * CFrame.Angles(0, 0, math.pi / 2), STONE, Enum.Material.Cobblestone)
-	part(group, nil, Vector3.new(0.25, 3.2, 2.6), CFrame.new(x, y + 1.6, z), BEAM)
+	obj("point", function()
+		local y = groundY(x, z)
+		part(group, Enum.PartType.Cylinder, Vector3.new(1.4, 2.4, 2.4), CFrame.new(x, y + 0.5, z) * CFrame.Angles(0, 0, math.pi / 2), STONE, Enum.Material.Cobblestone)
+		part(group, nil, Vector3.new(0.25, 3.2, 2.6), CFrame.new(x, y + 1.6, z), BEAM)
+	end)
 end
 
 -- Brabant courtyard farm (Hougoumont, La Haye Sainte, Papelotte...): a walled square with the
@@ -1105,37 +1237,64 @@ local function compound(group: string, v: any, size: number, garden: boolean, he
 	local roofC = c3(112, 56, 42)
 	local base = yaw(x, y, z, heading)
 	local half = size / 2
-	-- walls: three full sides, the road side (local +X) split by a gate
-	part(group, nil, Vector3.new(size, 4, 0.9), base * CFrame.new(0, 1.2, -half), wallC)
-	part(group, nil, Vector3.new(size, 4, 0.9), base * CFrame.new(0, 1.2, half), wallC)
-	part(group, nil, Vector3.new(0.9, 4, size), base * CFrame.new(-half, 1.2, 0), wallC)
-	local seg = half - 3
-	part(group, nil, Vector3.new(0.9, 4, seg), base * CFrame.new(half, 1.2, -half + seg / 2), wallC)
-	part(group, nil, Vector3.new(0.9, 4, seg), base * CFrame.new(half, 1.2, half - seg / 2), wallC)
+	-- walls in 8-stud segments that follow the ground: three full sides, the road side (local
+	-- +X) split by a gate
+	local function wallRun(lx0: number, lz0: number, lx1: number, lz1: number, height: number, thick: number)
+		local p0, p1 = base * CFrame.new(lx0, 0, lz0), base * CFrame.new(lx1, 0, lz1)
+		local len = (p1.Position - p0.Position).Magnitude
+		local n = math.max(1, math.ceil(len / 8))
+		for i = 0, n - 1 do
+			local a = p0.Position:Lerp(p1.Position, i / n)
+			local b = p0.Position:Lerp(p1.Position, (i + 1) / n)
+			local ay, by = groundY(a.X, a.Z), groundY(b.X, b.Z)
+			obj("linear", function()
+				local cf = CFrame.lookAt(Vector3.new((a.X + b.X) / 2, (ay + by) / 2 + height / 2, (a.Z + b.Z) / 2), Vector3.new(b.X, by + height / 2, b.Z))
+				part(group, nil, Vector3.new(thick, height, len / n + 0.3), cf, wallC)
+			end)
+		end
+	end
+	wallRun(-half, -half, half, -half, 4, 0.9)
+	wallRun(-half, half, half, half, 4, 0.9)
+	wallRun(-half, -half, -half, half, 4, 0.9)
+	wallRun(half, -half, half, -3, 4, 0.9)
+	wallRun(half, 3, half, half, 4, 0.9)
 	-- ranges inside the walls: long barn at the back, house and stables on the sides
 	local function range(cf: CFrame, len: number, depth: number, wall: Color3)
-		part(group, nil, Vector3.new(len, 4.2, depth), cf * CFrame.new(0, 1.6, 0), wall)
-		gable(group, cf * CFrame.new(0, 3.7, 0), len + 0.6, depth + 0.8, depth * 0.6, roofC, Enum.Material.Slate)
+		obj("footprint", function()
+			part(group, nil, Vector3.new(len, 4.2, depth), cf * CFrame.new(0, 2.1, 0), wall).texture = "wall"
+			gable(group, cf * CFrame.new(0, 4.2, 0), len + 0.6, depth + 0.8, depth * 0.6, roofC, Enum.Material.Slate, "roofTile")
+		end, { cframe = cf, w = len, d = depth })
 	end
 	range(base * CFrame.new(-half + 3.6, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), size - 2, 6, c3(110, 84, 62))
 	range(base * CFrame.new(0, 0, -half + 3.4), size - 10, 5.6, wallC)
 	range(base * CFrame.new(1, 0, half - 3.4), size - 12, 5.6, c3(150, 84, 64))
 	if garden then
 		-- walled garden on the far side (Hougoumont's south garden), with a few fruit trees
-		local g = base * CFrame.new(0, 0, half + size * 0.45)
-		part(group, nil, Vector3.new(size * 1.2, 3, 0.8), g * CFrame.new(0, 1, size * 0.45), wallC)
+		local g = size * 0.45
+		wallRun(-size * 0.6, half + g * 2, size * 0.6, half + g * 2, 3, 0.8)
 		for sx = -1, 1, 2 do
-			part(group, nil, Vector3.new(0.8, 3, size * 0.9), g * CFrame.new(sx * size * 0.6, 1, 0), wallC)
+			wallRun(sx * size * 0.6, half, sx * size * 0.6, half + g * 2, 3, 0.8)
 		end
+		local gb = base * CFrame.new(0, 0, half + g)
 		for k = -1, 1 do
-			local p = g * CFrame.new(k * size * 0.3, 0, 0)
+			local p = gb * CFrame.new(k * size * 0.3, 0, 0)
 			tree(group, "oak", p.X, p.Z, 2.4, false)
 		end
 	end
 end
 
+local windmillParts
 -- Post mill on a rise near a village: trestle, weatherboarded body, gable roof and four sails.
 local function windmill(group: string, x: number, z: number, heading: number)
+	if meshObject(group, "windmill", x, z, heading, 20, 20, 20) then
+		return
+	end
+	obj("footprint", function()
+		windmillParts(group, x, z, heading)
+	end, { cframe = yaw(x, 0, z, heading), w = 4.6, d = 4 })
+end
+
+function windmillParts(group: string, x: number, z: number, heading: number)
 	local y = groundY(x, z)
 	local base = yaw(x, y, z, heading)
 	part(group, Enum.PartType.Cylinder, Vector3.new(4, 4, 4), base * CFrame.new(0, 1.6, 0) * CFrame.Angles(0, 0, math.pi / 2), STONE, Enum.Material.Cobblestone)
@@ -1143,7 +1302,7 @@ local function windmill(group: string, x: number, z: number, heading: number)
 	gable(group, base * CFrame.new(0, 9.4, 0), 5, 4.6, 2.4, c3(88, 70, 56), Enum.Material.WoodPlanks)
 	local hub = base * CFrame.new(2.7, 7.8, 0)
 	for k = 0, 1 do
-		part(group, nil, Vector3.new(0.3, 19, 1.7), hub * CFrame.Angles(math.pi / 4 + k * math.pi / 2, 0, 0), c3(206, 198, 176), Enum.Material.Fabric)
+		part(group, nil, Vector3.new(0.3, 15, 1.7), hub * CFrame.Angles(math.pi / 4 + k * math.pi / 2, 0, 0), c3(206, 198, 176), Enum.Material.Fabric)
 	end
 end
 
@@ -1244,8 +1403,14 @@ local function buildBridge(group: string, br: any)
 		local top = y1 + (y2 - y1) * t
 		local bottom = groundY(px, pz) - 2
 		local ph = math.max(top - bottom, 1)
-		return part(group, nil, Vector3.new(size.X, ph, size.Z), yaw(px, bottom + ph / 2, pz, heading), color, material)
+		local sp = part(group, nil, Vector3.new(size.X, ph, size.Z), yaw(px, bottom + ph / 2, pz, heading), color, material)
+		sp.buried = true
+		return sp
 	end
+	if meshObject(group, if stoneBridge then "bridgeStone" else "bridgeTimber", mid.x, mid.z, heading, len, 6, br.width) then
+		return
+	end
+	local a0 = #out + 1
 	if stoneBridge then
 		-- stone bridge: deck, parapets with coping, piers with cutwaters down to the bed
 		local stone = c3(150, 140, 122)
@@ -1260,7 +1425,7 @@ local function buildBridge(group: string, br: any)
 			local px, pz = e1.x + (e2.x - e1.x) * t, e1.z + (e2.z - e1.z) * t
 			local bottom = groundY(px, pz) - 2
 			local ph = math.max(y1 + (y2 - y1) * t - bottom, 1)
-			part(group, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate)
+			part(group, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate).buried = true
 			-- foam where the current breaks on the cutwater
 			local foam = blob(group, Vector3.new(4.5, 0.4, 7), yaw(px, waterY + 0.15, pz, heading) * CFrame.new(0, 0, br.width / 2 + 1.5), c3(236, 236, 230))
 			foam.material = Enum.Material.SmoothPlastic
@@ -1283,6 +1448,8 @@ local function buildBridge(group: string, br: any)
 			pier(k / n, Vector3.new(0.7, 0, br.width - 7), BEAM)
 		end
 	end
+	-- the deck and rails rise as one so no end dips into a bank
+	settle(a0, #out, "linear", nil)
 end
 
 local function nearBridge(x: number, z: number, pad: number): boolean
@@ -1316,8 +1483,10 @@ local function buildRiverside(group: string, river: any, jobs: { Job })
 						if classAt(p.x, p.z) ~= nil and not nearBridge(p.x, p.z, 6) then
 							-- a thin pale fringe of reed bed along the water's edge
 							withQ(2, function()
-								local r = part(group, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.5, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
-								r.castShadow = false
+								obj("point", function()
+									local r = part(group, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.6 + k * 0.6, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
+									r.castShadow = false
+								end)
 							end)
 						end
 					end
@@ -1353,14 +1522,16 @@ local function buildMarkers(group: string, jobs: { Job })
 						local p = Vec.add(c, Vec.scale(right, road.width / 2 + 2.2))
 						if isOpen(p.x, p.z) then
 							local y = groundY(p.x, p.z)
-							if h01(p.x, p.z, 142) < 0.5 then
-								-- milestone
-								part(group, nil, Vector3.new(0.7, 1.6, 0.5), yaw(p.x, y + 0.6, p.z, Vec.heading(dir)), STONE, Enum.Material.Slate)
-							else
-								-- wayside cross
-								part(group, nil, Vector3.new(0.3, 3.4, 0.3), CFrame.new(p.x, y + 1.5, p.z), BEAM, Enum.Material.Wood)
-								part(group, nil, Vector3.new(1.4, 0.3, 0.3), yaw(p.x, y + 2.5, p.z, Vec.heading(dir)), BEAM, Enum.Material.Wood)
-							end
+							obj("point", function()
+								if h01(p.x, p.z, 142) < 0.5 then
+									-- milestone
+									part(group, nil, Vector3.new(0.7, 1.6, 0.5), yaw(p.x, y + 0.8, p.z, Vec.heading(dir)), STONE, Enum.Material.Slate)
+								else
+									-- wayside cross
+									part(group, nil, Vector3.new(0.3, 3.4, 0.3), CFrame.new(p.x, y + 1.7, p.z), BEAM, Enum.Material.Wood)
+									part(group, nil, Vector3.new(1.4, 0.3, 0.3), yaw(p.x, y + 2.7, p.z, Vec.heading(dir)), BEAM, Enum.Material.Wood)
+								end
+							end)
 						end
 					end
 					s += 10
@@ -1393,8 +1564,10 @@ local function buildMills(group: string)
 						house(group, p.x, p.z, heading, 7, 5, "white", 143)
 						local y = groundY(p.x, p.z)
 						local wx = Vec.add(p, Vec.scale(dir, -4.2))
-						part(group, Enum.PartType.Cylinder, Vector3.new(0.6, 4.2, 4.2), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), BEAM, Enum.Material.Wood)
-						part(group, Enum.PartType.Cylinder, Vector3.new(0.7, 2.6, 2.6), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), c3(130, 104, 74), Enum.Material.Wood)
+						obj("point", function()
+							part(group, Enum.PartType.Cylinder, Vector3.new(0.6, 4.2, 4.2), yaw(wx.x, y + 2.1, wx.z, heading + math.pi / 2), BEAM, Enum.Material.Wood)
+							part(group, Enum.PartType.Cylinder, Vector3.new(0.7, 2.6, 2.6), yaw(wx.x, y + 2.1, wx.z, heading + math.pi / 2), c3(130, 104, 74), Enum.Material.Wood)
+						end)
 					end
 					break
 				end
@@ -1455,18 +1628,26 @@ local function borderPiece(group: string, kind: number, ax: number, az: number, 
 	end
 	if kind == 1 then
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
-		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+		obj("linear", function()
+			along(hh, 2.6, hh / 2 - 0.3, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+		end)
 		if h01(mx, mz, 92) < 0.13 then
 			tree(group, "oak", mx, mz, 4 + h01(mz, mx, 93) * 2, true)
 		end
 	elseif kind == 2 then
-		along(1.5, 1.0, 0.45, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
+		obj("linear", function()
+			along(1.5, 1.0, 0.75, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
+			-- a squared pillar at the join hides the step between tilted pieces
+			part(group, nil, Vector3.new(1.2, 1.8, 1.2), CFrame.new(ax, ay + 0.9, az), STONE:Lerp(c3(100, 94, 82), 0.3), Enum.Material.Cobblestone)
+		end)
 	elseif kind == 3 then
 		withQ(2, function()
-			local wood = c3(112, 92, 70)
-			along(0.25, 0.25, 1.7, wood, Enum.Material.Wood).castShadow = false
-			along(0.25, 0.25, 0.9, wood, Enum.Material.Wood).castShadow = false
-			part(group, nil, Vector3.new(0.35, 2.3, 0.35), CFrame.new(ax, ay + 0.8, az), BEAM).castShadow = false
+			obj("linear", function()
+				local wood = c3(112, 92, 70)
+				along(0.25, 0.25, 1.7, wood, Enum.Material.Wood).castShadow = false
+				along(0.25, 0.25, 0.9, wood, Enum.Material.Wood).castShadow = false
+				part(group, nil, Vector3.new(0.35, 2.3, 0.35), CFrame.new(ax, ay + 1.15, az), BEAM).castShadow = false
+			end)
 		end)
 	end
 end
@@ -1508,7 +1689,7 @@ local function buildBorders(group: string, jobs: { Job })
 								t1 = math.max(t1, t)
 							end
 						end
-						local pieceLen = 12
+						local pieceLen = 8
 						local t = t0
 						while t + pieceLen <= t1 + 2 do
 							local px, pz = mx + dx * t, mz + dz * t
@@ -1541,8 +1722,10 @@ local function buildStooks(group: string, jobs: { Job })
 						for w = -48, 48, 9 do
 							local x, z = sx + u * ca - w * sa, sz + u * sa + w * ca
 							if isOpen(x, z) and fieldAt(x, z) == look.stookKind and h01(x, z, 102) < 0.7 then
-								local p = blob(group, Vector3.new(1.8, 2.3, 1.8), CFrame.new(x, groundY(x, z) + 0.8, z), look.stook:Lerp(c3(150, 130, 80), h01(z, x, 103) * 0.4))
-								p.material = Enum.Material.Sand -- Fabric and Grass render straw near-black (Studio)
+								obj("point", function()
+									local p = blob(group, Vector3.new(1.8, 2.3, 1.8), CFrame.new(x, groundY(x, z) + 1.15, z), look.stook:Lerp(c3(150, 130, 80), h01(z, x, 103) * 0.4))
+									p.material = Enum.Material.Sand -- Fabric and Grass render straw near-black (Studio)
+								end)
 							end
 						end
 					end
@@ -1658,6 +1841,7 @@ local function buildGroundFog(group: string, jobs: { Job })
 			local p = part(group, nil, Vector3.new(140, 3, 70), yaw(s.x, s.y + 5, s.z, a), c3(222, 220, 214))
 			p.transparency = 1
 			p.castShadow = false
+			p.buried = true -- invisible emitter box; may overlap a bank
 		end
 	end })
 end
@@ -1703,8 +1887,10 @@ local function buildCountry(group: string, jobs: { Job })
 						local y, wet = model.heightAt(px, pz)
 						if not inside and not wet then
 							local r = 7 + h01(px, pz, 138) * 4
-							local p = part(group, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(px, y + r * 1.15, pz), crownColor(px, pz))
-							p.castShadow = false
+							obj("point", function()
+								local p = part(group, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(px, y + r * 1.15, pz), crownColor(px, pz))
+								p.castShadow = false
+							end)
 						end
 					end
 				end
@@ -1726,6 +1912,7 @@ local function tilePlane(map: any, margin: number, y: number, setup: (Spec) -> (
 			local d = math.min(TILE, z1 - z)
 			local p = part("PickPlane", nil, Vector3.new(w, 1, d), CFrame.new(x + w / 2, y, z + d / 2), Color3.new(1, 1, 1), Enum.Material.Plastic)
 			p.castShadow = false
+			p.buried = true
 			setup(p)
 			z += d
 		end
@@ -1862,6 +2049,15 @@ function WorldGen.props(map: any, terrain: TerrainModel, opts: Options?): { Spec
 end
 
 -- Count of specs per class/material, for diffs and tests.
+-- How far below the terrain model the lowest sample point of a spec sits (<= 0: clear).
+function WorldGen.shortfall(s: Spec, terrain: TerrainModel): number
+	local prev = model
+	model = terrain
+	local sf = shortfall(s)
+	model = prev
+	return sf
+end
+
 function WorldGen.tally(specs: { Spec }): { [string]: number }
 	local t: { [string]: number } = {}
 	for _, s in specs do

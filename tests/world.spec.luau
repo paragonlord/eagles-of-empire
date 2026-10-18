@@ -69,6 +69,25 @@ test("WorldGen: tiers and quality filters", function()
 	print(string.format("  jena: server %d (q1 %d), detail %d", #server, n1, #detail))
 end)
 
+test("WorldGen: no part sits below the terrain at its corners, on every map", function()
+	for _, id in { "jena", "auerstedt", "austerlitz", "waterloo" } do
+		local map = MapGen.generate(id)
+		local t = WorldGen.terrain(map)
+		local specs = WorldGen.props(map, t)
+		local bad, worst = 0, 0
+		for _, s in specs do
+			if not s.buried then
+				local sf = WorldGen.shortfall(s, t)
+				if sf > 0.05 then
+					bad += 1
+					worst = math.max(worst, sf)
+				end
+			end
+		end
+		assertEq(bad, 0, string.format("%s: parts below ground (worst %.2f)", id, worst))
+	end
+end)
+
 local function run(samples, settleCap, replicateCap)
 	local st = Ready.new(settleCap, replicateCap)
 	local ready = false

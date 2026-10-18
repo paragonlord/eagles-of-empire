@@ -6,6 +6,7 @@
 
 local Config = require(script.Parent.Config)
 local WorldGen = require(script.Parent.WorldGen)
+local Assets = require(script.Parent.Assets)
 
 local WorldBuild = {}
 
@@ -166,6 +167,33 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 		local m = Instance.new("SpecialMesh") :: SpecialMesh
 		m.MeshType = Enum.MeshType.Sphere
 		m.Parent = p
+	end
+	if s.buried then
+		p:SetAttribute("Buried", true)
+	end
+	-- Creator Store assets: a filled mesh slot replaces the part's look with that mesh, a
+	-- filled texture slot wraps the part's side faces (roof wedges: the slope)
+	local slot = if s.fileMesh then Assets.get(s.fileMesh) else nil
+	if s.fileMesh and slot then
+		local m = Instance.new("SpecialMesh") :: SpecialMesh
+		m.MeshType = Enum.MeshType.FileMesh
+		m.MeshId = slot.mesh
+		m.TextureId = slot.texture
+		m.Scale = Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
+		m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
+		m.Parent = p
+	end
+	local tex = if s.texture then Assets.textureOf(s.texture) else nil
+	if tex then
+		local faces = if s.class == "WedgePart" then { Enum.NormalId.Top } else { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
+		for _, face in faces do
+			local t = Instance.new("Texture") :: Texture
+			t.Texture = tex
+			t.Face = face
+			t.StudsPerTileU = 4
+			t.StudsPerTileV = 4
+			t.Parent = p
+		end
 	end
 	return p
 end

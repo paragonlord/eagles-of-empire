@@ -292,6 +292,12 @@ CF.__mul = function(a, b)
 	local p = rotVec(a.R, v3(b.X, b.Y, b.Z))
 	return cf(p.X + a.X, p.Y + a.Y, p.Z + a.Z, mulRot(a.R, b.R))
 end
+CF.__add = function(a, b)
+	return cf(a.X + b.X, a.Y + b.Y, a.Z + b.Z, a.R)
+end
+CF.__sub = function(a, b)
+	return cf(a.X - b.X, a.Y - b.Y, a.Z - b.Z, a.R)
+end
 CF.__index = function(self, k)
 	if k == "Position" then
 		return v3(self.X, self.Y, self.Z)

@@ -29,8 +29,36 @@ Assets.slots = {
 	shako = slot(), -- headgear swaps, worn on top of the procedural head
 	bearskin = slot(),
 	helmet = slot(),
-	-- World (WorldGen/Props): the world helper adds its own keys here (trees, houses, ...).
+	-- World (WorldGen): one mesh per object, origin on the ground, facing +X (the road side),
+	-- scaled to the procedural object's bounds given in WorldGen's meshObject calls.
+	treeOak = slot(), -- broad oak ~r 5: 12 wide, 13 tall
+	treeBeech = slot(),
+	treePine = slot(),
+	treePoplar = slot(), -- narrow spindle ~16 tall
+	treeWillow = slot(),
+	houseA = slot(), -- cottage ~5 x 5 footprint, 2.6 eaves, gable ridge along +X
+	houseB = slot(),
+	houseC = slot(),
+	barn = slot(),
+	church = slot(), -- nave 13 long with a west tower, ~22 tall
+	windmill = slot(), -- post mill ~20 tall
+	bridgeStone = slot(), -- deck along +X, length = the span given
+	bridgeTimber = slot(),
+	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
+	bark = slot(),
+	roofTile = slot(),
+	wall = slot(),
+	thatch = slot(),
 }
+
+-- A texture id for a slot, or nil when the slot has none.
+function Assets.textureOf(key: string): string?
+	local s = (Assets.slots :: { [string]: Slot })[key]
+	if s and s.texture ~= "" then
+		return s.texture
+	end
+	return nil
+end
 
 function Assets.get(key: string): Slot?
 	local s = (Assets.slots :: { [string]: Slot })[key]

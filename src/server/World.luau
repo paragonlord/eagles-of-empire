@@ -53,6 +53,46 @@ local function build(map: any)
 	end
 	root:SetAttribute("WorldReady", n)
 	print(string.format("[EoE world] built %d parts for %s in %.1f s", n, map.id, os.clock() - t0))
+	task.spawn(World.checkClip, root, alive)
+end
+
+-- Debug: raycasts down onto the terrain under the bottom corners of every world part (parts
+-- marked Buried are meant to sit in the ground) and reports how many sit below the surface.
+-- Spread over frames; prints "[EoE clip] world: N parts below ground" (expect 0).
+function World.checkClip(root: Instance, alive: () -> boolean)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	local below, checked = 0, 0
+	local n = 0
+	for _, p in root:GetDescendants() do
+		if p:IsA("BasePart") and not p:GetAttribute("Buried") and (p :: BasePart).Transparency < 1 then
+			local bp = p :: BasePart
+			local cf, sz = bp.CFrame, bp.Size
+			local worst = false
+			for _, c in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+				local q = cf * Vector3.new(c[1] * sz.X / 2, -sz.Y / 2, c[2] * sz.Z / 2)
+				local hit = workspace:Raycast(q + Vector3.new(0, 60, 0), Vector3.new(0, -120, 0), params)
+				if hit and hit.Position.Y > q.Y + 0.05 then
+					worst = true
+					break
+				end
+			end
+			if worst then
+				below += 1
+			end
+			checked += 1
+			n += 1
+			if n % 400 == 0 then
+				task.wait()
+				if not alive() then
+					return
+				end
+			end
+		end
+	end
+	root:SetAttribute("ClipBelowGround", below)
+	print(string.format("[EoE clip] world: %d parts below ground (%d checked)", below, checked))
 end
 
 -- Makes sure `map` is the built world; a different map replaces the current one. Deferred so
