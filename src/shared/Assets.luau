@@ -40,7 +40,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 12, 13, 12 },
 	},
-	treeBeech = slot(),
+	treeBeech = { -- original 600-triangle beech; native bounds confirmed in Studio
+		mesh = "rbxassetid://112134639390683",
+		texture = "rbxassetid://107894282230802",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 10, 16, 10 },
+	},
 	treePine = slot(),
 	treePoplar = slot(), -- narrow spindle ~16 tall
 	treeWillow = slot(),
