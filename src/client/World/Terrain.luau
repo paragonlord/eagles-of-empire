@@ -212,15 +212,16 @@ local function nearestBlocks(x: number, z: number): (number, number, number, num
 	return i1, j1, i2, j2, (b2 - b1) / (2 * sep)
 end
 
--- Crop kind at (x, z), plus whether it is a cart track on a block border.
-function Terrain.fieldAt(x: number, z: number): (number, boolean)
+-- Crop kind at (x, z), whether it is a cart track on a block border, and the across-strip
+-- coordinate (studs) for furrow rows.
+function Terrain.fieldAt(x: number, z: number): (number, boolean, number)
 	local i1, j1, i2, j2, edge = nearestBlocks(x, z)
 	if edge < 4.5 then
 		local kind = Terrain.borderKind(i1, j1, i2, j2)
 		if kind == 4 and edge < 2.2 then
-			return KIND_MEADOW, true
+			return KIND_MEADOW, true, 0
 		elseif kind ~= 5 then
-			return KIND_MEADOW, false -- grass headland under hedges, walls and fences
+			return KIND_MEADOW, false, 0 -- grass headland under hedges, walls and fences
 		end
 	end
 	local key = blockKey(i1, j1)
@@ -233,20 +234,43 @@ function Terrain.fieldAt(x: number, z: number): (number, boolean)
 		blockInfo[key] = blk
 	end
 	if blk[6] == 1 then
-		return KIND_MEADOW, false
+		return KIND_MEADOW, false, 0
 	end
 	-- across-strip coordinate
-	local strip = math.floor(((x - blk[1]) * blk[3] + (z - blk[2]) * blk[4]) / blk[5])
+	local u = (x - blk[1]) * blk[3] + (z - blk[2]) * blk[4]
+	local strip = math.floor(u / blk[5])
 	local r = RNG.hash(key, strip, fieldSeed + 32)
 	for n, w in season.crops do
 		if r < w then
-			return n, false
+			return n, false, u
 		end
 	end
-	return KIND_MEADOW, false
+	return KIND_MEADOW, false, u
 end
 
 local FIELD_MATERIAL = { Enum.Material.Grass, Enum.Material.LeafyGrass, Enum.Material.Limestone, Enum.Material.Mud }
+
+-- Field surface at (x, z): plough strips show furrow ridges as alternating rows of Mud and
+-- Ground; stubble shows a paler row every third; the rest is the crop's material.
+local function fieldMaterial(x: number, z: number): EnumMaterial
+	local kind, track, u = Terrain.fieldAt(x, z)
+	if track then
+		return Enum.Material.Ground
+	elseif kind == KIND_PLOUGH then
+		return if math.floor(u / VOXEL) % 2 == 0 then Enum.Material.Mud else Enum.Material.Ground
+	elseif kind == KIND_WHEAT then
+		return if math.floor(u / VOXEL) % 3 == 0 then Enum.Material.Sand else Enum.Material.Limestone
+	end
+	return FIELD_MATERIAL[kind]
+end
+Terrain.fieldMaterial = fieldMaterial
+
+-- Grass decoration (the blades Terrain draws on Grass and LeafyGrass) costs GPU; on by quality.
+function Terrain.setDecoration(on: boolean)
+	pcall(function()
+		(workspace.Terrain :: any).Decoration = on
+	end)
+end
 
 local function applyPalette(mapId: string?)
 	local P = Config.Visual.Palette
@@ -262,10 +286,10 @@ local function applyPalette(mapId: string?)
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
 	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(160, 150, 112)) -- pale but not white banks
 	t.WaterColor = rgb(P.Water)
-	t.WaterTransparency = 0.35
-	t.WaterWaveSize = 0.05
-	t.WaterWaveSpeed = 4
-	t.WaterReflectance = 0.2
+	t.WaterTransparency = 0.5
+	t.WaterWaveSize = 0.08
+	t.WaterWaveSpeed = 6
+	t.WaterReflectance = 0.4
 end
 
 -- Water surface level for a cell, or nil when the cell is not inside a river channel.
@@ -304,14 +328,16 @@ local function roadCore(map: any, x: number, z: number): boolean
 end
 
 type Marks = { [number]: boolean }
-local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Marks)
+type Dist = { [number]: number }
+local function analyse(map: any): ({ [number]: number }, Marks, Marks, Dist, Marks, Dist)
 	local g = map.grid
 	local cols, rows = g.cols, g.rows
 	local water: { [number]: number } = {}
 	local bank: Marks = {}
 	local roadOff: Marks = {}
-	local verge: Marks = {} -- grass verges along roads and around villages: no crops there
+	local verge: Dist = {} -- cells from a road or village: no crops there, 1 = the ditch
 	local street: Marks = {} -- road cores through villages, cobbled
+	local wet: Dist = {} -- cells from water (3..6): damp meadow
 	for cz = 0, rows - 1 do
 		for cx = 0, cols - 1 do
 			local idx = cz * cols + cx + 1
@@ -324,11 +350,16 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Ma
 			end
 			if cls == IDS.road or cls == IDS.village then
 				local r = if cls == IDS.road then 2 else 3
+				local core = cls == IDS.village or not roadOff[idx]
 				for dz = -r, r do
 					for dx = -r, r do
 						local nx, nz = cx + dx, cz + dz
 						if nx >= 0 and nz >= 0 and nx < cols and nz < rows then
-							verge[nz * cols + nx + 1] = true
+							local j = nz * cols + nx + 1
+							local d = if core then math.max(math.abs(dx), math.abs(dz)) else 2
+							if verge[j] == nil or d < verge[j] then
+								verge[j] = d
+							end
 						end
 					end
 				end
@@ -339,13 +370,18 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Ma
 				if lvl then
 					water[idx] = lvl
 					if cls == IDS.water then
-						for dz = -2, 2 do
-							for dx = -2, 2 do
+						for dz = -6, 6 do
+							for dx = -6, 6 do
 								local nx, nz = cx + dx, cz + dz
 								if nx >= 0 and nz >= 0 and nx < cols and nz < rows then
 									local j = nz * cols + nx + 1
+									local d = math.max(math.abs(dx), math.abs(dz))
 									if g.class[j] == IDS.open then
-										bank[j] = true
+										if d <= 2 then
+											bank[j] = true
+										elseif wet[j] == nil or d < wet[j] then
+											wet[j] = d
+										end
 									end
 								end
 							end
@@ -355,7 +391,7 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Ma
 			end
 		end
 	end
-	return water, bank, roadOff, verge, street
+	return water, bank, roadOff, verge, street, wet
 end
 
 local function clearPickPlanes()
@@ -504,7 +540,7 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	for i = 1, cols * rows do
 		minH = math.min(minH, g.height[i])
 	end
-	local water, bank, roadOff, verge, street = analyse(map)
+	local water, bank, roadOff, verge, street, wet = analyse(map)
 	-- the skirt relaxes toward the mean height of the map border
 	local edgeSum, edgeN = 0, 0
 	for cx = 0, cols - 1 do
@@ -563,12 +599,46 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 				cls = IDS.open
 			end
 			local x, z = (cx + 0.5) * cell, (cz + 0.5) * cell
-			if cls == IDS.open and not bank[idx] and not verge[idx] then
+			if (cls == IDS.open or cls == IDS.steep) and not bank[idx] then
+				-- slope: bare earth and rock break through on steep ground, and erosion lines run
+				-- down the fall line on the moderate slopes
+				local hl = g.height[math.max(idx - 1, 1)]
+				local hr = g.height[math.min(idx + 1, cols * rows)]
+				local hu = g.height[math.max(idx - cols, 1)]
+				local hd = g.height[math.min(idx + cols, cols * rows)]
+				local gx, gz = (hr - hl) / (2 * cell), (hd - hu) / (2 * cell)
+				local slope = math.sqrt(gx * gx + gz * gz)
+				if slope > 0.3 then
+					local n = RNG.hash(cx // 2, cz // 2, fieldSeed + 44)
+					return h, if n < 0.4 then Enum.Material.Rock elseif n < 0.8 then Enum.Material.Ground else Enum.Material.Grass, lvl
+				elseif slope > 0.16 then
+					-- fall-line stripes: coordinate across the gradient, 6-stud spacing, noise gated
+					local across = (-gz * x + gx * z) / slope
+					if (across / 6) % 1 < 0.3 and RNG.hash(x // 24, z // 24, fieldSeed + 45) < 0.6 then
+						return h, Enum.Material.Ground, lvl
+					end
+					return h, Enum.Material.Grass, lvl
+				end
+				local vd = verge[idx]
+				if vd then
+					-- ditch beside the road, then a grass verge
+					return h, if vd == 1 then Enum.Material.LeafyGrass else Enum.Material.Grass, lvl
+				end
 				if inOrchard(x, z) then
 					return h, Enum.Material.LeafyGrass, lvl
 				end
-				local kind, track = Terrain.fieldAt(x, z)
-				return h, if track then Enum.Material.Ground else FIELD_MATERIAL[kind], lvl
+				local m = fieldMaterial(x, z)
+				if wet[idx] and (m == Enum.Material.Grass or m == Enum.Material.LeafyGrass) then
+					-- damp meadow by the water, patchy
+					return h, if RNG.hash(cx // 3, cz // 3, fieldSeed + 46) < 0.7 then Enum.Material.LeafyGrass else Enum.Material.Grass, lvl
+				end
+				return h, m, lvl
+			elseif cls == IDS.road then
+				-- rutted dirt: the odd muddy patch, and mud at the water's edge by the bridges
+				if wet[idx] or RNG.hash(cx // 2, cz // 2, fieldSeed + 47) < 0.18 then
+					return h, Enum.Material.Mud, lvl
+				end
+				return h, Enum.Material.Ground, lvl
 			elseif cls == IDS.village then
 				if street[idx] then
 					return h, Enum.Material.Cobblestone, lvl
@@ -610,11 +680,11 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 			return h, Enum.Material.Ground, nil
 		end
 		-- the patchwork runs on outside the map; the far hills are pasture and meadow
-		local kind, track = Terrain.fieldAt(x, z)
-		if crest > 0.6 and kind ~= KIND_PASTURE then
-			kind = KIND_MEADOW
+		if crest > 0.6 then
+			local kind = Terrain.fieldAt(x, z)
+			return h, FIELD_MATERIAL[if kind == KIND_PASTURE then KIND_PASTURE else KIND_MEADOW], nil
 		end
-		return h, if track then Enum.Material.Ground else FIELD_MATERIAL[kind], nil
+		return h, fieldMaterial(x, z), nil
 	end
 	skirtColumn = column
 	skirtCell = cell
