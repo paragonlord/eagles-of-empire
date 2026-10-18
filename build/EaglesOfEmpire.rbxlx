@@ -26327,7 +26327,7 @@ Kit.INK_MUTED = hex(0x6B5640) -- 4.6:1 on the mid tone
 Kit.STAMP = hex(0xA3362E) -- faded red of a dépôt stamp
 -- A Creator Store paper texture: set to "rbxassetid://..." and Kit.paper lays it under the
 -- gradients at low opacity. Empty, the procedural layers stand alone.
-Kit.paperTextureId = ""
+Kit.paperTextureId = "rbxassetid://4061980967" -- "old paper texture" (Matroscin2), free on the Creator Store
 Kit.MUTED = hex(0xB3A285) -- secondary text on dark (resolves to INK_MUTED on parchment)
 Kit.SLATE = hex(0x4A4B52) -- disabled lacquer
 
@@ -26574,7 +26574,7 @@ function Kit.paper(f: Frame, pad: number, seed: number)
 		img.Position = origin
 		img.BackgroundTransparency = 1
 		img.Image = Kit.paperTextureId
-		img.ImageTransparency = 0.6
+		img.ImageTransparency = 0.3 -- at 0.6 the stain layers hide it (Studio)
 		img.ScaleType = Enum.ScaleType.Crop
 		img.ZIndex = 0
 		img.Parent = deco
@@ -28814,7 +28814,7 @@ local function setGrade(name: string, seconds: number)
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
 	-- valley fog patches show only under the fog grade
 	if groundFog then
-		local t = if name == "fog" then 0.55 else 1
+		local t = if name == "fog" then 0.8 else 1
 		for _, p in groundFog:GetChildren() do
 			if p:IsA("BasePart") then
 				to(p, { Transparency = t })
@@ -28830,7 +28830,7 @@ function Lighting.setGroundFog(folder: Folder?)
 end
 
 function Lighting.groundFogTransparency(): number
-	return if currentGrade == "fog" then 0.55 else 1
+	return if currentGrade == "fog" then 0.8 else 1
 end
 
 function Lighting.apply(quality: number)
@@ -29919,7 +29919,8 @@ local function buildGroundFog(parent: Instance, jobs: { () -> () })
 				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
 				local y = groundY(px, pz)
 				if y < floorY and h01(px, pz, 152) < 0.7 then
-					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 4, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
+					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in Studio
+					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
 					p.Material = Enum.Material.SmoothPlastic
 					p.Transparency = WorldLighting.groundFogTransparency()
 					p.CastShadow = false

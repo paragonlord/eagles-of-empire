@@ -44,7 +44,7 @@ Kit.INK_MUTED = hex(0x6B5640) -- 4.6:1 on the mid tone
 Kit.STAMP = hex(0xA3362E) -- faded red of a dépôt stamp
 -- A Creator Store paper texture: set to "rbxassetid://..." and Kit.paper lays it under the
 -- gradients at low opacity. Empty, the procedural layers stand alone.
-Kit.paperTextureId = ""
+Kit.paperTextureId = "rbxassetid://4061980967" -- "old paper texture" (Matroscin2), free on the Creator Store
 Kit.MUTED = hex(0xB3A285) -- secondary text on dark (resolves to INK_MUTED on parchment)
 Kit.SLATE = hex(0x4A4B52) -- disabled lacquer
 
@@ -291,7 +291,7 @@ function Kit.paper(f: Frame, pad: number, seed: number)
 		img.Position = origin
 		img.BackgroundTransparency = 1
 		img.Image = Kit.paperTextureId
-		img.ImageTransparency = 0.6
+		img.ImageTransparency = 0.3 -- at 0.6 the stain layers hide it (Studio)
 		img.ScaleType = Enum.ScaleType.Crop
 		img.ZIndex = 0
 		img.Parent = deco

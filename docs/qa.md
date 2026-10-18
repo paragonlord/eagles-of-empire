@@ -461,6 +461,38 @@ clean, no EoE errors, 60 fps in battle (Waterloo PvP, 786 figure parts at defaul
   after a fog battle (Jena → Vierzehnheiligen) sees "fog → clear", sets `fogLifted` and opens with a
   20 s fog-lift tween into the morning grade instead of the afternoon one.
 
+**2026-10-18 round 13 (round 12 fixes, aged-post UI, new props, paper texture), build 31d4ccf.**
+Boots clean, no EoE errors.
+- Pass: the intro sweep now looks out over a ground plane fading into fog instead of a teal sea, and
+  the fog thins with height (Atmosphere density 0.21 at 700 up), so the map is readable from the
+  start (`r13-intro-high.jpg`). The map's far edge still shows as a low step. Hedges read green.
+  Reeds are a pale fringe now, and the brook bridges fit the water (`r13-bridge-reeds.jpg`).
+- Pass, PvP as Prussia: the camera faces the French on the Landgrafenberg and the ground labels read
+  the right way up (`r13-pvp-prussia.jpg`).
+- Pass: soldiers at the low camera: a two-rank Prussian line with flag and officer, with the
+  Landgrafenberg windmill and Vierzehnheiligen church behind (`r13-soldiers-low.jpg`).
+- Pass: the aged-post briefing (tea stain, foxing, crease, dépôt stamp) reads well.
+- Added: **paper texture** `rbxassetid://4061980967` ("old paper texture" by Matroscin2, free) in
+  `Kit.paperTextureId`. Note: an ImageLabel needs the *image* id; the Creator Store page shows the
+  decal id (4061980998), and `game:GetObjects("rbxassetid://<decal>")[1].Texture` gives the image id.
+  I tried four on the briefing. At the slot's 0.6 transparency all four are invisible because the
+  stain layers cover the sheet, so I set it to 0.3: visible grain and specks, ink still sharp
+  (`r13-paper-no-texture.jpg` vs `r13-paper-texture.jpg`). Spares: 6586250391 (smooth even
+  parchment), 132770859 (aged brown, vignette baked in), 14456285433 (crumpled white: reads crumpled,
+  not aged). Bark, grass and roof-tile textures not searched yet.
+- Fixed: **the dawn valley-fog patches read as white ice sheets** (`r13-fog-patches-before.jpg`):
+  4-stud flattened spheres at 0.55 show a hard shaded rim. Now 0.6 thick at 0.8 transparency: faint
+  low mist (`r13-fog-patches-after.jpg`). On a slope the outline still shows where a patch cuts the
+  ground. Stacking smaller discs gave visible rings, and Neon glowed.
+- Open, UI: the coffee ring renders as two grey pill-shaped tabs over the Orders text, not a ring
+  (`r13-paper-no-texture.jpg`, middle). The stamp is pinned to the panel's bottom right, so in PvP
+  (the roster pushes the text down) it sits on top of the "What happened" text
+  (`r13-pvp-prussia.jpg`).
+- Open, hearth smoke: the grey egg-shaped puff above each chimney reads as a balloon at the low
+  camera (`r13-soldiers-low.jpg`, bottom right).
+- Small: isolated tree clumps and orchards read as piles of balls from the default height
+  (`r13-intro-high.jpg`, left edge); the woods read fine as canopy.
+
 ## Known failures
 
 None recorded yet.

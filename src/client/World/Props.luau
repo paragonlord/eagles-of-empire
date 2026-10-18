@@ -974,7 +974,8 @@ local function buildGroundFog(parent: Instance, jobs: { () -> () })
 				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
 				local y = groundY(px, pz)
 				if y < floorY and h01(px, pz, 152) < 0.7 then
-					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 4, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
+					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in Studio
+					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
 					p.Material = Enum.Material.SmoothPlastic
 					p.Transparency = WorldLighting.groundFogTransparency()
 					p.CastShadow = false

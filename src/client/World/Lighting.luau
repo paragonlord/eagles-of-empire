@@ -263,7 +263,7 @@ local function setGrade(name: string, seconds: number)
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
 	-- valley fog patches show only under the fog grade
 	if groundFog then
-		local t = if name == "fog" then 0.55 else 1
+		local t = if name == "fog" then 0.8 else 1
 		for _, p in groundFog:GetChildren() do
 			if p:IsA("BasePart") then
 				to(p, { Transparency = t })
@@ -279,7 +279,7 @@ function Lighting.setGroundFog(folder: Folder?)
 end
 
 function Lighting.groundFogTransparency(): number
-	return if currentGrade == "fog" then 0.55 else 1
+	return if currentGrade == "fog" then 0.8 else 1
 end
 
 function Lighting.apply(quality: number)
