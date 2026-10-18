@@ -739,8 +739,16 @@ build de3fbe0.** No errors on either side.
   fired 42 volleys, ~21 cannonades and 11 charges, routed and destroyed French units and killed
   Davout's HQ. Batterie Oranien and Reitende Batterie Blücher stood on the right flank of the
   Prussian line beside IR 22 and IR 30, with clear lanes and gunsmoke (`r26-auerstedt-guns-flank.jpg`).
-  Run stopped at 12:23 (usage limit), so no final result recorded; "reinforces an objective under
-  attack" not tested (needs the player to attack one).
+  Full run (rerun on build fc5fb32, again no orders): **defeat** at 25:00, "the enemy holds more
+  objectives" (Hassenhausen 8:14 and Poppel 3:09 Prussian; France only took the Kösen bridge at
+  19:23). Casualties France 31 % (2,615 of 8,400), Prussia 23 % (2,252 of 9,720), close to the
+  harness's 34/23; 104 Prussian volleys, ~34 cannonades, 35 charges; Brunswick struck down at 8:00
+  and his successor's Inspire on 12 formations (`r26-auerstedt-idle-defeat.jpg`).
+- Reinforcing an objective under attack (Jena): with Prussia holding all three villages, four
+  French battalions were sent at Vierzehnheiligen at 1:50. The Prussians seen within 200 studs of
+  the village went 0 → 6 → 11 as they closed; their cuirassiers, hussars and Saxon dragoons then
+  rode out 200–400 studs to meet the attack (10 Prussian charges, 4 of my routs), and the village
+  held. Pass.
 - Two-player test still to do: Studio's server task refuses command-line launch ("Invalid Launch
   Intent! Too many arguments provided"), so it needs Test → Clients and Servers → 2 Players by hand.
 
