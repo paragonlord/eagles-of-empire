@@ -69,7 +69,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 7, 6, 5 },
 	},
-	houseB = slot(),
+	houseB = { -- original 1652-triangle timber-framed house; ridge along +X
+		mesh = "rbxassetid://106845158633872",
+		texture = "rbxassetid://84033137999917",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 8, 8, 6 },
+	},
 	houseC = slot(),
 	barn = slot(),
 	church = slot(), -- nave 13 long with a west tower, ~22 tall
