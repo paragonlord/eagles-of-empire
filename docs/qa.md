@@ -752,6 +752,17 @@ build de3fbe0.** No errors on either side.
 - Two-player test still to do: Studio's server task refuses command-line launch ("Invalid Launch
   Intent! Too many arguments provided"), so it needs Test → Clients and Servers → 2 Players by hand.
 
+**2026-10-18 round 27 (oak mesh slot), build 2621d83.** No errors; menu ready in 35 s.
+- Pass: 1143 oaks on Jena are now the 848-triangle mesh (one part each, fitted from its 12×13×12
+  native box); the server world dropped from 12,794 to 9,743 parts. Close up: a real branching
+  trunk and faceted crowns, base exactly on the ground (bottom 19.4, terrain 19.4)
+  (`r27-oak-mesh-close.jpg`). From the playing height the avenue to Vierzehnheiligen and the
+  orchards read as single trees (`r27-oak-mesh-mid.jpg`).
+- Small: the mesh's green is brighter and more saturated than the procedural beeches and the
+  reference palette; SpecialMesh.VertexColor around (0.8, 0.85, 0.75) would settle it.
+- `[EoE clip]` still `92 parts below ground (9438 checked)` on Jena: the mesh trees did not
+  change it, so the 92 are the reed stems and odd hedge/road pieces from round 24.
+
 ## Known failures
 
 None recorded yet.
