@@ -198,7 +198,8 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 				pe.LightEmission = 0
 				pe.LightInfluence = 1
 				pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 14), NumberSequenceKeypoint.new(1, 24) })
-				pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.86), NumberSequenceKeypoint.new(0.7, 0.92), NumberSequenceKeypoint.new(1, 1) })
+				-- 0.62/0.75: at 0.86/0.92 the puffs vanished into the fog grade (Studio, round 23)
+				pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.62), NumberSequenceKeypoint.new(0.7, 0.75), NumberSequenceKeypoint.new(1, 1) })
 				pe.Lifetime = NumberRange.new(12, 20)
 				pe.Speed = NumberRange.new(0.3, 0.6)
 				pe.EmissionDirection = Enum.NormalId.Right -- along the box's long side: the valley

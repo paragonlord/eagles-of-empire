@@ -651,6 +651,42 @@ and faded in after 47.7 s.
   15 fps with them, without them and with them again, so they cost nothing measurable (the slow
   frame rate is this Studio session; see round 19).
 
+**2026-10-18 round 23 (clip checks, slopes, bridges, Hougoumont, Pratzen, Goldbach mist),
+build de3fbe0.** No errors on either side.
+- Server `[EoE clip]` after load is **not 0**: `world: 992 parts below ground (12182 checked)`
+  on Jena, `1174 (14368)` on Austerlitz. As in round 21 this is mostly the check measuring box
+  corners of round parts. Measured with each part's true shape (lowest point of a sphere, end
+  circles of a cylinder, corners of a box), Jena has 308 parts below by more than 0.05 and **55
+  deeper than 0.5**: 25 reed strips (WaterQ2), 16 Grass boxes and 7 Cobblestone boxes in Fields
+  (hedge and road pieces), and a handful of others. Switching `World.checkClip` to the true
+  shape would leave a short list worth fixing.
+- Pass, `EoEClipCheck` (figures): with the attribute set, a line of the 14e de Ligne marched
+  through Sokolnitz and over the Goldbach timber bridge and back; 104 one-second readings,
+  every one `0 parts below ground of 11204` except the first (5, taken as the check switched on).
+  On the field's steepest occupied ground (12 studs of rise over 30) the 8e de Ligne reads
+  `0 of 12206` with the camera at the 55-stud floor. Ground rays cost 0.39 ms a frame typically,
+  2.4 ms at most. On the deck the front ranks stand at deck height and the rear on the bank
+  (`r23-bridge-crossing.jpg`, `r23-slope-figures.jpg`).
+- Pass, Goldbach bridges: the timber deck spans the brook bank to bank with its piers in the
+  water (`r23-goldbach-bridge.jpg`).
+- Pass, Hougoumont: the farm walls run as 29 eight-stud segments, stepping down 3.3 studs across
+  the farm; none sinks and none floats (`r23-hougoumont-walls.jpg`, the step at the join in
+  `r23-hougoumont-wall-step.jpg`).
+- Pass, Pratzen: houses stand on the ground with short stone plinths where it falls; the village
+  sits on near-flat ground (at most 1 stud over 12), so the plinths are small
+  (`r23-pratzen-houses.jpg`).
+- Fixed: **the Goldbach dawn mist was invisible.** At 0.86/0.92 transparency the puffs vanished
+  into the fog grade (`r23-mist-before.jpg`). Now 0.62/0.75: soft veils drift off the brook past
+  the bridge (`r23-mist-after.jpg`, rebuilt place, after 35 s of steady emission). Only 4 anchors
+  cover the whole map, so most of the Goldbach's length has none; one per bridge would spread it.
+- Added: **thatch texture** `rbxassetid://4125863236` ("Seamless Hay Texture") in
+  `Assets.thatch`; Austerlitz has 198 thatched roofs and all take it, tinted by their colour,
+  reading as straw (`r23-pratzen-thatch.jpg`).
+- Small: reed strips by the banks read as loose yellow planks up close (`r23-goldbach-bridge.jpg`).
+  Chimney smoke puffs read as white balloons in the overcast and fog grades
+  (`r23-hougoumont-wall-step.jpg`, top left). Under the fog grade the far ground plane reads as an
+  orange band on the horizon (`r23-mist-after.jpg`).
+
 ## Known failures
 
 None recorded yet.

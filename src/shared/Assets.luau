@@ -49,7 +49,7 @@ Assets.slots = {
 	bark = slot("rbxassetid://6490108541"), -- "TexturesCom_PineBark2_512_albedo", DarthRevan404
 	roofTile = slot("rbxassetid://18708362091"), -- "roof_tile_texture4127", Phatgamingsk2
 	wall = slot("rbxassetid://762795527"), -- "Seamless wall white paint stucco plaster", yumahap
-	thatch = slot(),
+	thatch = slot("rbxassetid://4125863236"), -- "Seamless Hay Texture", DjordyKK (tried on Austerlitz)
 }
 
 -- A texture id for a slot, or nil when the slot has none.
