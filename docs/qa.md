@@ -614,6 +614,24 @@ and faded in after 47.7 s.
   not on main yet, so there is nowhere to paste an id. `Kit.paperTextureId` is still the only
   live slot.
 
+**2026-10-18 round 21 (figures on the rendered ground; nothing clips), builds 32de9e6 and
+2d27ca3.** No errors; Jena battle at 60 fps; menu ready after 35 s.
+- Pass, figures: a French line on the Landgrafenberg's steepest slope stands on the drawn
+  ground rank by rank (`r21-figures-on-slope.jpg`). Over 173 feet within 40 studs, the deepest
+  sits 0.09 studs into the terrain: nothing sinks.
+- Pass, world: houses on a slope stand on stone plinths and the walls step down the hill;
+  nothing floats or sinks (`r21-houses-on-slope.jpg`). Assets.luau now exists with the world
+  and texture slots.
+- Note, `[EoE clip] world: 992 parts below ground (12182 checked)` on Jena (expect 0). It is
+  mostly the check, not the world: it tests the four bottom corners of each part's *box*, and
+  734 of the 992 are spheres or cylinders (crown lobes, bushes, stooks, trunks) whose box
+  corners stick out past the round shape on a slope; 649 of all 992 are under 0.3 studs. Of the
+  258 box parts, most deeper than 0.3 are reed strips (WaterQ2, 7 × 1.5 × 0.5), one 13 studs
+  down at (1473, 2, 990) where the river leaves the map. For round parts, test the centre minus
+  half the height instead of the corners, and the number will mean something.
+- Still open from round 15: tree crowns read as stacked flat discs (`r21-figures-on-slope.jpg`
+  background), and haystacks are big golden balls (foreground).
+
 ## Known failures
 
 None recorded yet.
