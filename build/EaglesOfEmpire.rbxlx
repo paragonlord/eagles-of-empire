@@ -18021,7 +18021,7 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 			local r = row(p, 10 + i, if honours then 48 else 34)
 			local x = 0
 			if own then
-				local pick = Kit.button(r, if split[k] then "✓" else "", function()
+				local pick = Kit.button(r, if split[k] then "×" else "", function()
 					split[k] = not split[k] or nil
 					rerender()
 				end, { size = UDim2.fromOffset(20, 20), position = UDim2.fromOffset(0, 4), caps = false, tooltip = "Mark for splitting off" })
@@ -22358,6 +22358,8 @@ local function wire()
 			end
 		elseif key == "reducedEffects" then
 			Effects.applySettings()
+		elseif key == "placeNames" then
+			Props.setLabelMode(Settings.get().placeNames)
 		end
 	end))
 end
@@ -22693,6 +22695,8 @@ export type Values = {
 	music: number,
 	reducedShake: boolean,
 	reducedEffects: boolean,
+	typeface: string, -- one of Settings.TYPEFACES (UI/Kit presets)
+	placeNames: string, -- one of Settings.PLACE_NAMES (World/Props label modes)
 }
 
 local Settings = {}
@@ -22704,7 +22708,14 @@ local values: Values = {
 	music = 0.6,
 	reducedShake = false,
 	reducedEffects = false,
+	typeface = "Garamond",
+	placeNames = "ground",
 }
+
+-- Type presets the owner can switch live to judge readability (built in UI/Kit).
+Settings.TYPEFACES = { "Garamond", "Bodoni", "Legible", "Antique" }
+-- Battlefield place names: on the ground, floating above the place, only under the cursor, or off.
+Settings.PLACE_NAMES = { "ground", "floating", "hover", "off" }
 
 Settings.changed = Signal.new()
 
@@ -22721,6 +22732,10 @@ function Settings.set(key: string, value: any)
 		value = math.clamp(math.round(value), 1, 3)
 	elseif key == "master" or key == "sfx" or key == "music" then
 		value = math.clamp(value, 0, 1)
+	elseif key == "typeface" or key == "placeNames" then
+		if table.find(if key == "typeface" then Settings.TYPEFACES else Settings.PLACE_NAMES, value) == nil then
+			return
+		end
 	end
 	v[key] = value
 	Settings.changed:Fire(key, value)
@@ -24903,16 +24918,26 @@ function Deployment.show(cb: Callbacks)
 	cap.MaxSize = Vector2.new(420, 660)
 	cap.Parent = panel
 
-	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = UDim2.new(1, -60, 0, 18), textSize = 17 })
+	-- The sheet is set as a letter: a text column on the left and a margin on the right that
+	-- carries the seal, the notes (weather, time) and, at its foot, the stamp. The column
+	-- (and the scrolling body below) never reaches the margin, so the stamp covers no text.
+	local MARGIN = 96
+	local col = UDim2.new(1, -MARGIN - 12, 0, 18)
+	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = col, textSize = 17 })
 	dated.FontFace = Kit.ITALIC
-	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -60, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
+	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -MARGIN - 12, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
 	-- long episode names ("The Fight for Vierzehnheiligen") shrink to fit instead of "THE FIGHT FOR…"
 	title.TextScaled = true
 	local fit = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
 	fit.MaxTextSize = 26
 	fit.Parent = title
-	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
-	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -36, 1, -100), 96)
+	local margin = Instance.new("Frame") :: Frame
+	margin.Size = UDim2.new(0, MARGIN, 1, -62)
+	margin.Position = UDim2.fromScale(1, 0)
+	margin.AnchorPoint = Vector2.new(1, 0)
+	margin.BackgroundTransparency = 1
+	margin.Parent = panel
+	Kit.seal(margin, UDim2.new(0.5, 0, 0, 26), 52)
 	local facts = {}
 	local w = (Config.Weather :: any)[sc.weather or ""]
 	if w then
@@ -24921,11 +24946,19 @@ function Deployment.show(cb: Callbacks)
 	if sc.timeLimit and sc.timeLimit > 0 then
 		table.insert(facts, string.format("%d minutes", math.floor(sc.timeLimit / 60)))
 	end
-	Kit.title(panel, table.concat(facts, "  ·  "), { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 47), textSize = 16, colour = Kit.MUTED, caps = false })
-	Kit.rule(panel, UDim2.fromOffset(0, 66))
-
+	for i, fact in facts do
+		local n = Kit.label(margin, fact, { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 50 + i * 18), textSize = 15, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		n.FontFace = Kit.ITALIC
+	end
+	-- the stamp fills the foot of the margin; a short sheet (small viewport) gets a smaller one
+	local cam = workspace.CurrentCamera
+	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y else 720) - 96)
+	local d = math.clamp(math.floor((sheetH - 260) / 3), 56, 88)
+	Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
+	local rule = Kit.rule(panel, UDim2.fromOffset(0, 66))
+	rule.Size = UDim2.new(1, -MARGIN - 12, 0, 1)
 	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
-	body.Size = UDim2.new(1, 0, 1, -72 - 62)
+	body.Size = UDim2.new(1, -MARGIN - 12, 1, -72 - 62)
 	body.Position = UDim2.fromOffset(0, 70)
 	body.BackgroundTransparency = 1
 	body.BorderSizePixel = 0
@@ -25049,7 +25082,7 @@ function Deployment.refresh()
 				chip.BackgroundColor3 = Kit.slotColour(p.slot)
 				chip.BorderSizePixel = 0
 				chip.Parent = row
-				local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then "  ✓" else "")
+				local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then " · ready" else "")
 				Kit.label(row, who, { size = UDim2.new(1, -20, 1, 0), position = UDim2.fromOffset(20, 0), textSize = 16, font = Enum.Font.Garamond })
 				if giver and p.userId ~= BattleState.userId and group.faction == BattleState.viewerFaction then
 					local uid = p.userId
@@ -25556,7 +25589,7 @@ local function updatePlayers()
 		chip.BackgroundColor3 = Kit.slotColour(p.slot)
 		chip.BorderSizePixel = 0
 		chip.Parent = row
-		local text = tostring(p.name) .. (if p.role == "commander" then " ★" else "") .. (if p.ready then "  ✓" else "")
+		local text = tostring(p.name) .. (if p.role == "commander" then " (cdt.)" else "") .. (if p.ready then " · ready" else "")
 		local l = Kit.label(row, text, { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(16, 0), textSize = 14, colour = if p.userId == BattleState.userId then Kit.GILT_BRIGHT else Kit.IVORY })
 		l.TextStrokeTransparency = 0.5
 	end
@@ -26289,12 +26322,14 @@ return Help
 -- never reach the field. Screens build from these pieces, so restyling here restyles everything.
 
 local Players = game:GetService("Players") :: Players
+local TweenService = game:GetService("TweenService") :: TweenService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
 local BattleState = require(script.Parent.Parent.BattleState)
 local PaperLayout = require(script.Parent.PaperLayout)
+local Settings = require(script.Parent.Parent.Settings)
 
 local Kit = {}
 
@@ -26346,8 +26381,62 @@ Kit.MORALE = {
 	shattered = Color3.fromRGB(70, 60, 54),
 }
 
+-- ------------------------------------------------------------------ typefaces
+-- Roblox takes no font uploads, so the look is chosen among the built-in families. Every label
+-- and button registers its role; Settings.typeface swaps the families live so the owner can
+-- judge readability in play. Roles: display (titles, large buttons), body (paragraphs, set in
+-- Garamond by the screens), ui (small labels, small buttons), figures (bold sans numerals).
+type Preset = { display: EnumFont, body: EnumFont, ui: EnumFont, figures: EnumFont }
+local PRESETS: { [string]: Preset } = {
+	Garamond = { display = Enum.Font.Garamond, body = Enum.Font.Garamond, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
+	-- Didone display, as on the Empire's own printed orders; Garamond keeps the body readable
+	Bodoni = { display = Enum.Font.Bodoni, body = Enum.Font.Garamond, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
+	-- Garamond for the headings only; a plain grotesque for everything one has to read fast
+	Legible = { display = Enum.Font.Garamond, body = Enum.Font.Gotham, ui = Enum.Font.Gotham, figures = Enum.Font.GothamBold },
+	-- Caslon-like display over a sturdy transitional serif body
+	Antique = { display = Enum.Font.Antique, body = Enum.Font.Merriweather, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
+}
+local function preset(): Preset
+	return PRESETS[Settings.get().typeface] or PRESETS.Garamond
+end
+local typeset: { [TextLabel | TextButton]: string } = setmetatable({}, { __mode = "k" }) :: any
+
+-- The family of the preset's role, keeping the label's own weight and style (bold, italic).
+local function refont(l: TextLabel | TextButton, role: string)
+	local family = Font.fromEnum((preset() :: any)[role] :: EnumFont).Family
+	local cur = l.FontFace
+	l.FontFace = Font.new(family, cur.Weight, cur.Style)
+end
+
+-- Registers `l` under `role` and sets its face; later preset changes re-set it.
+function Kit.typeset(l: TextLabel | TextButton, role: string)
+	typeset[l] = role
+	refont(l, role)
+end
+
+local function roleOf(font: EnumFont?): string
+	if font == nil or font == Enum.Font.SourceSans then
+		return "ui"
+	elseif font == Enum.Font.Garamond then
+		return "body"
+	end
+	return "figures" -- GothamBold, SourceSansBold and the like: numerals and small strong labels
+end
+
+-- Body face in italic and bold; screens set these on labels built by Kit.label, and the
+-- registered role keeps the style when the preset changes.
 Kit.ITALIC = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Regular, Enum.FontStyle.Italic)
 Kit.BOLD = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Bold)
+
+Settings.changed:Connect(function(key: string)
+	if key == "typeface" then
+		for l, role in typeset do
+			if l.Parent then
+				refont(l, role)
+			end
+		end
+	end
+end)
 
 -- Co-op player slots: 1 gold, 2 sky blue, 3 crimson, 4 ivory green.
 Kit.SLOT = { Kit.GILT_BRIGHT, hex(0x6FA8DC), Kit.CRIMSON_LIGHT, hex(0xB8CFA0) }
@@ -26669,6 +26758,15 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 		stroke.Thickness = 2
 		stroke.Transparency = 0.2
 		Kit.paper(f, props.padding or 0, props.seed or PaperLayout.seed(parent.Name .. tostring(props.size)))
+	elseif props.dark and onParchment(parent) then
+		-- a section of the sheet ruled off in ink, not a box on the paper
+		f.BackgroundTransparency = 1
+		stroke.Enabled = false
+		for _, y in { 0, 1 } do
+			local r = frame(f, UDim2.new(1, 2 * (props.padding or 0), 0, 1), UDim2.new(0, -(props.padding or 0), y, if y == 1 then -1 else 0), Kit.INK)
+			r.Name = "Rule"
+			r.BackgroundTransparency = 0.55
+		end
 	elseif props.dark then
 		f:SetAttribute("parchment", false)
 		f.BackgroundColor3 = Kit.INSET
@@ -26725,13 +26823,15 @@ function Kit.label(parent: Instance, text: string, props: TextProps?): TextLabel
 	l.BackgroundTransparency = 1
 	-- SourceSans sets small: one point up keeps the old Gotham sizes readable
 	l.Font = p.font or Enum.Font.SourceSans
-	l.TextSize = (p.textSize or 14) + (if p.font == nil then 1 else 0)
+	-- wrapped text is a paragraph: never under 14 px
+	l.TextSize = math.max(p.textSize or 14, if p.wrap then 14 else 0) + (if p.font == nil then 1 else 0)
 	l.TextColor3 = colour
 	l.TextXAlignment = p.align or Enum.TextXAlignment.Left
 	l.TextWrapped = p.wrap == true
 	l.RichText = p.rich == true
 	l.Text = text
 	l.Parent = parent
+	Kit.typeset(l, roleOf(p.font))
 	return l
 end
 
@@ -26741,6 +26841,7 @@ function Kit.title(parent: Instance, text: string, props: TextProps?): TextLabel
 	p.textSize = p.textSize or 26
 	local t = if p.spaced then Kit.spaced(text) elseif p.caps == false then text else Kit.upper(text)
 	local l = Kit.label(parent, t, p)
+	Kit.typeset(l, "display")
 	if p.rule then
 		local centred = p.align == Enum.TextXAlignment.Center
 		Kit.rule(l, UDim2.new(if centred then 0.5 else 0, 0, 1, 3), 140, if centred then 0.5 else 0)
@@ -26927,7 +27028,9 @@ export type ButtonProps = {
 	order: number?,
 }
 
--- One look function for every state combination, driven by attributes.
+-- One look function for every state combination, driven by attributes. Plaques are engraved
+-- brass (ink lettering on gilt) and primary actions pressed crimson wax; hover is mechanical:
+-- the lettering darkens and the rim sharpens, pressed sinks, the chosen one sits sunk in walnut.
 local function restyle(b: TextButton)
 	local disabled = b:GetAttribute("disabled") == true
 	local active = b:GetAttribute("active") == true
@@ -26941,27 +27044,34 @@ local function restyle(b: TextButton)
 		pad.PaddingBottom = UDim.new(0, if hover and not pressed then 2 else 0)
 	end
 	if b:GetAttribute("flat") == true then
+		-- a text entry: on hover the rule under it runs out from the left
 		local u = b:FindFirstChild("Underline") :: Frame?
 		if u then
-			u.Visible = hover or active
+			local show = hover or active
+			if show and not u.Visible then
+				u.Size = UDim2.new(0.25, 0, 0, 1)
+				TweenService:Create(u, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, 1) }):Play()
+			end
+			u.Visible = show
 		end
 		b.TextColor3 = if disabled then Kit.SLATE elseif hover then Kit.GILT_BRIGHT else Kit.GILT
 		return
 	end
-	local body = if disabled then Kit.SLATE elseif active then Kit.GILT_DARK elseif primary then Kit.CRIMSON else Kit.BLUE
+	local body = if disabled then Kit.SLATE elseif active then Kit.WALNUT elseif primary then Kit.CRIMSON else Kit.GILT
 	if pressed then
-		body = body:Lerp(Color3.new(0, 0, 0), 0.35)
+		body = body:Lerp(Color3.new(0, 0, 0), 0.3)
 	elseif hover then
-		body = body:Lerp(Color3.new(1, 1, 1), 0.1)
+		body = body:Lerp(Color3.new(1, 1, 1), 0.08)
 	end
 	b.BackgroundColor3 = body
-	b.TextColor3 = Kit.IVORY
+	local ink = if primary or disabled then Kit.IVORY elseif active then Kit.GILT_BRIGHT elseif hover then Kit.INSET else Kit.INK
+	b.TextColor3 = ink
 	b.TextTransparency = if disabled then 0.5 else 0
 	if grad then
 		grad.Enabled = not pressed
 	end
 	if stroke then
-		stroke.Color = if disabled then Kit.GILT_DARK elseif hover or active then Kit.GILT_BRIGHT else Kit.GILT
+		stroke.Color = if disabled then Kit.GILT_DARK elseif hover or active then Kit.GILT_BRIGHT elseif primary then Kit.GILT else Kit.GILT_DARK
 		stroke.Transparency = if disabled then 0.5 else 0
 	end
 end
@@ -27014,8 +27124,9 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		-- top highlight fading into the lacquer
 		g.Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.45, Color3.fromRGB(205, 205, 205)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 160, 160)),
+			ColorSequenceKeypoint.new(0.4, Color3.fromRGB(222, 222, 222)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(190, 190, 190)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 150, 150)),
 		})
 		g.Rotation = 90
 		g.Parent = b
@@ -27025,6 +27136,7 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		s.Thickness = 1
 		s.Parent = b
 	end
+	Kit.typeset(b, if b.Font == Enum.Font.Garamond then "display" else "ui")
 	b:SetAttribute("primary", p.primary == true)
 	b:SetAttribute("reason", "")
 	b:SetAttribute("tip", p.tooltip or "")
@@ -27149,17 +27261,26 @@ function Kit.slider(parent: Instance, labelText: string, value: number, onChange
 	return row
 end
 
+-- A ledger tick box: gilt square, filled when on; the text entry beside it.
 function Kit.toggle(parent: Instance, labelText: string, value: boolean, onChange: (v: boolean) -> ()): TextButton
 	local b: TextButton
-	local function text(v: boolean): string
-		return (if v then "[x] " else "[ ] ") .. labelText
-	end
-	b = Kit.button(parent, text(value), function()
+	local fill: Frame
+	b = Kit.button(parent, labelText, function()
 		value = not value
-		b.Text = text(value)
+		fill.Visible = value
 		onChange(value)
-	end, { size = UDim2.new(1, 0, 0, 28), caps = false })
+	end, { size = UDim2.new(1, 0, 0, 28), caps = false, flat = true })
 	b.TextXAlignment = Enum.TextXAlignment.Left
+	local lift = b:FindFirstChild("Lift") :: UIPadding?
+	if lift then
+		lift.PaddingLeft = UDim.new(0, 26)
+	end
+	local box = frame(b, UDim2.fromOffset(14, 14), UDim2.new(0, -24, 0.5, 0), Kit.INSET)
+	box.AnchorPoint = Vector2.new(0, 0.5)
+	hairline(box, Kit.GILT, 1, 0)
+	fill = frame(box, UDim2.fromOffset(8, 8), UDim2.fromScale(0.5, 0.5), Kit.GILT_BRIGHT)
+	fill.AnchorPoint = Vector2.new(0.5, 0.5)
+	fill.Visible = value
 	return b
 end
 
@@ -27948,7 +28069,7 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local f = Kit.panel(parent, { size = UDim2.new(0.5, -6, 1, 0), position = UDim2.new(), dark = true, padding = 10 })
 	f.LayoutOrder = order
 	local colour = Kit.factionColour(faction)
-	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 22, spaced = true, colour = Kit.GILT })
+	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 22, spaced = true })
 	t.Name = "Title"
 	local deployed = math.max(s.deployed or 0, 1)
 	local lost = s.casualties or 0
@@ -28122,7 +28243,6 @@ function Results.show(results: any, cb: Callbacks)
 	local subLine = Kit.label(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 56), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
 	subLine.FontFace = Kit.ITALIC
 	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
-	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -50, 0, 100), 100)
 
 	local sidesRow = Instance.new("Frame") :: Frame
 	sidesRow.Size = UDim2.new(1, 0, 0, 160)
@@ -28210,6 +28330,13 @@ function Results.show(results: any, cb: Callbacks)
 
 	heading("Order of battle")
 	formationTable(body, nextOrder())
+	-- the stamp closes the report under the last block, in space of its own
+	local foot = Instance.new("Frame") :: Frame
+	foot.Size = UDim2.new(1, -14, 0, 96)
+	foot.BackgroundTransparency = 1
+	foot.LayoutOrder = nextOrder()
+	foot.Parent = body
+	Kit.stamp(foot, "Dépôt de la Guerre", UDim2.new(1, -10, 0.5, 0), 84, Vector2.new(1, 0.5))
 
 	local buttons = Instance.new("Frame") :: Frame
 	buttons.Size = UDim2.new(1, 0, 0, 42)
@@ -28251,7 +28378,8 @@ end
 
 return Results
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
--- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
+-- Settings: quality, volumes, reduced shake/effects, typeface, place names, AI difficulty.
+-- Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
 local Settings = require(script.Parent.Parent.Settings)
@@ -28281,7 +28409,7 @@ end
 function SettingsPanel.show()
 	if not gui then
 		local sg = Kit.screen("EoESettings", 36)
-		local panel = Kit.panel(sg, { size = UDim2.fromOffset(420, 540), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+		local panel = Kit.panel(sg, { size = UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
 		Kit.title(panel, "Settings", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
 		Kit.button(panel, "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 		local list = Instance.new("Frame") :: Frame
@@ -28333,6 +28461,33 @@ function SettingsPanel.show()
 		Kit.toggle(list, "Reduced effects (half the smoke and dust)", v.reducedEffects, function(x)
 			Settings.set("reducedEffects", x)
 		end).LayoutOrder = next()
+
+		-- a row of choices: the chosen one sits sunk
+		local function choices(label: string, key: string, options: { string }, names: { string }?)
+			local l = Kit.label(list, label, { size = UDim2.new(1, 0, 0, 18) })
+			l.LayoutOrder = next()
+			local rowF = Instance.new("Frame") :: Frame
+			rowF.Size = UDim2.new(1, 0, 0, 30)
+			rowF.BackgroundTransparency = 1
+			rowF.LayoutOrder = next()
+			rowF.Parent = list
+			Kit.list(rowF, 6, true)
+			local buttons: { TextButton } = {}
+			local function refresh()
+				for i, b in buttons do
+					Kit.setActiveLook(b, (Settings.get() :: any)[key] == options[i])
+				end
+			end
+			for i, opt in options do
+				buttons[i] = Kit.button(rowF, if names then names[i] else opt, function()
+					Settings.set(key, opt)
+					refresh()
+				end, { size = UDim2.new(1 / #options, -5, 1, 0), order = i, textSize = 13 })
+			end
+			refresh()
+		end
+		choices("Typeface (headings and text)", "typeface", Settings.TYPEFACES, nil)
+		choices("Place names on the field", "placeNames", Settings.PLACE_NAMES, { "On the ground", "Floating", "Under cursor", "Off" })
 
 		local d = Kit.label(list, "AI difficulty (Hard: the enemy gets +5 morale)", { size = UDim2.new(1, 0, 0, 18) })
 		d.LayoutOrder = next()
@@ -28948,6 +29103,7 @@ return Lighting
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Config = require(Shared.Config)
 local Grid = require(Shared.Grid)
 local Vec = require(Shared.Vec)
@@ -28965,7 +29121,10 @@ end
 
 local folder: Folder? = nil
 local zoneFolder: Folder? = nil
-local labelParts: { { part: Part, size: number, len: number } } = {}
+local labelParts: { { part: Part, size: number, len: number, text: TextLabel, float: TextLabel?, alpha: number } } = {}
+-- Settings.placeNames: "ground" plates (default), "floating" billboards, "hover" (billboards
+-- near the cursor only) or "off".
+local labelMode = "ground"
 local objectiveMarks: { [string]: { ring: { Part }, flag: Part } } = {}
 local generation = 0
 local currentMap: any = nil
@@ -30034,7 +30193,29 @@ local function buildLabel(parent: Instance, l: any, isVillage: boolean)
 	text.TextStrokeColor3 = Color3.fromRGB(40, 34, 24)
 	text.TextStrokeTransparency = 0.6
 	text.Parent = gui
-	table.insert(labelParts, { part = p, size = size, len = len })
+	gui.Enabled = labelMode == "ground"
+	table.insert(labelParts, { part = p, size = size, len = len, text = text, float = nil, alpha = 1 })
+end
+
+-- The floating form of a label: a small upright billboard over the place, built on demand.
+local function floatLabel(l: { part: Part, size: number, len: number, text: TextLabel, float: TextLabel?, alpha: number }): TextLabel
+	if l.float then
+		return l.float
+	end
+	local bb = Instance.new("BillboardGui") :: BillboardGui
+	bb.Name = "Float"
+	bb.Adornee = l.part
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
+	bb.Size = UDim2.fromOffset(160, 22)
+	bb.LightInfluence = 0
+	bb.AlwaysOnTop = true
+	bb.Parent = l.part
+	local t = l.text:Clone() :: TextLabel
+	t.TextTransparency = 1
+	t.TextStrokeTransparency = 1
+	t.Parent = bb
+	l.float = t
+	return t
 end
 
 local function buildObjective(parent: Instance, o: any)
@@ -30187,16 +30368,77 @@ function Props.setLabelYaw(yaw: number)
 	end
 end
 
--- Ground labels grow with camera height so they stay readable from any zoom.
+function Props.setLabelMode(mode: string)
+	labelMode = mode
+	for _, l in labelParts do
+		local gui = l.part:FindFirstChildOfClass("SurfaceGui") :: SurfaceGui?
+		if gui then
+			gui.Enabled = mode == "ground"
+		end
+		if l.float then
+			l.float.TextTransparency = 1
+			l.float.TextStrokeTransparency = 1
+		end
+	end
+end
+
+-- Where the cursor's ray meets the plane at height `y`, or nil when it points at the sky.
+local function cursorOnPlane(y: number): (number?, number?)
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return nil, nil
+	end
+	local m = UserInputService:GetMouseLocation()
+	local ray = cam:ViewportPointToRay(m.X, m.Y)
+	if ray.Direction.Y >= -1e-3 then
+		return nil, nil
+	end
+	local t = (y - ray.Origin.Y) / ray.Direction.Y
+	return ray.Origin.X + ray.Direction.X * t, ray.Origin.Z + ray.Direction.Z * t
+end
+
+local HOVER_RADIUS = 70 -- studs around the cursor within which hover names show
+local NEAR_FADE = 160 -- camera this close to a floating name: it fades so as not to shout
+
+-- Ground labels grow with camera height so they stay readable from any zoom. Floating and hover
+-- names are billboards that scale with height and fade in and out over a few frames.
 local lastLabelK = -1
 function Props.updateLabels(cameraHeight: number)
 	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
-	if math.abs(k - lastLabelK) < 0.05 then
+	if labelMode == "ground" or labelMode == "off" then
+		if math.abs(k - lastLabelK) < 0.05 then
+			return
+		end
+		lastLabelK = k
+		for _, l in labelParts do
+			l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
+		end
 		return
 	end
-	lastLabelK = k
+	lastLabelK = -1
+	local cam = workspace.CurrentCamera
+	local camPos = if cam then cam.CFrame.Position else Vector3.zero
+	local cx, cz = nil, nil
+	if labelMode == "hover" and #labelParts > 0 then
+		cx, cz = cursorOnPlane(labelParts[1].part.Position.Y)
+	end
 	for _, l in labelParts do
-		l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
+		local t = floatLabel(l)
+		local bb = t.Parent :: BillboardGui
+		local scale = math.clamp(cameraHeight / 420, 0.8, 1.8) * (l.size / 20)
+		bb.Size = UDim2.fromOffset(math.floor(l.len / l.size * 22 * scale), math.floor(22 * scale))
+		local pos = l.part.Position
+		local target = 1
+		if labelMode == "floating" then
+			local near = (camPos - pos).Magnitude
+			target = if near < NEAR_FADE then 0.8 else 0.15
+		elseif cx and cz then
+			local dx, dz = pos.X - cx, pos.Z - cz
+			target = if dx * dx + dz * dz < HOVER_RADIUS * HOVER_RADIUS then 0.1 else 1
+		end
+		l.alpha += (target - l.alpha) * 0.15
+		t.TextTransparency = l.alpha
+		t.TextStrokeTransparency = 0.5 + 0.5 * l.alpha
 	end
 end
 
