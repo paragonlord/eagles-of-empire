@@ -188,9 +188,27 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 	end
 	local fog = f:FindFirstChild("GroundFogQ2")
 	if fog then
+		-- each invisible anchor box gets an emitter of slow soft mist puffs drifting along the
+		-- valley; Lighting sets the rate (on under the fog grade, fading to 0 as it lifts)
 		for _, p in fog:GetDescendants() do
 			if p:IsA("BasePart") then
-				(p :: BasePart).Transparency = WorldLighting.groundFogTransparency()
+				local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+				pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+				pe.Color = ColorSequence.new(Color3.fromRGB(226, 224, 218))
+				pe.LightEmission = 0
+				pe.LightInfluence = 1
+				pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 14), NumberSequenceKeypoint.new(1, 24) })
+				pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.86), NumberSequenceKeypoint.new(0.7, 0.92), NumberSequenceKeypoint.new(1, 1) })
+				pe.Lifetime = NumberRange.new(12, 20)
+				pe.Speed = NumberRange.new(0.3, 0.6)
+				pe.EmissionDirection = Enum.NormalId.Right -- along the box's long side: the valley
+				pe.SpreadAngle = Vector2.new(20, 6)
+				pe.Rotation = NumberRange.new(0, 360)
+				pe.RotSpeed = NumberRange.new(-2, 2)
+				pe.Drag = 0
+				pe.Rate = 0
+				pe.Enabled = true
+				pe.Parent = p
 			end
 		end
 		WorldLighting.setGroundFog(fog :: Folder)

@@ -1597,9 +1597,10 @@ local function buildWindmills(group: string)
 	end
 end
 
--- Ground fog lying in the valleys at dawn (detail tier, quality 2): flat pale patches along
--- the rivers and in the lowest ground. Emitted invisible; the client's Lighting shows them
--- under the fog grade.
+-- Ground fog in the valleys at dawn (detail tier, quality 2): three or four invisible anchor
+-- boxes on the lowest level ground, laid along the valley. The client's Props puts a
+-- ParticleEmitter of slow soft mist puffs on each; Lighting runs them only under the fog grade.
+-- (Flat disc parts read as ovals lying on the field, whatever their transparency.)
 local function buildGroundFog(group: string, jobs: { Job })
 	local g = currentMap.grid
 	local lo, hi = math.huge, -math.huge
@@ -1609,26 +1610,54 @@ local function buildGroundFog(group: string, jobs: { Job })
 	end
 	local floorY = lo + (hi - lo) * 0.3
 	table.insert(jobs, { tag = "d", run = function()
-		for x = 60, currentMap.width - 60, 90 do
-			for z = 60, currentMap.depth - 60, 90 do
-				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
-				local y = groundY(px, pz)
-				local sx = (groundY(px + 30, pz) - groundY(px - 30, pz)) / 60
-				local sz = (groundY(px, pz + 30) - groundY(px, pz - 30)) / 60
-				if y < floorY and h01(px, pz, 152) < 0.7 and sx * sx + sz * sz < 0.08 * 0.08 then
-					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in
-					-- Studio; tilted to the local slope so the rim does not cut the ground
-					local a = h01(x + z, 2, 155) * 3
-					local fwd = Vector3.new(math.cos(a), math.cos(a) * sx + math.sin(a) * sz, math.sin(a)).Unit
-					local rightV = Vector3.new(-math.sin(a), -math.sin(a) * sx + math.cos(a) * sz, math.cos(a)).Unit
-					local up = rightV:Cross(fwd).Unit
-					local cf = CFrame.fromMatrix(Vector3.new(px, y + 1.2, pz), fwd, up, fwd:Cross(up))
-					local p = blob(group, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), cf, c3(222, 220, 214))
-					p.material = Enum.Material.SmoothPlastic
-					p.transparency = 1
-					p.castShadow = false
+		type Site = { x: number, z: number, y: number }
+		local sites: { Site } = {}
+		for x = 100, currentMap.width - 100, 60 do
+			for z = 100, currentMap.depth - 100, 60 do
+				local y = groundY(x, z)
+				local sx = (groundY(x + 40, z) - groundY(x - 40, z)) / 80
+				local sz = (groundY(x, z + 40) - groundY(x, z - 40)) / 80
+				if y < floorY and sx * sx + sz * sz < 0.05 * 0.05 and classAt(x, z) ~= IDS.water then
+					table.insert(sites, { x = x, z = z, y = y })
 				end
 			end
+		end
+		table.sort(sites, function(p: Site, q: Site): boolean
+			return p.y < q.y or (p.y == q.y and (p.x < q.x or (p.x == q.x and p.z < q.z)))
+		end)
+		local chosen: { Site } = {}
+		for _, s in sites do
+			local ok = true
+			for _, c in chosen do
+				if (s.x - c.x) ^ 2 + (s.z - c.z) ^ 2 < 320 * 320 then
+					ok = false
+					break
+				end
+			end
+			if ok then
+				table.insert(chosen, s)
+				if #chosen == 4 then
+					break
+				end
+			end
+		end
+		for _, s in chosen do
+			-- along the valley: the nearest river's direction, else the contour direction
+			local a = h01(s.x, s.z, 156) * math.pi
+			local best = 400
+			for _, river in currentMap.rivers do
+				local pts = river.points
+				for n = 1, #pts - 1 do
+					local d = Vec.distToSegment({ x = s.x, z = s.z }, pts[n], pts[n + 1])
+					if d < best then
+						best = d
+						a = math.atan2(pts[n + 1].z - pts[n].z, pts[n + 1].x - pts[n].x)
+					end
+				end
+			end
+			local p = part(group, nil, Vector3.new(140, 3, 70), yaw(s.x, s.y + 5, s.z, a), c3(222, 220, 214))
+			p.transparency = 1
+			p.castShadow = false
 		end
 	end })
 end

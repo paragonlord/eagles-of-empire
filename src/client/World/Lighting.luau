@@ -214,6 +214,22 @@ end
 
 -- Applies grade `name`, tweened over `seconds` (0 = at once). A newer tween on the same
 -- properties replaces an older one.
+local FOG_RATE = 0.6 -- puffs per second per anchor: ~4 anchors x 0.6/s x 20 s = under 50 live
+
+local function setFogRate(folder: Folder, rate: number, seconds: number)
+	for _, pe in folder:GetDescendants() do
+		if pe:IsA("ParticleEmitter") then
+			if seconds <= 0 then
+				(pe :: ParticleEmitter).Rate = rate
+			else
+				local t = TweenService:Create(pe, TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Rate = rate })
+				t:Play()
+				table.insert(tweens, t)
+			end
+		end
+	end
+end
+
 local function setGrade(name: string, seconds: number)
 	currentGrade = name
 	local g = GRADES[name]
@@ -261,25 +277,19 @@ local function setGrade(name: string, seconds: number)
 		Glare = g.atmoGlare,
 	})
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
-	-- valley fog patches show only under the fog grade
+	-- valley mist emitters run only under the fog grade; their rate tweens to 0 with the lift
+	-- and the puffs already out fade over their own lifetime
 	if groundFog then
-		local t = if name == "fog" then 0.8 else 1
-		for _, p in groundFog:GetDescendants() do
-			if p:IsA("BasePart") then
-				to(p, { Transparency = t })
-			end
-		end
+		setFogRate(groundFog, if name == "fog" then FOG_RATE else 0, seconds)
 	end
 end
 
--- Props hands over the folder of flat valley-fog patches it builds for the current map, and
--- asks what transparency a new patch starts at.
+-- Props hands over the folder of valley-mist anchors (each with a ParticleEmitter) for the map.
 function Lighting.setGroundFog(folder: Folder?)
 	groundFog = folder
-end
-
-function Lighting.groundFogTransparency(): number
-	return if currentGrade == "fog" then 0.8 else 1
+	if folder then
+		setFogRate(folder, if currentGrade == "fog" then FOG_RATE else 0, 0)
+	end
 end
 
 function Lighting.apply(quality: number)
