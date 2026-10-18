@@ -48,7 +48,11 @@ function Deployment.show(cb: Callbacks)
 	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = UDim2.new(1, -60, 0, 18), textSize = 17 })
 	dated.FontFace = Kit.ITALIC
 	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -60, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
-	title.TextTruncate = Enum.TextTruncate.AtEnd
+	-- long episode names ("The Fight for Vierzehnheiligen") shrink to fit instead of "THE FIGHT FOR…"
+	title.TextScaled = true
+	local fit = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+	fit.MaxTextSize = 26
+	fit.Parent = title
 	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
 	local facts = {}
 	local w = (Config.Weather :: any)[sc.weather or ""]

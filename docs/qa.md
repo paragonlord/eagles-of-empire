@@ -418,6 +418,49 @@ hedgerows and walls, tree-lined roads, villages with churches and a windmill.
 - Checked, not a bug: double-clicking a unit card does jump the camera to it, if the two clicks are
   under 0.35 s apart (my first test clicks were slower).
 
+**2026-10-18 round 12 (graphics: the four views asked for, plus PvP solo), build 0c1438b.** Boots
+clean, no EoE errors, 60 fps in battle (Waterloo PvP, 786 figure parts at default height).
+- Pass: the Jena menu view shows the patchwork, Vierzehnheiligen with its church and ring, and the
+  windmill on the Landgrafenberg slope (`r12-menu-before.jpg`, `r12-landgrafenberg-windmill.jpg`,
+  `r12-vierzehnheiligen.jpg`). Waterloo's Hougoumont reads well: walled farm, courtyard, wood, and
+  the poplars look like Lombardy poplars (`r12-hougoumont.jpg`). The Austerlitz fog lifts into a
+  crisp winter sun over 20 s with no tint mid-way (`r12-austerlitz-sun.jpg`).
+- Fixed: **fog and overcast rendered steel blue.** A dense Atmosphere is lit by the blue sky, so
+  the grey Color/Decay in the `fog` and `overcast` grades came out blue-teal: all of Austerlitz and
+  Jena before the fog lifts, and the whole Waterloo battle (`r12-fog-before.jpg`,
+  `r12-waterloo-before.jpg`). Tested live: peach values (255,172,140) render neutral grey. Fog also
+  gets exposure 0.6 (pale, not dull) and overcast density 0.38 → 0.3 so the far half of the field is
+  readable (`r12-fog-after.jpg`, `r12-waterloo-after.jpg`). Clear grades are unchanged: the same
+  shift there turns the sky into a sunset.
+- Fixed: **hay stooks were near-black barrels** (`r12-stooks-dark.jpg`): Fabric (and Grass) render
+  the straw colour dark brown on these parts. Now Sand: straw coloured and matte.
+- Fixed: **autumn wheat strips read neon lime** (Limestone renders far brighter than its colour).
+  178,162,104 → 150,132,86, soft khaki like the reference (`r12-menu-after.jpg`). Winter (Austerlitz)
+  and summer wheat have the same glare (`r12-austerlitz-sun.jpg`), not changed yet: try ~0.84×.
+- Fixed: the briefing title truncated long episode names ("THE FIGHT FOR…"); it now shrinks to fit
+  (max 26 px).
+- Open, intro sweep: from the start height (700) the whole map is a floating island with a hard
+  cut edge in a flat teal "sea" (`r12-intro-island.jpg`): the 640-stud skirt is too narrow for that
+  view. Start the sweep lower or steeper, or lay a huge flat ground plane under the skirt. On fog
+  maps (Jena, Austerlitz) the sweep shows nothing at all, only fog, from start to end.
+- Open, reeds: one-blob reeds read as dark green melons along every bank
+  (`r12-goldbach-bridge.jpg`); Sand fixes the colour but not the shape. A thin pale fringe would read
+  as a reed bed.
+- Open, hedges: colour (47,68,29) on Grass renders near-black, so hedges look like black walls
+  (Hougoumont, Austerlitz). Lighten ~30 %.
+- Open, Goldbach bridges: each timber deck is 68 long over a 16-wide brook and sits at the higher
+  bank's height, so most of it floats over the slope (`r12-goldbach-bridge.jpg`).
+- Open, PvP (one player, Allied side): mode toggle, side buttons, Balance sides, roster, READY,
+  speed locked at ×1 and the French AI advancing all work. But the second side's camera looks the
+  same way as the first (north), so the Allies see their own line from the front with the French
+  behind the camera (`r12-pvp-allied-view.jpg`); turning to face the enemy makes every ground label
+  read upside down. Needs a per-side yaw and labels that flip with it. The mode and side carry over
+  to the next battle (Vierzehnheiligen put me on Prussia). Co-op and two-human PvP need a 2-player
+  Studio test (Test tab, Clients and Servers), which this setup cannot start.
+- Small: `Lighting`'s `currentWeather` carries over between battles, so a clear battle started right
+  after a fog battle (Jena → Vierzehnheiligen) sees "fog → clear", sets `fogLifted` and opens with a
+  20 s fog-lift tween into the morning grade instead of the afternoon one.
+
 ## Known failures
 
 None recorded yet.

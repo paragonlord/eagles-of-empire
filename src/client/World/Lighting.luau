@@ -101,6 +101,9 @@ local GRADES: { [string]: Grade } = {
 		fogColor = c3(206, 198, 180),
 	},
 	-- Dawn fog: pale, colourless, flat light; distance dissolves.
+	-- Studio: a dense Atmosphere is lit by the blue sky, so a grey Color renders steel blue;
+	-- these peach values come out neutral grey on screen (fog and overcast only; on a clear
+	-- day the same shift turns the sky to sunset).
 	fog = {
 		clock = 8.4,
 		brightness = 1.5,
@@ -108,15 +111,15 @@ local GRADES: { [string]: Grade } = {
 		ambient = c3(96, 94, 90),
 		outdoor = c3(130, 128, 122),
 		shiftTop = c3(240, 236, 228),
-		exposure = 0.2,
+		exposure = 0.6,
 		tint = c3(252, 250, 246),
 		contrast = 0.04,
 		saturation = -0.12,
 		bloom = 0.2,
 		atmoDensity = 0.45,
 		atmoOffset = 0,
-		atmoColor = c3(208, 204, 194),
-		atmoDecay = c3(180, 176, 166),
+		atmoColor = c3(255, 172, 140),
+		atmoDecay = c3(255, 172, 140),
 		atmoHaze = 0.4,
 		atmoGlare = 0,
 		cloudCover = 0.75,
@@ -167,10 +170,10 @@ local GRADES: { [string]: Grade } = {
 		contrast = 0.1,
 		saturation = -0.1,
 		bloom = 0.15,
-		atmoDensity = 0.38,
+		atmoDensity = 0.3,
 		atmoOffset = 0.1,
-		atmoColor = c3(190, 190, 186),
-		atmoDecay = c3(152, 150, 144),
+		atmoColor = c3(255, 176, 146),
+		atmoDecay = c3(240, 166, 138),
 		atmoHaze = 1.2,
 		atmoGlare = 0,
 		cloudCover = 0.88,

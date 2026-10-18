@@ -89,7 +89,7 @@ local SEASONS: { [string]: Season } = {
 		borders = { 0.34, 0.44, 0.54, 0.76 },
 		grass = { 126, 136, 62 },
 		leafy = { 84, 106, 44 },
-		wheat = { 178, 162, 104 },
+		wheat = { 150, 132, 86 }, -- Limestone renders far brighter: 178,162,104 read neon lime
 		plough = { 98, 76, 54 },
 	},
 	winter = {

@@ -675,7 +675,7 @@ local function buildStooks(parent: Instance, jobs: { () -> () })
 							local x, z = sx + u * ca - w * sa, sz + u * sa + w * ca
 							if isOpen(x, z) and Terrain.fieldAt(x, z) == look.stookKind and h01(x, z, 102) < 0.7 then
 								local p = blob(parent, Vector3.new(1.8, 2.3, 1.8), CFrame.new(x, groundY(x, z) + 0.8, z), look.stook:Lerp(c3(150, 130, 80), h01(z, x, 103) * 0.4))
-								p.Material = Enum.Material.Fabric
+								p.Material = Enum.Material.Sand -- Fabric and Grass render straw near-black (Studio)
 							end
 						end
 					end

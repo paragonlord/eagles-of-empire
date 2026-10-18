@@ -24818,7 +24818,11 @@ function Deployment.show(cb: Callbacks)
 	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = UDim2.new(1, -60, 0, 18), textSize = 17 })
 	dated.FontFace = Kit.ITALIC
 	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -60, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
-	title.TextTruncate = Enum.TextTruncate.AtEnd
+	-- long episode names ("The Fight for Vierzehnheiligen") shrink to fit instead of "THE FIGHT FOR…"
+	title.TextScaled = true
+	local fit = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+	fit.MaxTextSize = 26
+	fit.Parent = title
 	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
 	local facts = {}
 	local w = (Config.Weather :: any)[sc.weather or ""]
@@ -28376,6 +28380,9 @@ local GRADES: { [string]: Grade } = {
 		fogColor = c3(206, 198, 180),
 	},
 	-- Dawn fog: pale, colourless, flat light; distance dissolves.
+	-- Studio: a dense Atmosphere is lit by the blue sky, so a grey Color renders steel blue;
+	-- these peach values come out neutral grey on screen (fog and overcast only; on a clear
+	-- day the same shift turns the sky to sunset).
 	fog = {
 		clock = 8.4,
 		brightness = 1.5,
@@ -28383,15 +28390,15 @@ local GRADES: { [string]: Grade } = {
 		ambient = c3(96, 94, 90),
 		outdoor = c3(130, 128, 122),
 		shiftTop = c3(240, 236, 228),
-		exposure = 0.2,
+		exposure = 0.6,
 		tint = c3(252, 250, 246),
 		contrast = 0.04,
 		saturation = -0.12,
 		bloom = 0.2,
 		atmoDensity = 0.45,
 		atmoOffset = 0,
-		atmoColor = c3(208, 204, 194),
-		atmoDecay = c3(180, 176, 166),
+		atmoColor = c3(255, 172, 140),
+		atmoDecay = c3(255, 172, 140),
 		atmoHaze = 0.4,
 		atmoGlare = 0,
 		cloudCover = 0.75,
@@ -28442,10 +28449,10 @@ local GRADES: { [string]: Grade } = {
 		contrast = 0.1,
 		saturation = -0.1,
 		bloom = 0.15,
-		atmoDensity = 0.38,
+		atmoDensity = 0.3,
 		atmoOffset = 0.1,
-		atmoColor = c3(190, 190, 186),
-		atmoDecay = c3(152, 150, 144),
+		atmoColor = c3(255, 176, 146),
+		atmoDecay = c3(240, 166, 138),
 		atmoHaze = 1.2,
 		atmoGlare = 0,
 		cloudCover = 0.88,
@@ -29273,7 +29280,7 @@ local function buildStooks(parent: Instance, jobs: { () -> () })
 							local x, z = sx + u * ca - w * sa, sz + u * sa + w * ca
 							if isOpen(x, z) and Terrain.fieldAt(x, z) == look.stookKind and h01(x, z, 102) < 0.7 then
 								local p = blob(parent, Vector3.new(1.8, 2.3, 1.8), CFrame.new(x, groundY(x, z) + 0.8, z), look.stook:Lerp(c3(150, 130, 80), h01(z, x, 103) * 0.4))
-								p.Material = Enum.Material.Fabric
+								p.Material = Enum.Material.Sand -- Fabric and Grass render straw near-black (Studio)
 							end
 						end
 					end
@@ -30322,7 +30329,7 @@ local SEASONS: { [string]: Season } = {
 		borders = { 0.34, 0.44, 0.54, 0.76 },
 		grass = { 126, 136, 62 },
 		leafy = { 84, 106, 44 },
-		wheat = { 178, 162, 104 },
+		wheat = { 150, 132, 86 }, -- Limestone renders far brighter: 178,162,104 read neon lime
 		plough = { 98, 76, 54 },
 	},
 	winter = {
