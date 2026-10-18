@@ -13,8 +13,8 @@ export type Slot = {
 	offset: { number }, -- SpecialMesh.Offset (x, y, z), studs
 }
 
-local function slot(): Slot
-	return { mesh = "", texture = "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
+local function slot(texture: string?): Slot
+	return { mesh = "", texture = texture or "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
 end
 
 local Assets = {}
@@ -45,9 +45,10 @@ Assets.slots = {
 	bridgeStone = slot(), -- deck along +X, length = the span given
 	bridgeTimber = slot(),
 	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
-	bark = slot(),
-	roofTile = slot(),
-	wall = slot(),
+	-- image ids (not the store's decal ids), free on the Creator Store, picked in Studio (qa round 22)
+	bark = slot("rbxassetid://6490108541"), -- "TexturesCom_PineBark2_512_albedo", DarthRevan404
+	roofTile = slot("rbxassetid://18708362091"), -- "roof_tile_texture4127", Phatgamingsk2
+	wall = slot("rbxassetid://762795527"), -- "Seamless wall white paint stucco plaster", yumahap
 	thatch = slot(),
 }
 

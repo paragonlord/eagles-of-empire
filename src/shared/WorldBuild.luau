@@ -185,13 +185,19 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 	end
 	local tex = if s.texture then Assets.textureOf(s.texture) else nil
 	if tex then
-		local faces = if s.class == "WedgePart" then { Enum.NormalId.Top } else { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
+		-- a cylinder's axis is X, so its round side is Top/Bottom/Front/Back (Left/Right are the ends)
+		local faces = if s.class == "WedgePart" then { Enum.NormalId.Top } elseif s.shape == Enum.PartType.Cylinder then { Enum.NormalId.Top, Enum.NormalId.Bottom, Enum.NormalId.Front, Enum.NormalId.Back } else { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
 		for _, face in faces do
 			local t = Instance.new("Texture") :: Texture
 			t.Texture = tex
 			t.Face = face
 			t.StudsPerTileU = 4
 			t.StudsPerTileV = 4
+			-- tinted by the part so roofs and walls keep their own colours; bark stays as drawn
+			-- (tinted by the dark trunk colour it went black in Studio)
+			if s.texture ~= "bark" then
+				t.Color3 = p.Color
+			end
 			t.Parent = p
 		end
 	end

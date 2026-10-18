@@ -632,6 +632,25 @@ and faded in after 47.7 s.
 - Still open from round 15: tree crowns read as stacked flat discs (`r21-figures-on-slope.jpg`
   background), and haystacks are big golden balls (foreground).
 
+**2026-10-18 round 22 (world textures from the Creator Store).** No errors.
+- Added to `Assets.luau` (image ids, all free): `roofTile` 18708362091 (aged clay tiles),
+  `wall` 762795527 (white stucco), `bark` 6490108541 (brown pine bark). Picked from 18
+  candidates on a contact sheet (`r22-texture-candidates.jpg`) and tried live on the slope
+  village. `thatch` left empty: Jena has no thatched roof to try one on (4125863236, a light
+  hay, is the candidate).
+- Fixed in `WorldBuild`: textures are now tinted by the part's own colour (`Color3`), except
+  bark. Untinted, every roof was the same bright orange and lost the palette's red-browns
+  (`r22-roofs-untinted.jpg`); tinted, each house keeps its own roof and wall colour
+  (`r22-village-textured.jpg`). Bark tinted by the dark trunk colour went black, so it stays
+  as drawn.
+- Fixed in `WorldBuild`: a trunk is a Cylinder along X, so its round side is Top, Bottom, Front
+  and Back; the old face list (Front, Back, Left, Right) textured half the trunk and the two flat
+  ends (`r22-bark-half-faces.jpg`). Cylinders now get the four round faces.
+- Checked: at mid height the tiles read as red-brown roofs without shimmer
+  (`r22-village-textured-mid.jpg`). 8142 Texture instances on Jena; this Studio session ran at
+  15 fps with them, without them and with them again, so they cost nothing measurable (the slow
+  frame rate is this Studio session; see round 19).
+
 ## Known failures
 
 None recorded yet.
