@@ -47,7 +47,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 10, 16, 10 },
 	},
-	treePine = slot(),
+	treePine = { -- original 444-triangle pine; native bounds confirmed in Studio
+		mesh = "rbxassetid://82857667018871",
+		texture = "rbxassetid://130754173408547",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 8, 18, 8 },
+	},
 	treePoplar = slot(), -- narrow spindle ~16 tall
 	treeWillow = slot(),
 	houseA = slot(), -- cottage ~5 x 5 footprint, 2.6 eaves, gable ridge along +X
