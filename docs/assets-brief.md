@@ -6,8 +6,10 @@ the mesh instead of the parts. Empty slots keep the part version, so you can fil
 time. **The key names and sizes in `Assets.luau` are the truth; this brief follows them.**
 
 A slot is `{ mesh = "rbxassetid://…", texture = "rbxassetid://…", scale = {x, y, z}, offset = {x, y, z} }`.
-`scale` fits the mesh's native size to the studs given below (set it in Studio from the imported
-mesh's size); `offset` nudges it if the pivot is not on the ground.
+`native` is the mesh's own size in studs as Studio shows it on import (e.g. `{12, 13, 12}`):
+with it set, the game fits the mesh to every object's box, so one oak mesh serves small and
+large oaks alike. `scale` is then only a final tweak (leave `{1, 1, 1}`); `offset` nudges the
+mesh if its pivot is not on the ground. World meshes stand on the centre of their base.
 
 Already filled by the local Studio session: `bark`, `roofTile`, `wall` textures.
 

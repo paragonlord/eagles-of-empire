@@ -4,8 +4,22 @@ local Client = game:GetService("StarterPlayer").StarterPlayerScripts.EoEClient
 local MapGen = require(Shared.MapGen)
 local WorldGen = require(Shared.WorldGen)
 local Ready = require(Client.World.Ready)
+local Assets = require(Shared.Assets)
 
 local MAP = MapGen.generate("jena")
+
+-- The procedural pipeline is tested with every mesh slot empty (a filled slot replaces whole
+-- objects with one mesh part); the mesh path has its own test below.
+local savedMeshes: { [string]: string } = {}
+for key, slot in Assets.slots do
+	savedMeshes[key] = slot.mesh
+end
+local function setMeshes(on: boolean)
+	for key, slot in Assets.slots do
+		slot.mesh = if on then savedMeshes[key] else ""
+	end
+end
+setMeshes(false)
 
 local function fingerprint(specs)
 	local parts = {}
@@ -86,6 +100,32 @@ test("WorldGen: no part sits below the terrain at its corners, on every map", fu
 		end
 		assertEq(bad, 0, string.format("%s: parts below ground (worst %.2f)", id, worst))
 	end
+end)
+
+test("WorldGen: a filled tree slot turns each tree into one mesh part standing on the ground", function()
+	local key = "treeOak"
+	local slot = Assets.slots[key]
+	slot.mesh = "rbxassetid://1"
+	local ok, err = pcall(function()
+		for _, id in { "jena", "austerlitz" } do
+			local map = MapGen.generate(id)
+			local t = WorldGen.terrain(map)
+			local specs = WorldGen.props(map, t)
+			local meshes, bad = 0, 0
+			for _, s in specs do
+				if s.fileMesh == key then
+					meshes += 1
+					if WorldGen.shortfall(s, t) > 0.05 then
+						bad += 1
+					end
+				end
+			end
+			assertTrue(meshes > 50, id .. " has oak meshes")
+			assertEq(bad, 0, id .. ": oak bases below ground")
+		end
+	end)
+	slot.mesh = ""
+	assertTrue(ok, tostring(err))
 end)
 
 local function run(samples, settleCap, replicateCap)

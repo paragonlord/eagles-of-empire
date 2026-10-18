@@ -11,6 +11,8 @@ export type Slot = {
 	texture: string,
 	scale: { number }, -- SpecialMesh.Scale (x, y, z)
 	offset: { number }, -- SpecialMesh.Offset (x, y, z), studs
+	native: { number }?, -- the mesh's own size in studs (Studio shows it on import); world meshes are
+	-- then fitted to each object's box, so one oak mesh serves every oak size
 }
 
 local function slot(texture: string?): Slot
@@ -36,6 +38,7 @@ Assets.slots = {
 		texture = "rbxassetid://139915483990126",
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
+		native = { 12, 13, 12 },
 	},
 	treeBeech = slot(),
 	treePine = slot(),

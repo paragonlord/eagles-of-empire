@@ -714,12 +714,15 @@ local model: TerrainModel
 -- the lowest point of an ellipsoid (spheres, sphere meshes; Ball parts use the X extent);
 -- the lowest points of a cylinder's two end circles (axis along local X). World space.
 local CORNERS = { { -1, -1, -1 }, { 1, -1, -1 }, { -1, -1, 1 }, { 1, -1, 1 }, { -1, 1, -1 }, { 1, 1, -1 }, { -1, 1, 1 }, { 1, 1, 1 } }
-export type ShapeKind = "box" | "ellipsoid" | "cylinder"
+export type ShapeKind = "box" | "ellipsoid" | "cylinder" | "base"
 
 function WorldGen.lowPoints(cf: CFrame, size: Vector3, kind: ShapeKind): { Vector3 }
 	-- world up in the part's local axes
 	local ux, uy, uz = cf.XVector.Y, cf.YVector.Y, -cf.LookVector.Y
-	if kind == "ellipsoid" then
+	if kind == "base" then
+		-- a mesh object (tree, house) stands on the centre of its base; its box corners are air
+		return { cf * Vector3.new(0, -size.Y / 2, 0) }
+	elseif kind == "ellipsoid" then
 		local a, b, c = size.X / 2, size.Y / 2, size.Z / 2
 		local d = math.sqrt((a * ux) ^ 2 + (b * uy) ^ 2 + (c * uz) ^ 2)
 		if d < 1e-6 then
@@ -749,7 +752,9 @@ function WorldGen.lowPoints(cf: CFrame, size: Vector3, kind: ShapeKind): { Vecto
 end
 
 local function shapeOf(s: Spec): ShapeKind
-	if s.shape == Enum.PartType.Ball or s.mesh then
+	if s.fileMesh then
+		return "base"
+	elseif s.shape == Enum.PartType.Ball or s.mesh then
 		return "ellipsoid"
 	elseif s.shape == Enum.PartType.Cylinder then
 		return "cylinder"
@@ -826,7 +831,8 @@ local function meshObject(group: string, key: string, x: number, z: number, head
 	if not Assets.get(key) then
 		return false
 	end
-	local p = part(group, nil, Vector3.new(w, h, d), CFrame.new(x, Grid.heightAt(currentMap.grid, x, z) + h / 2, z) * CFrame.Angles(0, -heading, 0), Color3.new(1, 1, 1), Enum.Material.Plastic)
+	-- stand on the same terrain model the clip check uses (bilinear, cliff- and water-aware)
+	local p = part(group, nil, Vector3.new(w, h, d), CFrame.new(x, model.heightAt(x, z) + h / 2, z) * CFrame.Angles(0, -heading, 0), Color3.new(1, 1, 1), Enum.Material.Plastic)
 	p.fileMesh = key
 	return true
 end

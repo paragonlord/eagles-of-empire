@@ -179,7 +179,10 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 		m.MeshType = Enum.MeshType.FileMesh
 		m.MeshId = slot.mesh
 		m.TextureId = slot.texture
-		m.Scale = Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
+		-- fit the mesh's native size to this object's box (trees vary in size), then the slot's tweak
+		local n = slot.native
+		local fit = if n then Vector3.new(s.size.X / n[1], s.size.Y / n[2], s.size.Z / n[3]) else Vector3.one
+		m.Scale = fit * Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
 		m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
 		m.Parent = p
 	end
