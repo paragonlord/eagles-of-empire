@@ -518,6 +518,20 @@ Boots clean, no EoE errors or warnings.
   plate ("losewitz", "Landgrafenberg" behind a plate). "Under cursor" shows only the hovered
   name (`r14-names-hover.jpg`); "Off" hides all.
 
+**2026-10-18 round 15 (World QA 13-14), build 617ac90.** Boots clean, 0 errors.
+- Pass: hearth smoke reads as small thinning wisps, not balloons (`r15-village-smoke-trees.jpg`).
+  The fog patch that cut the Krippendorf slope is gone, and the rest are faint mist
+  (`r15-fog-patches.jpg`). Floating place names now clear the unit plates and ridges
+  ("Landgrafenberg" and "Closewitz" whole, `r15-names-floating.jpg`). The map edge ramps onto
+  the ground plane more softly from the intro height (`r15-intro-high.jpg`).
+- Open, lone and village trees at the low camera: the lobes are flat discs stacked with a visible
+  gap between the lower and upper one, so each tree reads as two floating plates on a stick
+  (bonsai), and a wooded skyline reads as a cloud of flying saucers (`r15-village-smoke-trees.jpg`,
+  left and background). Thicker lobes (closer to `hgt = w * 0.9`) that overlap vertically would
+  read as one crown both near and far.
+- Small: the haystack in the village is one big golden ball the size of a cottage door
+  (`r15-village-smoke-trees.jpg`, centre).
+
 ## Known failures
 
 None recorded yet.
