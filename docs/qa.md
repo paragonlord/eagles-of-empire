@@ -604,6 +604,16 @@ side.
   half), with ColorGrading confirmed off; it's the afternoon Atmosphere haze over the new
   far ground plane. Bring the menu camera lower or the haze warmer for that view.
 
+**2026-10-18 round 20 (valley mist), build c535cf7.** No errors; menu 38 s, Austerlitz built
+and faded in after 47.7 s.
+- Pass: Austerlitz has no fog discs left (0 visible flat parts); 4 mist emitters run at 0.6 under
+  the fog grade (`r20-austerlitz-no-discs.jpg`). Close to the Goldbach the mist reads as soft
+  pale patches on the ground with no rims (`r20-valley-mist-close.jpg`); from the default
+  height it is nearly invisible, which is fine for a light dawn mist.
+- Note: `docs/assets-brief.md` says each slot is in `src/shared/Assets.luau`, but that file is
+  not on main yet, so there is nowhere to paste an id. `Kit.paperTextureId` is still the only
+  live slot.
+
 ## Known failures
 
 None recorded yet.
