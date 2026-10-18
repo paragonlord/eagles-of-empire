@@ -7176,6 +7176,13 @@ function Coop.setSide(roster: Roster, userId: number, side: Side): boolean
 	return true
 end
 
+-- A new match: everyone back on the player side; PvP players pick again.
+function Coop.resetSides(roster: Roster)
+	for _, mem in roster.members do
+		mem.side = "player"
+	end
+end
+
 -- Host force-balance: the host keeps their side, the others alternate in join order starting
 -- on the other side (1v1, 2v1, 2v2).
 function Coop.balance(roster: Roster)
@@ -11194,6 +11201,7 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		votes = {},
 	}
 	local m = match :: Match
+	Coop.resetSides(roster) -- sides do not carry over between battles
 	roster.pvp = mode == "pvp" and pvpAllowed(m)
 	if roster.pvp then
 		MatchClock.setSpeed(m.clock, 1)
@@ -15748,7 +15756,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000092"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000091"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000090"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000093"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000092"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000091"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -16237,6 +16245,21 @@ function BattleState.ownFormations(): { Formation }
 	return out
 end
 
+-- Camera yaw for this side: from its deploy zone toward the enemy's, snapped to 90° so the
+-- ground labels line up. Nil when a zone is missing (the camera keeps looking north).
+function BattleState.sideYaw(): number?
+	local m = BattleState.map
+	local zones = if m then m.deployZones else nil
+	local own = zones and zones[BattleState.viewerFaction]
+	local foe = zones and zones[BattleState.enemyFaction]
+	if not own or not foe then
+		return nil
+	end
+	local dx = (foe.x0 + foe.x1 - own.x0 - own.x1) / 2
+	local dz = (foe.z0 + foe.z1 - own.z0 - own.z1) / 2
+	return math.round(math.atan2(dz, dx) / (math.pi / 2)) * (math.pi / 2)
+end
+
 -- Centre of the viewer's army (or the map centre when nothing is fielded).
 function BattleState.armyCentre(): Vec
 	local sx, sz, n = 0, 0, 0
@@ -16294,7 +16317,7 @@ local Settings = require(script.Parent.Settings)
 
 local Camera = {}
 
-local MIN_HEIGHT, MAX_HEIGHT = 120, 900
+local MIN_HEIGHT, MAX_HEIGHT = 55, 900 -- at the floor a soldier is ~30 px tall, so the uniforms read
 local MIN_PITCH, MAX_PITCH = math.rad(35), math.rad(65)
 local DEFAULT_PITCH = math.rad(52)
 -- NTW-style: the view tilts toward the horizon as it nears the ground (full tilt at MIN_HEIGHT,
@@ -16310,6 +16333,7 @@ local ZOOM_STEP = 1.15
 local DAMP = 10
 
 -- target values (inputs move these) and smoothed values (what is rendered)
+local defaultYaw = DEFAULT_YAW -- per side: faces the enemy (Camera.setDefaultYaw)
 local target = { x = 800, z = 600, yaw = DEFAULT_YAW, pitch = DEFAULT_PITCH, height = DEFAULT_HEIGHT }
 local cur = { x = 800, z = 600, yaw = DEFAULT_YAW, pitch = DEFAULT_PITCH, height = DEFAULT_HEIGHT }
 local map: any = nil
@@ -16551,11 +16575,16 @@ end
 -- Default angle: high oblique, look north from the south at 52°, 420 studs up.
 function Camera.reset(x: number, z: number)
 	intro = nil
-	target.yaw = DEFAULT_YAW
+	target.yaw = defaultYaw
 	target.pitch = DEFAULT_PITCH
 	target.height = DEFAULT_HEIGHT
 	Camera.focusOn(x, z, true)
 	cur.yaw, cur.pitch, cur.height = target.yaw, target.pitch, target.height
+end
+
+-- The yaw Camera.reset returns to; nil restores north. Each side looks toward its enemy.
+function Camera.setDefaultYaw(yaw: number?)
+	defaultYaw = yaw or DEFAULT_YAW
 end
 
 -- Sweeps in from high over the far side of the field, turning onto the current default view
@@ -19628,6 +19657,8 @@ local INK = rgb(P.Ink)
 local SELECT = rgb(P.Select)
 local HOSTILE = rgb(P.Hostile)
 
+local NEAR_TIER_D = 150 -- camera distance within which the near tier may be built
+local nearBand = NEAR_TIER_D -- the near-tier band in force: shrinks so the closest blocks fit the budget
 local SNAP_DT = 0.1
 local MAX_EXTRAP = 0.15
 local LABEL_INTERVAL = 0.15
@@ -19661,6 +19692,8 @@ type Group = {
 	colour: Color3,
 	ghost: boolean,
 	lod: string, -- "near" | "far"
+	tier: string, -- near LOD detail: "near" (jointed figures, kit, spoked wheels) | "mid" (coat, breeches, shako, musket)
+	dist: number, -- camera distance last frame
 	parts: { BasePart },
 	locals: { CFrame },
 	slots: { Slot },
@@ -19951,7 +19984,7 @@ end
 local function buildNear(g: Group, f: any)
 	local n = figureCount(g.class, f.strength)
 	g.slots = layoutSlots(g.class, f.shape, n, f.width, f.depth, thinK, g.id * 7919)
-	local detail = Settings.get().quality >= 2
+	local detail = Settings.get().quality >= 2 and g.tier == "near"
 	local slotIndex = 0
 	local function adder(): Soldiers.Add
 		local si = slotIndex
@@ -20385,7 +20418,7 @@ local function rebuildBody(g: Group, f: any)
 end
 
 local function layoutKeyOf(g: Group, f: any): string
-	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), visualCount(f), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
+	return string.format("%s|%d|%d|%d|%d|%s|%d", f.shape, math.round(f.width), math.round(f.depth), visualCount(f), thinK, if g.lod == "near" then g.tier else "far", Settings.get().quality)
 end
 
 local function newGroup(id: number, f: any, ghost: boolean): Group
@@ -20397,6 +20430,8 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		colour = colour,
 		ghost = ghost,
 		lod = "far",
+		tier = "mid",
+		dist = math.huge,
 		parts = {},
 		locals = {},
 		slots = {},
@@ -20445,8 +20480,53 @@ end
 
 -- ------------------------------------------------------------------ snapshot intake
 
+-- The budget is spent in parts, not figures: MaxFigures × the ~12 parts a plain figure took
+-- before the uniform pass, so the old ceiling holds whatever the detail tier builds.
+local PARTS_PER_FIGURE = 12
+-- Parts one figure costs per class and detail tier (measured from the Soldiers builders).
+local FIGURE_COST: { [string]: { near: number, mid: number } } = {
+	infantry = { near = 34, mid = 9 },
+	cavalry = { near = 52, mid = 13 },
+	hq = { near = 48, mid = 12 },
+	artillery = { near = 140, mid = 30 },
+}
+local SPECIALS_COST = { near = 155, mid = 60 } -- officer, colour and two drummers per battalion
+
 local function budget(): number
-	return if Settings.get().quality >= 3 then Config.Visual.MaxFiguresHigh elseif Settings.get().quality == 2 then (Config.Visual.MaxFiguresHigh + Config.Visual.MaxFiguresLow) // 2 else Config.Visual.MaxFiguresLow
+	local q = Settings.get().quality
+	local figs = if q >= 3 then Config.Visual.MaxFiguresHigh elseif q == 2 then (Config.Visual.MaxFiguresHigh + Config.Visual.MaxFiguresLow) // 2 else Config.Visual.MaxFiguresLow
+	return figs * PARTS_PER_FIGURE
+end
+
+local function groupCost(g: Group, f: any, near: boolean): number
+	local c = FIGURE_COST[g.class] or FIGURE_COST.infantry
+	return visualCount(f) * (if near then c.near else c.mid) + (if g.class == "infantry" then (if near then SPECIALS_COST.near else SPECIALS_COST.mid) else 0)
+end
+
+-- Spend the budget where the camera is: near-LOD blocks sorted by camera distance get the
+-- near tier while their cost fits (blocks already near keep it a little longer), the rest
+-- the mid tier; `nearBand` becomes the distance of the first block that did not fit. Returns
+-- the parts the whole near LOD will cost at those tiers.
+local function allocateTiers(list: { { g: Group, f: any } }): number
+	table.sort(list, function(a: { g: Group, f: any }, b: { g: Group, f: any })
+		return a.g.dist < b.g.dist
+	end)
+	local b = budget()
+	local detail = Settings.get().quality >= 2
+	local spent = 0
+	nearBand = NEAR_TIER_D
+	for _, e in list do
+		local g = e.g
+		local nearCost = groupCost(g, e.f, true)
+		local cap = if g.tier == "near" then 0.9 else 0.75
+		if detail and g.dist <= nearBand and spent + nearCost <= b * cap then
+			spent += nearCost
+		else
+			nearBand = math.min(nearBand, g.dist)
+			spent += groupCost(g, e.f, false)
+		end
+	end
+	return spent
 end
 
 local function onSnapshot()
@@ -20455,12 +20535,12 @@ local function onSnapshot()
 	end
 	local now = os.clock()
 	local seen: { [number]: boolean } = {}
-	local total = 0
+	local nearList: { { g: Group, f: any } } = {}
 	for id, f in BattleState.formations do
 		seen[id] = true
 		local near = groups[id]
 		if near and near.lod == "near" then
-			total += visualCount(f) -- the budget only spends figures on near-LOD blocks
+			table.insert(nearList, { g = near, f = f }) -- the budget only spends parts on near-LOD blocks
 		end
 		local existing: Group? = groups[id]
 		if existing and existing.ghost then
@@ -20528,7 +20608,7 @@ local function onSnapshot()
 			groups[id] = nil
 		end
 	end
-	local newK = math.max(1, math.ceil(total / budget()))
+	local newK = math.max(1, math.ceil(allocateTiers(nearList) / budget()))
 	if newK ~= thinK then
 		thinK = newK
 	end
@@ -20884,10 +20964,14 @@ function Figures.update(dt: number)
 			end
 			-- LOD with hysteresis
 			local dist = (camPos - Vector3.new(g.rx, groundY(g.rx, g.rz), g.rz)).Magnitude
+			g.dist = dist
 			local wantLod = if g.ghost then "far" elseif g.lod == "near" then (if dist > farD * 1.1 then "far" else "near") else (if dist < farD then "near" else "far")
 			if wantLod ~= g.lod then
 				g.lod = wantLod
 			end
+			-- detail tier with the same hysteresis: the fine parts are only built where they are
+			-- more than a pixel (within the band the budget allows)
+			g.tier = if g.tier == "near" then (if dist > nearBand * 1.1 then "mid" else "near") else (if dist < nearBand then "near" else "mid")
 			local key = layoutKeyOf(g, f)
 			if key ~= g.layoutKey then
 				g.layoutKey = key
@@ -22069,6 +22153,7 @@ local function onMatchState(msg: any)
 		diag(string.format("menu shown (commander=%s), world built=%s", tostring(BattleState.isCommander), tostring(built)))
 		if built then
 			local m = BattleState.map
+			Camera.setDefaultYaw(nil)
 			Camera.reset(m.width / 2, m.depth * 0.45)
 		end
 	elseif state == "loading" then
@@ -22113,6 +22198,7 @@ local function onMatchState(msg: any)
 		Input.setMode(if BattleState.canOrder() then "deploy" else "off")
 		Camera.setEnabled(true)
 		if zone then
+			Camera.setDefaultYaw(BattleState.sideYaw()) -- each side looks toward its enemy
 			Camera.reset((zone.x0 + zone.x1) / 2, (zone.z0 + zone.z1) / 2)
 			Camera.playIntro() -- sweep over the field while the briefing is read
 			needCameraReset = false
@@ -22232,6 +22318,7 @@ local function wire()
 		if needCameraReset and next(BattleState.formations) ~= nil then
 			needCameraReset = false
 			local c = BattleState.armyCentre()
+			Camera.setDefaultYaw(BattleState.sideYaw())
 			Camera.reset(c.x, c.z)
 		end
 	end))
@@ -22304,6 +22391,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	Effects.update(dt)
 	HUD.update(dt)
 	Props.updateLabels(Camera.height())
+	Props.setLabelYaw(Camera.getYaw())
 	pendingClock += dt
 	if pendingClock > 1 then
 		pendingClock = 0
@@ -23089,7 +23177,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000084"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000085"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: Quick battles (each battle a framed painting header over its two episode
 -- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
@@ -24824,6 +24912,7 @@ function Deployment.show(cb: Callbacks)
 	fit.MaxTextSize = 26
 	fit.Parent = title
 	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
+	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -36, 1, -100), 96)
 	local facts = {}
 	local w = (Config.Weather :: any)[sc.weather or ""]
 	if w then
@@ -26195,8 +26284,9 @@ return Help
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
--- primary actions), parchment only for documents. Every panel is Active so clicks never reach
--- the field. Screens build from these pieces, so restyling here restyles everything.
+-- primary actions), parchment only for documents: aged post, tea-stained at the edges with
+-- foxing, a crease and now and then a coffee ring (Kit.paper). Every panel is Active so clicks
+-- never reach the field. Screens build from these pieces, so restyling here restyles everything.
 
 local Players = game:GetService("Players") :: Players
 local UserInputService = game:GetService("UserInputService") :: UserInputService
@@ -26204,6 +26294,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
 local BattleState = require(script.Parent.Parent.BattleState)
+local PaperLayout = require(script.Parent.PaperLayout)
 
 local Kit = {}
 
@@ -26227,10 +26318,16 @@ Kit.IVORY = hex(0xEFE6CF) -- text on dark
 Kit.WALNUT = hex(0x2A1E17) -- panel body, bottom
 Kit.WALNUT_LIGHT = hex(0x3B2A1F) -- panel body, top
 Kit.INSET = hex(0x14100D) -- wells, tracks, nested panels
-Kit.PARCHMENT = hex(0xE8DCC0) -- documents only
-Kit.PARCHMENT_EDGE = hex(0xC9B58A)
-Kit.INK = rgb(P.Ink) -- text on parchment
-Kit.INK_MUTED = hex(0x6E5A44)
+Kit.PARCHMENT = hex(0xE6D7B4) -- documents only: mid tone of the aged sheet
+Kit.PARCHMENT_LIGHT = hex(0xF1E7CB) -- warm ivory at the heart of the sheet
+Kit.PARCHMENT_EDGE = hex(0xC8AB72) -- tea-stain ochre at the edges
+Kit.PARCHMENT_STAIN = hex(0x8A6A3A) -- foxing, rings, the vignette (laid on at high transparency)
+Kit.INK = hex(0x2F2116) -- iron-gall ink on parchment (10:1 on the mid tone)
+Kit.INK_MUTED = hex(0x6B5640) -- 4.6:1 on the mid tone
+Kit.STAMP = hex(0xA3362E) -- faded red of a dépôt stamp
+-- A Creator Store paper texture: set to "rbxassetid://..." and Kit.paper lays it under the
+-- gradients at low opacity. Empty, the procedural layers stand alone.
+Kit.paperTextureId = ""
 Kit.MUTED = hex(0xB3A285) -- secondary text on dark (resolves to INK_MUTED on parchment)
 Kit.SLATE = hex(0x4A4B52) -- disabled lacquer
 
@@ -26368,12 +26465,21 @@ function Kit.rosette(parent: Instance, pos: UDim2, size: number?): Frame
 	return holder
 end
 
--- Gold rule with a centred diamond; `width` in px (or the parent's width when nil).
+-- Gold rule with a centred diamond; `width` in px (or the parent's width when nil). On parchment
+-- it is drawn in ink as a thin double line with the diamond as its ornament.
 function Kit.rule(parent: Instance, pos: UDim2, width: number?, anchorX: number?): Frame
-	local r = frame(parent, if width then UDim2.fromOffset(width, 1) else UDim2.new(1, 0, 0, 1), pos, Kit.GILT)
+	local doc = onParchment(parent)
+	local colour = if doc then Kit.INK else Kit.GILT
+	local r = frame(parent, if width then UDim2.fromOffset(width, 1) else UDim2.new(1, 0, 0, 1), pos, colour)
 	r.Name = "Rule"
 	r.AnchorPoint = Vector2.new(anchorX or 0, 0.5)
-	local d = frame(r, UDim2.fromOffset(6, 6), UDim2.fromScale(0.5, 0.5), Kit.GILT)
+	if doc then
+		r.BackgroundTransparency = 0.35
+		local second = frame(r, UDim2.new(1, -16, 0, 1), UDim2.new(0.5, 0, 0, 3), colour)
+		second.AnchorPoint = Vector2.new(0.5, 0)
+		second.BackgroundTransparency = 0.55
+	end
+	local d = frame(r, UDim2.fromOffset(6, 6), UDim2.fromScale(0.5, 0.5), colour)
 	d.AnchorPoint = Vector2.new(0.5, 0.5)
 	d.Rotation = 45
 	return r
@@ -26400,6 +26506,7 @@ export type PanelProps = {
 	dark: boolean?, -- nested well: near-black inset with a dark-gold hairline
 	plain: boolean?, -- single thin frame, no rosettes (chips, bars)
 	parchment: boolean?, -- a document: briefing dispatch, report, history
+	seed: number?, -- parchment: where its stains fall (default: from the parent's name and the size)
 }
 
 -- Inner hairline 4 px inside the outer gold stroke, with rosettes at the corners.
@@ -26424,6 +26531,119 @@ local function trim(f: Frame, pad: number, colour: Color3)
 	end
 end
 
+local function round(f: GuiObject, radius: number?): UICorner
+	local c = Instance.new("UICorner") :: UICorner
+	c.CornerRadius = UDim.new(radius or 0.5, 0)
+	c.Parent = f
+	return c
+end
+
+local function hairline(f: GuiObject, colour: Color3, thickness: number, transparency: number): UIStroke
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = colour
+	s.Thickness = thickness
+	s.Transparency = transparency
+	s.Parent = f
+	return s
+end
+
+-- Aged post. The tone varies across the sheet: ochre creeps in from the edges along two
+-- angles and darkens towards the foot; then foxing spots, a crease, a folded corner and on some
+-- sheets a coffee ring, all placed by PaperLayout from `seed` so a panel looks the same each
+-- time it opens. A deckled double edge rounds it off. Everything sits in a "Deco" Folder at
+-- ZIndex 0 under the content; sizes are Scale-only so an auto-sized panel never grows for it.
+-- About 15 instances (18 with a ring), fewer than the gilt trim it replaces.
+function Kit.paper(f: Frame, pad: number, seed: number)
+	local deco = Instance.new("Folder")
+	deco.Name = "Deco"
+	deco.Parent = f
+	-- the padding is applied to the panel, so the sheet layers reach back out to its edge
+	local full = UDim2.new(1, 2 * pad, 1, 2 * pad)
+	local origin = UDim2.fromOffset(-pad, -pad)
+	local function layer(name: string, size: UDim2, pos: UDim2, colour: Color3, transparency: number): Frame
+		local l = frame(deco, size, pos, colour)
+		l.Name = name
+		l.ZIndex = 0
+		l.BackgroundTransparency = transparency
+		return l
+	end
+	if Kit.paperTextureId ~= "" then
+		local img = Instance.new("ImageLabel") :: ImageLabel
+		img.Name = "Texture"
+		img.Size = full
+		img.Position = origin
+		img.BackgroundTransparency = 1
+		img.Image = Kit.paperTextureId
+		img.ImageTransparency = 0.6
+		img.ScaleType = Enum.ScaleType.Crop
+		img.ZIndex = 0
+		img.Parent = deco
+	end
+	-- tea stain along two angles, clear at the heart; the second runs ochre into a darker
+	-- vignette at its far end
+	for i, rot in { 28, 117 } do
+		local t = layer("Stain" .. i, full, origin, Kit.PARCHMENT_EDGE, 0)
+		local g = Instance.new("UIGradient") :: UIGradient
+		g.Rotation = rot
+		if i == 2 then
+			g.Color = ColorSequence.new(Kit.PARCHMENT_EDGE, Kit.PARCHMENT_STAIN)
+		end
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.4),
+			NumberSequenceKeypoint.new(0.25, 0.88),
+			NumberSequenceKeypoint.new(0.5, 1),
+			NumberSequenceKeypoint.new(0.78, 0.86),
+			NumberSequenceKeypoint.new(1, 0.45),
+		})
+		g.Parent = t
+	end
+	local sheet = PaperLayout.sheet(seed)
+	for i, m in sheet.blotches do
+		round(layer("Fox" .. i, UDim2.fromScale(m.w, m.h), UDim2.fromScale(m.x, m.y), Kit.PARCHMENT_STAIN, m.alpha))
+	end
+	local ring = sheet.ring
+	if ring then
+		-- a thin darker ring round a soft fill
+		local r = layer("Ring", UDim2.fromScale(ring.w, ring.h), UDim2.fromScale(ring.x, ring.y), Kit.PARCHMENT_STAIN, 0.9)
+		round(r)
+		hairline(r, Kit.PARCHMENT_STAIN, 2, ring.alpha)
+	end
+	-- a fold: a darker line with the light catching just below it
+	local crease = layer("Crease", UDim2.new(1, 2 * pad, 0, 1), UDim2.new(0, -pad, sheet.crease.y, 0), Kit.PARCHMENT_STAIN, 0.72)
+	crease.Rotation = sheet.crease.rotation
+	local lit = frame(crease, UDim2.new(1, 0, 0, 1), UDim2.fromOffset(0, 1), Kit.PARCHMENT_LIGHT)
+	lit.BackgroundTransparency = 0.45
+	-- a dog-eared corner: a rotated square that just overruns the edge
+	local cx, cy = (sheet.chip - 1) % 2, (sheet.chip - 1) // 2
+	local chip = layer("Chip", UDim2.fromOffset(18, 18), UDim2.new(cx, if cx == 0 then -pad else pad, cy, if cy == 0 then -pad else pad), Kit.PARCHMENT_EDGE, 0.3)
+	chip.AnchorPoint = Vector2.new(cx, cy)
+	chip.Rotation = 45
+	-- deckled edge: a second, offset hairline inside the outer stroke
+	local deckle = layer("Deckle", UDim2.new(1, 2 * pad - 5, 1, 2 * pad - 5), UDim2.fromOffset(3 - pad, 2 - pad), Kit.PARCHMENT_STAIN, 1)
+	hairline(deckle, Kit.PARCHMENT_STAIN, 1, 0.55)
+end
+
+-- A faded circular stamp ("DÉPÔT DE LA GUERRE"): two rings and the legend, the whole set a
+-- little askew as if struck in haste. `d` is the diameter in px.
+function Kit.stamp(parent: Instance, text: string, pos: UDim2, d: number, anchor: Vector2?): Frame
+	local s = frame(parent, UDim2.fromOffset(d, d), pos, Kit.STAMP)
+	s.Name = "Stamp"
+	s.AnchorPoint = anchor or Vector2.new(0.5, 0.5)
+	s.BackgroundTransparency = 0.93
+	s.Rotation = -11
+	round(s)
+	hairline(s, Kit.STAMP, 3, 0.45)
+	local inner = frame(s, UDim2.fromScale(0.84, 0.84), UDim2.fromScale(0.5, 0.5), Kit.STAMP)
+	inner.AnchorPoint = Vector2.new(0.5, 0.5)
+	inner.BackgroundTransparency = 1
+	round(inner)
+	hairline(inner, Kit.STAMP, 1, 0.5)
+	local l = Kit.label(s, Kit.upper(text), { size = UDim2.fromScale(0.8, 0.8), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), textSize = math.max(10, math.floor(d / 6.5)), font = Enum.Font.Garamond, colour = Kit.STAMP, align = Enum.TextXAlignment.Center, wrap = true })
+	l.FontFace = Kit.BOLD
+	l.TextTransparency = 0.4
+	return s
+end
+
 function Kit.panel(parent: Instance, props: PanelProps): Frame
 	local f = Instance.new("Frame") :: Frame
 	f.Size = props.size
@@ -26438,18 +26658,17 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 	if props.parchment then
 		f:SetAttribute("parchment", true)
 		f.BackgroundColor3 = Color3.new(1, 1, 1)
-		local g = Instance.new("UIGradient") :: UIGradient
+		-- the base sheet already shifts from ivory to the mid tone; Kit.paper ages it
+		local g = gradient(f, Kit.PARCHMENT_LIGHT, Kit.PARCHMENT, 75)
 		g.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Kit.PARCHMENT_EDGE),
-			ColorSequenceKeypoint.new(0.08, hex(0xEFE4CA)),
-			ColorSequenceKeypoint.new(0.85, Kit.PARCHMENT),
-			ColorSequenceKeypoint.new(1, Kit.PARCHMENT_EDGE),
+			ColorSequenceKeypoint.new(0, Kit.PARCHMENT_LIGHT),
+			ColorSequenceKeypoint.new(0.5, Kit.PARCHMENT),
+			ColorSequenceKeypoint.new(1, Kit.PARCHMENT:Lerp(Kit.PARCHMENT_EDGE, 0.5)),
 		})
-		g.Rotation = 90
-		g.Parent = f
-		stroke.Color = hex(0x9C8456)
+		stroke.Color = Kit.PARCHMENT_STAIN
 		stroke.Thickness = 2
-		trim(f, props.padding or 0, hex(0xB59E72))
+		stroke.Transparency = 0.2
+		Kit.paper(f, props.padding or 0, props.seed or PaperLayout.seed(parent.Name .. tostring(props.size)))
 	elseif props.dark then
 		f:SetAttribute("parchment", false)
 		f.BackgroundColor3 = Kit.INSET
@@ -27630,7 +27849,59 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Where the stains fall on an aged sheet. Pure numbers (no Roblox types) so the headless spec
+-- can check it: every mark lies inside the unit square, and the same seed gives the same sheet.
+
+local PaperLayout = {}
+
+export type Mark = { x: number, y: number, w: number, h: number, alpha: number }
+export type Sheet = {
+	blotches: { Mark }, -- foxing spots: x, y, w, h in 0..1 of the panel, alpha = transparency
+	ring: Mark?, -- one coffee ring on roughly a third of sheets
+	crease: { y: number, rotation: number }, -- a fold across the sheet, y in 0..1
+	chip: number, -- which corner is folded: 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right
+}
+
+-- FNV-1a over the bytes: a stable seed from the panel's name and size.
+function PaperLayout.seed(key: string): number
+	local h = 2166136261
+	for i = 1, #key do
+		h = bit32.band((bit32.bxor(h, string.byte(key, i)) * 16777619), 0xFFFFFFFF)
+	end
+	return h
+end
+
+function PaperLayout.sheet(seed: number): Sheet
+	local state = seed % 2147483647
+	if state == 0 then
+		state = 1
+	end
+	local function rand(lo: number, hi: number): number
+		state = (state * 48271) % 2147483647 -- Park-Miller
+		return lo + (state / 2147483647) * (hi - lo)
+	end
+	local blotches: { Mark } = {}
+	for _ = 1, 3 do
+		local w = rand(0.06, 0.22)
+		local h = w * rand(0.5, 1.1)
+		table.insert(blotches, { x = rand(0, 1 - w), y = rand(0, 1 - h), w = w, h = h, alpha = rand(0.78, 0.9) })
+	end
+	local ring: Mark? = nil
+	if rand(0, 1) < 0.4 then
+		local d = rand(0.14, 0.24)
+		ring = { x = rand(0.02, 1 - d - 0.02), y = rand(0.02, 1 - d - 0.02), w = d, h = d, alpha = rand(0.6, 0.75) }
+	end
+	return {
+		blotches = blotches,
+		ring = ring,
+		crease = { y = rand(0.3, 0.75), rotation = rand(-2.5, 2.5) },
+		chip = 1 + math.floor(rand(0, 3.999)),
+	}
+end
+
+return PaperLayout
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -27851,6 +28122,7 @@ function Results.show(results: any, cb: Callbacks)
 	local subLine = Kit.label(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 56), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
 	subLine.FontFace = Kit.ITALIC
 	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
+	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -50, 0, 100), 100)
 
 	local sidesRow = Instance.new("Frame") :: Frame
 	sidesRow.Size = UDim2.new(1, 0, 0, 160)
@@ -27978,7 +28250,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
@@ -28107,7 +28379,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -28277,7 +28549,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000089"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000090"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battlefield light, graded like a painted campaign map: a warm late-afternoon sun by default,
 -- a pale morning fog that lifts into clear sun (the Sun of Austerlitz), and a soft wet overcast
 -- for rain and mud (Waterloo). Built-in sky and post effects only (no asset ids).
@@ -28287,6 +28559,7 @@ return TutorialPanel
 
 local LightingService = game:GetService("Lighting") :: Lighting
 local TweenService = game:GetService("TweenService") :: TweenService
+local RunService = game:GetService("RunService") :: RunService
 
 local Lighting = {}
 
@@ -28395,7 +28668,7 @@ local GRADES: { [string]: Grade } = {
 		contrast = 0.04,
 		saturation = -0.12,
 		bloom = 0.2,
-		atmoDensity = 0.45,
+		atmoDensity = 0.4,
 		atmoOffset = 0,
 		atmoColor = c3(255, 172, 140),
 		atmoDecay = c3(255, 172, 140),
@@ -28471,6 +28744,9 @@ local currentGrade = "afternoon"
 local fogLifted = false -- the battle opened in fog: the clear light after it is morning, not afternoon
 
 local atmosphere: Atmosphere? = nil
+local groundFog: Folder? = nil
+local tweens: { Tween } = {}
+local heightConn: RBXScriptConnection? = nil
 local cc: ColorCorrectionEffect? = nil
 local bloom: BloomEffect? = nil
 local rays: SunRaysEffect? = nil
@@ -28493,6 +28769,10 @@ local function setGrade(name: string, seconds: number)
 	currentGrade = name
 	local g = GRADES[name]
 	local L = LightingService
+	for _, t in tweens do
+		t:Cancel()
+	end
+	table.clear(tweens)
 	local info = TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 	local function to(inst: Instance?, props: { [string]: any })
 		if not inst then
@@ -28503,7 +28783,9 @@ local function setGrade(name: string, seconds: number)
 				(inst :: any)[k] = v
 			end
 		else
-			TweenService:Create(inst, info, props):Play()
+			local t = TweenService:Create(inst, info, props)
+			t:Play()
+			table.insert(tweens, t)
 		end
 	end
 	to(L, {
@@ -28530,6 +28812,25 @@ local function setGrade(name: string, seconds: number)
 		Glare = g.atmoGlare,
 	})
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
+	-- valley fog patches show only under the fog grade
+	if groundFog then
+		local t = if name == "fog" then 0.55 else 1
+		for _, p in groundFog:GetChildren() do
+			if p:IsA("BasePart") then
+				to(p, { Transparency = t })
+			end
+		end
+	end
+end
+
+-- Props hands over the folder of flat valley-fog patches it builds for the current map, and
+-- asks what transparency a new patch starts at.
+function Lighting.setGroundFog(folder: Folder?)
+	groundFog = folder
+end
+
+function Lighting.groundFogTransparency(): number
+	return if currentGrade == "fog" then 0.55 else 1
 end
 
 function Lighting.apply(quality: number)
@@ -28567,11 +28868,46 @@ function Lighting.apply(quality: number)
 		clouds = own(Instance.new("Clouds") :: Clouds, workspace.Terrain)
 	end
 	setGrade(gradeFor(currentWeather), 0)
+	-- Fog thins as the camera climbs (the intro sweep starts at 700; the default view is ~420):
+	-- from high up a full-density Atmosphere shows nothing but fog, and plates must stay legible.
+	if heightConn then
+		heightConn:Disconnect()
+	end
+	local acc = 0
+	heightConn = RunService.Heartbeat:Connect(function(dt: number)
+		acc += dt
+		if acc < 0.25 then
+			return
+		end
+		acc = 0
+		local atmo = atmosphere
+		local cam = workspace.CurrentCamera
+		if not atmo or not cam then
+			return
+		end
+		for _, t in tweens do
+			if t.PlaybackState == Enum.PlaybackState.Playing then
+				return
+			end
+		end
+		local g = GRADES[currentGrade]
+		local factor = if currentGrade == "fog" then math.clamp(1 - (cam.CFrame.Position.Y - 330) / 900, 0.4, 1) else 1
+		atmo.Density = g.atmoDensity * factor
+	end)
 end
 
--- A new map starts from the default light until its scenario weather arrives.
-function Lighting.setMap(_mapId: string?)
+-- A new battle (or map) opens in its scenario weather with nothing carried over from the last
+-- one: a clear battle after a foggy one is an afternoon, not a fog lifting.
+function Lighting.beginBattle()
 	fogLifted = false
+	local name = gradeFor(currentWeather)
+	if name ~= currentGrade then
+		setGrade(name, 0)
+	end
+end
+
+function Lighting.setMap(_mapId: string?)
+	Lighting.beginBattle()
 end
 
 -- Scenario weather (`fog`, `rain`, `mud`, ... or nil for clear). Fog arrives at once; when it
@@ -28600,10 +28936,14 @@ end
 
 function Lighting.destroy()
 	clearOwned()
+	if heightConn then
+		heightConn:Disconnect()
+		heightConn = nil
+	end
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -28741,7 +29081,7 @@ local LOOKS: { [string]: Look } = {
 	autumn = {
 		crowns = { c3(56, 78, 34), c3(64, 86, 38), c3(74, 92, 40), c3(90, 98, 44), c3(108, 104, 50), c3(116, 92, 52) },
 		conifer = 0.12,
-		hedge = c3(62, 80, 36),
+		hedge = c3(84, 106, 50),
 		roofs = { c3(122, 60, 42), c3(108, 54, 40), c3(132, 72, 50), c3(92, 56, 44), c3(116, 66, 48) },
 		walls = { c3(222, 214, 194), c3(214, 204, 180), c3(206, 196, 172) },
 		timber = 0.45,
@@ -28755,7 +29095,7 @@ local LOOKS: { [string]: Look } = {
 	winter = {
 		crowns = { c3(86, 84, 60), c3(96, 90, 64), c3(78, 80, 56), c3(104, 94, 70), c3(70, 78, 50) },
 		conifer = 0.35,
-		hedge = c3(76, 80, 54),
+		hedge = c3(100, 106, 72),
 		roofs = { c3(118, 62, 46), c3(104, 58, 44), c3(128, 74, 54) },
 		walls = { c3(226, 220, 204), c3(218, 212, 196), c3(210, 202, 184) },
 		timber = 0.0,
@@ -28769,7 +29109,7 @@ local LOOKS: { [string]: Look } = {
 	summer = {
 		crowns = { c3(50, 80, 32), c3(58, 90, 36), c3(66, 98, 40), c3(76, 104, 44), c3(54, 74, 34) },
 		conifer = 0.05,
-		hedge = c3(54, 82, 32),
+		hedge = c3(74, 108, 46),
 		roofs = { c3(120, 58, 42), c3(106, 52, 40), c3(76, 76, 82), c3(130, 68, 48) },
 		walls = { c3(222, 216, 200), c3(212, 204, 186), c3(150, 82, 62), c3(140, 76, 58) },
 		timber = 0.0,
@@ -28793,59 +29133,110 @@ local function crownColor(x: number, z: number): Color3
 	return base:Lerp(c3(30, 40, 24), h01(z, x, 42) * 0.25)
 end
 
-local function deciduous(parent: Instance, x: number, z: number, r: number, trunk: boolean, y: number?, lobe: boolean?)
-	local gy = y or groundY(x, z)
-	local trunkH = r * 1.0
-	if trunk then
-		part(parent, Enum.PartType.Cylinder, Vector3.new(trunkH + 1, r * 0.26, r * 0.26), CFrame.new(x, gy + trunkH / 2, z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-	end
-	local col = crownColor(x, z)
-	local a = h01(x, z, 43) * math.pi * 2
-	part(parent, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(x, gy + trunkH + r * 0.7, z), col)
-	if trunk or lobe then
-		-- a second, smaller lobe breaks the lollipop outline and makes a lumpy canopy
-		local o = r * 0.55
-		part(parent, Enum.PartType.Ball, Vector3.one * r * 1.4, CFrame.new(x + math.cos(a) * o, gy + trunkH + r * 1.05, z + math.sin(a) * o), col:Lerp(c3(120, 120, 70), 0.08))
-	end
+-- Trees are built from a trunk, a branch or two and several overlapping flattened lobes in
+-- two or three tones (lit top, mid, shaded underside), so a crown has a lumpy silhouette from
+-- any height and a trunk you can see at the low camera. Each species has its own shape:
+--   oak    broad, lobes spread wide, short thick trunk
+--   beech  taller, lobes stacked upward, pale smooth trunk
+--   pine   tiers of flattened cones (ellipsoids) up a straight trunk, dark blue-green
+--   poplar narrow stacked spindles on a tall trunk (Brabant road rows)
+--   willow short thick trunk, a low dome and drooping lobes, silvery (river banks)
+-- `full` trees get branches and 5-7 lobes (8-10 parts); `lite` ones a trunk and 3 lobes.
+type Species = "oak" | "beech" | "pine" | "poplar" | "willow"
+
+local function trunkPart(parent: Instance, x: number, gy: number, z: number, h: number, d: number, color: Color3)
+	part(parent, Enum.PartType.Cylinder, Vector3.new(h, d, d), CFrame.new(x, gy + h / 2 - 0.3, z) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.Material.Wood)
 end
 
-local function conifer(parent: Instance, x: number, z: number, r: number, y: number?)
-	local gy = y or groundY(x, z)
-	part(parent, Enum.PartType.Cylinder, Vector3.new(r * 0.8, r * 0.22, r * 0.22), CFrame.new(x, gy + r * 0.4, z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-	blob(parent, Vector3.new(r * 1.3, r * 3.4, r * 1.3), CFrame.new(x, gy + r * 2.1, z), CONIFER:Lerp(c3(30, 44, 34), h01(x, z, 44) * 0.5))
+local function branch(parent: Instance, x: number, y: number, z: number, len: number, d: number, dirAngle: number, tilt: number, color: Color3)
+	-- a thin cylinder from (x, y, z) leaning out `tilt` radians from vertical toward dirAngle
+	local cf = CFrame.new(x, y, z) * CFrame.Angles(0, -dirAngle, 0) * CFrame.Angles(0, 0, math.pi / 2 - tilt) * CFrame.new(len / 2, 0, 0)
+	part(parent, Enum.PartType.Cylinder, Vector3.new(len, d, d), cf, color, Enum.Material.Wood)
 end
 
-local function poplar(parent: Instance, x: number, z: number, y: number?)
+local function tree(parent: Instance, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
 	local gy = y or groundY(x, z)
-	local hgt = 15 + h01(x, z, 45) * 5
-	part(parent, nil, Vector3.new(0.6, 3, 0.6), CFrame.new(x, gy + 1.5, z), TRUNK)
-	blob(parent, Vector3.new(3.6, hgt, 3.6), CFrame.new(x, gy + 2 + hgt / 2, z), pick(look.crowns, h01(x, z, 46)):Lerp(c3(70, 96, 40), 0.25))
+	local seed = h01(x, z, 43)
+	local base = crownColor(x, z)
+	local lit = base:Lerp(c3(150, 150, 70), 0.18)
+	local shade = base:Lerp(c3(24, 34, 20), 0.3)
+	local bark = TRUNK:Lerp(c3(40, 32, 26), h01(z, x, 44) * 0.4)
+	if species == "poplar" then
+		local hgt = r * 3.2
+		trunkPart(parent, x, gy, z, hgt * 0.35, r * 0.18, bark)
+		for i = 0, 2 do
+			local w = r * (1.1 - i * 0.25)
+			local f = i / 2
+			blob(parent, Vector3.new(w, hgt * 0.5, w), CFrame.new(x, gy + hgt * (0.3 + f * 0.33), z) * CFrame.Angles(0, seed * 3, 0), (if i == 2 then lit else base):Lerp(c3(70, 96, 40), 0.25))
+		end
+		return
+	elseif species == "pine" then
+		local hgt = r * 2.8
+		trunkPart(parent, x, gy, z, hgt * 0.55, r * 0.16, bark:Lerp(c3(110, 70, 50), 0.3))
+		local tiers = if full then 4 else 3
+		for i = 0, tiers - 1 do
+			local f = i / (tiers - 1)
+			local w = r * (1.5 - f * 1.1)
+			local col = CONIFER:Lerp(c3(30, 44, 34), seed * 0.5):Lerp(c3(74, 96, 58), f * 0.35)
+			blob(parent, Vector3.new(w, r * 0.7, w), CFrame.new(x + (seed - 0.5) * 0.4 * f, gy + hgt * (0.35 + f * 0.6), z), col)
+		end
+		return
+	elseif species == "willow" then
+		trunkPart(parent, x, gy, z, r * 0.8, r * 0.3, bark)
+		local silver = c3(108, 122, 84):Lerp(base, 0.3)
+		blob(parent, Vector3.new(r * 2.2, r * 1.3, r * 2.2), CFrame.new(x, gy + r * 1.2, z), silver)
+		for i = 0, (if full then 2 else 1) do
+			local a = seed * 6 + i * 2.4
+			blob(parent, Vector3.new(r * 1.1, r * 1.5, r * 1.1), CFrame.new(x + math.cos(a) * r * 0.8, gy + r * 0.75, z + math.sin(a) * r * 0.8), silver:Lerp(shade, 0.35))
+		end
+		return
+	end
+	-- oak / beech
+	local beech = species == "beech"
+	local trunkH = if beech then r * 1.5 else r * 1.0
+	local trunkD = if beech then r * 0.2 else r * 0.3
+	trunkPart(parent, x, gy, z, trunkH + 0.6, trunkD, if beech then bark:Lerp(c3(150, 142, 128), 0.45) else bark)
+	if full then
+		branch(parent, x, gy + trunkH * 0.75, z, r * 0.9, trunkD * 0.45, seed * 6.28, if beech then 0.5 else 0.95, bark)
+	end
+	local n = if full then 4 + math.floor(seed * 3) else 2
+	for i = 0, n - 1 do
+		local f = i / math.max(n - 1, 1)
+		local a = seed * 6.28 + i * 2.39996 -- golden angle: lobes spread evenly around
+		local spread = if beech then r * 0.45 else r * 0.7
+		local off = spread * (0.35 + 0.65 * h01(x + i, z, 45))
+		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3)
+		local hgt = w * (if beech then 0.95 else 0.72)
+		local ly = gy + trunkH + (if beech then r * 0.35 + f * r * 1.1 else r * 0.3 + f * r * 0.75)
+		local col = if f < 0.34 then shade elseif f < 0.7 then base else lit
+		blob(parent, Vector3.new(w, hgt, w * (0.85 + h01(z, x + i, 46) * 0.3)), CFrame.new(x + math.cos(a) * off, ly, z + math.sin(a) * off) * CFrame.Angles(0, a, 0), col)
+	end
 end
 
 local function bush(parent: Instance, x: number, z: number, r: number)
-	local p = blob(parent, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.35, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(40, 52, 28), h01(z, x, 48) * 0.5))
+	local p = blob(parent, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.35, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(56, 72, 40), h01(z, x, 48) * 0.4))
 	p.CastShadow = false
 end
 
+-- Woods: edge trees are full (trunk, branches, lobes, undergrowth); the interior is a closed
+-- canopy of lite trees over dark trunks, thinned to half since the canopy hides the rest.
 local function buildWoodsTree(parent: Instance, t: any, highGround: number)
 	local r = t.r
 	local edge = false
 	for k = 0, 3 do
 		local a = k * math.pi / 2
-		if classAt(t.x + math.cos(a) * r * 1.9, t.z + math.sin(a) * r * 1.9) ~= IDS.woods then
+		if classAt(t.x + math.cos(a) * r * 1.5, t.z + math.sin(a) * r * 1.5) ~= IDS.woods then
 			edge = true
 			break
 		end
 	end
+	if not edge and t.priority < 0.58 then
+		return
+	end
 	local y = groundY(t.x, t.z)
 	local coniferShare = look.conifer + (if y > highGround then 0.35 else 0)
-	if h01(t.x, t.z, 49) < coniferShare then
-		conifer(parent, t.x, t.z, r * 0.9, y)
-	else
-		-- interior trees are crowns only (trunks are hidden by the canopy); edge trees get
-		-- trunk, a second lobe and undergrowth on the open side
-		deciduous(parent, t.x, t.z, r, edge, y, t.priority > 0.45)
-	end
+	local sp: Species = if h01(t.x, t.z, 49) < coniferShare then "pine" elseif h01(t.z, t.x, 52) < 0.3 then "beech" else "oak"
+	tree(parent, sp, t.x, t.z, if edge then r else r * 1.35, edge, y)
 	if edge and h01(t.z, t.x, 50) < 0.6 then
 		local a = h01(t.x, t.z, 51) * math.pi * 2
 		bush(parent, t.x + math.cos(a) * r, t.z + math.sin(a) * r, r * 0.6)
@@ -28885,7 +29276,66 @@ local function house(parent: Instance, x: number, z: number, heading: number, w:
 	gable(parent, yaw(x, y + wallH, z, heading), w + 0.6, d + 0.8, roofH, roofC, if thatch then Enum.Material.Grass else Enum.Material.Slate)
 	if kind ~= "barn" and h01(x, z, salt + 3) < 0.45 then
 		local cx = (h01(z, x, salt + 4) - 0.5) * w * 0.6
-		part(parent, nil, Vector3.new(0.7, roofH + 0.9, 0.7), yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12), c3(120, 96, 80))
+		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
+		part(parent, nil, Vector3.new(0.7, roofH + 0.9, 0.7), top, c3(120, 96, 80))
+		if h01(x + 1, z, salt + 5) < 0.5 then
+			-- a wisp of hearth smoke
+			local smoke = blob(parent, Vector3.new(1.6, 2.6, 1.6), top * CFrame.new(0.3, roofH * 0.5 + 1.6, 0), c3(200, 198, 192))
+			smoke.Material = Enum.Material.SmoothPlastic
+			smoke.Transparency = 0.6
+			smoke.CastShadow = false
+		end
+	end
+	-- footprint variety: an L-wing at one end, or a lean-to shed along the back
+	local variant = h01(x, z + 1, salt + 6)
+	if kind ~= "barn" and variant < 0.22 then
+		local wx = w / 2 - d * 0.35
+		local wing = yaw(x, y, z, heading) * CFrame.new(wx, 0, d / 2 + w * 0.2) * CFrame.Angles(0, math.pi / 2, 0)
+		part(parent, nil, Vector3.new(w * 0.55, wallH + 0.6, d * 0.7), wing * CFrame.new(0, wallH / 2 - 0.3, 0), wallC)
+		gable(parent, wing * CFrame.new(0, wallH - 0.2, 0), w * 0.55 + 0.4, d * 0.7 + 0.6, roofH * 0.8, roofC, Enum.Material.Slate)
+	elseif variant < 0.42 then
+		wedge(parent, Vector3.new(w * 0.7, 1.6, 2.2), yaw(x, y + wallH * 0.45, z, heading) * CFrame.new(0, 0, d / 2 + 1.1) * CFrame.Angles(0, math.pi, 0), roofC:Lerp(c3(70, 60, 50), 0.3), Enum.Material.WoodPlanks)
+	end
+end
+
+-- Village furniture: a cart, barrels by the well, a haystack by a barn, a wayside shrine.
+local function cart(parent: Instance, x: number, z: number, heading: number)
+	local y = groundY(x, z)
+	local base = yaw(x, y, z, heading)
+	part(parent, nil, Vector3.new(3.6, 0.9, 1.8), base * CFrame.new(0, 1.3, 0), c3(110, 86, 60), Enum.Material.WoodPlanks)
+	for side = -1, 1, 2 do
+		part(parent, Enum.PartType.Cylinder, Vector3.new(0.2, 1.6, 1.6), base * CFrame.new(0.3, 0.8, side * 1.05), c3(70, 54, 40), Enum.Material.Wood)
+	end
+	part(parent, nil, Vector3.new(2.6, 0.2, 0.2), base * CFrame.new(-3, 0.7, 0.5) * CFrame.Angles(0, 0, 0.15), BEAM)
+end
+
+local function barrels(parent: Instance, x: number, z: number)
+	local y = groundY(x, z)
+	for i = 0, 1 do
+		part(parent, Enum.PartType.Cylinder, Vector3.new(1.1, 0.8, 0.8), CFrame.new(x + i * 0.9, y + 0.55, z + i * 0.3) * CFrame.Angles(0, 0, math.pi / 2), c3(96, 74, 50), Enum.Material.Wood)
+	end
+end
+
+local function haystack(parent: Instance, x: number, z: number)
+	local y = groundY(x, z)
+	local p = blob(parent, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.5, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
+	p.Material = Enum.Material.Sand
+	part(parent, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+end
+
+local function shrine(parent: Instance, x: number, z: number, heading: number)
+	local y = groundY(x, z)
+	local base = yaw(x, y, z, heading)
+	part(parent, nil, Vector3.new(0.5, 2.6, 0.5), base * CFrame.new(0, 1.3, 0), STONE, Enum.Material.Slate)
+	part(parent, nil, Vector3.new(1.4, 0.9, 1.0), base * CFrame.new(0, 2.8, 0), c3(214, 206, 190))
+	gable(parent, base * CFrame.new(0, 3.25, 0), 1.7, 1.3, 0.7, c3(100, 56, 42), Enum.Material.Slate)
+end
+
+-- A low wall round the churchyard, open toward the street.
+local function churchyard(parent: Instance, base: CFrame)
+	local wall = c3(176, 166, 148)
+	for _, seg in { { 0, 10.5, 30, 0 }, { -15, 0, 0, 21 }, { 15, 0, 0, 21 }, { -8, -10.5, 10, 0 }, { 8, -10.5, 10, 0 } } do
+		part(parent, nil, Vector3.new(math.max(seg[3], 0.7), 1.3, math.max(seg[4], 0.7)), base * CFrame.new(seg[1], 0.4, seg[2]), wall, Enum.Material.Cobblestone)
 	end
 end
 
@@ -28933,6 +29383,7 @@ local function church(parent: Instance, x: number, z: number, heading: number)
 	gable(parent, nave * CFrame.new(0, 6, 0), 13.6, 7.4, 4.8, roof, Enum.Material.Slate)
 	local tower = nave * CFrame.new(-8.6, 0, 0)
 	part(parent, nil, Vector3.new(4.4, 14, 4.4), tower * CFrame.new(0, 6.5, 0), wall)
+	churchyard(parent, nave * CFrame.new(-2, 0, 0))
 	if look.dome then
 		part(parent, Enum.PartType.Ball, Vector3.one * 5.2, tower * CFrame.new(0, 14.6, 0), c3(84, 102, 84), Enum.Material.Metal)
 		part(parent, nil, Vector3.new(0.5, 3.5, 0.5), tower * CFrame.new(0, 18.4, 0), c3(170, 150, 90), Enum.Material.Metal)
@@ -28990,7 +29441,7 @@ local function compound(parent: Instance, v: any, size: number, garden: boolean,
 		end
 		for k = -1, 1 do
 			local p = g * CFrame.new(k * size * 0.3, 0, 0)
-			deciduous(parent, p.X, p.Z, 2.4, true)
+			tree(parent, "oak", p.X, p.Z, 2.4, false)
 		end
 	end
 end
@@ -29031,20 +29482,43 @@ local function buildVillage(parent: Instance, v: any)
 		local r = Vec.right(Vec.fromHeading(heading))
 		local cpos = Vec.add(v.pos, Vec.scale(r, 14))
 		church(parent, cpos.x, cpos.z, heading)
-		well(parent, v.pos.x - r.x * 9 + 6, v.pos.z - r.z * 9)
+		clearR = 0
+		local wx, wz = v.pos.x - r.x * 9 + 6, v.pos.z - r.z * 9
+		well(parent, wx, wz)
+		barrels(parent, wx + 2.2, wz + 1.4)
 		for _, b in v.buildings do
-			if Vec.dist(b.pos, cpos) > 12 then
-				buildBuilding(parent, b, v.pos, v.radius)
+			if Vec.dist(b.pos, cpos) <= 12 then
+				b.skip = true
 			end
 		end
-		return
 	else
 		well(parent, v.pos.x + 7, v.pos.z + 5)
 	end
+	local nb = 0
 	for _, b in v.buildings do
-		if clearR == 0 or Vec.dist(b.pos, v.pos) > clearR then
+		if not b.skip and (clearR == 0 or Vec.dist(b.pos, v.pos) > clearR) then
 			buildBuilding(parent, b, v.pos, v.radius)
+			nb += 1
+			-- a haystack behind every fourth outlying house, a cart in a yard or two
+			local far = Vec.dist(b.pos, v.pos) > v.radius * 0.5
+			local k = h01(b.pos.x, b.pos.z, 116)
+			local rr = Vec.right(Vec.fromHeading(b.heading))
+			if far and k < 0.25 then
+				local hx, hz = b.pos.x + rr.x * 7, b.pos.z + rr.z * 7
+				if isOpen(hx, hz) or classAt(hx, hz) == IDS.village then
+					haystack(parent, hx, hz)
+				end
+			elseif nb % 6 == 3 then
+				cart(parent, b.pos.x - rr.x * 6, b.pos.z - rr.z * 6, b.heading + 0.4)
+			end
 		end
+	end
+	-- a wayside shrine where the road leaves the village
+	local f = Vec.fromHeading(heading)
+	local fr = Vec.right(f)
+	local sx, sz = v.pos.x + f.x * (v.radius + 8) + fr.x * 5, v.pos.z + f.z * (v.radius + 8) + fr.z * 5
+	if isOpen(sx, sz) then
+		shrine(parent, sx, sz, heading + math.pi / 2)
 	end
 end
 
@@ -29052,46 +29526,72 @@ end
 
 local function buildBridge(parent: Instance, br: any)
 	local a, b = br.a, br.b
-	local len = Vec.dist(a, b)
 	local dir = Vec.normalize(Vec.sub(b, a))
-	local h = math.max(groundY(a.x, a.z), groundY(b.x, b.z))
 	local mid = Vec.lerp(a, b, 0.5)
 	local heading = Vec.heading(dir)
-	local deck = yaw(mid.x, h, mid.z, heading)
-	if len >= 90 then
+	-- the deck spans the water plus a short ramp on each bank and follows the bank heights;
+	-- the crossing's cells beyond it are plain ground (MapGen flattens the whole band)
+	local half = Vec.dist(a, b) / 2 - 8
+	for _, river in currentMap.rivers do
+		local pts = river.points
+		for n = 1, #pts - 1 do
+			if Vec.distToSegment(mid, pts[n], pts[n + 1]) < river.width / 2 + 20 then
+				half = math.min(half, river.width / 2)
+			end
+		end
+	end
+	local stoneBridge = half >= 20
+	local waterY = groundY(mid.x, mid.z) + 3 -- the river level: MapGen bed is level - 3
+	local ramp = if stoneBridge then 9 else 5
+	local reach = half + ramp
+	local e1 = Vec.sub(mid, Vec.scale(dir, reach))
+	local e2 = Vec.add(mid, Vec.scale(dir, reach))
+	local y1, y2 = groundY(e1.x, e1.z), groundY(e2.x, e2.z)
+	local len = reach * 2
+	local pitch = math.atan2(y2 - y1, len)
+	local deck = yaw(mid.x, (y1 + y2) / 2, mid.z, heading) * CFrame.Angles(0, 0, pitch)
+	local function pier(t: number, size: Vector3, color: Color3, material: EnumMaterial?)
+		local px, pz = e1.x + (e2.x - e1.x) * t, e1.z + (e2.z - e1.z) * t
+		local top = y1 + (y2 - y1) * t
+		local bottom = groundY(px, pz) - 2
+		local ph = math.max(top - bottom, 1)
+		return part(parent, nil, Vector3.new(size.X, ph, size.Z), yaw(px, bottom + ph / 2, pz, heading), color, material)
+	end
+	if stoneBridge then
 		-- stone bridge: deck, parapets with coping, piers with cutwaters down to the bed
 		local stone = c3(150, 140, 122)
-		part(parent, nil, Vector3.new(len + 4, 1.4, br.width), deck * CFrame.new(0, 0.3, 0), stone, Enum.Material.Cobblestone)
+		part(parent, nil, Vector3.new(len, 1.4, br.width), deck * CFrame.new(0, 0.3, 0), stone, Enum.Material.Cobblestone)
 		for side = -1, 1, 2 do
-			part(parent, nil, Vector3.new(len + 4, 1.6, 0.9), deck * CFrame.new(0, 1.6, side * (br.width / 2 - 0.45)), stone, Enum.Material.Slate)
+			part(parent, nil, Vector3.new(len, 1.6, 0.9), deck * CFrame.new(0, 1.6, side * (br.width / 2 - 0.45)), stone, Enum.Material.Slate)
 		end
-		for i = 0, 3 do
-			local t = 0.14 + i * 0.24
-			local px, pz = a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t
+		local dark = stone:Lerp(c3(60, 56, 50), 0.25)
+		for i = 0, 2 do
+			local t = 0.25 + i * 0.25
+			pier(t, Vector3.new(3.4, 0, br.width - 1), dark, Enum.Material.Slate)
+			local px, pz = e1.x + (e2.x - e1.x) * t, e1.z + (e2.z - e1.z) * t
 			local bottom = groundY(px, pz) - 2
-			local ph = math.max(h - bottom, 1)
-			local pier = yaw(px, bottom + ph / 2, pz, heading)
-			part(parent, nil, Vector3.new(3.4, ph, br.width - 1), pier, stone:Lerp(c3(60, 56, 50), 0.25), Enum.Material.Slate)
-			part(parent, nil, Vector3.new(2.4, ph, 2.4), pier * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), stone:Lerp(c3(60, 56, 50), 0.25), Enum.Material.Slate)
+			local ph = math.max(y1 + (y2 - y1) * t - bottom, 1)
+			part(parent, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate)
+			-- foam where the current breaks on the cutwater
+			local foam = blob(parent, Vector3.new(4.5, 0.4, 7), yaw(px, waterY + 0.15, pz, heading) * CFrame.new(0, 0, br.width / 2 + 1.5), c3(236, 236, 230))
+			foam.Material = Enum.Material.SmoothPlastic
+			foam.Transparency = 0.35
+			foam.CastShadow = false
 		end
 	else
 		-- timber bridge over a brook: plank deck, trestles and a post-and-rail on both sides
 		local wood = c3(104, 80, 58)
-		part(parent, nil, Vector3.new(len + 4, 0.8, br.width - 4), deck * CFrame.new(0, 0.2, 0), wood, Enum.Material.WoodPlanks)
-		local n = math.max(2, math.floor(len / 9))
+		part(parent, nil, Vector3.new(len, 0.6, br.width - 6), deck * CFrame.new(0, 0.2, 0), wood, Enum.Material.WoodPlanks)
+		local n = math.max(2, math.floor(len / 7))
 		for side = -1, 1, 2 do
-			local zOff = side * (br.width / 2 - 2.3)
-			part(parent, nil, Vector3.new(len + 4, 0.3, 0.3), deck * CFrame.new(0, 2.0, zOff), wood)
+			local zOff = side * (br.width / 2 - 3.3)
+			part(parent, nil, Vector3.new(len, 0.25, 0.25), deck * CFrame.new(0, 1.7, zOff), wood)
 			for k = 0, n do
-				part(parent, nil, Vector3.new(0.35, 2.2, 0.35), deck * CFrame.new(-len / 2 - 2 + k * (len + 4) / n, 1.0, zOff), BEAM)
+				part(parent, nil, Vector3.new(0.3, 1.8, 0.3), deck * CFrame.new(-len / 2 + k * len / n, 0.9, zOff), BEAM)
 			end
 		end
 		for k = 1, n - 1 do
-			local t = k / n
-			local px, pz = a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t
-			local bottom = groundY(px, pz) - 2
-			local ph = math.max(h - bottom, 1)
-			part(parent, nil, Vector3.new(0.8, ph, br.width - 5), yaw(px, bottom + ph / 2, pz, heading), BEAM)
+			pier(k / n, Vector3.new(0.7, 0, br.width - 7), BEAM)
 		end
 	end
 end
@@ -29123,23 +29623,90 @@ local function buildRiverside(parent: Instance, river: any, q: number, jobs: { (
 					if q >= 2 and k < 0.55 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 1.5 + k * 3)))
 						if classAt(p.x, p.z) ~= nil and not nearBridge(p.x, p.z, 6) then
-							local r = blob(parent, Vector3.new(4.5, 2.6 + k * 2, 2.6), yaw(p.x, groundY(p.x, p.z) + 0.9, p.z, Vec.heading(dir)), c3(122, 118, 70):Lerp(c3(92, 98, 56), k))
+							-- a thin pale fringe of reed bed along the water's edge
+							local r = part(parent, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.5, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
 							r.CastShadow = false
 						end
 					end
 					if k > 0.86 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 8 + k * 5)))
 						if isOpen(p.x, p.z) and not nearBridge(p.x, p.z, 10) then
-							-- willow: silvery, low and broad
-							local y = groundY(p.x, p.z)
-							part(parent, Enum.PartType.Cylinder, Vector3.new(3, 1.1, 1.1), CFrame.new(p.x, y + 1.5, p.z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-							blob(parent, Vector3.new(9, 6, 9), CFrame.new(p.x, y + 5, p.z), c3(108, 120, 82))
+							tree(parent, "willow", p.x, p.z, 4 + k * 2, true)
 						end
 					end
 				end
 				s += 7
 			end
 		end)
+	end
+end
+
+-- Wayside stones and crosses every few hundred studs along the roads, outside villages.
+local function buildMarkers(parent: Instance, jobs: { () -> () })
+	for ri, road in currentMap.roads do
+		table.insert(jobs, function()
+			local pts = road.points
+			local acc = 110 + h01(ri, 1, 140) * 100
+			for n = 1, #pts - 1 do
+				local a, b = pts[n], pts[n + 1]
+				local len = Vec.dist(a, b)
+				local dir = Vec.normalize(Vec.sub(b, a))
+				local right = Vec.right(dir)
+				local s = 0
+				while s < len do
+					if s >= acc then
+						acc = s + 200 + h01(ri, s, 141) * 120
+						local c = Vec.add(a, Vec.scale(dir, s))
+						local p = Vec.add(c, Vec.scale(right, road.width / 2 + 2.2))
+						if isOpen(p.x, p.z) then
+							local y = groundY(p.x, p.z)
+							if h01(p.x, p.z, 142) < 0.5 then
+								-- milestone
+								part(parent, nil, Vector3.new(0.7, 1.6, 0.5), yaw(p.x, y + 0.6, p.z, Vec.heading(dir)), STONE, Enum.Material.Slate)
+							else
+								-- wayside cross
+								part(parent, nil, Vector3.new(0.3, 3.4, 0.3), CFrame.new(p.x, y + 1.5, p.z), BEAM, Enum.Material.Wood)
+								part(parent, nil, Vector3.new(1.4, 0.3, 0.3), yaw(p.x, y + 2.5, p.z, Vec.heading(dir)), BEAM, Enum.Material.Wood)
+							end
+						end
+					end
+					s += 10
+				end
+				acc -= len
+			end
+		end)
+	end
+end
+
+-- A watermill on the bank at the first brook bridge of each river: a mill house with a wheel.
+local function buildMills(parent: Instance)
+	for _, river in currentMap.rivers do
+		if river.width <= 40 then
+			for _, br in currentMap.bridges do
+				local mid = Vec.lerp(br.a, br.b, 0.5)
+				local pts = river.points
+				local near = false
+				for n = 1, #pts - 1 do
+					if Vec.distToSegment(mid, pts[n], pts[n + 1]) < river.width then
+						near = true
+					end
+				end
+				if near then
+					local dir = Vec.normalize(Vec.sub(br.b, br.a))
+					local right = Vec.right(dir)
+					local p = Vec.add(Vec.add(mid, Vec.scale(dir, river.width / 2 + 7)), Vec.scale(right, br.width / 2 + 6))
+					if isOpen(p.x, p.z) then
+						local heading = Vec.heading(right)
+						house(parent, p.x, p.z, heading, 7, 5, "white", 143)
+						local y = groundY(p.x, p.z)
+						local wx = Vec.add(p, Vec.scale(dir, -4.2))
+						part(parent, Enum.PartType.Cylinder, Vector3.new(0.6, 4.2, 4.2), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), BEAM, Enum.Material.Wood)
+						part(parent, Enum.PartType.Cylinder, Vector3.new(0.7, 2.6, 2.6), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), c3(130, 104, 74), Enum.Material.Wood)
+					end
+					break
+				end
+			end
+		end
 	end
 end
 
@@ -29166,9 +29733,9 @@ local function buildAvenues(parent: Instance, jobs: { () -> () })
 								local p = Vec.add(c, Vec.scale(right, side * (road.width / 2 + 4)))
 								if isOpen(p.x, p.z) and h01(p.x, p.z, 81) < 0.9 then
 									if look.avenue == "poplar" then
-										poplar(parent, p.x, p.z)
+										tree(parent, "poplar", p.x, p.z, 4.5 + h01(p.z, p.x, 82), false)
 									else
-										deciduous(parent, p.x, p.z, 2.6 + h01(p.z, p.x, 82), true)
+										tree(parent, "oak", p.x, p.z, 2.6 + h01(p.z, p.x, 82), false)
 									end
 								end
 							end
@@ -29195,9 +29762,9 @@ local function borderPiece(parent: Instance, kind: number, ax: number, az: numbe
 	end
 	if kind == 1 then
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
-		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(36, 48, 26), h01(mz, mx, 91) * 0.4), Enum.Material.Grass, 1.2)
+		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
 		if h01(mx, mz, 92) < 0.13 then
-			deciduous(parent, mx, mz, 4 + h01(mz, mx, 93) * 2, true)
+			tree(parent, "oak", mx, mz, 4 + h01(mz, mx, 93) * 2, true)
 		end
 	elseif kind == 2 then
 		along(1.5, 1.0, 0.45, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
@@ -29334,6 +29901,32 @@ local function buildWindmills(parent: Instance)
 	for n = 1, math.min(2, #cands) do
 		windmill(parent, cands[n].x, cands[n].z, h01(cands[n].x, cands[n].z, 121) * math.pi * 2)
 	end
+end
+
+-- Ground fog lying in the valleys at dawn: flat pale patches along the rivers and in the lowest
+-- ground, shown by Lighting only under the fog grade.
+local function buildGroundFog(parent: Instance, jobs: { () -> () })
+	local g = currentMap.grid
+	local lo, hi = math.huge, -math.huge
+	for _, h in g.height do
+		lo = math.min(lo, h)
+		hi = math.max(hi, h)
+	end
+	local floorY = lo + (hi - lo) * 0.3
+	table.insert(jobs, function()
+		for x = 60, currentMap.width - 60, 90 do
+			for z = 60, currentMap.depth - 60, 90 do
+				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
+				local y = groundY(px, pz)
+				if y < floorY and h01(px, pz, 152) < 0.7 then
+					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 4, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
+					p.Material = Enum.Material.SmoothPlastic
+					p.Transparency = WorldLighting.groundFogTransparency()
+					p.CastShadow = false
+				end
+			end
+		end
+	end)
 end
 
 -------------------------------------------------------------------------------- distant country
@@ -29480,13 +30073,15 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 	local season = Terrain.seasonOf(map.id)
 	look = LOOKS[season]
 	WorldLighting.setMap(map.id)
+	Terrain.setDecoration(q >= 2)
 	local function sub(name: string): Folder
 		local d = Instance.new("Folder") :: Folder
 		d.Name = name
 		d.Parent = f
 		return d
 	end
-	local woodsF, villagesF, fieldsF, waterF, countryF = sub("Woods"), sub("Villages"), sub("Fields"), sub("Water"), sub("Country")
+	local woodsF, villagesF, fieldsF, waterF, countryF, fogF = sub("Woods"), sub("Villages"), sub("Fields"), sub("Water"), sub("Country"), sub("GroundFog")
+	WorldLighting.setGroundFog(fogF)
 
 	-- conifers favour the top quarter of the map's height range
 	local lo, hi = math.huge, -math.huge
@@ -29530,6 +30125,13 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 		buildRiverside(waterF, river, q, jobs)
 	end
 	buildAvenues(fieldsF, jobs)
+	buildMarkers(fieldsF, jobs)
+	table.insert(jobs, function()
+		buildMills(waterF)
+	end)
+	if q >= 2 then
+		buildGroundFog(fogF, jobs)
+	end
 	buildBorders(fieldsF, q, jobs)
 	if q >= 2 then
 		buildStooks(fieldsF, jobs)
@@ -29568,6 +30170,20 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 		onProgress(1)
 	end
 	return generation == myGen
+end
+
+-- Ground labels turn with the camera in 90° steps so they never read upside down. `yaw` is
+-- the camera's (Camera.getYaw); the plates were built for the north-facing default (π/2).
+local lastLabelYaw = math.pi / 2
+function Props.setLabelYaw(yaw: number)
+	local step = math.round(yaw / (math.pi / 2)) * (math.pi / 2)
+	if math.abs(step - lastLabelYaw) < 0.01 then
+		return
+	end
+	lastLabelYaw = step
+	for _, l in labelParts do
+		l.part.CFrame = CFrame.new(l.part.Position) * CFrame.Angles(0, math.pi - step, 0)
+	end
 end
 
 -- Ground labels grow with camera height so they stay readable from any zoom.
@@ -29615,6 +30231,7 @@ function Props.setDeployZone(rect: any?, faction: string?)
 	if not rect or not currentMap then
 		return
 	end
+	WorldLighting.beginBattle() -- deployment: the light starts from this battle's own weather
 	local zf = Instance.new("Folder") :: Folder
 	zf.Name = "EoEDeployZone"
 	zf.Parent = workspace
@@ -29656,7 +30273,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -29665,6 +30282,13 @@ return Props
 --             3 musket chain (lc is an offset along the musket; pose by state)
 --             4/5 horse leg (diagonal pairs, swing about the shoulder at `pivot`)
 --             6 colour (flag): swings about the colour pole by the per-frame sway angle
+--             7/8 shin (follows thigh 1/2, bends at the knee) · 9/10 horse cannon (follows 4/5)
+--             11 gun crew: steps clear of the gun while the battery fires (pivot = side, ±1)
+--             12/13 left/right arm: hangs or holds the shouldered musket; reaches forward when levelled
+--
+-- Detail tiers: `detail` false builds the mid tier (coat, breeches, headgear, musket: ~9 parts a
+-- man); true builds the near tier for the low camera (jointed limbs, shako peak and scales,
+-- bayonet, cartridge box, spoked wheels, horses with neck, mane, tail and shabraque).
 --
 -- `Soldiers.look` turns a formation (faction, palette override, class, name) into a uniform:
 -- coat, facings, legwear, headgear and kit, so a French grenadier, a Prussian musketeer, an
@@ -29886,6 +30510,12 @@ local SHOULDER = CFrame.new(0.02, 1.95, 0.4) * CFrame.Angles(0, 0, math.rad(8))
 local LEVEL = CFrame.new(0.75, 1.85, 0.22) * CFrame.Angles(0, 0, math.rad(-90))
 -- The colour pole's foot in the bearer's frame; flag parts swing about its vertical axis.
 local POLE = Vector3.new(0.05, 0, 0.35)
+-- Arm frames at the shoulder (near tier). Rest: the left arm hangs, the right holds the butt
+-- of the shouldered musket; levelled: both reach forward along the piece.
+local ARM_L_REST = CFrame.new(0.02, 2.08, -0.44) * CFrame.Angles(0, 0, math.rad(8))
+local ARM_R_REST = CFrame.new(0.02, 2.08, 0.44) * CFrame.Angles(0, 0, math.rad(-6))
+local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(20), math.rad(-78))
+local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-62))
 
 local function mk(size: Vector3, color: Color3, className: string?): BasePart
 	local p = Instance.new(className or "Part") :: BasePart
@@ -29938,6 +30568,19 @@ function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: num
 		return (if armed then LEVEL else SHOULDER) * lc
 	elseif anim == 6 then
 		return CFrame.new(POLE) * CFrame.Angles(0, swing, 0) * CFrame.new(-POLE) * lc
+	elseif anim == 7 or anim == 8 or anim == 9 or anim == 10 then
+		-- lower leg: hip/shoulder swing, then the knee bends as the leg comes forward
+		local a = if anim == 7 or anim == 9 then swing else -swing
+		local kneeY = pivot * 0.5
+		local p = lc.Position
+		local bend = 0.9 * math.max(0, -a)
+		return CFrame.new(p.X, pivot, p.Z) * CFrame.Angles(0, 0, a) * CFrame.new(0, kneeY - pivot, 0) * CFrame.Angles(0, 0, bend) * CFrame.new(0, p.Y - kneeY, 0)
+	elseif anim == 11 then
+		return if armed then CFrame.new(-0.5, 0, pivot * 0.7) * lc else lc
+	elseif anim == 12 then
+		return (if armed then ARM_L_LEVEL else ARM_L_REST) * lc
+	elseif anim == 13 then
+		return (if armed then ARM_R_LEVEL else ARM_R_REST) * lc
 	end
 	return lc
 end
@@ -30079,6 +30722,345 @@ function Soldiers.flag(add: Add, faction: string, origin: CFrame, w: number, h: 
 	end
 end
 
+-- ------------------------------------------------------------------ near tier
+
+local function wedge(size: Vector3, color: Color3): BasePart
+	return mk(size, color, "WedgePart")
+end
+
+-- Near-tier headgear: shako with peak, chin scales and plate; helmets with comb and mane;
+-- bearskins with cords and plume. `at`: top of the head, facing +X.
+local function headgearNear(add: Add, L: Look, at: CFrame, seed: number)
+	local h = L.head
+	local function put(p: BasePart, x: number, y: number, z: number, rot: CFrame?)
+		add(p, at * CFrame.new(x, y, z) * (rot or CFrame.identity), 0, 0)
+	end
+	local function peakAndScales(y: number, w: number)
+		put(mk(Vector3.new(0.24, 0.03, w * 0.9), INK), 0.3, y, 0, CFrame.Angles(0, 0, math.rad(-14))) -- peak
+		put(metal(mk(Vector3.new(w + 0.04, 0.05, w + 0.04), BRASS)), 0, y + 0.03, 0, nil) -- chin scales / band
+	end
+	if h == "bearskin" or h == "bonnet" then
+		put(mk(Vector3.new(0.5, 0.78, 0.5), FUR), 0, 0.35, 0, nil)
+		put(mk(Vector3.new(0.06, 0.16, 0.5), L.facing), 0.24, 0.5, 0, nil) -- front patch / band
+		put(mk(Vector3.new(0.08, 0.44, 0.08), L.plume or WHITE), 0.02, 0.7, if h == "bonnet" then 0.25 else -0.25, nil)
+		if h == "bearskin" then
+			put(mk(Vector3.new(0.5, 0.03, 0.03), WHITE), 0, 0.2, 0, CFrame.Angles(math.rad(-25), 0, 0)) -- cords
+		end
+	elseif h == "mitre" then
+		put(mk(Vector3.new(0.34, 0.54, 0.4), RED), -0.04, 0.24, 0, nil)
+		put(metal(mk(Vector3.new(0.06, 0.66, 0.42), BRASS)), 0.18, 0.3, 0, nil)
+		put(ball(0.12, WHITE), -0.04, 0.54, 0, nil)
+	elseif h == "stovepipe" then
+		put(mk(Vector3.new(0.4, 0.64, 0.4), INK), 0, 0.29, 0, nil)
+		peakAndScales(0, 0.4)
+		put(metal(mk(Vector3.new(0.04, 0.22, 0.18), L.plate or BRASS)), 0.21, 0.32, 0, nil)
+		put(mk(Vector3.new(0.08, 0.22, 0.08), WHITE), 0.1, 0.68, 0, nil) -- tuft
+	elseif h == "kiwer" then
+		put(mk(Vector3.new(0.42, 0.46, 0.42), INK), 0, 0.21, 0, nil)
+		put(mk(Vector3.new(0.58, 0.08, 0.58), INK), 0, 0.46, 0, nil)
+		peakAndScales(0, 0.42)
+		put(metal(mk(Vector3.new(0.05, 0.2, 0.22), L.plate or GOLD)), 0.22, 0.2, 0, nil)
+		put(ball(0.14, L.plume or WHITE), 0.16, 0.56, 0, nil)
+	elseif h == "kaskett" then
+		put(mk(Vector3.new(0.44, 0.36, 0.44), INK), -0.02, 0.17, 0, nil)
+		put(mk(Vector3.new(0.06, 0.56, 0.44), INK), 0.2, 0.32, 0, nil)
+		put(metal(mk(Vector3.new(0.02, 0.14, 0.3), BRASS)), 0.24, 0.52, 0, nil)
+		put(mk(Vector3.new(0.3, 0.03, 0.44), INK), 0.3, 0.0, 0, CFrame.Angles(0, 0, math.rad(-12)))
+	elseif h == "crested" then
+		put(mk(Vector3.new(0.44, 0.34, 0.44), INK), 0, 0.16, 0, nil)
+		put(mk(Vector3.new(0.56, 0.26, 0.14), FUR), -0.02, 0.44, 0, nil)
+		peakAndScales(0, 0.44)
+	elseif h == "helmet" then
+		local c = L.headColour
+		put(metal(ball(0.52, c)), 0, 0.08, 0, nil)
+		put(metal(mk(Vector3.new(0.3, 0.03, 0.4), c)), 0.3, -0.02, 0, CFrame.Angles(0, 0, math.rad(-14))) -- peak
+		put(metal(mk(Vector3.new(0.58, 0.2, 0.08), if c == STEEL then BRASS else c)), -0.02, 0.36, 0, nil) -- comb
+		put(mk(Vector3.new(0.1, 0.72, 0.12), if L.kind == "carabinier" then RED else FUR), -0.34, 0.0, 0, CFrame.Angles(0, 0, math.rad(-14))) -- mane
+		put(metal(mk(Vector3.new(0.46, 0.04, 0.5), BRASS)), 0, -0.1, 0, nil) -- chin scales
+		if L.plume then
+			put(mk(Vector3.new(0.08, 0.5, 0.08), L.plume), 0.1, 0.52, -0.18, nil)
+		end
+	elseif h == "busby" then
+		put(mk(Vector3.new(0.46, 0.52, 0.46), FUR), 0, 0.24, 0, nil)
+		put(mk(Vector3.new(0.14, 0.4, 0.12), L.pelisse or RED), -0.2, 0.3, 0.22, CFrame.Angles(math.rad(28), 0, 0)) -- bag
+		put(mk(Vector3.new(0.08, 0.46, 0.08), L.plume or WHITE), 0.12, 0.66, 0, nil)
+		put(metal(mk(Vector3.new(0.48, 0.03, 0.03), BRASS)), 0, 0.02, 0, nil) -- chin chain
+	elseif h == "czapka" then
+		put(mk(Vector3.new(0.38, 0.3, 0.38), INK), 0, 0.14, 0, nil)
+		put(mk(Vector3.new(0.5, 0.14, 0.5), L.facing), 0, 0.36, 0, CFrame.Angles(0, math.rad(45), 0))
+		peakAndScales(0, 0.38)
+		put(mk(Vector3.new(0.08, 0.4, 0.08), WHITE), 0.08, 0.6, -0.18, nil)
+	elseif h == "bicorne" then
+		put(mk(Vector3.new(0.3, 0.32, 1.0), INK), 0, 0.15, 0, nil)
+		put(mk(Vector3.new(0.34, 0.18, 0.22), INK), 0, 0.18, 0, nil)
+		put(mk(Vector3.new(0.32, 0.08, 0.64), L.plume or INK), 0, 0.34, 0, nil)
+		put(metal(mk(Vector3.new(0.03, 0.14, 0.14), GOLD)), 0.16, 0.2, 0.05, nil) -- cockade
+	else -- shako
+		put(mk(Vector3.new(0.42, 0.5, 0.44), INK), 0, 0.23, 0, nil)
+		peakAndScales(0, 0.42)
+		put(metal(mk(Vector3.new(0.03, 0.2, 0.18), L.plate or BRASS)), 0.22, 0.26, 0, nil) -- plate
+		put(mk(Vector3.new(0.44, 0.03, 0.03), WHITE), 0, 0.42, 0, CFrame.Angles(math.rad(-20), 0, 0)) -- cords
+		if L.plume then
+			put(mk(Vector3.new(0.08, 0.44, 0.08), L.plume), 0.12, 0.66, 0, nil)
+		elseif L.nation == "france" and L.kind == "line" then
+			put(ball(0.15, POMPONS[seed // 6 % #POMPONS + 1]), 0.16, 0.54, 0, nil)
+		else
+			put(ball(0.14, WHITE), 0.16, 0.54, 0, nil)
+		end
+	end
+end
+
+-- Jointed legs: thigh (anim 1/2) and shin + shoe (anim 7/8) per side, hip at 1.1.
+local function legsNear(add: Add, L: Look)
+	for i, z in { -0.16, 0.16 } do
+		add(mk(Vector3.new(0.3, 0.52, 0.27), L.legs), CFrame.new(0, 0.84, z), i, 1.1)
+		add(mk(Vector3.new(0.26, 0.5, 0.24), L.gaiters or L.legs), CFrame.new(0.01, 0.31, z), i + 6, 1.1)
+		add(mk(Vector3.new(0.4, 0.1, 0.24), INK), CFrame.new(0.07, 0.05, z), i + 6, 1.1)
+	end
+end
+
+-- Arms with bent elbows: upper arm, forearm (cuff colour) and hand, posed by anim 12/13.
+local function armsNear(add: Add, L: Look)
+	-- left: hangs, forearm a little forward (rest), reaches along the musket (levelled)
+	add(mk(Vector3.new(0.2, 0.5, 0.2), L.coat), CFrame.new(0, -0.27, 0), 12, 0)
+	add(mk(Vector3.new(0.18, 0.46, 0.18), L.facing), CFrame.new(0.12, -0.7, 0) * CFrame.Angles(0, 0, math.rad(-28)), 12, 0)
+	add(ball(0.17, SKIN), CFrame.new(0.26, -0.9, 0), 12, 0)
+	-- right: elbow bent to hold the butt at the hip (rest), trigger hand forward (levelled)
+	add(mk(Vector3.new(0.2, 0.5, 0.2), L.coat), CFrame.new(0, -0.27, 0), 13, 0)
+	add(mk(Vector3.new(0.18, 0.46, 0.18), L.facing), CFrame.new(0.2, -0.6, 0) * CFrame.Angles(0, 0, math.rad(-70)), 13, 0)
+	add(ball(0.17, SKIN), CFrame.new(0.42, -0.62, 0), 13, 0)
+end
+
+-- Musket with lock, barrel and bayonet, all on the musket chain (anim 3).
+local function musketNear(add: Add)
+	add(mk(Vector3.new(0.09, 1.7, 0.09), WOOD), CFrame.new(), 3, 0)
+	add(metal(mk(Vector3.new(0.05, 1.2, 0.05), STEEL)), CFrame.new(0.03, 0.4, 0), 3, 0)
+	add(metal(mk(Vector3.new(0.03, 0.5, 0.03), STEEL)), CFrame.new(0.04, 1.1, 0), 3, 0) -- bayonet
+	add(metal(mk(Vector3.new(0.06, 0.14, 0.04), BRASS)), CFrame.new(0, -0.3, 0.05), 3, 0) -- lock
+end
+
+local function infantryNear(add: Add, L: Look, role: InfantryRole, seed: number)
+	legsNear(add, L)
+	-- torso: chest wider at the shoulders, waist, coat tails behind
+	add(mk(Vector3.new(0.46, 0.62, 0.74), L.coat), CFrame.new(0, 1.84, 0), 0, 0)
+	add(mk(Vector3.new(0.4, 0.46, 0.6), L.coat), CFrame.new(0, 1.32, 0), 0, 0)
+	add(wedge(Vector3.new(0.3, 0.6, 0.52), L.coat), CFrame.new(-0.28, 1.0, 0) * CFrame.Angles(0, math.pi, 0), 0, 0) -- tails
+	add(mk(Vector3.new(0.04, 0.2, 0.5), L.facing), CFrame.new(-0.4, 0.78, 0), 0, 0) -- turnbacks
+	add(mk(Vector3.new(0.48, 0.14, 0.64), L.facing), CFrame.new(0, 2.14, 0), 0, 0) -- collar
+	local lapels = L.lapels
+	if lapels and lapels ~= L.coat then
+		add(mk(Vector3.new(0.04, 0.58, 0.38), lapels), CFrame.new(0.25, 1.86, 0), 0, 0)
+	end
+	local ep = L.epaulettes
+	if ep then
+		add(mk(Vector3.new(0.22, 0.09, 0.2), ep), CFrame.new(0, 2.17, -0.36), 0, 0)
+		add(mk(Vector3.new(0.22, 0.09, 0.2), ep), CFrame.new(0, 2.17, 0.36), 0, 0)
+	end
+	-- cross-belts, cartridge box on the right hip, knapsack with the rolled greatcoat
+	add(mk(Vector3.new(0.05, 1.2, 0.1), L.belts), CFrame.new(0.25, 1.62, 0) * CFrame.Angles(0.6, 0, 0), 0, 0)
+	add(mk(Vector3.new(0.05, 1.2, 0.1), L.belts), CFrame.new(0.25, 1.62, 0) * CFrame.Angles(-0.6, 0, 0), 0, 0)
+	add(mk(Vector3.new(0.22, 0.24, 0.32), INK), CFrame.new(-0.22, 1.2, 0.36), 0, 0) -- cartridge box
+	add(mk(Vector3.new(0.28, 0.5, 0.5), L.pack), CFrame.new(-0.36, 1.78, 0), 0, 0)
+	add(cyl(0.54, 0.11, GREATCOAT), CFrame.new(-0.36, 2.1, 0) * CFrame.Angles(0, math.pi / 2, 0), 0, 0)
+	if L.kind == "grenadier" or L.kind == "guard" then
+		add(metal(mk(Vector3.new(0.04, 0.7, 0.05), STEEL)), CFrame.new(-0.15, 1.0, -0.34) * CFrame.Angles(0, 0, math.rad(-18)), 0, 0) -- sabre-briquet
+	end
+	armsNear(add, L)
+	add(mk(Vector3.new(0.18, 0.16, 0.18), SKIN), CFrame.new(0, 2.22, 0), 0, 0) -- neck
+	add(ball(0.46, SKIN), CFrame.new(0, 2.44, 0), 0, 0)
+	headgearNear(add, L, CFrame.new(0, 2.64, 0), seed)
+	if role == "line" then
+		musketNear(add)
+	elseif role == "colour" then
+		add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2, POLE.Z), 0, 0)
+		if L.nation == "france" then
+			add(metal(mk(Vector3.new(0.14, 0.12, 0.12), GOLD)), CFrame.new(POLE.X, 4.45, POLE.Z), 0, 0)
+			add(metal(mk(Vector3.new(0.16, 0.2, 0.12), GOLD)), CFrame.new(POLE.X + 0.02, 4.6, POLE.Z), 0, 0)
+			add(metal(mk(Vector3.new(0.06, 0.14, 0.5), GOLD)), CFrame.new(POLE.X - 0.02, 4.68, POLE.Z) * CFrame.Angles(math.rad(-8), 0, 0), 0, 0)
+			add(metal(mk(Vector3.new(0.1, 0.1, 0.06), GOLD)), CFrame.new(POLE.X + 0.1, 4.72, POLE.Z), 0, 0) -- head
+		else
+			add(metal(mk(Vector3.new(0.1, 0.3, 0.1), GOLD)), CFrame.new(POLE.X, 4.5, POLE.Z) * CFrame.Angles(0, math.rad(45), 0), 0, 0)
+		end
+		Soldiers.flag(add, L.nation, CFrame.new(POLE.X - 0.03, 3.65, POLE.Z), 1.7, 1.25, 6)
+	elseif role == "drummer" then
+		local at = CFrame.new(0.34, 1.22, 0.14) * CFrame.Angles(0, 0, math.pi / 2)
+		add(cyl(0.44, 0.31, if L.nation == "france" then BRASS else WHITE), at, 0, 0)
+		add(cyl(0.48, 0.27, L.facing), at, 0, 0)
+		add(mk(Vector3.new(0.3, 0.03, 0.03), WOOD), CFrame.new(0.5, 1.5, 0.3) * CFrame.Angles(0, 0, math.rad(-30)), 0, 0) -- sticks
+		add(mk(Vector3.new(0.3, 0.03, 0.03), WOOD), CFrame.new(0.5, 1.5, 0.0) * CFrame.Angles(0, 0, math.rad(-40)), 0, 0)
+	end
+end
+
+-- Near-tier horse: barrel, chest and rump, arched neck with mane, head with ears and bridle,
+-- jointed legs (anim 4/5 upper, 9/10 cannon + hoof), tail, saddle and shabraque in `cloth`.
+local function horseNear(add: Add, origin: CFrame, seed: number, cloth: Color3?, hide: Color3?)
+	local coat = hide or HORSES[seed % #HORSES + 1]
+	local function put(p: BasePart, cf: CFrame, anim: number?, pivot: number?)
+		add(p, origin * cf, anim or 0, pivot or 0)
+	end
+	put(mk(Vector3.new(1.5, 0.86, 0.74), coat), CFrame.new(0, 1.6, 0))
+	put(ball(0.82, coat), CFrame.new(0.82, 1.66, 0))
+	put(ball(0.8, coat), CFrame.new(-0.8, 1.62, 0))
+	put(mk(Vector3.new(0.44, 1.0, 0.36), coat), CFrame.new(1.12, 2.2, 0) * CFrame.Angles(0, 0, math.rad(-38))) -- neck
+	put(mk(Vector3.new(0.08, 0.9, 0.1), INK), CFrame.new(0.98, 2.4, 0) * CFrame.Angles(0, 0, math.rad(-38))) -- mane
+	put(mk(Vector3.new(0.66, 0.32, 0.3), coat), CFrame.new(1.58, 2.58, 0) * CFrame.Angles(0, 0, math.rad(-22))) -- head
+	put(mk(Vector3.new(0.3, 0.26, 0.26), coat), CFrame.new(1.85, 2.46, 0) * CFrame.Angles(0, 0, math.rad(-22))) -- muzzle
+	put(mk(Vector3.new(0.08, 0.18, 0.06), coat), CFrame.new(1.34, 2.84, -0.1))
+	put(mk(Vector3.new(0.08, 0.18, 0.06), coat), CFrame.new(1.34, 2.84, 0.1))
+	put(mk(Vector3.new(0.34, 0.04, 0.34), INK), CFrame.new(1.7, 2.52, 0) * CFrame.Angles(0, 0, math.rad(68))) -- noseband
+	put(mk(Vector3.new(0.9, 0.03, 0.03), INK), CFrame.new(0.9, 2.4, 0.2) * CFrame.Angles(0, 0, math.rad(-10))) -- rein
+	put(mk(Vector3.new(0.4, 0.14, 0.14), INK), CFrame.new(-1.2, 1.7, 0) * CFrame.Angles(0, 0, math.rad(50))) -- dock
+	put(mk(Vector3.new(0.7, 0.12, 0.12), INK), CFrame.new(-1.42, 1.1, 0) * CFrame.Angles(0, 0, math.rad(75))) -- tail
+	for _, l in { { 0.72, -0.26, 4 }, { 0.72, 0.26, 5 }, { -0.72, -0.26, 5 }, { -0.72, 0.26, 4 } } do
+		put(mk(Vector3.new(0.22, 0.62, 0.2), coat), CFrame.new(l[1], 0.86, l[2]), l[3], 1.15)
+		put(mk(Vector3.new(0.14, 0.5, 0.14), coat), CFrame.new(l[1], 0.33, l[2]), l[3] + 5, 1.15)
+		put(mk(Vector3.new(0.2, 0.1, 0.18), INK), CFrame.new(l[1] + 0.02, 0.05, l[2]), l[3] + 5, 1.15)
+	end
+	if cloth then
+		put(fabric(mk(Vector3.new(1.1, 0.08, 1.0), cloth)), CFrame.new(-0.12, 2.02, 0))
+		put(fabric(wedge(Vector3.new(0.4, 0.08, 1.0), cloth)), CFrame.new(-0.87, 2.02, 0) * CFrame.Angles(0, math.pi, 0)) -- pointed rear corner
+		put(mk(Vector3.new(0.64, 0.18, 0.56), DARK_WOOD), CFrame.new(-0.05, 2.12, 0)) -- saddle
+		put(mk(Vector3.new(0.05, 0.42, 0.04), STEEL), CFrame.new(0.05, 1.5, 0.5)) -- stirrup leather
+		put(mk(Vector3.new(0.05, 0.42, 0.04), STEEL), CFrame.new(0.05, 1.5, -0.5))
+	end
+end
+
+local function riderNear(add: Add, L: Look, seed: number)
+	horseNear(add, CFrame.new(), seed, L.pelisse or L.coat, L.horse)
+	-- legs bent at the knee down the horse's flanks
+	for _, z in { -0.44, 0.44 } do
+		add(mk(Vector3.new(0.6, 0.24, 0.22), L.legs), CFrame.new(0.2, 2.05, z) * CFrame.Angles(0, 0, math.rad(-15)), 0, 0)
+		add(mk(Vector3.new(0.2, 0.5, 0.2), L.legs), CFrame.new(0.38, 1.7, z), 0, 0)
+		add(mk(Vector3.new(0.32, 0.1, 0.2), INK), CFrame.new(0.42, 1.44, z), 0, 0)
+	end
+	add(mk(Vector3.new(0.42, 0.86, 0.6), L.coat), CFrame.new(-0.05, 2.66, 0), 0, 0)
+	add(mk(Vector3.new(0.46, 0.14, 0.62), L.facing), CFrame.new(-0.05, 3.1, 0), 0, 0) -- collar
+	local cuirass = L.cuirass
+	if cuirass then
+		add(metal(mk(Vector3.new(0.5, 0.6, 0.66), cuirass)), CFrame.new(-0.03, 2.8, 0), 0, 0)
+	elseif L.kind == "hussar" then
+		add(mk(Vector3.new(0.04, 0.5, 0.5), BRASS), CFrame.new(0.17, 2.72, 0), 0, 0) -- dolman braid
+	end
+	local pelisse = L.pelisse
+	if pelisse then
+		add(mk(Vector3.new(0.46, 0.64, 0.2), pelisse), CFrame.new(-0.08, 2.74, -0.38) * CFrame.Angles(math.rad(-10), 0, 0), 0, 0)
+		add(mk(Vector3.new(0.48, 0.1, 0.22), FUR), CFrame.new(-0.08, 3.06, -0.38), 0, 0) -- fur collar
+	end
+	if L.epaulettes then
+		add(mk(Vector3.new(0.18, 0.09, 0.7), L.epaulettes), CFrame.new(-0.05, 3.12, 0), 0, 0)
+	end
+	-- arms: left holds the reins, right the sabre or lance
+	add(mk(Vector3.new(0.2, 0.46, 0.2), L.coat), CFrame.new(-0.05, 2.74, -0.42) * CFrame.Angles(0, 0, math.rad(15)), 0, 0)
+	add(mk(Vector3.new(0.5, 0.18, 0.18), L.coat), CFrame.new(0.3, 2.5, -0.42) * CFrame.Angles(0, 0, math.rad(-10)), 0, 0)
+	add(mk(Vector3.new(0.2, 0.46, 0.2), L.coat), CFrame.new(-0.05, 2.74, 0.42) * CFrame.Angles(0, 0, math.rad(-10)), 0, 0)
+	add(mk(Vector3.new(0.4, 0.18, 0.18), L.coat), CFrame.new(0.2, 2.5, 0.44) * CFrame.Angles(0, 0, math.rad(-30)), 0, 0)
+	add(ball(0.42, SKIN), CFrame.new(-0.05, 3.3, 0), 0, 0)
+	headgearNear(add, L, CFrame.new(-0.05, 3.5, 0), seed)
+	local pennon = L.pennon
+	if pennon then
+		add(mk(Vector3.new(0.06, 5.2, 0.06), DARK_WOOD), CFrame.new(0.1, 3.6, 0.46) * CFrame.Angles(0, 0, math.rad(-6)), 0, 0)
+		add(fabric(wedge(Vector3.new(0.03, 0.16, 0.6), pennon[1])), CFrame.new(-0.2, 6.02, 0.46) * CFrame.Angles(0, math.rad(90), 0), 0, 0)
+		add(fabric(wedge(Vector3.new(0.03, 0.16, 0.6), pennon[2])), CFrame.new(-0.2, 5.86, 0.46) * CFrame.Angles(math.pi, math.rad(90), 0), 0, 0)
+	elseif L.kind ~= "officer" and L.kind ~= "emperor" then
+		add(metal(mk(Vector3.new(0.04, 1.1, 0.05), STEEL)), CFrame.new(0.4, 2.9, 0.5) * CFrame.Angles(0, 0, math.rad(35)), 0, 0) -- drawn sabre
+		add(metal(mk(Vector3.new(0.12, 0.08, 0.12), BRASS)), CFrame.new(0.42, 2.5, 0.5), 0, 0) -- hilt
+		add(metal(mk(Vector3.new(0.04, 1.1, 0.05), INK)), CFrame.new(-0.3, 1.9, 0.5) * CFrame.Angles(0, 0, math.rad(-60)), 0, 0) -- scabbard
+	else
+		add(mk(Vector3.new(0.6, 0.04, 0.04), WHITE), CFrame.new(0.3, 2.95, 0.3), 0, 0) -- pointing the way
+	end
+end
+
+-- Spoked wheel: hub, 8 spokes and an 8-segment rim with iron tyre; axis along local Z.
+local function wheelNear(add: Add, at: CFrame, r: number, paint: Color3)
+	add(cyl(0.26, 0.16, paint), at * CFrame.Angles(0, math.pi / 2, 0), 0, 0)
+	for i = 0, 7 do
+		local a = i * math.pi / 4
+		local rot = at * CFrame.Angles(0, 0, a)
+		add(mk(Vector3.new(0.06, r - 0.12, 0.08), paint), rot * CFrame.new(0, r / 2, 0), 0, 0)
+		local seg = 2 * r * math.sin(math.pi / 8) + 0.02
+		add(mk(Vector3.new(seg, 0.1, 0.14), IRON), rot * CFrame.Angles(0, 0, math.pi / 8) * CFrame.new(0, r - 0.05, 0), 0, 0)
+	end
+end
+
+-- Barrel with muzzle swell, reinforce ring, trunnions and cascabel; axis along local X.
+local function barrelNear(add: Add, at: CFrame, len: number)
+	add(metal(cyl(len, 0.16, BRONZE)), at, 0, 0)
+	add(metal(cyl(0.26, 0.2, BRONZE)), at * CFrame.new(len / 2 - 0.13, 0, 0), 0, 0) -- muzzle swell
+	add(metal(cyl(0.16, 0.2, BRONZE)), at * CFrame.new(-0.1, 0, 0), 0, 0) -- reinforce
+	add(metal(cyl(0.8, 0.07, BRONZE)), at * CFrame.new(-0.05, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), 0, 0) -- trunnions
+	add(metal(ball(0.2, BRONZE)), at * CFrame.new(-len / 2 - 0.08, 0, 0), 0, 0) -- cascabel
+end
+
+-- Crew at their stations: rammer at the muzzle, gun-layer crouched at the breech, ventsman,
+-- loader with the next round. Every part is on anim 11, so they step clear when the gun fires.
+local function gunnerNear(add: Add, L: Look, at: CFrame, side: number, job: string)
+	local function put(p: BasePart, cf: CFrame)
+		add(p, at * cf, 11, side)
+	end
+	local crouch = job == "layer"
+	local lean = if crouch then math.rad(28) else 0
+	for _, z in { -0.16, 0.16 } do
+		put(mk(Vector3.new(0.3, 0.52, 0.27), L.legs), CFrame.new(0, 0.84, z) * CFrame.Angles(0, 0, if crouch then math.rad(-25) else 0))
+		put(mk(Vector3.new(0.26, 0.5, 0.24), L.gaiters or L.legs), CFrame.new(0, 0.3, z))
+	end
+	local torso = CFrame.new(0, 1.6, 0) * CFrame.Angles(0, 0, -lean)
+	put(mk(Vector3.new(0.42, 1.0, 0.64), L.coat), torso)
+	put(mk(Vector3.new(0.46, 0.14, 0.62), L.facing), torso * CFrame.new(0, 0.5, 0))
+	put(mk(Vector3.new(0.05, 1.1, 0.1), WHITE), torso * CFrame.new(0.22, 0, 0) * CFrame.Angles(0.6, 0, 0))
+	put(ball(0.44, SKIN), torso * CFrame.new(0, 0.78, 0))
+	local top = torso * CFrame.new(0, 0.98, 0)
+	put(mk(Vector3.new(0.42, 0.48, 0.42), INK), top * CFrame.new(0, 0.22, 0))
+	put(mk(Vector3.new(0.24, 0.03, 0.38), INK), top * CFrame.new(0.3, 0, 0) * CFrame.Angles(0, 0, math.rad(-14)))
+	put(ball(0.14, RED), top * CFrame.new(0.16, 0.52, 0))
+	-- arms forward on the tool
+	put(mk(Vector3.new(0.5, 0.18, 0.18), L.coat), torso * CFrame.new(0.3, 0.2, -0.4) * CFrame.Angles(0, 0, math.rad(-20)))
+	put(mk(Vector3.new(0.5, 0.18, 0.18), L.coat), torso * CFrame.new(0.3, 0.2, 0.4) * CFrame.Angles(0, 0, math.rad(-20)))
+	if job == "rammer" then
+		put(mk(Vector3.new(2.4, 0.07, 0.07), WOOD), CFrame.new(0.9, 1.7, 0) * CFrame.Angles(0, math.rad(-side * 60), math.rad(-8)))
+		put(cyl(0.2, 0.12, GREATCOAT), CFrame.new(2.0, 1.6, -side * 1.9) * CFrame.Angles(0, math.rad(-side * 60), 0)) -- sponge head
+	elseif job == "loader" then
+		put(metal(ball(0.26, IRON)), torso * CFrame.new(0.5, 0.2, 0)) -- the round
+	elseif job == "vent" then
+		put(mk(Vector3.new(0.9, 0.05, 0.05), WOOD), torso * CFrame.new(0.5, 0.4, 0) * CFrame.Angles(0, 0, math.rad(40))) -- linstock
+	end
+end
+
+local function gunNear(add: Add, L: Look, limbered: boolean, seed: number)
+	local paint = L.carriage
+	local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
+	for side = -1, 1, 2 do
+		wheelNear(add, g * CFrame.new(0, 0.75, side * 0.72), 0.75, paint)
+	end
+	add(mk(Vector3.new(0.16, 0.16, 1.4), paint), g * CFrame.new(0, 0.75, 0), 0, 0) -- axle
+	for side = -1, 1, 2 do
+		add(wedge(Vector3.new(0.14, 0.5, 2.0), paint), g * CFrame.new(-0.6, 0.9, side * 0.3) * CFrame.Angles(0, math.pi / 2, 0), 0, 0) -- cheeks
+	end
+	add(mk(Vector3.new(2.0, 0.22, 0.34), paint), g * CFrame.new(-1.1, 0.42, 0) * CFrame.Angles(0, 0, math.rad(17)), 0, 0) -- trail
+	add(metal(mk(Vector3.new(0.3, 0.1, 0.9), IRON)), g * CFrame.new(0.05, 1.1, 0), 0, 0) -- capsquares
+	add(wedge(Vector3.new(0.3, 0.2, 0.3), WOOD), g * CFrame.new(-0.55, 0.98, 0), 0, 0) -- elevating quoin
+	barrelNear(add, g * CFrame.new(0.4, 1.12, 0) * CFrame.Angles(0, 0, math.rad(4)), 2.3)
+	if limbered then
+		for side = -1, 1, 2 do
+			wheelNear(add, CFrame.new(1.0, 0.65, side * 0.68), 0.65, paint)
+		end
+		add(mk(Vector3.new(0.16, 0.16, 1.3), paint), CFrame.new(1.0, 0.65, 0), 0, 0)
+		add(mk(Vector3.new(1.0, 0.55, 1.0), paint), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
+		add(mk(Vector3.new(1.0, 0.06, 1.04), INK), CFrame.new(1.0, 1.5, 0), 0, 0) -- lid
+		add(mk(Vector3.new(2.6, 0.12, 0.12), paint), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
+		horseNear(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
+		horseNear(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
+		add(mk(Vector3.new(0.05, 0.05, 1.3), INK), CFrame.new(3.4, 1.9, 0), 0, 0) -- traces
+		for _, p in { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } do
+			gunnerNear(add, L, CFrame.new(p[1], 0, p[2]), if p[2] > 0 then 1 else -1, "walk")
+		end
+	else
+		gunnerNear(add, L, CFrame.new(1.2, 0, -1.3) * CFrame.Angles(0, math.rad(90), 0), -1, "rammer")
+		gunnerNear(add, L, CFrame.new(-2.4, 0, 0.5), 1, "layer")
+		gunnerNear(add, L, CFrame.new(-0.9, 0, 1.3) * CFrame.Angles(0, math.rad(-90), 0), 1, "vent")
+		gunnerNear(add, L, CFrame.new(0.4, 0, -1.6) * CFrame.Angles(0, math.rad(90), 0), -1, "loader")
+	end
+end
+
 -- ------------------------------------------------------------------ infantry
 
 export type InfantryRole = "line" | "colour" | "drummer"
@@ -30086,41 +31068,28 @@ export type InfantryRole = "line" | "colour" | "drummer"
 -- Legs, coat with facings, belts, knapsack, head and headgear. `seed` varies company pompons.
 function Soldiers.infantry(add: Add, L: Look, detail: boolean, role: InfantryRole, seed: number?)
 	local s = seed or 0
-	if detail and L.gaiters then
-		-- breeches above, black gaiters below the knee; both swing about the hip
-		for i, z in { -0.16, 0.16 } do
-			add(mk(Vector3.new(0.3, 0.56, 0.26), L.legs), CFrame.new(0, 0.82, z), i, 1.1)
-			add(mk(Vector3.new(0.31, 0.56, 0.27), L.gaiters :: Color3), CFrame.new(0, 0.28, z), i, 1.1)
-		end
-	else
-		add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, -0.16), 1, 1.1)
-		add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, 0.16), 2, 1.1)
+	if detail then
+		infantryNear(add, L, role, s)
+		return
 	end
+	add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, -0.16), 1, 1.1)
+	add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, 0.16), 2, 1.1)
 	add(mk(Vector3.new(0.42, 1.05, 0.66), L.coat), CFrame.new(0, 1.6, 0), 0, 0)
 	add(mk(Vector3.new(0.46, 0.14, 0.62), L.facing), CFrame.new(0, 2.1, 0), 0, 0) -- collar
 	add(mk(Vector3.new(0.26, 0.5, 0.48), L.pack), CFrame.new(-0.33, 1.72, 0), 0, 0) -- knapsack
-	if detail then
-		local lapels = L.lapels
-		if lapels and lapels ~= L.coat then
-			add(mk(Vector3.new(0.04, 0.6, 0.34), lapels), CFrame.new(0.22, 1.78, 0), 0, 0)
-		end
-		-- cross-belts over the coat front
-		add(mk(Vector3.new(0.05, 1.15, 0.09), L.belts), CFrame.new(0.22, 1.6, 0) * CFrame.Angles(0.6, 0, 0), 0, 0)
-		add(mk(Vector3.new(0.05, 1.15, 0.09), L.belts), CFrame.new(0.22, 1.6, 0) * CFrame.Angles(-0.6, 0, 0), 0, 0)
-		add(cyl(0.5, 0.1, GREATCOAT), CFrame.new(-0.3, 2.04, 0) * CFrame.Angles(0, math.pi / 2, 0), 0, 0) -- rolled greatcoat
-		local ep = L.epaulettes
-		if ep then
-			add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, -0.33), 0, 0)
-			add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, 0.33), 0, 0)
-		end
+	local lapels = L.lapels
+	if lapels and lapels ~= L.coat then
+		add(mk(Vector3.new(0.04, 0.6, 0.34), lapels), CFrame.new(0.22, 1.78, 0), 0, 0)
+	end
+	local ep = L.epaulettes
+	if ep then
+		add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, -0.33), 0, 0)
+		add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, 0.33), 0, 0)
 	end
 	add(ball(0.46, SKIN), CFrame.new(0, 2.38, 0), 0, 0)
-	headgear(add, L, CFrame.new(0, 2.58, 0), detail, s)
+	headgear(add, L, CFrame.new(0, 2.58, 0), false, s)
 	if role == "line" then
 		add(mk(Vector3.new(0.08, 1.7, 0.08), WOOD), CFrame.new(), 3, 0)
-		if detail then
-			add(metal(mk(Vector3.new(0.04, 0.4, 0.04), STEEL)), CFrame.new(0, 1.03, 0), 3, 0)
-		end
 	elseif role == "colour" then
 		add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2, POLE.Z), 0, 0)
 		if L.nation == "france" then
@@ -30156,7 +31125,11 @@ function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, 
 end
 
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
-	Soldiers.horse(add, CFrame.new(), seed, if detail then (if L.pelisse then L.pelisse else L.coat) else nil, L.horse)
+	if detail then
+		riderNear(add, L, seed)
+		return
+	end
+	Soldiers.horse(add, CFrame.new(), seed, nil, L.horse)
 	add(mk(Vector3.new(0.35, 0.6, 0.9), L.legs), CFrame.new(-0.05, 2.0, 0), 0, 0)
 	add(mk(Vector3.new(0.4, 0.85, 0.58), L.coat), CFrame.new(-0.05, 2.65, 0), 0, 0)
 	add(ball(0.42, SKIN), CFrame.new(-0.05, 3.3, 0), 0, 0)
@@ -30169,34 +31142,22 @@ function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
 		-- slung from the left shoulder, fur-trimmed
 		add(mk(Vector3.new(0.46, 0.62, 0.2), pelisse), CFrame.new(-0.08, 2.72, -0.36) * CFrame.Angles(math.rad(-10), 0, 0), 0, 0)
 	end
-	if detail and L.epaulettes then
-		add(mk(Vector3.new(0.18, 0.09, 0.7), L.epaulettes), CFrame.new(-0.05, 3.08, 0), 0, 0)
-	end
-	headgear(add, L, CFrame.new(-0.05, 3.5, 0), detail, seed)
+	headgear(add, L, CFrame.new(-0.05, 3.5, 0), false, seed)
 	local pennon = L.pennon
 	if pennon then
 		-- lance carried upright at the right stirrup, pennon at the tip
 		add(mk(Vector3.new(0.06, 5.2, 0.06), DARK_WOOD), CFrame.new(0.1, 3.6, 0.42) * CFrame.Angles(0, 0, math.rad(-6)), 0, 0)
-		if detail then
-			add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[1])), CFrame.new(-0.05, 6.0, 0.42), 0, 0)
-			add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[2])), CFrame.new(-0.05, 5.86, 0.42), 0, 0)
-		end
-	elseif detail and L.kind ~= "officer" and L.kind ~= "emperor" then
-		-- sabre at the shoulder
-		add(metal(mk(Vector3.new(0.05, 1.1, 0.05), STEEL)), CFrame.new(0.15, 3.15, 0.36) * CFrame.Angles(0, 0, math.rad(20)), 0, 0)
+		add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[1])), CFrame.new(-0.05, 6.0, 0.42), 0, 0)
 	end
 end
 
 -- ------------------------------------------------------------------ artillery
 
-local function gunner(add: Add, L: Look, at: CFrame, detail: boolean, rammer: boolean)
+local function gunner(add: Add, L: Look, at: CFrame)
 	add(mk(Vector3.new(0.3, 1.1, 0.5), L.legs), at * CFrame.new(0, 0.55, 0), 0, 0)
 	add(mk(Vector3.new(0.42, 1.05, 0.62), L.coat), at * CFrame.new(0, 1.6, 0), 0, 0)
 	add(ball(0.44, SKIN), at * CFrame.new(0, 2.36, 0), 0, 0)
 	headgear(add, L, at * CFrame.new(0, 2.56, 0), false, 0)
-	if detail and rammer then
-		add(mk(Vector3.new(0.07, 2.6, 0.07), WOOD), at * CFrame.new(0.3, 1.5, 0) * CFrame.Angles(0, 0, math.rad(-20)), 0, 0)
-	end
 end
 
 -- Painted wheel with an iron tyre; axis along local Z.
@@ -30209,6 +31170,10 @@ end
 -- One gun on a two-wheeled carriage with trail, crew of 4; limbered: hooked to a limber
 -- with a two-horse team, crew walking alongside. Carriage paint follows the nation.
 function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, seed: number)
+	if detail then
+		gunNear(add, L, limbered, seed)
+		return
+	end
 	local paint = L.carriage
 	local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
 	for side = -1, 1, 2 do
@@ -30222,23 +31187,21 @@ function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, see
 			wheel(add, CFrame.new(1.0, 0.65, side * 0.65), 0.65, paint)
 		end
 		add(mk(Vector3.new(1.0, 0.55, 1.0), paint), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
-		if detail then
-			add(mk(Vector3.new(2.6, 0.12, 0.12), paint), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
-		end
+		add(mk(Vector3.new(2.6, 0.12, 0.12), paint), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
 		Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
 		Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
 		for _, p in { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } do
-			gunner(add, L, CFrame.new(p[1], 0, p[2]), detail, false)
+			gunner(add, L, CFrame.new(p[1], 0, p[2]))
 		end
 	else
-		for i, p in { { -1.7, -1.1 }, { -1.7, 1.1 }, { 0.3, -1.45 }, { 0.3, 1.45 } } do
-			gunner(add, L, CFrame.new(p[1], 0, p[2]), detail, i == 3)
+		for _, p in { { -1.7, -1.1 }, { -1.7, 1.1 }, { 0.3, -1.45 }, { 0.3, 1.45 } } do
+			gunner(add, L, CFrame.new(p[1], 0, p[2]))
 		end
 	end
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
@@ -30337,7 +31300,7 @@ local SEASONS: { [string]: Season } = {
 		borders = { 0.10, 0.15, 0.25, 0.62 },
 		grass = { 122, 126, 70 },
 		leafy = { 86, 102, 52 },
-		wheat = { 168, 158, 118 },
+		wheat = { 141, 133, 99 }, -- 0.84x: Limestone renders bright
 		plough = { 90, 72, 56 },
 	},
 	summer = {
@@ -30345,7 +31308,7 @@ local SEASONS: { [string]: Season } = {
 		borders = { 0.46, 0.51, 0.66, 0.82 },
 		grass = { 116, 136, 58 },
 		leafy = { 76, 108, 42 },
-		wheat = { 170, 160, 90 },
+		wheat = { 143, 134, 76 }, -- 0.84x: Limestone renders bright
 		plough = { 104, 82, 58 },
 	},
 }
@@ -30452,15 +31415,16 @@ local function nearestBlocks(x: number, z: number): (number, number, number, num
 	return i1, j1, i2, j2, (b2 - b1) / (2 * sep)
 end
 
--- Crop kind at (x, z), plus whether it is a cart track on a block border.
-function Terrain.fieldAt(x: number, z: number): (number, boolean)
+-- Crop kind at (x, z), whether it is a cart track on a block border, and the across-strip
+-- coordinate (studs) for furrow rows.
+function Terrain.fieldAt(x: number, z: number): (number, boolean, number)
 	local i1, j1, i2, j2, edge = nearestBlocks(x, z)
 	if edge < 4.5 then
 		local kind = Terrain.borderKind(i1, j1, i2, j2)
 		if kind == 4 and edge < 2.2 then
-			return KIND_MEADOW, true
+			return KIND_MEADOW, true, 0
 		elseif kind ~= 5 then
-			return KIND_MEADOW, false -- grass headland under hedges, walls and fences
+			return KIND_MEADOW, false, 0 -- grass headland under hedges, walls and fences
 		end
 	end
 	local key = blockKey(i1, j1)
@@ -30473,20 +31437,43 @@ function Terrain.fieldAt(x: number, z: number): (number, boolean)
 		blockInfo[key] = blk
 	end
 	if blk[6] == 1 then
-		return KIND_MEADOW, false
+		return KIND_MEADOW, false, 0
 	end
 	-- across-strip coordinate
-	local strip = math.floor(((x - blk[1]) * blk[3] + (z - blk[2]) * blk[4]) / blk[5])
+	local u = (x - blk[1]) * blk[3] + (z - blk[2]) * blk[4]
+	local strip = math.floor(u / blk[5])
 	local r = RNG.hash(key, strip, fieldSeed + 32)
 	for n, w in season.crops do
 		if r < w then
-			return n, false
+			return n, false, u
 		end
 	end
-	return KIND_MEADOW, false
+	return KIND_MEADOW, false, u
 end
 
 local FIELD_MATERIAL = { Enum.Material.Grass, Enum.Material.LeafyGrass, Enum.Material.Limestone, Enum.Material.Mud }
+
+-- Field surface at (x, z): plough strips show furrow ridges as alternating rows of Mud and
+-- Ground; stubble shows a paler row every third; the rest is the crop's material.
+local function fieldMaterial(x: number, z: number): EnumMaterial
+	local kind, track, u = Terrain.fieldAt(x, z)
+	if track then
+		return Enum.Material.Ground
+	elseif kind == KIND_PLOUGH then
+		return if math.floor(u / VOXEL) % 2 == 0 then Enum.Material.Mud else Enum.Material.Ground
+	elseif kind == KIND_WHEAT then
+		return if math.floor(u / VOXEL) % 3 == 0 then Enum.Material.Sand else Enum.Material.Limestone
+	end
+	return FIELD_MATERIAL[kind]
+end
+Terrain.fieldMaterial = fieldMaterial
+
+-- Grass decoration (the blades Terrain draws on Grass and LeafyGrass) costs GPU; on by quality.
+function Terrain.setDecoration(on: boolean)
+	pcall(function()
+		(workspace.Terrain :: any).Decoration = on
+	end)
+end
 
 local function applyPalette(mapId: string?)
 	local P = Config.Visual.Palette
@@ -30502,10 +31489,10 @@ local function applyPalette(mapId: string?)
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
 	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(160, 150, 112)) -- pale but not white banks
 	t.WaterColor = rgb(P.Water)
-	t.WaterTransparency = 0.35
-	t.WaterWaveSize = 0.05
-	t.WaterWaveSpeed = 4
-	t.WaterReflectance = 0.2
+	t.WaterTransparency = 0.5
+	t.WaterWaveSize = 0.08
+	t.WaterWaveSpeed = 6
+	t.WaterReflectance = 0.4
 end
 
 -- Water surface level for a cell, or nil when the cell is not inside a river channel.
@@ -30544,14 +31531,16 @@ local function roadCore(map: any, x: number, z: number): boolean
 end
 
 type Marks = { [number]: boolean }
-local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Marks)
+type Dist = { [number]: number }
+local function analyse(map: any): ({ [number]: number }, Marks, Marks, Dist, Marks, Dist)
 	local g = map.grid
 	local cols, rows = g.cols, g.rows
 	local water: { [number]: number } = {}
 	local bank: Marks = {}
 	local roadOff: Marks = {}
-	local verge: Marks = {} -- grass verges along roads and around villages: no crops there
+	local verge: Dist = {} -- cells from a road or village: no crops there, 1 = the ditch
 	local street: Marks = {} -- road cores through villages, cobbled
+	local wet: Dist = {} -- cells from water (3..6): damp meadow
 	for cz = 0, rows - 1 do
 		for cx = 0, cols - 1 do
 			local idx = cz * cols + cx + 1
@@ -30564,11 +31553,16 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Ma
 			end
 			if cls == IDS.road or cls == IDS.village then
 				local r = if cls == IDS.road then 2 else 3
+				local core = cls == IDS.village or not roadOff[idx]
 				for dz = -r, r do
 					for dx = -r, r do
 						local nx, nz = cx + dx, cz + dz
 						if nx >= 0 and nz >= 0 and nx < cols and nz < rows then
-							verge[nz * cols + nx + 1] = true
+							local j = nz * cols + nx + 1
+							local d = if core then math.max(math.abs(dx), math.abs(dz)) else 2
+							if verge[j] == nil or d < verge[j] then
+								verge[j] = d
+							end
 						end
 					end
 				end
@@ -30579,13 +31573,18 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Ma
 				if lvl then
 					water[idx] = lvl
 					if cls == IDS.water then
-						for dz = -2, 2 do
-							for dx = -2, 2 do
+						for dz = -6, 6 do
+							for dx = -6, 6 do
 								local nx, nz = cx + dx, cz + dz
 								if nx >= 0 and nz >= 0 and nx < cols and nz < rows then
 									local j = nz * cols + nx + 1
+									local d = math.max(math.abs(dx), math.abs(dz))
 									if g.class[j] == IDS.open then
-										bank[j] = true
+										if d <= 2 then
+											bank[j] = true
+										elseif wet[j] == nil or d < wet[j] then
+											wet[j] = d
+										end
 									end
 								end
 							end
@@ -30595,7 +31594,7 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Marks, Ma
 			end
 		end
 	end
-	return water, bank, roadOff, verge, street
+	return water, bank, roadOff, verge, street, wet
 end
 
 local function clearPickPlanes()
@@ -30606,14 +31605,8 @@ local function clearPickPlanes()
 	table.clear(pickPlanes)
 end
 
--- Invisible pick floor under the map and skirt, tiled because a part is capped at 2048 studs.
-local function ensurePickPlane(map: any, minY: number)
-	clearPickPlanes()
-	local folder = Instance.new("Folder") :: Folder
-	folder.Name = "EoEPickPlane"
-	folder.Parent = workspace
-	pickFolder = folder
-	local margin = 2000
+-- Tiled plane (a part is capped at 2048 studs) `margin` studs beyond the map on every side.
+local function tilePlane(folder: Folder, map: any, margin: number, y: number, setup: (Part) -> ())
 	local TILE = 2048
 	local x0, z0 = -margin, -margin
 	local x1, z1 = map.width + margin, map.depth + margin
@@ -30624,21 +31617,42 @@ local function ensurePickPlane(map: any, minY: number)
 		while z < z1 do
 			local d = math.min(TILE, z1 - z)
 			local p = Instance.new("Part") :: Part
-			p.Name = "EoEPickPlane"
 			p.Anchored = true
 			p.CanCollide = false
 			p.CanTouch = false
-			p.CanQuery = true
-			p.Transparency = 1
-			p.CastShadow = false
 			p.Size = Vector3.new(w, 1, d)
-			p.CFrame = CFrame.new(x + w / 2, minY - 1, z + d / 2)
+			p.CFrame = CFrame.new(x + w / 2, y, z + d / 2)
+			setup(p)
 			p.Parent = folder
-			table.insert(pickPlanes, p)
 			z += d
 		end
 		x += w
 	end
+end
+
+-- Invisible pick floor under the map and skirt, and a visible ground plane under the skirt's
+-- outer edge so the country runs to the horizon from any height (the skirt alone ended in a
+-- cut edge over the sky from the intro sweep's 700 studs).
+local function ensurePickPlane(map: any, minY: number, groundY: number, ground: Color3)
+	clearPickPlanes()
+	local folder = Instance.new("Folder") :: Folder
+	folder.Name = "EoEPickPlane"
+	folder.Parent = workspace
+	pickFolder = folder
+	tilePlane(folder, map, 2000, minY - 1, function(p: Part)
+		p.Name = "EoEPickPlane"
+		p.CanQuery = true
+		p.Transparency = 1
+		p.CastShadow = false
+		table.insert(pickPlanes, p)
+	end)
+	tilePlane(folder, map, 5000, groundY, function(p: Part)
+		p.Name = "EoEGround"
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Grass
+		p.Color = ground
+	end)
 end
 
 -- The folder holding every pick-plane tile; raycast include lists take descendants.
@@ -30729,7 +31743,7 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	for i = 1, cols * rows do
 		minH = math.min(minH, g.height[i])
 	end
-	local water, bank, roadOff, verge, street = analyse(map)
+	local water, bank, roadOff, verge, street, wet = analyse(map)
 	-- the skirt relaxes toward the mean height of the map border
 	local edgeSum, edgeN = 0, 0
 	for cx = 0, cols - 1 do
@@ -30743,7 +31757,12 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	local plain = edgeSum / edgeN
 	local seed = (map.seed or 1) + 77
 	bounds = { minY = math.floor((minH - 8) / VOXEL) * VOXEL, maxY = 0 }
-	ensurePickPlane(map, minH)
+	-- the ground plane sits under the skirt's noise and below any river channel leaving the map
+	local planeY = plain - 16
+	for _, river in map.rivers do
+		planeY = math.min(planeY, river.level - 8)
+	end
+	ensurePickPlane(map, math.min(minH, planeY), planeY, rgb(season.grass):Lerp(Color3.new(0, 0, 0), 0.12))
 
 	-- River ends that touch the border, extended 800 studs outward along their last segment.
 	local outs: { { a: { x: number, z: number }, b: { x: number, z: number }, half: number, level: number } } = {}
@@ -30783,12 +31802,46 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 				cls = IDS.open
 			end
 			local x, z = (cx + 0.5) * cell, (cz + 0.5) * cell
-			if cls == IDS.open and not bank[idx] and not verge[idx] then
+			if (cls == IDS.open or cls == IDS.steep) and not bank[idx] then
+				-- slope: bare earth and rock break through on steep ground, and erosion lines run
+				-- down the fall line on the moderate slopes
+				local hl = g.height[math.max(idx - 1, 1)]
+				local hr = g.height[math.min(idx + 1, cols * rows)]
+				local hu = g.height[math.max(idx - cols, 1)]
+				local hd = g.height[math.min(idx + cols, cols * rows)]
+				local gx, gz = (hr - hl) / (2 * cell), (hd - hu) / (2 * cell)
+				local slope = math.sqrt(gx * gx + gz * gz)
+				if slope > 0.3 then
+					local n = RNG.hash(cx // 2, cz // 2, fieldSeed + 44)
+					return h, if n < 0.4 then Enum.Material.Rock elseif n < 0.8 then Enum.Material.Ground else Enum.Material.Grass, lvl
+				elseif slope > 0.16 then
+					-- fall-line stripes: coordinate across the gradient, 6-stud spacing, noise gated
+					local across = (-gz * x + gx * z) / slope
+					if (across / 6) % 1 < 0.3 and RNG.hash(x // 24, z // 24, fieldSeed + 45) < 0.6 then
+						return h, Enum.Material.Ground, lvl
+					end
+					return h, Enum.Material.Grass, lvl
+				end
+				local vd = verge[idx]
+				if vd then
+					-- ditch beside the road, then a grass verge
+					return h, if vd == 1 then Enum.Material.LeafyGrass else Enum.Material.Grass, lvl
+				end
 				if inOrchard(x, z) then
 					return h, Enum.Material.LeafyGrass, lvl
 				end
-				local kind, track = Terrain.fieldAt(x, z)
-				return h, if track then Enum.Material.Ground else FIELD_MATERIAL[kind], lvl
+				local m = fieldMaterial(x, z)
+				if wet[idx] and (m == Enum.Material.Grass or m == Enum.Material.LeafyGrass) then
+					-- damp meadow by the water, patchy
+					return h, if RNG.hash(cx // 3, cz // 3, fieldSeed + 46) < 0.7 then Enum.Material.LeafyGrass else Enum.Material.Grass, lvl
+				end
+				return h, m, lvl
+			elseif cls == IDS.road then
+				-- rutted dirt: the odd muddy patch, and mud at the water's edge by the bridges
+				if wet[idx] or RNG.hash(cx // 2, cz // 2, fieldSeed + 47) < 0.18 then
+					return h, Enum.Material.Mud, lvl
+				end
+				return h, Enum.Material.Ground, lvl
 			elseif cls == IDS.village then
 				if street[idx] then
 					return h, Enum.Material.Cobblestone, lvl
@@ -30830,11 +31883,11 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 			return h, Enum.Material.Ground, nil
 		end
 		-- the patchwork runs on outside the map; the far hills are pasture and meadow
-		local kind, track = Terrain.fieldAt(x, z)
-		if crest > 0.6 and kind ~= KIND_PASTURE then
-			kind = KIND_MEADOW
+		if crest > 0.6 then
+			local kind = Terrain.fieldAt(x, z)
+			return h, FIELD_MATERIAL[if kind == KIND_PASTURE then KIND_PASTURE else KIND_MEADOW], nil
 		end
-		return h, if track then Enum.Material.Ground else FIELD_MATERIAL[kind], nil
+		return h, fieldMaterial(x, z), nil
 	end
 	skirtColumn = column
 	skirtCell = cell
@@ -30937,4 +31990,4 @@ function Terrain.clear()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000093"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000094"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000095"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000094"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000095"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000096"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
