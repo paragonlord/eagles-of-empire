@@ -262,10 +262,10 @@ local function tree(parent: Instance, species: Species, x: number, z: number, r:
 	for i = 0, n - 1 do
 		local f = i / math.max(n - 1, 1)
 		local a = seed * 6.28 + i * 2.39996 -- golden angle: lobes spread evenly around
-		local spread = if beech then r * 0.45 else r * 0.7
+		local spread = (if beech then r * 0.45 else r * 0.7) * (if full then 1 else 0.5)
 		local off = spread * (0.35 + 0.65 * h01(x + i, z, 45))
-		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3)
-		local hgt = w * (if beech then 0.95 else 0.72)
+		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3) * (if full then 1 else 1.15)
+		local hgt = w * (if beech then 0.95 else 0.72) * (if full then 1 else 0.8)
 		local ly = gy + trunkH + (if beech then r * 0.35 + f * r * 1.1 else r * 0.3 + f * r * 0.75)
 		local col = if f < 0.34 then shade elseif f < 0.7 then base else lit
 		blob(parent, Vector3.new(w, hgt, w * (0.85 + h01(z, x + i, 46) * 0.3)), CFrame.new(x + math.cos(a) * off, ly, z + math.sin(a) * off) * CFrame.Angles(0, a, 0), col)
@@ -338,11 +338,15 @@ local function house(parent: Instance, x: number, z: number, heading: number, w:
 		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
 		part(parent, nil, Vector3.new(0.7, roofH + 0.9, 0.7), top, c3(120, 96, 80))
 		if h01(x + 1, z, salt + 5) < 0.5 then
-			-- a wisp of hearth smoke
-			local smoke = blob(parent, Vector3.new(1.6, 2.6, 1.6), top * CFrame.new(0.3, roofH * 0.5 + 1.6, 0), c3(200, 198, 192))
-			smoke.Material = Enum.Material.SmoothPlastic
-			smoke.Transparency = 0.6
-			smoke.CastShadow = false
+			-- hearth smoke: three small wisps rising, drifting and thinning (one egg read as a balloon)
+			local drift = h01(x, z + 2, salt + 7) * 6.28
+			for i = 0, 2 do
+				local sz = 0.7 + i * 0.45
+				local smoke = blob(parent, Vector3.new(sz, sz * 1.3, sz), top * CFrame.new(math.cos(drift) * i * 0.7, roofH * 0.5 + 1.0 + i * 1.4, math.sin(drift) * i * 0.7), c3(206, 204, 198))
+				smoke.Material = Enum.Material.SmoothPlastic
+				smoke.Transparency = 0.6 + i * 0.12
+				smoke.CastShadow = false
+			end
 		end
 	end
 	-- footprint variety: an L-wing at one end, or a lean-to shed along the back
@@ -924,8 +928,7 @@ local function buildOrchard(parent: Instance, o: any)
 			local z = o.z + u * sa + w * ca + (h01(w, u, 111) - 0.5) * 1.5
 			if isOpen(x, z) then
 				local y = groundY(x, z)
-				part(parent, Enum.PartType.Cylinder, Vector3.new(2.2, 0.6, 0.6), CFrame.new(x, y + 1.1, z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-				part(parent, Enum.PartType.Ball, Vector3.one * (4.4 + h01(x, z, 112)), CFrame.new(x, y + 3.6, z), crownColor(x, z):Lerp(c3(96, 116, 52), 0.3))
+				tree(parent, "oak", x, z, 2.1 + h01(x, z, 112) * 0.5, false, y)
 			end
 		end
 	end
@@ -977,9 +980,17 @@ local function buildGroundFog(parent: Instance, jobs: { () -> () })
 			for z = 60, currentMap.depth - 60, 90 do
 				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
 				local y = groundY(px, pz)
-				if y < floorY and h01(px, pz, 152) < 0.7 then
-					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in Studio
-					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
+				local sx = (groundY(px + 30, pz) - groundY(px - 30, pz)) / 60
+				local sz = (groundY(px, pz + 30) - groundY(px, pz - 30)) / 60
+				if y < floorY and h01(px, pz, 152) < 0.7 and sx * sx + sz * sz < 0.08 * 0.08 then
+					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in
+					-- Studio; tilted to the local slope so the rim does not cut the ground
+					local a = h01(x + z, 2, 155) * 3
+					local fwd = Vector3.new(math.cos(a), math.cos(a) * sx + math.sin(a) * sz, math.sin(a)).Unit
+					local rightV = Vector3.new(-math.sin(a), -math.sin(a) * sx + math.cos(a) * sz, math.cos(a)).Unit
+					local up = rightV:Cross(fwd).Unit
+					local cf = CFrame.fromMatrix(Vector3.new(px, y + 1.2, pz), fwd, up, fwd:Cross(up))
+					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), cf, c3(222, 220, 214))
 					p.Material = Enum.Material.SmoothPlastic
 					p.Transparency = WorldLighting.groundFogTransparency()
 					p.CastShadow = false
@@ -1327,6 +1338,8 @@ function Props.updateLabels(cameraHeight: number)
 		local bb = t.Parent :: BillboardGui
 		local scale = math.clamp(cameraHeight / 420, 0.8, 1.8) * (l.size / 20)
 		bb.Size = UDim2.fromOffset(math.floor(l.len / l.size * 22 * scale), math.floor(22 * scale))
+		-- higher off the ground as the camera climbs so ridges and unit plates do not clip the name
+		bb.StudsOffsetWorldSpace = Vector3.new(0, 6 + cameraHeight * 0.04, 0)
 		local pos = l.part.Position
 		local target = 1
 		if labelMode == "floating" then

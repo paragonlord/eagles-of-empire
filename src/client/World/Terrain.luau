@@ -665,6 +665,14 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 		local crest = smooth((d - 200) / 280) * (1 - 0.45 * smooth((d - 500) / 140))
 		local damp = if rlvl then smooth((rd - rhalf) / 220) else 1
 		h += crest * damp * (14 + noise(x, z, 240, seed + 5) ^ 1.6 * 46)
+		-- the last 100 studs ramp down onto the ground plane so the skirt ends in no step
+		local ramp = smooth((d - (SKIRT * cell - 100)) / 100)
+		if ramp > 0 then
+			h += (planeY + 1 - h) * ramp
+			if ramp > 0.5 and not rlvl then
+				return h, Enum.Material.Grass, nil
+			end
+		end
 		-- rivers run on past the edge along their end segments; banks rise above the water
 		if rlvl then
 			if rd < rhalf then
