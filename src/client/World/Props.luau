@@ -188,33 +188,84 @@ local function crownColor(x: number, z: number): Color3
 	return base:Lerp(c3(30, 40, 24), h01(z, x, 42) * 0.25)
 end
 
-local function deciduous(parent: Instance, x: number, z: number, r: number, trunk: boolean, y: number?, lobe: boolean?)
-	local gy = y or groundY(x, z)
-	local trunkH = r * 1.0
-	if trunk then
-		part(parent, Enum.PartType.Cylinder, Vector3.new(trunkH + 1, r * 0.26, r * 0.26), CFrame.new(x, gy + trunkH / 2, z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-	end
-	local col = crownColor(x, z)
-	local a = h01(x, z, 43) * math.pi * 2
-	part(parent, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(x, gy + trunkH + r * 0.7, z), col)
-	if trunk or lobe then
-		-- a second, smaller lobe breaks the lollipop outline and makes a lumpy canopy
-		local o = r * 0.55
-		part(parent, Enum.PartType.Ball, Vector3.one * r * 1.4, CFrame.new(x + math.cos(a) * o, gy + trunkH + r * 1.05, z + math.sin(a) * o), col:Lerp(c3(120, 120, 70), 0.08))
-	end
+-- Trees are built from a trunk, a branch or two and several overlapping flattened lobes in
+-- two or three tones (lit top, mid, shaded underside), so a crown has a lumpy silhouette from
+-- any height and a trunk you can see at the low camera. Each species has its own shape:
+--   oak    broad, lobes spread wide, short thick trunk
+--   beech  taller, lobes stacked upward, pale smooth trunk
+--   pine   tiers of flattened cones (ellipsoids) up a straight trunk, dark blue-green
+--   poplar narrow stacked spindles on a tall trunk (Brabant road rows)
+--   willow short thick trunk, a low dome and drooping lobes, silvery (river banks)
+-- `full` trees get branches and 5-7 lobes (8-10 parts); `lite` ones a trunk and 3 lobes.
+type Species = "oak" | "beech" | "pine" | "poplar" | "willow"
+
+local function trunkPart(parent: Instance, x: number, gy: number, z: number, h: number, d: number, color: Color3)
+	part(parent, Enum.PartType.Cylinder, Vector3.new(h, d, d), CFrame.new(x, gy + h / 2 - 0.3, z) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.Material.Wood)
 end
 
-local function conifer(parent: Instance, x: number, z: number, r: number, y: number?)
-	local gy = y or groundY(x, z)
-	part(parent, Enum.PartType.Cylinder, Vector3.new(r * 0.8, r * 0.22, r * 0.22), CFrame.new(x, gy + r * 0.4, z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-	blob(parent, Vector3.new(r * 1.3, r * 3.4, r * 1.3), CFrame.new(x, gy + r * 2.1, z), CONIFER:Lerp(c3(30, 44, 34), h01(x, z, 44) * 0.5))
+local function branch(parent: Instance, x: number, y: number, z: number, len: number, d: number, dirAngle: number, tilt: number, color: Color3)
+	-- a thin cylinder from (x, y, z) leaning out `tilt` radians from vertical toward dirAngle
+	local cf = CFrame.new(x, y, z) * CFrame.Angles(0, -dirAngle, 0) * CFrame.Angles(0, 0, math.pi / 2 - tilt) * CFrame.new(len / 2, 0, 0)
+	part(parent, Enum.PartType.Cylinder, Vector3.new(len, d, d), cf, color, Enum.Material.Wood)
 end
 
-local function poplar(parent: Instance, x: number, z: number, y: number?)
+local function tree(parent: Instance, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
 	local gy = y or groundY(x, z)
-	local hgt = 15 + h01(x, z, 45) * 5
-	part(parent, nil, Vector3.new(0.6, 3, 0.6), CFrame.new(x, gy + 1.5, z), TRUNK)
-	blob(parent, Vector3.new(3.6, hgt, 3.6), CFrame.new(x, gy + 2 + hgt / 2, z), pick(look.crowns, h01(x, z, 46)):Lerp(c3(70, 96, 40), 0.25))
+	local seed = h01(x, z, 43)
+	local base = crownColor(x, z)
+	local lit = base:Lerp(c3(150, 150, 70), 0.18)
+	local shade = base:Lerp(c3(24, 34, 20), 0.3)
+	local bark = TRUNK:Lerp(c3(40, 32, 26), h01(z, x, 44) * 0.4)
+	if species == "poplar" then
+		local hgt = r * 3.2
+		trunkPart(parent, x, gy, z, hgt * 0.35, r * 0.18, bark)
+		for i = 0, 2 do
+			local w = r * (1.1 - i * 0.25)
+			local f = i / 2
+			blob(parent, Vector3.new(w, hgt * 0.5, w), CFrame.new(x, gy + hgt * (0.3 + f * 0.33), z) * CFrame.Angles(0, seed * 3, 0), (if i == 2 then lit else base):Lerp(c3(70, 96, 40), 0.25))
+		end
+		return
+	elseif species == "pine" then
+		local hgt = r * 2.8
+		trunkPart(parent, x, gy, z, hgt * 0.55, r * 0.16, bark:Lerp(c3(110, 70, 50), 0.3))
+		local tiers = if full then 4 else 3
+		for i = 0, tiers - 1 do
+			local f = i / (tiers - 1)
+			local w = r * (1.5 - f * 1.1)
+			local col = CONIFER:Lerp(c3(30, 44, 34), seed * 0.5):Lerp(c3(74, 96, 58), f * 0.35)
+			blob(parent, Vector3.new(w, r * 0.7, w), CFrame.new(x + (seed - 0.5) * 0.4 * f, gy + hgt * (0.35 + f * 0.6), z), col)
+		end
+		return
+	elseif species == "willow" then
+		trunkPart(parent, x, gy, z, r * 0.8, r * 0.3, bark)
+		local silver = c3(108, 122, 84):Lerp(base, 0.3)
+		blob(parent, Vector3.new(r * 2.2, r * 1.3, r * 2.2), CFrame.new(x, gy + r * 1.2, z), silver)
+		for i = 0, (if full then 2 else 1) do
+			local a = seed * 6 + i * 2.4
+			blob(parent, Vector3.new(r * 1.1, r * 1.5, r * 1.1), CFrame.new(x + math.cos(a) * r * 0.8, gy + r * 0.75, z + math.sin(a) * r * 0.8), silver:Lerp(shade, 0.35))
+		end
+		return
+	end
+	-- oak / beech
+	local beech = species == "beech"
+	local trunkH = if beech then r * 1.5 else r * 1.0
+	local trunkD = if beech then r * 0.2 else r * 0.3
+	trunkPart(parent, x, gy, z, trunkH + 0.6, trunkD, if beech then bark:Lerp(c3(150, 142, 128), 0.45) else bark)
+	if full then
+		branch(parent, x, gy + trunkH * 0.75, z, r * 0.9, trunkD * 0.45, seed * 6.28, if beech then 0.5 else 0.95, bark)
+	end
+	local n = if full then 4 + math.floor(seed * 3) else 2
+	for i = 0, n - 1 do
+		local f = i / math.max(n - 1, 1)
+		local a = seed * 6.28 + i * 2.39996 -- golden angle: lobes spread evenly around
+		local spread = if beech then r * 0.45 else r * 0.7
+		local off = spread * (0.35 + 0.65 * h01(x + i, z, 45))
+		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3)
+		local hgt = w * (if beech then 0.95 else 0.72)
+		local ly = gy + trunkH + (if beech then r * 0.35 + f * r * 1.1 else r * 0.3 + f * r * 0.75)
+		local col = if f < 0.34 then shade elseif f < 0.7 then base else lit
+		blob(parent, Vector3.new(w, hgt, w * (0.85 + h01(z, x + i, 46) * 0.3)), CFrame.new(x + math.cos(a) * off, ly, z + math.sin(a) * off) * CFrame.Angles(0, a, 0), col)
+	end
 end
 
 local function bush(parent: Instance, x: number, z: number, r: number)
@@ -222,25 +273,25 @@ local function bush(parent: Instance, x: number, z: number, r: number)
 	p.CastShadow = false
 end
 
+-- Woods: edge trees are full (trunk, branches, lobes, undergrowth); the interior is a closed
+-- canopy of lite trees over dark trunks, thinned to half since the canopy hides the rest.
 local function buildWoodsTree(parent: Instance, t: any, highGround: number)
 	local r = t.r
 	local edge = false
 	for k = 0, 3 do
 		local a = k * math.pi / 2
-		if classAt(t.x + math.cos(a) * r * 1.9, t.z + math.sin(a) * r * 1.9) ~= IDS.woods then
+		if classAt(t.x + math.cos(a) * r * 1.5, t.z + math.sin(a) * r * 1.5) ~= IDS.woods then
 			edge = true
 			break
 		end
 	end
+	if not edge and t.priority < 0.58 then
+		return
+	end
 	local y = groundY(t.x, t.z)
 	local coniferShare = look.conifer + (if y > highGround then 0.35 else 0)
-	if h01(t.x, t.z, 49) < coniferShare then
-		conifer(parent, t.x, t.z, r * 0.9, y)
-	else
-		-- interior trees are crowns only (trunks are hidden by the canopy); edge trees get
-		-- trunk, a second lobe and undergrowth on the open side
-		deciduous(parent, t.x, t.z, r, edge, y, t.priority > 0.45)
-	end
+	local sp: Species = if h01(t.x, t.z, 49) < coniferShare then "pine" elseif h01(t.z, t.x, 52) < 0.3 then "beech" else "oak"
+	tree(parent, sp, t.x, t.z, if edge then r else r * 1.35, edge, y)
 	if edge and h01(t.z, t.x, 50) < 0.6 then
 		local a = h01(t.x, t.z, 51) * math.pi * 2
 		bush(parent, t.x + math.cos(a) * r, t.z + math.sin(a) * r, r * 0.6)
@@ -280,7 +331,66 @@ local function house(parent: Instance, x: number, z: number, heading: number, w:
 	gable(parent, yaw(x, y + wallH, z, heading), w + 0.6, d + 0.8, roofH, roofC, if thatch then Enum.Material.Grass else Enum.Material.Slate)
 	if kind ~= "barn" and h01(x, z, salt + 3) < 0.45 then
 		local cx = (h01(z, x, salt + 4) - 0.5) * w * 0.6
-		part(parent, nil, Vector3.new(0.7, roofH + 0.9, 0.7), yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12), c3(120, 96, 80))
+		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
+		part(parent, nil, Vector3.new(0.7, roofH + 0.9, 0.7), top, c3(120, 96, 80))
+		if h01(x + 1, z, salt + 5) < 0.5 then
+			-- a wisp of hearth smoke
+			local smoke = blob(parent, Vector3.new(1.6, 2.6, 1.6), top * CFrame.new(0.3, roofH * 0.5 + 1.6, 0), c3(200, 198, 192))
+			smoke.Material = Enum.Material.SmoothPlastic
+			smoke.Transparency = 0.6
+			smoke.CastShadow = false
+		end
+	end
+	-- footprint variety: an L-wing at one end, or a lean-to shed along the back
+	local variant = h01(x, z + 1, salt + 6)
+	if kind ~= "barn" and variant < 0.22 then
+		local wx = w / 2 - d * 0.35
+		local wing = yaw(x, y, z, heading) * CFrame.new(wx, 0, d / 2 + w * 0.2) * CFrame.Angles(0, math.pi / 2, 0)
+		part(parent, nil, Vector3.new(w * 0.55, wallH + 0.6, d * 0.7), wing * CFrame.new(0, wallH / 2 - 0.3, 0), wallC)
+		gable(parent, wing * CFrame.new(0, wallH - 0.2, 0), w * 0.55 + 0.4, d * 0.7 + 0.6, roofH * 0.8, roofC, Enum.Material.Slate)
+	elseif variant < 0.42 then
+		wedge(parent, Vector3.new(w * 0.7, 1.6, 2.2), yaw(x, y + wallH * 0.45, z, heading) * CFrame.new(0, 0, d / 2 + 1.1) * CFrame.Angles(0, math.pi, 0), roofC:Lerp(c3(70, 60, 50), 0.3), Enum.Material.WoodPlanks)
+	end
+end
+
+-- Village furniture: a cart, barrels by the well, a haystack by a barn, a wayside shrine.
+local function cart(parent: Instance, x: number, z: number, heading: number)
+	local y = groundY(x, z)
+	local base = yaw(x, y, z, heading)
+	part(parent, nil, Vector3.new(3.6, 0.9, 1.8), base * CFrame.new(0, 1.3, 0), c3(110, 86, 60), Enum.Material.WoodPlanks)
+	for side = -1, 1, 2 do
+		part(parent, Enum.PartType.Cylinder, Vector3.new(0.2, 1.6, 1.6), base * CFrame.new(0.3, 0.8, side * 1.05), c3(70, 54, 40), Enum.Material.Wood)
+	end
+	part(parent, nil, Vector3.new(2.6, 0.2, 0.2), base * CFrame.new(-3, 0.7, 0.5) * CFrame.Angles(0, 0, 0.15), BEAM)
+end
+
+local function barrels(parent: Instance, x: number, z: number)
+	local y = groundY(x, z)
+	for i = 0, 1 do
+		part(parent, Enum.PartType.Cylinder, Vector3.new(1.1, 0.8, 0.8), CFrame.new(x + i * 0.9, y + 0.55, z + i * 0.3) * CFrame.Angles(0, 0, math.pi / 2), c3(96, 74, 50), Enum.Material.Wood)
+	end
+end
+
+local function haystack(parent: Instance, x: number, z: number)
+	local y = groundY(x, z)
+	local p = blob(parent, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.5, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
+	p.Material = Enum.Material.Sand
+	part(parent, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+end
+
+local function shrine(parent: Instance, x: number, z: number, heading: number)
+	local y = groundY(x, z)
+	local base = yaw(x, y, z, heading)
+	part(parent, nil, Vector3.new(0.5, 2.6, 0.5), base * CFrame.new(0, 1.3, 0), STONE, Enum.Material.Slate)
+	part(parent, nil, Vector3.new(1.4, 0.9, 1.0), base * CFrame.new(0, 2.8, 0), c3(214, 206, 190))
+	gable(parent, base * CFrame.new(0, 3.25, 0), 1.7, 1.3, 0.7, c3(100, 56, 42), Enum.Material.Slate)
+end
+
+-- A low wall round the churchyard, open toward the street.
+local function churchyard(parent: Instance, base: CFrame)
+	local wall = c3(176, 166, 148)
+	for _, seg in { { 0, 10.5, 30, 0 }, { -15, 0, 0, 21 }, { 15, 0, 0, 21 }, { -8, -10.5, 10, 0 }, { 8, -10.5, 10, 0 } } do
+		part(parent, nil, Vector3.new(math.max(seg[3], 0.7), 1.3, math.max(seg[4], 0.7)), base * CFrame.new(seg[1], 0.4, seg[2]), wall, Enum.Material.Cobblestone)
 	end
 end
 
@@ -328,6 +438,7 @@ local function church(parent: Instance, x: number, z: number, heading: number)
 	gable(parent, nave * CFrame.new(0, 6, 0), 13.6, 7.4, 4.8, roof, Enum.Material.Slate)
 	local tower = nave * CFrame.new(-8.6, 0, 0)
 	part(parent, nil, Vector3.new(4.4, 14, 4.4), tower * CFrame.new(0, 6.5, 0), wall)
+	churchyard(parent, nave * CFrame.new(-2, 0, 0))
 	if look.dome then
 		part(parent, Enum.PartType.Ball, Vector3.one * 5.2, tower * CFrame.new(0, 14.6, 0), c3(84, 102, 84), Enum.Material.Metal)
 		part(parent, nil, Vector3.new(0.5, 3.5, 0.5), tower * CFrame.new(0, 18.4, 0), c3(170, 150, 90), Enum.Material.Metal)
@@ -385,7 +496,7 @@ local function compound(parent: Instance, v: any, size: number, garden: boolean,
 		end
 		for k = -1, 1 do
 			local p = g * CFrame.new(k * size * 0.3, 0, 0)
-			deciduous(parent, p.X, p.Z, 2.4, true)
+			tree(parent, "oak", p.X, p.Z, 2.4, false)
 		end
 	end
 end
@@ -426,20 +537,43 @@ local function buildVillage(parent: Instance, v: any)
 		local r = Vec.right(Vec.fromHeading(heading))
 		local cpos = Vec.add(v.pos, Vec.scale(r, 14))
 		church(parent, cpos.x, cpos.z, heading)
-		well(parent, v.pos.x - r.x * 9 + 6, v.pos.z - r.z * 9)
+		clearR = 0
+		local wx, wz = v.pos.x - r.x * 9 + 6, v.pos.z - r.z * 9
+		well(parent, wx, wz)
+		barrels(parent, wx + 2.2, wz + 1.4)
 		for _, b in v.buildings do
-			if Vec.dist(b.pos, cpos) > 12 then
-				buildBuilding(parent, b, v.pos, v.radius)
+			if Vec.dist(b.pos, cpos) <= 12 then
+				b.skip = true
 			end
 		end
-		return
 	else
 		well(parent, v.pos.x + 7, v.pos.z + 5)
 	end
+	local nb = 0
 	for _, b in v.buildings do
-		if clearR == 0 or Vec.dist(b.pos, v.pos) > clearR then
+		if not b.skip and (clearR == 0 or Vec.dist(b.pos, v.pos) > clearR) then
 			buildBuilding(parent, b, v.pos, v.radius)
+			nb += 1
+			-- a haystack behind every fourth outlying house, a cart in a yard or two
+			local far = Vec.dist(b.pos, v.pos) > v.radius * 0.5
+			local k = h01(b.pos.x, b.pos.z, 116)
+			local rr = Vec.right(Vec.fromHeading(b.heading))
+			if far and k < 0.25 then
+				local hx, hz = b.pos.x + rr.x * 7, b.pos.z + rr.z * 7
+				if isOpen(hx, hz) or classAt(hx, hz) == IDS.village then
+					haystack(parent, hx, hz)
+				end
+			elseif nb % 6 == 3 then
+				cart(parent, b.pos.x - rr.x * 6, b.pos.z - rr.z * 6, b.heading + 0.4)
+			end
 		end
+	end
+	-- a wayside shrine where the road leaves the village
+	local f = Vec.fromHeading(heading)
+	local fr = Vec.right(f)
+	local sx, sz = v.pos.x + f.x * (v.radius + 8) + fr.x * 5, v.pos.z + f.z * (v.radius + 8) + fr.z * 5
+	if isOpen(sx, sz) then
+		shrine(parent, sx, sz, heading + math.pi / 2)
 	end
 end
 
@@ -462,6 +596,7 @@ local function buildBridge(parent: Instance, br: any)
 		end
 	end
 	local stoneBridge = half >= 20
+	local waterY = groundY(mid.x, mid.z) + 3 -- the river level: MapGen bed is level - 3
 	local ramp = if stoneBridge then 9 else 5
 	local reach = half + ramp
 	local e1 = Vec.sub(mid, Vec.scale(dir, reach))
@@ -492,6 +627,11 @@ local function buildBridge(parent: Instance, br: any)
 			local bottom = groundY(px, pz) - 2
 			local ph = math.max(y1 + (y2 - y1) * t - bottom, 1)
 			part(parent, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate)
+			-- foam where the current breaks on the cutwater
+			local foam = blob(parent, Vector3.new(4.5, 0.4, 7), yaw(px, waterY + 0.15, pz, heading) * CFrame.new(0, 0, br.width / 2 + 1.5), c3(236, 236, 230))
+			foam.Material = Enum.Material.SmoothPlastic
+			foam.Transparency = 0.35
+			foam.CastShadow = false
 		end
 	else
 		-- timber bridge over a brook: plank deck, trestles and a post-and-rail on both sides
@@ -546,16 +686,82 @@ local function buildRiverside(parent: Instance, river: any, q: number, jobs: { (
 					if k > 0.86 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 8 + k * 5)))
 						if isOpen(p.x, p.z) and not nearBridge(p.x, p.z, 10) then
-							-- willow: silvery, low and broad
-							local y = groundY(p.x, p.z)
-							part(parent, Enum.PartType.Cylinder, Vector3.new(3, 1.1, 1.1), CFrame.new(p.x, y + 1.5, p.z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-							blob(parent, Vector3.new(9, 6, 9), CFrame.new(p.x, y + 5, p.z), c3(108, 120, 82))
+							tree(parent, "willow", p.x, p.z, 4 + k * 2, true)
 						end
 					end
 				end
 				s += 7
 			end
 		end)
+	end
+end
+
+-- Wayside stones and crosses every few hundred studs along the roads, outside villages.
+local function buildMarkers(parent: Instance, jobs: { () -> () })
+	for ri, road in currentMap.roads do
+		table.insert(jobs, function()
+			local pts = road.points
+			local acc = 110 + h01(ri, 1, 140) * 100
+			for n = 1, #pts - 1 do
+				local a, b = pts[n], pts[n + 1]
+				local len = Vec.dist(a, b)
+				local dir = Vec.normalize(Vec.sub(b, a))
+				local right = Vec.right(dir)
+				local s = 0
+				while s < len do
+					if s >= acc then
+						acc = s + 200 + h01(ri, s, 141) * 120
+						local c = Vec.add(a, Vec.scale(dir, s))
+						local p = Vec.add(c, Vec.scale(right, road.width / 2 + 2.2))
+						if isOpen(p.x, p.z) then
+							local y = groundY(p.x, p.z)
+							if h01(p.x, p.z, 142) < 0.5 then
+								-- milestone
+								part(parent, nil, Vector3.new(0.7, 1.6, 0.5), yaw(p.x, y + 0.6, p.z, Vec.heading(dir)), STONE, Enum.Material.Slate)
+							else
+								-- wayside cross
+								part(parent, nil, Vector3.new(0.3, 3.4, 0.3), CFrame.new(p.x, y + 1.5, p.z), BEAM, Enum.Material.Wood)
+								part(parent, nil, Vector3.new(1.4, 0.3, 0.3), yaw(p.x, y + 2.5, p.z, Vec.heading(dir)), BEAM, Enum.Material.Wood)
+							end
+						end
+					end
+					s += 10
+				end
+				acc -= len
+			end
+		end)
+	end
+end
+
+-- A watermill on the bank at the first brook bridge of each river: a mill house with a wheel.
+local function buildMills(parent: Instance)
+	for _, river in currentMap.rivers do
+		if river.width <= 40 then
+			for _, br in currentMap.bridges do
+				local mid = Vec.lerp(br.a, br.b, 0.5)
+				local pts = river.points
+				local near = false
+				for n = 1, #pts - 1 do
+					if Vec.distToSegment(mid, pts[n], pts[n + 1]) < river.width then
+						near = true
+					end
+				end
+				if near then
+					local dir = Vec.normalize(Vec.sub(br.b, br.a))
+					local right = Vec.right(dir)
+					local p = Vec.add(Vec.add(mid, Vec.scale(dir, river.width / 2 + 7)), Vec.scale(right, br.width / 2 + 6))
+					if isOpen(p.x, p.z) then
+						local heading = Vec.heading(right)
+						house(parent, p.x, p.z, heading, 7, 5, "white", 143)
+						local y = groundY(p.x, p.z)
+						local wx = Vec.add(p, Vec.scale(dir, -4.2))
+						part(parent, Enum.PartType.Cylinder, Vector3.new(0.6, 4.2, 4.2), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), BEAM, Enum.Material.Wood)
+						part(parent, Enum.PartType.Cylinder, Vector3.new(0.7, 2.6, 2.6), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), c3(130, 104, 74), Enum.Material.Wood)
+					end
+					break
+				end
+			end
+		end
 	end
 end
 
@@ -582,9 +788,9 @@ local function buildAvenues(parent: Instance, jobs: { () -> () })
 								local p = Vec.add(c, Vec.scale(right, side * (road.width / 2 + 4)))
 								if isOpen(p.x, p.z) and h01(p.x, p.z, 81) < 0.9 then
 									if look.avenue == "poplar" then
-										poplar(parent, p.x, p.z)
+										tree(parent, "poplar", p.x, p.z, 4.5 + h01(p.z, p.x, 82), false)
 									else
-										deciduous(parent, p.x, p.z, 2.6 + h01(p.z, p.x, 82), true)
+										tree(parent, "oak", p.x, p.z, 2.6 + h01(p.z, p.x, 82), false)
 									end
 								end
 							end
@@ -613,7 +819,7 @@ local function borderPiece(parent: Instance, kind: number, ax: number, az: numbe
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
 		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
 		if h01(mx, mz, 92) < 0.13 then
-			deciduous(parent, mx, mz, 4 + h01(mz, mx, 93) * 2, true)
+			tree(parent, "oak", mx, mz, 4 + h01(mz, mx, 93) * 2, true)
 		end
 	elseif kind == 2 then
 		along(1.5, 1.0, 0.45, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
@@ -750,6 +956,32 @@ local function buildWindmills(parent: Instance)
 	for n = 1, math.min(2, #cands) do
 		windmill(parent, cands[n].x, cands[n].z, h01(cands[n].x, cands[n].z, 121) * math.pi * 2)
 	end
+end
+
+-- Ground fog lying in the valleys at dawn: flat pale patches along the rivers and in the lowest
+-- ground, shown by Lighting only under the fog grade.
+local function buildGroundFog(parent: Instance, jobs: { () -> () })
+	local g = currentMap.grid
+	local lo, hi = math.huge, -math.huge
+	for _, h in g.height do
+		lo = math.min(lo, h)
+		hi = math.max(hi, h)
+	end
+	local floorY = lo + (hi - lo) * 0.3
+	table.insert(jobs, function()
+		for x = 60, currentMap.width - 60, 90 do
+			for z = 60, currentMap.depth - 60, 90 do
+				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
+				local y = groundY(px, pz)
+				if y < floorY and h01(px, pz, 152) < 0.7 then
+					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 4, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
+					p.Material = Enum.Material.SmoothPlastic
+					p.Transparency = WorldLighting.groundFogTransparency()
+					p.CastShadow = false
+				end
+			end
+		end
+	end)
 end
 
 -------------------------------------------------------------------------------- distant country
@@ -896,13 +1128,15 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 	local season = Terrain.seasonOf(map.id)
 	look = LOOKS[season]
 	WorldLighting.setMap(map.id)
+	Terrain.setDecoration(q >= 2)
 	local function sub(name: string): Folder
 		local d = Instance.new("Folder") :: Folder
 		d.Name = name
 		d.Parent = f
 		return d
 	end
-	local woodsF, villagesF, fieldsF, waterF, countryF = sub("Woods"), sub("Villages"), sub("Fields"), sub("Water"), sub("Country")
+	local woodsF, villagesF, fieldsF, waterF, countryF, fogF = sub("Woods"), sub("Villages"), sub("Fields"), sub("Water"), sub("Country"), sub("GroundFog")
+	WorldLighting.setGroundFog(fogF)
 
 	-- conifers favour the top quarter of the map's height range
 	local lo, hi = math.huge, -math.huge
@@ -946,6 +1180,13 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 		buildRiverside(waterF, river, q, jobs)
 	end
 	buildAvenues(fieldsF, jobs)
+	buildMarkers(fieldsF, jobs)
+	table.insert(jobs, function()
+		buildMills(waterF)
+	end)
+	if q >= 2 then
+		buildGroundFog(fogF, jobs)
+	end
 	buildBorders(fieldsF, q, jobs)
 	if q >= 2 then
 		buildStooks(fieldsF, jobs)

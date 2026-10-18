@@ -193,6 +193,7 @@ local currentGrade = "afternoon"
 local fogLifted = false -- the battle opened in fog: the clear light after it is morning, not afternoon
 
 local atmosphere: Atmosphere? = nil
+local groundFog: Folder? = nil
 local tweens: { Tween } = {}
 local heightConn: RBXScriptConnection? = nil
 local cc: ColorCorrectionEffect? = nil
@@ -260,6 +261,25 @@ local function setGrade(name: string, seconds: number)
 		Glare = g.atmoGlare,
 	})
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
+	-- valley fog patches show only under the fog grade
+	if groundFog then
+		local t = if name == "fog" then 0.55 else 1
+		for _, p in groundFog:GetChildren() do
+			if p:IsA("BasePart") then
+				to(p, { Transparency = t })
+			end
+		end
+	end
+end
+
+-- Props hands over the folder of flat valley-fog patches it builds for the current map, and
+-- asks what transparency a new patch starts at.
+function Lighting.setGroundFog(folder: Folder?)
+	groundFog = folder
+end
+
+function Lighting.groundFogTransparency(): number
+	return if currentGrade == "fog" then 0.55 else 1
 end
 
 function Lighting.apply(quality: number)
