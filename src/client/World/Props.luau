@@ -3,6 +3,7 @@
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Config = require(Shared.Config)
 local Grid = require(Shared.Grid)
 local Vec = require(Shared.Vec)
@@ -20,7 +21,10 @@ end
 
 local folder: Folder? = nil
 local zoneFolder: Folder? = nil
-local labelParts: { { part: Part, size: number, len: number } } = {}
+local labelParts: { { part: Part, size: number, len: number, text: TextLabel, float: TextLabel?, alpha: number } } = {}
+-- Settings.placeNames: "ground" plates (default), "floating" billboards, "hover" (billboards
+-- near the cursor only) or "off".
+local labelMode = "ground"
 local objectiveMarks: { [string]: { ring: { Part }, flag: Part } } = {}
 local generation = 0
 local currentMap: any = nil
@@ -1089,7 +1093,29 @@ local function buildLabel(parent: Instance, l: any, isVillage: boolean)
 	text.TextStrokeColor3 = Color3.fromRGB(40, 34, 24)
 	text.TextStrokeTransparency = 0.6
 	text.Parent = gui
-	table.insert(labelParts, { part = p, size = size, len = len })
+	gui.Enabled = labelMode == "ground"
+	table.insert(labelParts, { part = p, size = size, len = len, text = text, float = nil, alpha = 1 })
+end
+
+-- The floating form of a label: a small upright billboard over the place, built on demand.
+local function floatLabel(l: { part: Part, size: number, len: number, text: TextLabel, float: TextLabel?, alpha: number }): TextLabel
+	if l.float then
+		return l.float
+	end
+	local bb = Instance.new("BillboardGui") :: BillboardGui
+	bb.Name = "Float"
+	bb.Adornee = l.part
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
+	bb.Size = UDim2.fromOffset(160, 22)
+	bb.LightInfluence = 0
+	bb.AlwaysOnTop = true
+	bb.Parent = l.part
+	local t = l.text:Clone() :: TextLabel
+	t.TextTransparency = 1
+	t.TextStrokeTransparency = 1
+	t.Parent = bb
+	l.float = t
+	return t
 end
 
 local function buildObjective(parent: Instance, o: any)
@@ -1242,16 +1268,77 @@ function Props.setLabelYaw(yaw: number)
 	end
 end
 
--- Ground labels grow with camera height so they stay readable from any zoom.
+function Props.setLabelMode(mode: string)
+	labelMode = mode
+	for _, l in labelParts do
+		local gui = l.part:FindFirstChildOfClass("SurfaceGui") :: SurfaceGui?
+		if gui then
+			gui.Enabled = mode == "ground"
+		end
+		if l.float then
+			l.float.TextTransparency = 1
+			l.float.TextStrokeTransparency = 1
+		end
+	end
+end
+
+-- Where the cursor's ray meets the plane at height `y`, or nil when it points at the sky.
+local function cursorOnPlane(y: number): (number?, number?)
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return nil, nil
+	end
+	local m = UserInputService:GetMouseLocation()
+	local ray = cam:ViewportPointToRay(m.X, m.Y)
+	if ray.Direction.Y >= -1e-3 then
+		return nil, nil
+	end
+	local t = (y - ray.Origin.Y) / ray.Direction.Y
+	return ray.Origin.X + ray.Direction.X * t, ray.Origin.Z + ray.Direction.Z * t
+end
+
+local HOVER_RADIUS = 70 -- studs around the cursor within which hover names show
+local NEAR_FADE = 160 -- camera this close to a floating name: it fades so as not to shout
+
+-- Ground labels grow with camera height so they stay readable from any zoom. Floating and hover
+-- names are billboards that scale with height and fade in and out over a few frames.
 local lastLabelK = -1
 function Props.updateLabels(cameraHeight: number)
 	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
-	if math.abs(k - lastLabelK) < 0.05 then
+	if labelMode == "ground" or labelMode == "off" then
+		if math.abs(k - lastLabelK) < 0.05 then
+			return
+		end
+		lastLabelK = k
+		for _, l in labelParts do
+			l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
+		end
 		return
 	end
-	lastLabelK = k
+	lastLabelK = -1
+	local cam = workspace.CurrentCamera
+	local camPos = if cam then cam.CFrame.Position else Vector3.zero
+	local cx, cz = nil, nil
+	if labelMode == "hover" and #labelParts > 0 then
+		cx, cz = cursorOnPlane(labelParts[1].part.Position.Y)
+	end
 	for _, l in labelParts do
-		l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
+		local t = floatLabel(l)
+		local bb = t.Parent :: BillboardGui
+		local scale = math.clamp(cameraHeight / 420, 0.8, 1.8) * (l.size / 20)
+		bb.Size = UDim2.fromOffset(math.floor(l.len / l.size * 22 * scale), math.floor(22 * scale))
+		local pos = l.part.Position
+		local target = 1
+		if labelMode == "floating" then
+			local near = (camPos - pos).Magnitude
+			target = if near < NEAR_FADE then 0.8 else 0.15
+		elseif cx and cz then
+			local dx, dz = pos.X - cx, pos.Z - cz
+			target = if dx * dx + dz * dz < HOVER_RADIUS * HOVER_RADIUS then 0.1 else 1
+		end
+		l.alpha += (target - l.alpha) * 0.15
+		t.TextTransparency = l.alpha
+		t.TextStrokeTransparency = 0.5 + 0.5 * l.alpha
 	end
 end
 

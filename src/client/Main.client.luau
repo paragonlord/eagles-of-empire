@@ -516,6 +516,8 @@ local function wire()
 			end
 		elseif key == "reducedEffects" then
 			Effects.applySettings()
+		elseif key == "placeNames" then
+			Props.setLabelMode(Settings.get().placeNames)
 		end
 	end))
 end
