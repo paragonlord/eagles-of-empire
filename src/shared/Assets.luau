@@ -31,7 +31,12 @@ Assets.slots = {
 	helmet = slot(),
 	-- World (WorldGen): one mesh per object, origin on the ground, facing +X (the road side),
 	-- scaled to the procedural object's bounds given in WorldGen's meshObject calls.
-	treeOak = slot(), -- broad oak ~r 5: 12 wide, 13 tall
+	treeOak = { -- original 848-triangle oak; native bounds 12 x 13 x 12 studs
+		mesh = "rbxassetid://73559467519799",
+		texture = "rbxassetid://139915483990126",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+	},
 	treeBeech = slot(),
 	treePine = slot(),
 	treePoplar = slot(), -- narrow spindle ~16 tall
