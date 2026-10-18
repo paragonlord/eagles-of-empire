@@ -779,6 +779,19 @@ build de3fbe0.** No errors on either side.
   palette, most visible close up; a VertexColor of ~(0.8, 0.85, 0.75) on the tree meshes, or a
   darker texture, would bring them to olive.
 
+**2026-10-18 round 29 (cottage mesh, buildings on plinths), build 4325bfd.** No errors.
+- Pass: 86 cottages on Jena are the 788-triangle mesh; the server world is 8,068 parts (8,486
+  before). Up close they read far better than the part-built houses: windows, a door, a
+  chimney, a stone plinth (`r29-cottage-close.jpg`). A sampled cottage's base is 4.2 over ground
+  of 2.8–3.9 under its corners: it stands on the highest corner and the plinth fills the fall,
+  as the new rule says. From the playing height Vierzehnheiligen reads as one village
+  (`r29-village-mid.jpg`).
+- Small: the mesh cottages are visibly smaller than their part-built neighbours (5.6 × 5.4 ×
+  4.5 against ~8 wide), and their roof texture is a brighter orange than the tinted part-built
+  roofs, so a few stand out from the street (centre of both shots). Scaling the slot up ~1.3×
+  and darkening the roof half of the texture would blend them.
+- `[EoE clip]` 92 of 7767, unchanged.
+
 ## Known failures
 
 None recorded yet.
