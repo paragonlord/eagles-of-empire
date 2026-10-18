@@ -62,7 +62,13 @@ Assets.slots = {
 		native = { 4, 16, 4 },
 	},
 	treeWillow = slot(),
-	houseA = slot(), -- cottage ~5 x 5 footprint, 2.6 eaves, gable ridge along +X
+	houseA = { -- original 788-triangle whitewashed cottage; ridge along +X
+		mesh = "rbxassetid://91534964288834",
+		texture = "rbxassetid://84033137999917",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 7, 6, 5 },
+	},
 	houseB = slot(),
 	houseC = slot(),
 	barn = slot(),
