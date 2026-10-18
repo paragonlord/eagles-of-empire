@@ -1,3 +1,4 @@
 build/*
 !build/EaglesOfEmpire.rbxlx
 .DS_Store
+__pycache__/
