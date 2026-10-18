@@ -176,15 +176,17 @@ function Kit.touch(): boolean
 	return Settings.touch()
 end
 
-local scales: { UIScale } = {}
+local screens: { ScreenGui } = {}
 local function rescale()
 	local s = Kit.scale()
-	for i = #scales, 1, -1 do
-		local u = scales[i]
-		if u.Parent then
+	for i = #screens, 1, -1 do
+		local sg = screens[i]
+		if sg.Parent then
+			local u = (sg:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")) :: UIScale
 			u.Scale = s
+			u.Parent = sg
 		else
-			table.remove(scales, i)
+			table.remove(screens, i)
 		end
 	end
 end
@@ -202,11 +204,11 @@ function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenG
 	sg.DisplayOrder = order
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+	table.insert(screens, sg)
 	if Settings.touch() then
 		local u = Instance.new("UIScale") :: UIScale
 		u.Scale = Kit.scale()
 		u.Parent = sg
-		table.insert(scales, u)
 	end
 	return sg
 end

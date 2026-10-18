@@ -51,6 +51,12 @@ function SettingsPanel.show()
 		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		list.CanvasSize = UDim2.new()
 		list.Parent = panel
+		if touch then
+			-- the content column stops short of the scrollbar so nothing sits under it
+			local pad = Instance.new("UIPadding") :: UIPadding
+			pad.PaddingRight = UDim.new(0, list.ScrollBarThickness + 6)
+			pad.Parent = list
+		end
 		Kit.list(list, 10)
 		local order = 0
 		local function next(): number

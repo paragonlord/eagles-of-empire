@@ -125,12 +125,12 @@ function Deployment.show(cb: Callbacks)
 	row.BackgroundTransparency = 1
 	row.Parent = panel
 	Kit.list(row, 8, true)
-	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, if touch then -74 else -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
+	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
 	local bs = b:FindFirstChildOfClass("UIStroke") :: UIStroke?
 	if bs then
 		bs.Thickness = 2
 	end
-	Kit.button(row, if touch then "Set." else "Settings", cb.settings, { size = UDim2.new(0, if touch then 66 else 90, 1, 0), order = 2 })
+	Kit.button(row, if touch then "Options" else "Settings", cb.settings, { size = UDim2.new(0, 90, 1, 0), order = 2 })
 	if (BattleState.coop() and BattleState.role == "officer") or BattleState.pvp() then
 		b.Text = "Ready"
 	elseif not BattleState.isCommander then

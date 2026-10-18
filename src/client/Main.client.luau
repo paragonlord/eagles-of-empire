@@ -205,6 +205,36 @@ local hudCallbacks = {
 	end,
 }
 
+-- Deployment panel callbacks (also used to rebuild the panel when Controls changes).
+local function deployCallbacks(): Deployment.Callbacks
+	return {
+		ready = function()
+			Net.control("ready")
+			if BattleState.coop() and BattleState.role == "commander" and not BattleState.pvp() then
+				Deployment.setWaiting("Start now", true) -- a second ready forces the start
+			else
+				Deployment.setWaiting("Forming up…")
+			end
+		end,
+		assign = function(userId: number)
+			local ids = Selection.ids()
+			if #ids > 0 then
+				Net.control("assign", { ids = ids, userId = userId })
+			end
+		end,
+		mode = function(v: string)
+			Net.control("mode", v)
+		end,
+		side = function(faction: string)
+			Net.control("side", faction)
+		end,
+		balance = function()
+			Net.control("balance")
+		end,
+		settings = openSettings,
+	}
+end
+
 -- ------------------------------------------------------------------ lifecycle
 
 -- Removes everything a previous state created. Safe to call repeatedly.
@@ -327,32 +357,7 @@ local function onMatchState(msg: any)
 		Effects.init()
 		local zone = BattleState.map.deployZones[BattleState.viewerFaction]
 		Props.setDeployZone(zone, BattleState.viewerFaction)
-		Deployment.show({
-			ready = function()
-				Net.control("ready")
-				if BattleState.coop() and BattleState.role == "commander" and not BattleState.pvp() then
-					Deployment.setWaiting("Start now", true) -- a second ready forces the start
-				else
-					Deployment.setWaiting("Forming up…")
-				end
-			end,
-			assign = function(userId: number)
-				local ids = Selection.ids()
-				if #ids > 0 then
-					Net.control("assign", { ids = ids, userId = userId })
-				end
-			end,
-			mode = function(v: string)
-				Net.control("mode", v)
-			end,
-			side = function(faction: string)
-				Net.control("side", faction)
-			end,
-			balance = function()
-				Net.control("balance")
-			end,
-			settings = openSettings,
-		})
+		Deployment.show(deployCallbacks())
 		Input.setMode(if BattleState.canOrder() then "deploy" else "off")
 		Camera.setEnabled(true)
 		if zone then
@@ -518,6 +523,15 @@ local function wire()
 			Effects.applySettings()
 		elseif key == "placeNames" then
 			Props.setLabelMode(Settings.get().placeNames)
+		elseif key == "controls" then
+			-- touch or desktop layout, live: the HUD or the briefing is rebuilt for the current state
+			local s = BattleState.state
+			if s == "running" or s == "paused" then
+				HUD.show(hudCallbacks)
+			elseif s == "deployment" then
+				Deployment.show(deployCallbacks())
+				Deployment.refresh()
+			end
 		end
 	end))
 end
