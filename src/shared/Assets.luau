@@ -52,6 +52,60 @@ Assets.slots = {
 	thatch = slot("rbxassetid://4125863236"), -- "Seamless Hay Texture", DjordyKK (tried on Austerlitz)
 }
 
+-- Sounds (client Audio.luau). `id` is "rbxassetid://<id>" or, for a slot with `variants` > 1, a
+-- list of them (`id = { "rbxassetid://a", "rbxassetid://b" }`); a single id still gets pitch
+-- variation. `pitch` is the PlaybackSpeed range rolled per play, `volume` the slot's level before
+-- the buses. An empty id plays nothing and creates nothing. Keep keys; fill ids in Studio
+-- (docs/vision.md, Audio).
+export type Sound = { id: string | { string }, volume: number, pitch: { number }, variants: number, loop: boolean? }
+
+local function sound(volume: number, pitch: { number }, variants: number?, loop: boolean?): Sound
+	return { id = "", volume = volume, pitch = pitch, variants = variants or 1, loop = loop }
+end
+
+Assets.sounds = {
+	-- battle, positional (anchored at the event, rolled off by camera height)
+	musketVolley = sound(0.8, { 0.92, 1.08 }, 3), -- a battalion's volley, ~1 s of crackle
+	musketScatter = sound(0.5, { 0.9, 1.1 }), -- scattered skirmish fire
+	cannonFire = sound(1, { 0.9, 1.05 }, 3),
+	cannonBounce = sound(0.6, { 0.9, 1.1 }), -- roundshot graze / earth
+	canister = sound(0.9, { 0.95, 1.05 }), -- the shotgun blast of a canister round
+	cavalryCharge = sound(0.8, { 0.95, 1.05 }), -- hooves at the gallop, ~4 s
+	cavalryImpact = sound(0.9, { 0.95, 1.05 }), -- horses into a line
+	meleeClash = sound(0.6, { 1, 1 }, 1, true), -- steel and shouting, loop
+	drumsMarchFr = sound(0.5, { 1, 1 }, 1, true), -- pas de charge, loop per faction
+	drumsMarchPr = sound(0.5, { 1, 1 }, 1, true),
+	drumsMarchAt = sound(0.5, { 1, 1 }, 1, true),
+	drumsMarchRu = sound(0.5, { 1, 1 }, 1, true),
+	drumsMarchGb = sound(0.5, { 1, 1 }, 1, true),
+	fifeMarch = sound(0.4, { 1, 1 }, 1, true),
+	bugleCharge = sound(0.7, { 0.97, 1.03 }),
+	bugleRally = sound(0.6, { 0.97, 1.03 }),
+	rout = sound(0.6, { 0.95, 1.05 }), -- cries, a line breaking
+	unitDestroyed = sound(0.6, { 0.95, 1.05 }),
+	-- battle, 2D
+	capture = sound(0.7, { 1, 1 }),
+	objectiveLost = sound(0.7, { 1, 1 }),
+	victory = sound(0.9, { 1, 1 }),
+	defeat = sound(0.9, { 1, 1 }),
+	momentSting = sound(0.8, { 1, 1 }), -- under a moment card; music ducks
+	ping = sound(0.6, { 1, 1 }), -- co-op map ping
+	-- interface
+	uiClick = sound(0.5, { 0.97, 1.03 }),
+	uiHover = sound(0.25, { 0.97, 1.03 }),
+	uiPaper = sound(0.5, { 0.95, 1.05 }), -- a sheet laid on the desk
+	uiSeal = sound(0.5, { 0.97, 1.03 }), -- wax seal / stamp
+	-- ambience loops by weather grade
+	ambienceField = sound(0.5, { 1, 1 }, 1, true), -- wind and birds
+	ambienceRain = sound(0.6, { 1, 1 }, 1, true),
+	ambienceFog = sound(0.4, { 1, 1 }, 1, true), -- muffled, close
+	-- music (loops, crossfaded by the state machine)
+	menuMusic = sound(0.6, { 1, 1 }, 1, true),
+	battleMusicCalm = sound(0.5, { 1, 1 }, 1, true),
+	battleMusicTense = sound(0.6, { 1, 1 }, 1, true),
+	campaignMusic = sound(0.5, { 1, 1 }, 1, true),
+}
+
 -- A texture id for a slot, or nil when the slot has none.
 function Assets.textureOf(key: string): string?
 	local s = (Assets.slots :: { [string]: Slot })[key]

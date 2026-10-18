@@ -10,6 +10,9 @@ export type Values = {
 	master: number, -- 0..1
 	sfx: number,
 	music: number,
+	ambience: number,
+	ui: number,
+	debugAudio: boolean, -- print every audio hook (Audio.luau) to the output
 	reducedShake: boolean,
 	reducedEffects: boolean,
 	typeface: string, -- one of Settings.TYPEFACES (UI/Kit presets)
@@ -35,6 +38,9 @@ local values: Values = {
 	master = 0.8,
 	sfx = 1.0,
 	music = 0.6,
+	ambience = 0.7,
+	ui = 0.8,
+	debugAudio = false,
 	reducedShake = false,
 	reducedEffects = false,
 	typeface = "Garamond",
@@ -66,7 +72,7 @@ function Settings.set(key: string, value: any)
 	end
 	if key == "quality" then
 		value = math.clamp(math.round(value), 1, 3)
-	elseif key == "master" or key == "sfx" or key == "music" then
+	elseif key == "master" or key == "sfx" or key == "music" or key == "ambience" or key == "ui" then
 		value = math.clamp(value, 0, 1)
 	elseif key == "typeface" or key == "placeNames" or key == "controls" then
 		local list = if key == "typeface" then Settings.TYPEFACES elseif key == "placeNames" then Settings.PLACE_NAMES else Settings.CONTROLS

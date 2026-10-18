@@ -15,6 +15,7 @@ local BattleState = require(script.Parent.Parent.BattleState)
 local PaperLayout = require(script.Parent.PaperLayout)
 local Settings = require(script.Parent.Parent.Settings)
 local Touch = require(script.Parent.Parent.Touch)
+local Audio = require(script.Parent.Parent.Audio)
 
 local Kit = {}
 
@@ -466,6 +467,7 @@ end
 function Kit.stamp(parent: Instance, text: string, pos: UDim2, d: number, anchor: Vector2?): Frame
 	local s = frame(parent, UDim2.fromOffset(d, d), pos, Kit.STAMP)
 	s.Name = "Stamp"
+	Audio.play("uiSeal")
 	s.AnchorPoint = anchor or Vector2.new(0.5, 0.5)
 	s.BackgroundTransparency = 0.93
 	s.Rotation = -11
@@ -507,6 +509,7 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 		stroke.Thickness = 2
 		stroke.Transparency = 0.2
 		Kit.paper(f, props.padding or 0, props.seed or PaperLayout.seed(parent.Name .. tostring(props.size)))
+		Audio.play("uiPaper") -- a sheet laid on the desk
 	elseif props.dark and onParchment(parent) then
 		-- a section of the sheet ruled off in ink, not a box on the paper
 		f.BackgroundTransparency = 1
@@ -612,6 +615,7 @@ end
 function Kit.seal(parent: Instance, pos: UDim2, d: number, anchor: Vector2?): Frame
 	local s = frame(parent, UDim2.fromOffset(d, d), pos, Kit.CRIMSON)
 	s.AnchorPoint = anchor or Vector2.new(0.5, 0.5)
+	Audio.play("uiSeal")
 	local c = Instance.new("UICorner") :: UICorner
 	c.CornerRadius = UDim.new(1, 0)
 	c.Parent = s
@@ -894,10 +898,14 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		if b:GetAttribute("disabled") == true then
 			return
 		end
+		Audio.play("uiClick")
 		onClick()
 	end)
 	b.MouseEnter:Connect(function()
 		b:SetAttribute("hover", true)
+		if b:GetAttribute("disabled") ~= true then
+			Audio.play("uiHover")
+		end
 		restyle(b)
 		local reason = b:GetAttribute("reason")
 		local tip = b:GetAttribute("tip")

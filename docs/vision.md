@@ -46,10 +46,23 @@ key moment). Where they conflict, the facts win and the drama adapts.
 
 ## Audio (the one thing code alone cannot provide)
 
-Sound is half of what makes battles memorable, and the game is silent today. Roblox requires
-sounds to be assets: they must come from the Creator Store (free, licensed for use in Roblox
-experiences) or be uploaded by the owner. Needed, in priority order: musket volley (several
-variants), cannon, distant cannon, drums (march, pas de charge), fife/bugle calls, cavalry
-gallop/charge, crowd "Vive l'Empereur!", ambient wind/birds, 3–4 music tracks (calm deployment,
-battle, victory, defeat; public-domain period pieces such as Marseillaise arrangements, Beethoven,
-period marches are ideal). Ids go into `src/client/Audio.luau`'s registry; nothing else changes.
+Sound is half of what makes battles memorable. The audio layer is built (`src/client/Audio.luau`:
+buses, positional one-shots rolled off by camera height, cooldowns and caps, faded loops, ambience
+by weather, a music state machine with a tension score, moment stings that duck the music) and every
+hook fires; only the asset ids are missing, so the game is silent until they are filled. Roblox
+requires sounds to be assets owned or licensed for the experience: free audio from the Creator Store
+is fine, as is audio the owner uploads. One slot per sound lives in `Assets.sounds`
+(`src/shared/Assets.luau`): `{ id = "", volume, pitch = { min, max }, variants = n }`, keys in
+priority order musketVolley (3 variants), cannonFire (3), canister, cannonBounce, cavalryCharge,
+cavalryImpact, meleeClash (loop), drumsMarchFr/Pr/At/Ru/Gb (loops), bugleCharge, bugleRally,
+rout, unitDestroyed, capture, objectiveLost, victory, defeat, momentSting, ambienceField / Rain /
+Fog (loops), menuMusic, battleMusicCalm, battleMusicTense, campaignMusic, and the interface
+(uiClick, uiHover, uiPaper, uiSeal, ping).
+
+To fill a slot in Studio: Toolbox → Audio → filter Free → pick a sound → copy its asset id → set
+`id = "rbxassetid://<id>"` (for a slot with `variants` > 1, a list:
+`id = { "rbxassetid://a", "rbxassetid://b", "rbxassetid://c" }`). Nothing else changes: a slot
+with no id plays nothing and costs nothing. Turn on **Audio log** in the settings panel
+(`Settings.debugAudio`) to see every hook as `[EoE audio] key (variant) at d=… vol=…` in the
+output before any id exists. Music: public-domain period pieces (Marseillaise arrangements,
+Beethoven, period marches) suit the calm / tense / campaign / menu slots.

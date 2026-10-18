@@ -156,6 +156,7 @@ local campaignCallbacks = {
 		CampaignScreen.hide()
 		if BattleState.state == "menu" then
 			Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+			Audio.setScene("menu")
 		else
 			Net.control("quit")
 		end
@@ -188,6 +189,7 @@ local function onCampaign(msg: any)
 	-- the campaign takes the screen over the menu or the results panel
 	Menu.hide()
 	Results.destroy()
+	Audio.setScene("campaign")
 	if CampaignScreen.isOpen() then
 		CampaignScreen.setView(msg.view, msg.sessionOnly == true)
 	else
@@ -303,6 +305,7 @@ local function onMatchState(msg: any)
 	-- a PvP side switch changes the view: rebuild instead (new zone, camera, full snapshot)
 	local coopRefresh = sameMatch and s == prevState and (wasCoop or BattleState.coop() or BattleState.pvp()) and BattleState.viewerFaction == prevFaction and (s == "deployment" or s == "running" or s == "paused")
 	WorldLighting.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
+	Audio.setWeather(if type(msg.scenario) == "table" then msg.scenario.weather else nil)
 	Net.setMatch(BattleState.matchId, BattleState.validateContext)
 	Tutorial.onMatchState(BattleState.state, if msg.scenario then msg.scenario.id else nil)
 	if pauseToggle or coopRefresh then
@@ -333,6 +336,7 @@ local function onMatchState(msg: any)
 		else
 			campaignWanted = false
 			Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+			Audio.setScene("menu")
 		end
 		Camera.setEnabled(true)
 		local built = ensureWorld(DEFAULT_MAP)
@@ -354,6 +358,7 @@ local function onMatchState(msg: any)
 		end
 		Figures.init()
 		Effects.init()
+		Audio.setScene("deployment")
 		local zone = BattleState.map.deployZones[BattleState.viewerFaction]
 		Props.setDeployZone(zone, BattleState.viewerFaction)
 		Deployment.show(deployCallbacks())
@@ -371,6 +376,7 @@ local function onMatchState(msg: any)
 		end
 		Figures.init()
 		Effects.init()
+		Audio.setScene("battle")
 		HUD.show(hudCallbacks)
 		Input.setMode(if BattleState.canOrder() then "battle" else "off")
 		Camera.setEnabled(true)
@@ -383,6 +389,7 @@ local function onMatchState(msg: any)
 		end
 		Figures.init() -- the field stays visible, frozen, behind the panel
 		local inCampaign = BattleState.campaignBattle ~= nil
+		Audio.setScene("results", if type(msg.results) == "table" then msg.results.outcome else nil)
 		Results.show(msg.results or {}, {
 			restart = function()
 				Net.control("restart")
@@ -423,10 +430,12 @@ local function wire()
 		shown = function()
 			Menu.hide()
 			Results.destroy()
+			Audio.setScene("campaign")
 		end,
 		menu = function()
 			if BattleState.state == "menu" then
 				Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)
+				Audio.setScene("menu")
 				Camera.setEnabled(true)
 			else
 				Net.control("quit")
@@ -473,6 +482,7 @@ local function wire()
 	table.insert(conns, BattleState.updated:Connect(function(snap: any)
 		if type(snap) == "table" then
 			WorldLighting.setWeather(snap.weather)
+			Audio.setWeather(snap.weather)
 		end
 		Selection.prune()
 		Figures.onSnapshot()
@@ -488,9 +498,7 @@ local function wire()
 		Effects.onEvent(ev)
 		HUD.onEvent(ev)
 		Cinematic.onEvent(ev)
-		if ev.kind == "volley" or ev.kind == "cannon" or ev.kind == "melee" or ev.kind == "charge" or ev.kind == "rout" or ev.kind == "rally" or ev.kind == "capture" then
-			Audio.play(ev.kind)
-		end
+		Audio.onEvent(ev)
 	end))
 	table.insert(conns, BattleState.pendingChanged:Connect(Figures.onPendingChanged))
 	table.insert(conns, Selection.hoverChanged:Connect(Figures.markDirty))
@@ -559,6 +567,7 @@ end)
 RunService.RenderStepped:Connect(function(dt: number)
 	Figures.update(dt)
 	Effects.update(dt)
+	Audio.update(dt)
 	HUD.update(dt)
 	Props.updateLabels(Camera.height())
 	Props.setLabelYaw(Camera.getYaw())
