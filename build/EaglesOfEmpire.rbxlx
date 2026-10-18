@@ -1,4 +1,75 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Meta name="ExplicitAutoJoints">true</Meta><External>null</External><External>nil</External><Item class="ReplicatedStorage" referent="RBX00000016"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX00000015"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000001"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignData</string><ProtectedString name="Source"><![CDATA[--!strict
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Meta name="ExplicitAutoJoints">true</Meta><External>null</External><External>nil</External><Item class="ReplicatedStorage" referent="RBX00000017"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX00000016"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000001"><Properties><bool name="Disabled">false</bool><string name="Name">Assets</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Named slots for Creator Store assets (no ids are checked in). A slot with a mesh id makes
+-- the client build that object as one Part with a SpecialMesh (FileMesh) instead of the part
+-- assembly; an empty slot keeps the procedural build. Fill `mesh`/`texture` with
+-- "rbxassetid://<id>" and set `scale` so the mesh fits the figure's studs (the Studio session
+-- does this from the asset's native size). Add keys only; both the figures (Soldiers) and
+-- the world (Props/WorldGen) read this table.
+
+export type Slot = {
+	mesh: string, -- "rbxassetid://..." or ""
+	texture: string,
+	scale: { number }, -- SpecialMesh.Scale (x, y, z)
+	offset: { number }, -- SpecialMesh.Offset (x, y, z), studs
+}
+
+local function slot(): Slot
+	return { mesh = "", texture = "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
+end
+
+local Assets = {}
+
+-- Figures (Soldiers.luau): one mesh per figure, origin on the ground, facing +X, sized in studs.
+Assets.slots = {
+	soldierInfantry = slot(), -- a standing musketeer ~3.2 studs tall
+	soldierCavalry = slot(), -- horse and rider ~4 studs tall, 3.6 long
+	horse = slot(), -- a horse alone (limber teams)
+	gun = slot(), -- field gun on its carriage, muzzle toward +X
+	limber = slot(), -- limber with its chest
+	shako = slot(), -- headgear swaps, worn on top of the procedural head
+	bearskin = slot(),
+	helmet = slot(),
+	-- World (WorldGen): one mesh per object, origin on the ground, facing +X (the road side),
+	-- scaled to the procedural object's bounds given in WorldGen's meshObject calls.
+	treeOak = slot(), -- broad oak ~r 5: 12 wide, 13 tall
+	treeBeech = slot(),
+	treePine = slot(),
+	treePoplar = slot(), -- narrow spindle ~16 tall
+	treeWillow = slot(),
+	houseA = slot(), -- cottage ~5 x 5 footprint, 2.6 eaves, gable ridge along +X
+	houseB = slot(),
+	houseC = slot(),
+	barn = slot(),
+	church = slot(), -- nave 13 long with a west tower, ~22 tall
+	windmill = slot(), -- post mill ~20 tall
+	bridgeStone = slot(), -- deck along +X, length = the span given
+	bridgeTimber = slot(),
+	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
+	bark = slot(),
+	roofTile = slot(),
+	wall = slot(),
+	thatch = slot(),
+}
+
+-- A texture id for a slot, or nil when the slot has none.
+function Assets.textureOf(key: string): string?
+	local s = (Assets.slots :: { [string]: Slot })[key]
+	if s and s.texture ~= "" then
+		return s.texture
+	end
+	return nil
+end
+
+function Assets.get(key: string): Slot?
+	local s = (Assets.slots :: { [string]: Slot })[key]
+	if s and s.mesh ~= "" then
+		return s
+	end
+	return nil
+end
+
+return Assets
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000002"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignData</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Authored campaign map: Thuringia / Saxony, October 1806 (inspired by the Jena campaign; names
 -- are real towns, borders and numbers are balance choices). Region `pos` is on a 0..1000 client
 -- map (x east, z south). `terrain` names the tactical map variant used when a battle happens there.
@@ -136,7 +207,7 @@ function CampaignData.region(id: string): Region?
 end
 
 return CampaignData
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000002"><Properties><bool name="Disabled">false</bool><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000003"><Properties><bool name="Disabled">false</bool><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Single source of every live balance / timing / visual constant.
 -- docs/rules.md explains the formulas that consume these numbers. Change values here only.
 
@@ -398,7 +469,7 @@ Config.Net = {
 }
 
 return Config
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000003"><Properties><bool name="Disabled">false</bool><string name="Name">EuropeData</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000004"><Properties><bool name="Disabled">false</bool><string name="Name">EuropeData</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign data: Europe, January 1805 – December 1815 (docs/grand-campaign-contract.md).
 -- Pure data plus a few pure helpers; shared by the server rules and the client campaign map.
 --
@@ -1173,7 +1244,7 @@ EuropeData.SetPieces = {
 } :: { SetPiece }
 
 return EuropeData
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000004"><Properties><bool name="Disabled">false</bool><string name="Name">Generals</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000005"><Properties><bool name="Disabled">false</bool><string name="Name">Generals</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical commanders: two traits (small, always-on number changes) and one active ability.
 -- Pure data plus name lookups; the sim applies it in src/server/Sim/Abilities.luau and
 -- docs/rules.md ("Generals") is the contract. Every effect is described in its `text`, which the
@@ -1439,7 +1510,7 @@ function Generals.trait(id: string): Trait?
 end
 
 return Generals
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000005"><Properties><bool name="Disabled">false</bool><string name="Name">Grid</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000006"><Properties><bool name="Disabled">false</bool><string name="Name">Grid</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Authoritative terrain grid: heights, terrain classes and clearance at Config.Map.CellSize.
 -- Used by the server for navigation / LOS / placement and by the client to build visuals.
 -- Flat arrays, 0-based cell coordinates, index = cz * cols + cx + 1.
@@ -1661,7 +1732,7 @@ end
 Grid.Ids = IDS
 
 return Grid
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000006"><Properties><bool name="Disabled">false</bool><string name="Name">MapGen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000007"><Properties><bool name="Disabled">false</bool><string name="Name">MapGen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deterministic battlefield generator. The same call on server and client yields identical
 -- grids and feature lists; the server treats the grid as the only terrain truth, the client
 -- renders it. Authored feature lists live in MAPS below; everything else is derived.
@@ -2508,7 +2579,7 @@ function MapGen.inZone(map: MapData, faction: string, p: Vec): boolean
 end
 
 return MapGen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000007"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000008"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments: scripted, condition-driven beats of a battle (docs/vision.md pillar 3).
 -- Data lives on each scenario (`Scenarios.<id>.moments`); the server evaluates them in
 -- src/server/Sim/Moments.luau and the client presents them in src/client/Cinematic.luau.
@@ -2583,7 +2654,7 @@ function Moments.matches(sel: Selector, f: { faction: string, name: string, corp
 end
 
 return Moments
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000008"><Properties><bool name="Disabled">false</bool><string name="Name">Protocol</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><bool name="Disabled">false</bool><string name="Name">Protocol</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client ↔ server protocol: remote names, command kinds, limits and the pure validator.
 -- The server is the only authority; the client may run the same validator for early feedback.
 
@@ -2931,7 +3002,7 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 end
 
 return Protocol
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><bool name="Disabled">false</bool><string name="Name">RNG</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><bool name="Disabled">false</bool><string name="Name">RNG</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deterministic xorshift32 RNG with a serializable integer state. All simulation randomness
 -- goes through one instance owned by the sim; cosmetic randomness uses separate instances.
 
@@ -3004,7 +3075,7 @@ function RNG.hash(a: number, b: number, c: number): number
 end
 
 return RNG
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><bool name="Disabled">false</bool><string name="Name">Scenarios</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000011"><Properties><bool name="Disabled">false</bool><string name="Name">Scenarios</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Orders of battle. Condensed and partly representative: regiment names are drawn from
 -- formations present at each battle where known (docs/battles.md says which names are attested
 -- and which are representative), strengths are balance choices (docs/rules.md), not returns.
@@ -4097,7 +4168,7 @@ function Scenarios.get(id: string): Scenario?
 end
 
 return Scenarios
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000011"><Properties><bool name="Disabled">false</bool><string name="Name">Types</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000012"><Properties><bool name="Disabled">false</bool><string name="Name">Types</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Shared type definitions. Runtime-free; `require` for types only.
 
 local Vec = require(script.Parent.Vec)
@@ -4265,7 +4336,7 @@ export type Results = {
 }
 
 return {}
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000012"><Properties><bool name="Disabled">false</bool><string name="Name">Vec</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000013"><Properties><bool name="Disabled">false</bool><string name="Name">Vec</string><ProtectedString name="Source"><![CDATA[--!strict
 -- 2D vectors on the battlefield plane. Pure Luau; no Roblox datatypes.
 -- Heading: radians, 0 along +x, increasing toward +z. right(f) = f rotated +90° (toward +z when f = +x).
 
@@ -4406,7 +4477,7 @@ function Vec.distToSegment(p: Vec, a: Vec, b: Vec): number
 end
 
 return Vec
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000013"><Properties><bool name="Disabled">false</bool><string name="Name">WorldBuild</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000014"><Properties><bool name="Disabled">false</bool><string name="Name">WorldBuild</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Engine side of the world pipeline: writes WorldGen's terrain model into workspace.Terrain
 -- and instantiates WorldGen part specs. Server (structure tier, voxels) and client (detail
 -- tier) share it. Every part is fully set up before it is parented, and parts are parented in
@@ -4414,6 +4485,7 @@ return Vec
 
 local Config = require(script.Parent.Config)
 local WorldGen = require(script.Parent.WorldGen)
+local Assets = require(script.Parent.Assets)
 
 local WorldBuild = {}
 
@@ -4575,6 +4647,33 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 		m.MeshType = Enum.MeshType.Sphere
 		m.Parent = p
 	end
+	if s.buried then
+		p:SetAttribute("Buried", true)
+	end
+	-- Creator Store assets: a filled mesh slot replaces the part's look with that mesh, a
+	-- filled texture slot wraps the part's side faces (roof wedges: the slope)
+	local slot = if s.fileMesh then Assets.get(s.fileMesh) else nil
+	if s.fileMesh and slot then
+		local m = Instance.new("SpecialMesh") :: SpecialMesh
+		m.MeshType = Enum.MeshType.FileMesh
+		m.MeshId = slot.mesh
+		m.TextureId = slot.texture
+		m.Scale = Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
+		m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
+		m.Parent = p
+	end
+	local tex = if s.texture then Assets.textureOf(s.texture) else nil
+	if tex then
+		local faces = if s.class == "WedgePart" then { Enum.NormalId.Top } else { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
+		for _, face in faces do
+			local t = Instance.new("Texture") :: Texture
+			t.Texture = tex
+			t.Face = face
+			t.StudsPerTileU = 4
+			t.StudsPerTileV = 4
+			t.Parent = p
+		end
+	end
 	return p
 end
 
@@ -4638,7 +4737,7 @@ function WorldBuild.spawn(specs: { WorldGen.Spec }, root: Instance, alive: () ->
 end
 
 return WorldBuild
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000014"><Properties><bool name="Disabled">false</bool><string name="Name">WorldGen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">WorldGen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure world generation: from MapData to (a) a terrain column sampler the voxel writer reads
 -- and (b) a list of part specs. No instances are made here; WorldBuild instantiates specs,
 -- the server the "s" (structure) tier once per match, the client the "d" (detail) tier.
@@ -4648,6 +4747,7 @@ local Config = require(script.Parent.Config)
 local Vec = require(script.Parent.Vec)
 local RNG = require(script.Parent.RNG)
 local Grid = require(script.Parent.Grid)
+local Assets = require(script.Parent.Assets)
 
 local WorldGen = {}
 
@@ -4673,6 +4773,9 @@ export type Spec = {
 	castShadow: boolean,
 	canQuery: boolean?,
 	name: string?,
+	buried: boolean?, -- meant to sit in the ground (piers, plinths, planes): the clip check skips it
+	fileMesh: string?, -- Assets slot key: WorldBuild renders this part as that mesh
+	texture: string?, -- Assets slot key: WorldBuild textures the part's faces when the slot has one
 }
 
 export type Options = {
@@ -5326,6 +5429,91 @@ local function blob(group: string, size: Vector3, cf: CFrame, color: Color3): Sp
 	return p
 end
 
+local currentMap: any = nil
+local model: TerrainModel
+
+-- Clipping. Sample points on a spec in its local frame (half-extent units): box corners, or
+-- points on an ellipsoid for spheres and sphere meshes.
+local CORNERS = { { -1, -1, -1 }, { 1, -1, -1 }, { -1, -1, 1 }, { 1, -1, 1 }, { -1, 1, -1 }, { 1, 1, -1 }, { -1, 1, 1 }, { 1, 1, 1 } }
+local ELLIPSOID = { { 0, -1, 0 }, { 0.55, -0.8, 0 }, { -0.55, -0.8, 0 }, { 0, -0.8, 0.55 }, { 0, -0.8, -0.55 }, { 0, 1, 0 } }
+
+-- How far the lowest sample point of `s` sits below the terrain (positive = clipping), and
+-- the world Y of its lowest point.
+local function shortfall(s: Spec): (number, number)
+	local cf, sz = s.cframe, s.size
+	local pts = if s.shape == Enum.PartType.Ball or s.mesh then ELLIPSOID else CORNERS
+	local worst, low = -math.huge, math.huge
+	for _, o in pts do
+		local q = cf * Vector3.new(o[1] * sz.X / 2, o[2] * sz.Y / 2, o[3] * sz.Z / 2)
+		local gy = model.heightAt(q.X, q.Z)
+		worst = math.max(worst, gy - q.Y)
+		low = math.min(low, q.Y)
+	end
+	return worst, low
+end
+
+-- Every object is placed on the surface, never through it: the specs a builder emits inside
+-- `obj` are lifted together by the largest shortfall of their sample points against the
+-- terrain model. Footprint objects (houses, churches, mills) that had to rise more than 0.15
+-- get a stone plinth under the base down into the ground, so nothing floats on a slope.
+type ObjKind = "point" | "linear" | "footprint"
+type Footprint = { cframe: CFrame, w: number, d: number }
+local STONE = c3(156, 146, 128)
+
+local function settle(a: number, b: number, kind: ObjKind, fp: Footprint?)
+	if b < a then
+		return
+	end
+	local lift, lowY = 0, math.huge
+	local lowSpec: Spec? = nil
+	for i = a, b do
+		local sp = out[i]
+		if not sp.buried then
+			local sf, low = shortfall(sp)
+			lift = math.max(lift, sf)
+			if low < lowY then
+				lowY, lowSpec = low, sp
+			end
+		end
+	end
+	if lift <= 0.02 then
+		return
+	end
+	local up = Vector3.new(0, lift, 0)
+	for i = a, b do
+		out[i].cframe = out[i].cframe + up
+	end
+	if kind == "footprint" and lift > 0.15 and lowSpec then
+		local depth = lift + 0.6
+		local cf: CFrame, w: number, d: number
+		if fp then
+			cf, w, d = fp.cframe, fp.w, fp.d
+		else
+			cf, w, d = lowSpec.cframe, lowSpec.size.X, lowSpec.size.Z
+		end
+		local rot = cf - cf.Position
+		local top = lowY + lift
+		local plinth = part(lowSpec.group, nil, Vector3.new(w + 0.3, depth, d + 0.3), rot + Vector3.new(cf.X, top - depth / 2 + 0.05, cf.Z), STONE:Lerp(c3(110, 104, 92), 0.3), Enum.Material.Cobblestone)
+		plinth.buried = true
+	end
+end
+
+local function obj(kind: ObjKind, f: () -> (), fp: Footprint?)
+	local a = #out + 1
+	f()
+	settle(a, #out, kind, fp)
+end
+
+-- One mesh part in place of a part assembly when the Assets slot is filled; false otherwise.
+local function meshObject(group: string, key: string, x: number, z: number, heading: number, w: number, h: number, d: number): boolean
+	if not Assets.get(key) then
+		return false
+	end
+	local p = part(group, nil, Vector3.new(w, h, d), CFrame.new(x, Grid.heightAt(currentMap.grid, x, z) + h / 2, z) * CFrame.Angles(0, -heading, 0), Color3.new(1, 1, 1), Enum.Material.Plastic)
+	p.fileMesh = key
+	return true
+end
+
 local function withQ(q: number, f: () -> ())
 	local prev = emitQ
 	emitQ = math.max(prev, q)
@@ -5346,14 +5534,11 @@ local function yaw(x: number, y: number, z: number, heading: number): CFrame
 end
 
 -- Gable roof over `base` (eave level, ridge along local X): two wedges back to back along Z.
-local function gable(group: string, base: CFrame, length: number, span: number, height: number, color: Color3, material: EnumMaterial?)
+local function gable(group: string, base: CFrame, length: number, span: number, height: number, color: Color3, material: EnumMaterial?, texture: string?)
 	local mid = base * CFrame.new(0, height / 2, 0)
-	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, -span / 4), color, material)
-	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, span / 4) * CFrame.Angles(0, math.pi, 0), color, material)
+	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, -span / 4), color, material).texture = texture
+	wedge(group, Vector3.new(length, height, span / 2), mid * CFrame.new(0, 0, span / 4) * CFrame.Angles(0, math.pi, 0), color, material).texture = texture
 end
-
-local currentMap: any = nil
-local model: TerrainModel
 
 local function groundY(x: number, z: number): number
 	return Grid.heightAt(currentMap.grid, x, z)
@@ -5446,7 +5631,7 @@ local LOOKS: { [string]: Look } = {
 local look: Look = LOOKS.autumn
 local BEAM = c3(66, 48, 36)
 local TRUNK = c3(70, 54, 40)
-local STONE = c3(156, 146, 128)
+
 
 ---------------------------------------------------------------------------------------- trees
 
@@ -5467,7 +5652,7 @@ end
 type Species = "oak" | "beech" | "pine" | "poplar" | "willow"
 
 local function trunkPart(group: string, x: number, gy: number, z: number, h: number, d: number, color: Color3)
-	part(group, Enum.PartType.Cylinder, Vector3.new(h, d, d), CFrame.new(x, gy + h / 2 - 0.3, z) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.Material.Wood)
+	part(group, Enum.PartType.Cylinder, Vector3.new(h, d, d), CFrame.new(x, gy + h / 2, z) * CFrame.Angles(0, 0, math.pi / 2), color, Enum.Material.Wood).texture = "bark"
 end
 
 local function branch(group: string, x: number, y: number, z: number, len: number, d: number, dirAngle: number, tilt: number, color: Color3)
@@ -5476,7 +5661,8 @@ local function branch(group: string, x: number, y: number, z: number, len: numbe
 	part(group, Enum.PartType.Cylinder, Vector3.new(len, d, d), cf, color, Enum.Material.Wood)
 end
 
-local function tree(group: string, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
+local SPECIES_KEY: { [string]: string } = { oak = "treeOak", beech = "treeBeech", pine = "treePine", poplar = "treePoplar", willow = "treeWillow" }
+local function treeParts(group: string, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
 	local gy = y or groundY(x, z)
 	local seed = h01(x, z, 43)
 	local base = crownColor(x, z)
@@ -5535,9 +5721,21 @@ local function tree(group: string, species: Species, x: number, z: number, r: nu
 	end
 end
 
+local function tree(group: string, species: Species, x: number, z: number, r: number, full: boolean, y: number?)
+	local hgt = if species == "poplar" then r * 3.2 elseif species == "pine" then r * 2.8 elseif species == "willow" then r * 2 else r * 2.6
+	if meshObject(group, SPECIES_KEY[species], x, z, h01(x, z, 43) * 6.28, r * 2.4, hgt, r * 2.4) then
+		return
+	end
+	obj("point", function()
+		treeParts(group, species, x, z, r, full, y)
+	end)
+end
+
 local function bush(group: string, x: number, z: number, r: number)
-	local p = blob(group, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.35, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(56, 72, 40), h01(z, x, 48) * 0.4))
-	p.castShadow = false
+	obj("point", function()
+		local p = blob(group, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.55, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(56, 72, 40), h01(z, x, 48) * 0.4))
+		p.castShadow = false
+	end)
 end
 
 -- Woods: edge trees are full (trunk, branches, lobes, undergrowth); the interior is a closed
@@ -5572,7 +5770,7 @@ local WALL_H = 2.6
 
 type HouseKind = "white" | "timber" | "brick" | "barn"
 
-local function house(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
+local function houseParts(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
 	local y = groundY(x, z)
 	local wallH = if kind == "barn" then WALL_H + 0.6 else WALL_H
 	local wallC: Color3
@@ -5583,8 +5781,8 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 	else
 		wallC = pick(look.walls, h01(x, z, salt))
 	end
-	local body = yaw(x, y + wallH / 2 - 0.5, z, heading)
-	part(group, nil, Vector3.new(w, wallH + 1, d), body, wallC, if kind == "barn" then Enum.Material.WoodPlanks else Enum.Material.SmoothPlastic)
+	local body = yaw(x, y + wallH / 2, z, heading)
+	part(group, nil, Vector3.new(w, wallH, d), body, wallC, if kind == "barn" then Enum.Material.WoodPlanks else Enum.Material.SmoothPlastic).texture = if kind == "barn" then nil else "wall"
 	if kind == "timber" then
 		-- dark beams: a band at the upper floor and two posts that show on both long sides
 		part(group, nil, Vector3.new(w + 0.08, 0.3, d + 0.08), body * CFrame.new(0, 0.35, 0), BEAM)
@@ -5595,7 +5793,7 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 	local thatch = kind ~= "brick" and h01(z, x, salt + 1) < look.thatch
 	local roofC = if thatch then c3(128, 112, 80) elseif kind == "barn" then c3(96, 58, 44) else pick(look.roofs, h01(z, x, salt + 2))
 	local roofH = d * (if thatch then 0.7 else 0.62)
-	gable(group, yaw(x, y + wallH, z, heading), w + 0.6, d + 0.8, roofH, roofC, if thatch then Enum.Material.Grass else Enum.Material.Slate)
+	gable(group, yaw(x, y + wallH, z, heading), w + 0.6, d + 0.8, roofH, roofC, if thatch then Enum.Material.Grass else Enum.Material.Slate, if thatch then "thatch" else "roofTile")
 	if kind ~= "barn" and h01(x, z, salt + 3) < 0.45 then
 		local cx = (h01(z, x, salt + 4) - 0.5) * w * 0.6
 		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
@@ -5627,43 +5825,63 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 end
 
 -- Village furniture: a cart, barrels by the well, a haystack by a barn, a wayside shrine.
-local function cart(group: string, x: number, z: number, heading: number)
-	local y = groundY(x, z)
-	local base = yaw(x, y, z, heading)
-	part(group, nil, Vector3.new(3.6, 0.9, 1.8), base * CFrame.new(0, 1.3, 0), c3(110, 86, 60), Enum.Material.WoodPlanks)
-	for side = -1, 1, 2 do
-		part(group, Enum.PartType.Cylinder, Vector3.new(0.2, 1.6, 1.6), base * CFrame.new(0.3, 0.8, side * 1.05), c3(70, 54, 40), Enum.Material.Wood)
+local function house(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
+	local key = if kind == "barn" then "barn" else pick({ "houseA", "houseB", "houseC" }, h01(x, z, salt + 8))
+	if meshObject(group, key, x, z, heading, w, WALL_H + d * 0.62, d) then
+		return
 	end
-	part(group, nil, Vector3.new(2.6, 0.2, 0.2), base * CFrame.new(-3, 0.7, 0.5) * CFrame.Angles(0, 0, 0.15), BEAM)
+	obj("footprint", function()
+		houseParts(group, x, z, heading, w, d, kind, salt)
+	end, { cframe = yaw(x, 0, z, heading), w = w, d = d })
+end
+
+local function cart(group: string, x: number, z: number, heading: number)
+	obj("point", function()
+		local y = groundY(x, z)
+		local base = yaw(x, y, z, heading)
+		part(group, nil, Vector3.new(3.6, 0.9, 1.8), base * CFrame.new(0, 1.3, 0), c3(110, 86, 60), Enum.Material.WoodPlanks)
+		for side = -1, 1, 2 do
+			part(group, Enum.PartType.Cylinder, Vector3.new(0.2, 1.6, 1.6), base * CFrame.new(0.3, 0.8, side * 1.05), c3(70, 54, 40), Enum.Material.Wood)
+		end
+		part(group, nil, Vector3.new(2.6, 0.2, 0.2), base * CFrame.new(-3, 0.7, 0.5) * CFrame.Angles(0, 0, 0.15), BEAM)
+	end)
 end
 
 local function barrels(group: string, x: number, z: number)
-	local y = groundY(x, z)
-	for i = 0, 1 do
-		part(group, Enum.PartType.Cylinder, Vector3.new(1.1, 0.8, 0.8), CFrame.new(x + i * 0.9, y + 0.55, z + i * 0.3) * CFrame.Angles(0, 0, math.pi / 2), c3(96, 74, 50), Enum.Material.Wood)
-	end
+	obj("point", function()
+		local y = groundY(x, z)
+		for i = 0, 1 do
+			part(group, Enum.PartType.Cylinder, Vector3.new(1.1, 0.8, 0.8), CFrame.new(x + i * 0.9, y + 0.55, z + i * 0.3) * CFrame.Angles(0, 0, math.pi / 2), c3(96, 74, 50), Enum.Material.Wood)
+		end
+	end)
 end
 
 local function haystack(group: string, x: number, z: number)
-	local y = groundY(x, z)
-	local p = blob(group, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.5, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
-	p.material = Enum.Material.Sand
-	part(group, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+	obj("point", function()
+		local y = groundY(x, z)
+		local p = blob(group, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.8, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
+		p.material = Enum.Material.Sand
+		part(group, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+	end)
 end
 
 local function shrine(group: string, x: number, z: number, heading: number)
-	local y = groundY(x, z)
-	local base = yaw(x, y, z, heading)
-	part(group, nil, Vector3.new(0.5, 2.6, 0.5), base * CFrame.new(0, 1.3, 0), STONE, Enum.Material.Slate)
-	part(group, nil, Vector3.new(1.4, 0.9, 1.0), base * CFrame.new(0, 2.8, 0), c3(214, 206, 190))
-	gable(group, base * CFrame.new(0, 3.25, 0), 1.7, 1.3, 0.7, c3(100, 56, 42), Enum.Material.Slate)
+	obj("point", function()
+		local y = groundY(x, z)
+		local base = yaw(x, y, z, heading)
+		part(group, nil, Vector3.new(0.5, 2.6, 0.5), base * CFrame.new(0, 1.3, 0), STONE, Enum.Material.Slate)
+		part(group, nil, Vector3.new(1.4, 0.9, 1.0), base * CFrame.new(0, 2.8, 0), c3(214, 206, 190))
+		gable(group, base * CFrame.new(0, 3.25, 0), 1.7, 1.3, 0.7, c3(100, 56, 42), Enum.Material.Slate)
+	end)
 end
 
 -- A low wall round the churchyard, open toward the street.
 local function churchyard(group: string, base: CFrame)
 	local wall = c3(176, 166, 148)
 	for _, seg in { { 0, 10.5, 30, 0 }, { -15, 0, 0, 21 }, { 15, 0, 0, 21 }, { -8, -10.5, 10, 0 }, { 8, -10.5, 10, 0 } } do
-		part(group, nil, Vector3.new(math.max(seg[3], 0.7), 1.3, math.max(seg[4], 0.7)), base * CFrame.new(seg[1], 0.4, seg[2]), wall, Enum.Material.Cobblestone)
+		obj("linear", function()
+			part(group, nil, Vector3.new(math.max(seg[3], 0.7), 1.3, math.max(seg[4], 0.7)), base * CFrame.new(seg[1], 0.4, seg[2]), wall, Enum.Material.Cobblestone)
+		end)
 	end
 end
 
@@ -5700,32 +5918,45 @@ local function buildBuilding(group: string, b: any, centre: any, radius: number)
 	end
 end
 
+local churchParts
 -- Village church: nave with a steep roof, west tower with a spire (two crossed steep gables) or,
 -- in Moravia, a baroque onion dome.
 local function church(group: string, x: number, z: number, heading: number)
+	if meshObject(group, "church", x, z, heading, 22, 22, 7.4) then
+		return
+	end
+	obj("footprint", function()
+		churchParts(group, x, z, heading)
+	end, { cframe = yaw(x, 0, z, heading) * CFrame.new(-4, 0, 0), w = 22, d = 7.4 })
+end
+
+function churchParts(group: string, x: number, z: number, heading: number)
 	local y = groundY(x, z)
 	local wall = look.walls[1]
 	local roof = look.roofs[1]:Lerp(c3(60, 40, 34), 0.2)
 	local nave = yaw(x, y, z, heading)
-	part(group, nil, Vector3.new(13, 6.5, 6.5), nave * CFrame.new(0, 2.75, 0), wall)
-	gable(group, nave * CFrame.new(0, 6, 0), 13.6, 7.4, 4.8, roof, Enum.Material.Slate)
+	part(group, nil, Vector3.new(13, 6.5, 6.5), nave * CFrame.new(0, 3.25, 0), wall).texture = "wall"
+	gable(group, nave * CFrame.new(0, 6.5, 0), 13.6, 7.4, 4.8, roof, Enum.Material.Slate, "roofTile")
 	local tower = nave * CFrame.new(-8.6, 0, 0)
-	part(group, nil, Vector3.new(4.4, 14, 4.4), tower * CFrame.new(0, 6.5, 0), wall)
-	churchyard(group, nave * CFrame.new(-2, 0, 0))
+	part(group, nil, Vector3.new(4.4, 14, 4.4), tower * CFrame.new(0, 7, 0), wall).texture = "wall"
 	if look.dome then
-		part(group, Enum.PartType.Ball, Vector3.one * 5.2, tower * CFrame.new(0, 14.6, 0), c3(84, 102, 84), Enum.Material.Metal)
-		part(group, nil, Vector3.new(0.5, 3.5, 0.5), tower * CFrame.new(0, 18.4, 0), c3(170, 150, 90), Enum.Material.Metal)
+		part(group, Enum.PartType.Ball, Vector3.one * 5.2, tower * CFrame.new(0, 15.1, 0), c3(84, 102, 84), Enum.Material.Metal)
+		part(group, nil, Vector3.new(0.5, 3.5, 0.5), tower * CFrame.new(0, 18.9, 0), c3(170, 150, 90), Enum.Material.Metal)
 	else
 		local spire = c3(70, 72, 76)
-		gable(group, tower * CFrame.new(0, 13.5, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
-		gable(group, tower * CFrame.new(0, 13.5, 0) * CFrame.Angles(0, math.pi / 2, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
+		gable(group, tower * CFrame.new(0, 14, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
+		gable(group, tower * CFrame.new(0, 14, 0) * CFrame.Angles(0, math.pi / 2, 0), 4.8, 4.8, 8.5, spire, Enum.Material.Slate)
 	end
+	-- the churchyard wall follows the ground, segment by segment
+	churchyard(group, nave * CFrame.new(-2, 0, 0))
 end
 
 local function well(group: string, x: number, z: number)
-	local y = groundY(x, z)
-	part(group, Enum.PartType.Cylinder, Vector3.new(1.4, 2.4, 2.4), CFrame.new(x, y + 0.5, z) * CFrame.Angles(0, 0, math.pi / 2), STONE, Enum.Material.Cobblestone)
-	part(group, nil, Vector3.new(0.25, 3.2, 2.6), CFrame.new(x, y + 1.6, z), BEAM)
+	obj("point", function()
+		local y = groundY(x, z)
+		part(group, Enum.PartType.Cylinder, Vector3.new(1.4, 2.4, 2.4), CFrame.new(x, y + 0.5, z) * CFrame.Angles(0, 0, math.pi / 2), STONE, Enum.Material.Cobblestone)
+		part(group, nil, Vector3.new(0.25, 3.2, 2.6), CFrame.new(x, y + 1.6, z), BEAM)
+	end)
 end
 
 -- Brabant courtyard farm (Hougoumont, La Haye Sainte, Papelotte...): a walled square with the
@@ -5745,37 +5976,64 @@ local function compound(group: string, v: any, size: number, garden: boolean, he
 	local roofC = c3(112, 56, 42)
 	local base = yaw(x, y, z, heading)
 	local half = size / 2
-	-- walls: three full sides, the road side (local +X) split by a gate
-	part(group, nil, Vector3.new(size, 4, 0.9), base * CFrame.new(0, 1.2, -half), wallC)
-	part(group, nil, Vector3.new(size, 4, 0.9), base * CFrame.new(0, 1.2, half), wallC)
-	part(group, nil, Vector3.new(0.9, 4, size), base * CFrame.new(-half, 1.2, 0), wallC)
-	local seg = half - 3
-	part(group, nil, Vector3.new(0.9, 4, seg), base * CFrame.new(half, 1.2, -half + seg / 2), wallC)
-	part(group, nil, Vector3.new(0.9, 4, seg), base * CFrame.new(half, 1.2, half - seg / 2), wallC)
+	-- walls in 8-stud segments that follow the ground: three full sides, the road side (local
+	-- +X) split by a gate
+	local function wallRun(lx0: number, lz0: number, lx1: number, lz1: number, height: number, thick: number)
+		local p0, p1 = base * CFrame.new(lx0, 0, lz0), base * CFrame.new(lx1, 0, lz1)
+		local len = (p1.Position - p0.Position).Magnitude
+		local n = math.max(1, math.ceil(len / 8))
+		for i = 0, n - 1 do
+			local a = p0.Position:Lerp(p1.Position, i / n)
+			local b = p0.Position:Lerp(p1.Position, (i + 1) / n)
+			local ay, by = groundY(a.X, a.Z), groundY(b.X, b.Z)
+			obj("linear", function()
+				local cf = CFrame.lookAt(Vector3.new((a.X + b.X) / 2, (ay + by) / 2 + height / 2, (a.Z + b.Z) / 2), Vector3.new(b.X, by + height / 2, b.Z))
+				part(group, nil, Vector3.new(thick, height, len / n + 0.3), cf, wallC)
+			end)
+		end
+	end
+	wallRun(-half, -half, half, -half, 4, 0.9)
+	wallRun(-half, half, half, half, 4, 0.9)
+	wallRun(-half, -half, -half, half, 4, 0.9)
+	wallRun(half, -half, half, -3, 4, 0.9)
+	wallRun(half, 3, half, half, 4, 0.9)
 	-- ranges inside the walls: long barn at the back, house and stables on the sides
 	local function range(cf: CFrame, len: number, depth: number, wall: Color3)
-		part(group, nil, Vector3.new(len, 4.2, depth), cf * CFrame.new(0, 1.6, 0), wall)
-		gable(group, cf * CFrame.new(0, 3.7, 0), len + 0.6, depth + 0.8, depth * 0.6, roofC, Enum.Material.Slate)
+		obj("footprint", function()
+			part(group, nil, Vector3.new(len, 4.2, depth), cf * CFrame.new(0, 2.1, 0), wall).texture = "wall"
+			gable(group, cf * CFrame.new(0, 4.2, 0), len + 0.6, depth + 0.8, depth * 0.6, roofC, Enum.Material.Slate, "roofTile")
+		end, { cframe = cf, w = len, d = depth })
 	end
 	range(base * CFrame.new(-half + 3.6, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), size - 2, 6, c3(110, 84, 62))
 	range(base * CFrame.new(0, 0, -half + 3.4), size - 10, 5.6, wallC)
 	range(base * CFrame.new(1, 0, half - 3.4), size - 12, 5.6, c3(150, 84, 64))
 	if garden then
 		-- walled garden on the far side (Hougoumont's south garden), with a few fruit trees
-		local g = base * CFrame.new(0, 0, half + size * 0.45)
-		part(group, nil, Vector3.new(size * 1.2, 3, 0.8), g * CFrame.new(0, 1, size * 0.45), wallC)
+		local g = size * 0.45
+		wallRun(-size * 0.6, half + g * 2, size * 0.6, half + g * 2, 3, 0.8)
 		for sx = -1, 1, 2 do
-			part(group, nil, Vector3.new(0.8, 3, size * 0.9), g * CFrame.new(sx * size * 0.6, 1, 0), wallC)
+			wallRun(sx * size * 0.6, half, sx * size * 0.6, half + g * 2, 3, 0.8)
 		end
+		local gb = base * CFrame.new(0, 0, half + g)
 		for k = -1, 1 do
-			local p = g * CFrame.new(k * size * 0.3, 0, 0)
+			local p = gb * CFrame.new(k * size * 0.3, 0, 0)
 			tree(group, "oak", p.X, p.Z, 2.4, false)
 		end
 	end
 end
 
+local windmillParts
 -- Post mill on a rise near a village: trestle, weatherboarded body, gable roof and four sails.
 local function windmill(group: string, x: number, z: number, heading: number)
+	if meshObject(group, "windmill", x, z, heading, 20, 20, 20) then
+		return
+	end
+	obj("footprint", function()
+		windmillParts(group, x, z, heading)
+	end, { cframe = yaw(x, 0, z, heading), w = 4.6, d = 4 })
+end
+
+function windmillParts(group: string, x: number, z: number, heading: number)
 	local y = groundY(x, z)
 	local base = yaw(x, y, z, heading)
 	part(group, Enum.PartType.Cylinder, Vector3.new(4, 4, 4), base * CFrame.new(0, 1.6, 0) * CFrame.Angles(0, 0, math.pi / 2), STONE, Enum.Material.Cobblestone)
@@ -5783,7 +6041,7 @@ local function windmill(group: string, x: number, z: number, heading: number)
 	gable(group, base * CFrame.new(0, 9.4, 0), 5, 4.6, 2.4, c3(88, 70, 56), Enum.Material.WoodPlanks)
 	local hub = base * CFrame.new(2.7, 7.8, 0)
 	for k = 0, 1 do
-		part(group, nil, Vector3.new(0.3, 19, 1.7), hub * CFrame.Angles(math.pi / 4 + k * math.pi / 2, 0, 0), c3(206, 198, 176), Enum.Material.Fabric)
+		part(group, nil, Vector3.new(0.3, 15, 1.7), hub * CFrame.Angles(math.pi / 4 + k * math.pi / 2, 0, 0), c3(206, 198, 176), Enum.Material.Fabric)
 	end
 end
 
@@ -5884,8 +6142,14 @@ local function buildBridge(group: string, br: any)
 		local top = y1 + (y2 - y1) * t
 		local bottom = groundY(px, pz) - 2
 		local ph = math.max(top - bottom, 1)
-		return part(group, nil, Vector3.new(size.X, ph, size.Z), yaw(px, bottom + ph / 2, pz, heading), color, material)
+		local sp = part(group, nil, Vector3.new(size.X, ph, size.Z), yaw(px, bottom + ph / 2, pz, heading), color, material)
+		sp.buried = true
+		return sp
 	end
+	if meshObject(group, if stoneBridge then "bridgeStone" else "bridgeTimber", mid.x, mid.z, heading, len, 6, br.width) then
+		return
+	end
+	local a0 = #out + 1
 	if stoneBridge then
 		-- stone bridge: deck, parapets with coping, piers with cutwaters down to the bed
 		local stone = c3(150, 140, 122)
@@ -5900,7 +6164,7 @@ local function buildBridge(group: string, br: any)
 			local px, pz = e1.x + (e2.x - e1.x) * t, e1.z + (e2.z - e1.z) * t
 			local bottom = groundY(px, pz) - 2
 			local ph = math.max(y1 + (y2 - y1) * t - bottom, 1)
-			part(group, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate)
+			part(group, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate).buried = true
 			-- foam where the current breaks on the cutwater
 			local foam = blob(group, Vector3.new(4.5, 0.4, 7), yaw(px, waterY + 0.15, pz, heading) * CFrame.new(0, 0, br.width / 2 + 1.5), c3(236, 236, 230))
 			foam.material = Enum.Material.SmoothPlastic
@@ -5923,6 +6187,8 @@ local function buildBridge(group: string, br: any)
 			pier(k / n, Vector3.new(0.7, 0, br.width - 7), BEAM)
 		end
 	end
+	-- the deck and rails rise as one so no end dips into a bank
+	settle(a0, #out, "linear", nil)
 end
 
 local function nearBridge(x: number, z: number, pad: number): boolean
@@ -5956,8 +6222,10 @@ local function buildRiverside(group: string, river: any, jobs: { Job })
 						if classAt(p.x, p.z) ~= nil and not nearBridge(p.x, p.z, 6) then
 							-- a thin pale fringe of reed bed along the water's edge
 							withQ(2, function()
-								local r = part(group, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.5, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
-								r.castShadow = false
+								obj("point", function()
+									local r = part(group, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.6 + k * 0.6, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
+									r.castShadow = false
+								end)
 							end)
 						end
 					end
@@ -5993,14 +6261,16 @@ local function buildMarkers(group: string, jobs: { Job })
 						local p = Vec.add(c, Vec.scale(right, road.width / 2 + 2.2))
 						if isOpen(p.x, p.z) then
 							local y = groundY(p.x, p.z)
-							if h01(p.x, p.z, 142) < 0.5 then
-								-- milestone
-								part(group, nil, Vector3.new(0.7, 1.6, 0.5), yaw(p.x, y + 0.6, p.z, Vec.heading(dir)), STONE, Enum.Material.Slate)
-							else
-								-- wayside cross
-								part(group, nil, Vector3.new(0.3, 3.4, 0.3), CFrame.new(p.x, y + 1.5, p.z), BEAM, Enum.Material.Wood)
-								part(group, nil, Vector3.new(1.4, 0.3, 0.3), yaw(p.x, y + 2.5, p.z, Vec.heading(dir)), BEAM, Enum.Material.Wood)
-							end
+							obj("point", function()
+								if h01(p.x, p.z, 142) < 0.5 then
+									-- milestone
+									part(group, nil, Vector3.new(0.7, 1.6, 0.5), yaw(p.x, y + 0.8, p.z, Vec.heading(dir)), STONE, Enum.Material.Slate)
+								else
+									-- wayside cross
+									part(group, nil, Vector3.new(0.3, 3.4, 0.3), CFrame.new(p.x, y + 1.7, p.z), BEAM, Enum.Material.Wood)
+									part(group, nil, Vector3.new(1.4, 0.3, 0.3), yaw(p.x, y + 2.7, p.z, Vec.heading(dir)), BEAM, Enum.Material.Wood)
+								end
+							end)
 						end
 					end
 					s += 10
@@ -6033,8 +6303,10 @@ local function buildMills(group: string)
 						house(group, p.x, p.z, heading, 7, 5, "white", 143)
 						local y = groundY(p.x, p.z)
 						local wx = Vec.add(p, Vec.scale(dir, -4.2))
-						part(group, Enum.PartType.Cylinder, Vector3.new(0.6, 4.2, 4.2), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), BEAM, Enum.Material.Wood)
-						part(group, Enum.PartType.Cylinder, Vector3.new(0.7, 2.6, 2.6), yaw(wx.x, y + 1.6, wx.z, heading + math.pi / 2), c3(130, 104, 74), Enum.Material.Wood)
+						obj("point", function()
+							part(group, Enum.PartType.Cylinder, Vector3.new(0.6, 4.2, 4.2), yaw(wx.x, y + 2.1, wx.z, heading + math.pi / 2), BEAM, Enum.Material.Wood)
+							part(group, Enum.PartType.Cylinder, Vector3.new(0.7, 2.6, 2.6), yaw(wx.x, y + 2.1, wx.z, heading + math.pi / 2), c3(130, 104, 74), Enum.Material.Wood)
+						end)
 					end
 					break
 				end
@@ -6095,18 +6367,26 @@ local function borderPiece(group: string, kind: number, ax: number, az: number, 
 	end
 	if kind == 1 then
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
-		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+		obj("linear", function()
+			along(hh, 2.6, hh / 2 - 0.3, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+		end)
 		if h01(mx, mz, 92) < 0.13 then
 			tree(group, "oak", mx, mz, 4 + h01(mz, mx, 93) * 2, true)
 		end
 	elseif kind == 2 then
-		along(1.5, 1.0, 0.45, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
+		obj("linear", function()
+			along(1.5, 1.0, 0.75, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
+			-- a squared pillar at the join hides the step between tilted pieces
+			part(group, nil, Vector3.new(1.2, 1.8, 1.2), CFrame.new(ax, ay + 0.9, az), STONE:Lerp(c3(100, 94, 82), 0.3), Enum.Material.Cobblestone)
+		end)
 	elseif kind == 3 then
 		withQ(2, function()
-			local wood = c3(112, 92, 70)
-			along(0.25, 0.25, 1.7, wood, Enum.Material.Wood).castShadow = false
-			along(0.25, 0.25, 0.9, wood, Enum.Material.Wood).castShadow = false
-			part(group, nil, Vector3.new(0.35, 2.3, 0.35), CFrame.new(ax, ay + 0.8, az), BEAM).castShadow = false
+			obj("linear", function()
+				local wood = c3(112, 92, 70)
+				along(0.25, 0.25, 1.7, wood, Enum.Material.Wood).castShadow = false
+				along(0.25, 0.25, 0.9, wood, Enum.Material.Wood).castShadow = false
+				part(group, nil, Vector3.new(0.35, 2.3, 0.35), CFrame.new(ax, ay + 1.15, az), BEAM).castShadow = false
+			end)
 		end)
 	end
 end
@@ -6148,7 +6428,7 @@ local function buildBorders(group: string, jobs: { Job })
 								t1 = math.max(t1, t)
 							end
 						end
-						local pieceLen = 12
+						local pieceLen = 8
 						local t = t0
 						while t + pieceLen <= t1 + 2 do
 							local px, pz = mx + dx * t, mz + dz * t
@@ -6181,8 +6461,10 @@ local function buildStooks(group: string, jobs: { Job })
 						for w = -48, 48, 9 do
 							local x, z = sx + u * ca - w * sa, sz + u * sa + w * ca
 							if isOpen(x, z) and fieldAt(x, z) == look.stookKind and h01(x, z, 102) < 0.7 then
-								local p = blob(group, Vector3.new(1.8, 2.3, 1.8), CFrame.new(x, groundY(x, z) + 0.8, z), look.stook:Lerp(c3(150, 130, 80), h01(z, x, 103) * 0.4))
-								p.material = Enum.Material.Sand -- Fabric and Grass render straw near-black (Studio)
+								obj("point", function()
+									local p = blob(group, Vector3.new(1.8, 2.3, 1.8), CFrame.new(x, groundY(x, z) + 1.15, z), look.stook:Lerp(c3(150, 130, 80), h01(z, x, 103) * 0.4))
+									p.material = Enum.Material.Sand -- Fabric and Grass render straw near-black (Studio)
+								end)
 							end
 						end
 					end
@@ -6237,9 +6519,10 @@ local function buildWindmills(group: string)
 	end
 end
 
--- Ground fog lying in the valleys at dawn (detail tier, quality 2): flat pale patches along
--- the rivers and in the lowest ground. Emitted invisible; the client's Lighting shows them
--- under the fog grade.
+-- Ground fog in the valleys at dawn (detail tier, quality 2): three or four invisible anchor
+-- boxes on the lowest level ground, laid along the valley. The client's Props puts a
+-- ParticleEmitter of slow soft mist puffs on each; Lighting runs them only under the fog grade.
+-- (Flat disc parts read as ovals lying on the field, whatever their transparency.)
 local function buildGroundFog(group: string, jobs: { Job })
 	local g = currentMap.grid
 	local lo, hi = math.huge, -math.huge
@@ -6249,26 +6532,55 @@ local function buildGroundFog(group: string, jobs: { Job })
 	end
 	local floorY = lo + (hi - lo) * 0.3
 	table.insert(jobs, { tag = "d", run = function()
-		for x = 60, currentMap.width - 60, 90 do
-			for z = 60, currentMap.depth - 60, 90 do
-				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
-				local y = groundY(px, pz)
-				local sx = (groundY(px + 30, pz) - groundY(px - 30, pz)) / 60
-				local sz = (groundY(px, pz + 30) - groundY(px, pz - 30)) / 60
-				if y < floorY and h01(px, pz, 152) < 0.7 and sx * sx + sz * sz < 0.08 * 0.08 then
-					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in
-					-- Studio; tilted to the local slope so the rim does not cut the ground
-					local a = h01(x + z, 2, 155) * 3
-					local fwd = Vector3.new(math.cos(a), math.cos(a) * sx + math.sin(a) * sz, math.sin(a)).Unit
-					local rightV = Vector3.new(-math.sin(a), -math.sin(a) * sx + math.cos(a) * sz, math.cos(a)).Unit
-					local up = rightV:Cross(fwd).Unit
-					local cf = CFrame.fromMatrix(Vector3.new(px, y + 1.2, pz), fwd, up, fwd:Cross(up))
-					local p = blob(group, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), cf, c3(222, 220, 214))
-					p.material = Enum.Material.SmoothPlastic
-					p.transparency = 1
-					p.castShadow = false
+		type Site = { x: number, z: number, y: number }
+		local sites: { Site } = {}
+		for x = 100, currentMap.width - 100, 60 do
+			for z = 100, currentMap.depth - 100, 60 do
+				local y = groundY(x, z)
+				local sx = (groundY(x + 40, z) - groundY(x - 40, z)) / 80
+				local sz = (groundY(x, z + 40) - groundY(x, z - 40)) / 80
+				if y < floorY and sx * sx + sz * sz < 0.05 * 0.05 and classAt(x, z) ~= IDS.water then
+					table.insert(sites, { x = x, z = z, y = y })
 				end
 			end
+		end
+		table.sort(sites, function(p: Site, q: Site): boolean
+			return p.y < q.y or (p.y == q.y and (p.x < q.x or (p.x == q.x and p.z < q.z)))
+		end)
+		local chosen: { Site } = {}
+		for _, s in sites do
+			local ok = true
+			for _, c in chosen do
+				if (s.x - c.x) ^ 2 + (s.z - c.z) ^ 2 < 320 * 320 then
+					ok = false
+					break
+				end
+			end
+			if ok then
+				table.insert(chosen, s)
+				if #chosen == 4 then
+					break
+				end
+			end
+		end
+		for _, s in chosen do
+			-- along the valley: the nearest river's direction, else the contour direction
+			local a = h01(s.x, s.z, 156) * math.pi
+			local best = 400
+			for _, river in currentMap.rivers do
+				local pts = river.points
+				for n = 1, #pts - 1 do
+					local d = Vec.distToSegment({ x = s.x, z = s.z }, pts[n], pts[n + 1])
+					if d < best then
+						best = d
+						a = math.atan2(pts[n + 1].z - pts[n].z, pts[n + 1].x - pts[n].x)
+					end
+				end
+			end
+			local p = part(group, nil, Vector3.new(140, 3, 70), yaw(s.x, s.y + 5, s.z, a), c3(222, 220, 214))
+			p.transparency = 1
+			p.castShadow = false
+			p.buried = true -- invisible emitter box; may overlap a bank
 		end
 	end })
 end
@@ -6314,8 +6626,10 @@ local function buildCountry(group: string, jobs: { Job })
 						local y, wet = model.heightAt(px, pz)
 						if not inside and not wet then
 							local r = 7 + h01(px, pz, 138) * 4
-							local p = part(group, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(px, y + r * 1.15, pz), crownColor(px, pz))
-							p.castShadow = false
+							obj("point", function()
+								local p = part(group, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(px, y + r * 1.15, pz), crownColor(px, pz))
+								p.castShadow = false
+							end)
 						end
 					end
 				end
@@ -6337,6 +6651,7 @@ local function tilePlane(map: any, margin: number, y: number, setup: (Spec) -> (
 			local d = math.min(TILE, z1 - z)
 			local p = part("PickPlane", nil, Vector3.new(w, 1, d), CFrame.new(x + w / 2, y, z + d / 2), Color3.new(1, 1, 1), Enum.Material.Plastic)
 			p.castShadow = false
+			p.buried = true
 			setup(p)
 			z += d
 		end
@@ -6473,6 +6788,15 @@ function WorldGen.props(map: any, terrain: TerrainModel, opts: Options?): { Spec
 end
 
 -- Count of specs per class/material, for diffs and tests.
+-- How far below the terrain model the lowest sample point of a spec sits (<= 0: clear).
+function WorldGen.shortfall(s: Spec, terrain: TerrainModel): number
+	local prev = model
+	model = terrain
+	local sf = shortfall(s)
+	model = prev
+	return sf
+end
+
 function WorldGen.tally(specs: { Spec }): { [string]: number }
 	local t: { [string]: number } = {}
 	for _, s in specs do
@@ -6483,7 +6807,7 @@ function WorldGen.tally(specs: { Spec }): { [string]: number }
 end
 
 return WorldGen
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000051"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000050"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000017"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000052"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000051"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Enemy commander. Pure Luau, deterministic: reads its own formations fully, the enemy only
 -- through sim.views[faction] (visible ids + last-known memory), randomness only via sim.rng.
 -- Orders go through sim:queueCommand with the same command kinds the player uses.
@@ -7512,7 +7836,7 @@ function AI.debugView(state: AIState): { { id: number, goal: string, reason: str
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Operational campaign (Release B). Pure Luau, deterministic through `state.rng`; no wall clock,
 -- no Roblox APIs. The tactical battle is delegated to the Sim through `battleScenario` and the
 -- outcome returns through `applyBattleResult` (idempotent by battle id).
@@ -8629,7 +8953,7 @@ function Campaign.commitBattle(store: Store, userId: number, sessionId: string, 
 end
 
 return Campaign
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign session for the commander: profile load/continue, turns, battle hand-off to the
 -- tactical match and exactly-once result commits. Talks to clients over the Campaign remote.
 --
@@ -9058,7 +9382,7 @@ function CampaignService.sessionOnly(): boolean
 end
 
 return CampaignService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">Coop</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">Coop</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Co-op (2–4 players vs AI) and PvP (two human sides): roster roles, slots and sides, the wing
 -- split, AI side and vote thresholds.
 -- Pure Luau; MatchService adapts it to Roblox players. Contract: docs/coop-contract.md.
@@ -9341,7 +9665,7 @@ function Coop.vote(votes: { [number]: boolean }, userId: number, n: number, deci
 end
 
 return Coop
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign, Europe 1805–1815 (docs/campaign.md, docs/grand-campaign-contract.md). Pure Luau,
 -- deterministic through `state.rng`; no wall clock, no Roblox APIs.
 --
@@ -9954,7 +10278,7 @@ function GrandCampaign.commitBattle(store: Store, userId: number, sessionId: str
 end
 
 return GrandCampaign
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-nation AI. Same rules as the player (Movement.move, Economy.recruit, Diplomacy). Each army
 -- scores every province it can reach within three hops and marches toward the best:
 --   hold          20 (+50 at an own capital threatened beyond the other troops there, +35 while besieging, home guard +40)
@@ -10310,7 +10634,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Contacts, battles, sieges and occupation.
 --
 -- After every nation has moved, each province holding armies at war with each other produces one
@@ -11032,7 +11356,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 end
 
 return Battles
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- War, peace, alliances, offers and coalitions.
 --
 -- War score per pair (-100..100): battle won +8 (+4 if an enemy army is destroyed), province
@@ -11411,7 +11735,7 @@ function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 end
 
 return Diplomacy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Income, manpower, upkeep, recruitment and replenishment. Owners collect the full income and
 -- manpower of provinces they hold; an occupier requisitions half the income and no manpower; the
 -- dispossessed owner gets nothing. Upkeep is paid every turn; a shortfall empties the treasury and
@@ -11672,7 +11996,7 @@ function Economy.unrest(s: State, provinceId: string): number
 end
 
 return Economy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scripted events (EuropeData.Events): each fires once, at the first turn of its window whose
 -- conditions hold. Base effects apply at once; a chooser picks one of the choices: the player
 -- through a pop-up (default = the first choice, applied at the end of the turn if unanswered), an
@@ -11867,7 +12191,7 @@ function Events.closeTurn(s: State)
 end
 
 return Events
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Army movement by province path. Movement points per turn: 2, 3 under a general rated 4+.
 -- Entering a province costs 1, +1 inside an enemy zone of control (a neighbouring province holds
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
@@ -12106,7 +12430,7 @@ function Movement.relocateStrays(s: State)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Profile format for the grand campaign (DataStore-safe: string keys, arrays, finite numbers).
 -- `deserialize` validates everything it reads and returns nil rather than a half-valid state.
 
@@ -12319,7 +12643,7 @@ function Serialize.deserialize(p: any): State?
 end
 
 return Serialize
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign state: types, construction from EuropeData and the small helpers every rules
 -- module shares. Pure Luau; all randomness through `state.rng`; every loop whose order matters
 -- walks an array (NationOrder, ProvinceIds, armies by id), never `pairs` of a dictionary.
@@ -12726,10 +13050,10 @@ function State.new(seed: number, playerNation: string?): State
 end
 
 return State
-]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
 -- Server entry point.
 require(script.Parent.MatchService).start()
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Match lifecycle, co-op / PvP roles, sides and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
@@ -13724,7 +14048,7 @@ MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatc
 end }
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000035"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000036"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-player request gate: rate limiting and request-id de-duplication. Pure Luau; the
 -- caller injects real elapsed time (never the paused battle clock).
 
@@ -13789,7 +14113,7 @@ function CommandGate.forget(gate: Gate, key: any)
 end
 
 return CommandGate
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Real time → logical ticks. Speed scales the accumulator, never the step. Work per frame is
 -- bounded; sustained overload shows up as simLag instead of a giant step.
 
@@ -13846,7 +14170,7 @@ function MatchClock.advance(clock: Clock, realDt: number, step: () -> ()): numbe
 end
 
 return MatchClock
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Creates the RemoteEvents under ReplicatedStorage/EoE/Remotes (server only).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13879,7 +14203,7 @@ function Remotes.create(): { [string]: RemoteEvent }
 end
 
 return Remotes
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000037"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000038"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Versioned profile store on top of DataStoreService.UpdateAsync. Pure Luau; the DataStore
 -- service is injected so tests run in the CLI with the memory adapter.
 --
@@ -14088,7 +14412,7 @@ function ProfileStore.releaseSession(self: Store, userId: number, sessionId: str
 end
 
 return ProfileStore
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The authoritative battle simulation. Pure Luau: no Roblox APIs, no wall-clock time.
 -- Owns formations, commands, the fixed tick, visibility, objectives, victory and snapshots.
 -- Tick order is documented in docs/architecture.md and implemented in Sim:step().
@@ -14957,7 +15281,7 @@ function Sim.buildResults(self: Sim, winner: string, reason: string, viewer: str
 end
 
 return Sim
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Generals in battle: trait modifiers recomputed every tick (bounded) and the HQ's active ability.
 -- Data and plain-text descriptions live in src/shared/Generals.luau; docs/rules.md ("Generals")
 -- is the contract. Pure Luau, deterministic, no randomness.
@@ -15375,7 +15699,7 @@ function Abilities.view(sim: SimLike, f: Formation, v: any)
 end
 
 return Abilities
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Fire, artillery, melee and charge resolution. Step 6 gathers attacks from a frozen view of
 -- the tick (positions/states as they are after movement); step 7 applies them. Both sides
 -- resolve simultaneously; ordering is ascending formation id for determinism.
@@ -15856,7 +16180,7 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 end
 
 return Combat
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Map edges as a faction's "home" (where routers flee, where rallied units turn back from).
 -- A home is one of four sides, chosen as the side facing away from the enemy's deployment.
 -- Edges are identified from the home point, which always lies just beyond its edge.
@@ -15931,7 +16255,7 @@ function Edges.home(own: Point, enemy: Point?, w: number, d: number, margin: num
 end
 
 return Edges
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation records: creation from scenario definitions, footprint geometry, shape changes,
 -- legality helpers. Pure Luau; no Roblox APIs.
 
@@ -16252,7 +16576,7 @@ function Formation.frontCentre(f: Formation): Vec
 end
 
 return Formation
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Evaluates the scenario's historical moments (src/shared/Moments.luau) every
 -- Moments.EveryTicks ticks, after objectives. Pure and deterministic: reads sim state only,
 -- fires each moment at most once, in list order.
@@ -16419,7 +16743,7 @@ function Moments.update(sim: any)
 end
 
 return Moments
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morale, fatigue effects, rout / rally / shatter transitions, destruction. Step 8.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -16695,7 +17019,7 @@ function Morale.hqRally(sim: SimLike, hq: Formation): (boolean, string?)
 end
 
 return Morale
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Timed transitions (shape/limber/rally/charge recovery), navigation, movement, facing,
 -- choke-point travel columns, avoidance, stuck detection and routing flight.
 -- Runs in tick steps 3 and 4. Formations are processed in ascending id order.
@@ -17152,7 +17476,7 @@ function Movement.update(sim: SimLike, f: Formation)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation navigation on a coarse grid derived from the terrain grid.
 -- Nodes are Config.Map.NavCellSize studs; a node is walkable when its clearance allows at
 -- least a travel column (half-width 8). Cost = distance / infantry terrain speed.
@@ -17474,7 +17798,7 @@ function Nav.segmentMinClearance(nav: NavGrid, a: Vec, b: Vec): number
 end
 
 return Nav
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Objective capture (step 9) and the single victory evaluator (step 10).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -17699,7 +18023,7 @@ function Objectives.evaluate(sim: SimLike): (string?, string?)
 end
 
 return Objectives
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-faction visibility: which enemy formations are currently seen, and last-known memory.
 -- Recomputed every Config.Sim.VisibilityEveryTicks ticks (step 5). The AI and the snapshot
 -- filter both read this; nothing else decides what a faction knows.
@@ -17838,7 +18162,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">World</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">World</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Builds the battlefield once per map on the server: terrain voxels and the structure tier of
 -- WorldGen's props (ground, fields, bridges, houses, trees, walls, hedges) under
 -- workspace.EoEWorld, which replicates to every client. The root folder carries attributes:
@@ -17893,6 +18217,46 @@ local function build(map: any)
 	end
 	root:SetAttribute("WorldReady", n)
 	print(string.format("[EoE world] built %d parts for %s in %.1f s", n, map.id, os.clock() - t0))
+	task.spawn(World.checkClip, root, alive)
+end
+
+-- Debug: raycasts down onto the terrain under the bottom corners of every world part (parts
+-- marked Buried are meant to sit in the ground) and reports how many sit below the surface.
+-- Spread over frames; prints "[EoE clip] world: N parts below ground" (expect 0).
+function World.checkClip(root: Instance, alive: () -> boolean)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	local below, checked = 0, 0
+	local n = 0
+	for _, p in root:GetDescendants() do
+		if p:IsA("BasePart") and not p:GetAttribute("Buried") and (p :: BasePart).Transparency < 1 then
+			local bp = p :: BasePart
+			local cf, sz = bp.CFrame, bp.Size
+			local worst = false
+			for _, c in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+				local q = cf * Vector3.new(c[1] * sz.X / 2, -sz.Y / 2, c[2] * sz.Z / 2)
+				local hit = workspace:Raycast(q + Vector3.new(0, 60, 0), Vector3.new(0, -120, 0), params)
+				if hit and hit.Position.Y > q.Y + 0.05 then
+					worst = true
+					break
+				end
+			end
+			if worst then
+				below += 1
+			end
+			checked += 1
+			n += 1
+			if n % 400 == 0 then
+				task.wait()
+				if not alive() then
+					return
+				end
+			end
+		end
+	end
+	root:SetAttribute("ClipBelowGround", below)
+	print(string.format("[EoE clip] world: %d parts below ground (%d checked)", below, checked))
 end
 
 -- Makes sure `map` is the built world; a different map replaces the current one. Deferred so
@@ -17922,7 +18286,7 @@ function World.clear()
 end
 
 return World
-]]></ProtectedString></Properties></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000099"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000098"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000097"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000101"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000100"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000099"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -18041,7 +18405,7 @@ function Audio.destroy()
 end
 
 return Audio
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side mirror of the match: merged snapshot data, pending orders, match metadata.
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
@@ -18471,7 +18835,7 @@ function BattleState.validateContext(): any
 end
 
 return BattleState
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scriptable RTS camera: bounded pan, rotate, zoom, pitch; never clips into hills.
 -- Height is measured above the terrain under the focus point.
 
@@ -18850,7 +19214,7 @@ function Camera.destroy()
 end
 
 return Camera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign client: the server's grandView is the only state. Owns the board, the
 -- camera, the panels and the board input while open; `close()` removes all of it (Main calls
 -- it on every lifecycle change) and `request()` asks for the view again (menu, back from battle).
@@ -19134,7 +19498,7 @@ function Grand.close()
 end
 
 return Grand
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign tabletop: Europe as a painted relief board on a walnut table, far from the
 -- battlefield. Static geometry (land, sea, mountains, towns, forts, piers, names) builds once;
 -- owner colours, borders, occupation hatching, armies, highlights and the path preview follow
@@ -19845,7 +20209,7 @@ function Board.updateLabels(cameraHeight: number)
 end
 
 return Board
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Board camera: orbit (middle drag), pan (WASD / arrows), zoom (wheel), clamped to the board
 -- and smoothed. Runs after the battlefield camera in the render step, so it owns the view
 -- while the campaign is open; the battlefield camera is told to ignore its keys meanwhile.
@@ -19983,7 +20347,7 @@ function CampaignCamera.stop()
 end
 
 return CampaignCamera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign panels in the Kit style: top bar, selected army and province (left),
 -- diplomacy (right) and the documents on top: event dispatches, the battle dialog, the
 -- turn summary, victory/defeat and the choice of nation. Rebuilt from the view on each
@@ -20765,7 +21129,7 @@ function UI.destroy()
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign static data (shared EuropeData) and the nation look-ups the board and panels
 -- share: colour, name, flag.
 
@@ -20819,7 +21183,7 @@ function Data.flag(nation: string?): Factions.Flag
 end
 
 return Data
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure grand-campaign view logic (no Roblox types, so tests run it in the Luau CLI): who may act,
 -- march routes mirroring the server's Movement rules, reachable provinces, readable reasons,
 -- the turn summary and offer terms.
@@ -21093,7 +21457,7 @@ function Logic.offerText(o: any): string
 end
 
 return Logic
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
 -- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
 -- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~6 s.
@@ -21264,17 +21628,17 @@ function Cinematic.clear()
 end
 
 return Cinematic
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pooled one-shot visual effects driven by snapshot events (plus a cavalry dust trail read from
 -- formation state). Smoke and dust are soft translucent particles (built-in smoke texture, no
 -- asset ids) burst from a small round-robin pool of emitter parts; flashes, earth spray and rout
 -- markers are short-lived pooled parts. Deaths are drawn by Figures (falling figures).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
-local Grid = require(Shared.Grid)
 local Settings = require(script.Parent.Settings)
 local BattleState = require(script.Parent.BattleState)
 local Camera = require(script.Parent.Camera)
+local Ground = require(script.Parent.Ground)
 
 local Effects = {}
 
@@ -21330,10 +21694,7 @@ local FLASH = Color3.fromRGB(255, 214, 120)
 local BLAST = Color3.fromRGB(255, 150, 60)
 local ROUT = Color3.fromRGB(150, 60, 50)
 
-local function groundY(x: number, z: number): number
-	local m = BattleState.map
-	return if m then Grid.heightAt(m.grid, x, z) else 0
-end
+local groundY = Ground.heightAt -- rendered ground (raycast cache), never the heightmap alone
 
 local function makePart(): Part
 	local p = Instance.new("Part") :: Part
@@ -21740,7 +22101,7 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
 -- unit `colour` override, else the faction), display names and marker-flag designs.
 
@@ -21838,20 +22199,20 @@ function Factions.slabDarken(faction: string?): number
 end
 
 return Factions
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
-local Grid = require(Shared.Grid)
 local Vec = require(Shared.Vec)
 local BattleState = require(script.Parent.BattleState)
 local Selection = require(script.Parent.Selection)
 local Settings = require(script.Parent.Settings)
 local Factions = require(script.Parent.Factions)
 local Soldiers = require(script.Parent.World.Soldiers)
+local Ground = require(script.Parent.Ground)
 local Kit = require(script.Parent.UI.Kit)
 
 local Figures = {}
@@ -21966,10 +22327,8 @@ local function cylinder(length: number, radius: number, color: Color3): BasePart
 	return p
 end
 
-local function groundY(x: number, z: number): number
-	local m = BattleState.map
-	return if m then Grid.heightAt(m.grid, x, z) else 0
-end
+-- Rendered ground (raycast cache; heightmap fallback before the world is ready).
+local groundY = Ground.heightAt
 
 -- Yaw so local +X points along a sim heading and local +Z is the formation's right.
 local function frame(x: number, y: number, z: number, heading: number): CFrame
@@ -21977,7 +22336,8 @@ local function frame(x: number, y: number, z: number, heading: number): CFrame
 end
 
 -- Like frame(), but tilted to the slope under a d-deep, w-wide footprint, so blocks, rings and
--- destination markers lie on a hillside instead of floating level through it.
+-- destination markers lie on a hillside instead of floating level through it, then raised
+-- until none of the footprint's four corners is under the ground.
 local function groundFrame(x: number, z: number, lift: number, heading: number, w: number, d: number): CFrame
 	local fx, fz = math.cos(heading), math.sin(heading)
 	local rx, rz = -fz, fx
@@ -21986,8 +22346,23 @@ local function groundFrame(x: number, z: number, lift: number, heading: number, 
 	local slopeR = (groundY(x + rx * hw, z + rz * hw) - groundY(x - rx * hw, z - rz * hw)) / (2 * hw)
 	local fwd = Vector3.new(fx, slopeF, fz).Unit
 	local up = Vector3.new(rx, slopeR, rz).Unit:Cross(fwd).Unit
-	return CFrame.fromMatrix(Vector3.new(x, groundY(x, z) + lift, z), fwd, up, fwd:Cross(up))
+	local cf = CFrame.fromMatrix(Vector3.new(x, groundY(x, z), z), fwd, up, fwd:Cross(up))
+	local corners: { number } = {}
+	local plane: { number } = {}
+	local i = 0
+	for _, dx in { -hd, hd } do
+		for _, dz in { -hw, hw } do
+			i += 1
+			local c = cf * Vector3.new(dx, 0, dz)
+			corners[i] = groundY(c.X, c.Z)
+			plane[i] = c.Y
+		end
+	end
+	return cf + Vector3.new(0, lift + Ground.lift(0, corners, plane), 0)
 end
+
+-- Half-footprints (forward, right) a figure's body covers, for the four-corner lift.
+local FOOT: { [string]: { number } } = { infantry = { 0.35, 0.45 }, cavalry = { 1.6, 0.5 }, hq = { 1.6, 0.5 }, artillery = { 2.2, 1.6 } }
 
 local function factionColour(faction: string, colourKey: string?): Color3
 	return Factions.colour(faction, colourKey)
@@ -22273,8 +22648,8 @@ local function spawnBody(g: Group, now: number)
 		end
 	end
 	local pos = g.slotCf[si].Position
-	local origin = frame(pos.X, groundY(pos.X, pos.Z), pos.Z, g.rh + (bodyRng:NextNumber() - 0.5) * 0.8)
-	local b: Body = { parts = {}, locals = {}, origin = origin, aboutX = g.class == "cavalry", fall = 0, lift = 0, t0 = now + bodyRng:NextNumber() * 0.4 }
+	local heading = g.rh + (bodyRng:NextNumber() - 0.5) * 0.8
+	local b: Body = { parts = {}, locals = {}, origin = CFrame.identity, aboutX = g.class == "cavalry", fall = 0, lift = 0, t0 = now + bodyRng:NextNumber() * 0.4 }
 	local add = function(p: BasePart, cf: CFrame, anim: number, pivot: number)
 		p.CastShadow = false
 		p.Parent = folder
@@ -22290,11 +22665,10 @@ local function spawnBody(g: Group, now: number)
 		Soldiers.infantry(add, look, false, "line", 0)
 		b.lift = if dir > 0 then 0.42 else 0.24
 	end
-	-- lie along the slope: where the head lands decides how far the body turns
-	local hd = if b.aboutX then Vector3.new(0, 0, dir * len) else Vector3.new(-dir * len, 0, 0)
-	local hp = origin * hd
-	local slope = math.atan2(groundY(hp.X, hp.Z) - origin.Position.Y, len)
-	b.fall = dir * math.clamp(math.pi / 2 - slope, 0.7, 1.9)
+	-- the body lies on a frame tilted to the slope and lifted clear of it, so it conforms to
+	-- the hillside instead of poking through it
+	b.origin = if b.aboutX then groundFrame(pos.X, pos.Z, 0, heading, len * 2, 2) else groundFrame(pos.X, pos.Z, 0, heading, 1, len * 2)
+	b.fall = dir * 1.52
 	table.insert(bodies, b)
 	local cap = MAX_BODIES[math.clamp(Settings.get().quality, 1, 3)]
 	while #bodies > cap do
@@ -23134,6 +23508,44 @@ local function stepFlock(g: Group, dt: number, moving: boolean, bound: number, n
 	return any
 end
 
+-- Debug: with the workspace attribute EoEClipCheck set (command bar:
+-- workspace:SetAttribute("EoEClipCheck", true)), every second walk every live figure part and
+-- count those whose lowest corner is below the rendered ground.
+local clipClock = 0
+local function clipCheck(dt: number)
+	clipClock += dt
+	if clipClock < 1 then
+		return
+	end
+	clipClock = 0
+	if not workspace:GetAttribute("EoEClipCheck") then
+		return
+	end
+	local below, total = 0, 0
+	local function check(p: BasePart)
+		total += 1
+		local cf, sz = p.CFrame, p.Size
+		local half = math.abs(cf.XVector.Y) * sz.X / 2 + math.abs(cf.YVector.Y) * sz.Y / 2 + math.abs(cf.ZVector.Y) * sz.Z / 2
+		if cf.Position.Y - half < groundY(cf.Position.X, cf.Position.Z) - 0.02 then
+			below += 1
+		end
+	end
+	for _, g in groups do
+		if g.lod == "near" then
+			for _, p in g.parts do
+				check(p)
+			end
+		end
+	end
+	for _, b in bodies do
+		for _, p in b.parts do
+			check(p)
+		end
+	end
+	local rays, ms = Ground.stats()
+	print(string.format("[EoE clip] %d parts below ground of %d checked; ground rays last frame %d in %.2f ms", below, total, rays, ms))
+end
+
 function Figures.update(dt: number)
 	if not folder then
 		return
@@ -23142,6 +23554,8 @@ function Figures.update(dt: number)
 	if not cam then
 		return
 	end
+	Ground.beginFrame()
+	clipCheck(dt)
 	local camPos = cam.CFrame.Position
 	local now = os.clock()
 	local flockOn = Settings.get().quality >= 2
@@ -23209,6 +23623,7 @@ function Figures.update(dt: number)
 				-- muskets come down for volleys and bayonet charges
 				local armed = state == "firing" or (charging and g.class == "infantry")
 				local pitched = g.class == "cavalry" or g.class == "artillery" or g.class == "hq"
+				local foot = FOOT[g.class] or FOOT.infantry
 				local amp = if routing or charging then 0.75 else 0.45
 				local slotCf: { CFrame } = {}
 				local swing: { number } = {}
@@ -23221,6 +23636,18 @@ function Figures.update(dt: number)
 					end
 					local wp = cf * Vector3.new(sx, 0, sz)
 					local y = groundY(wp.X, wp.Z)
+					local h = g.rh + (s.face or 0)
+					if routing then
+						h += math.pi + (s.phase - math.pi) * 0.35
+					end
+					local pitch = 0
+					if pitched then
+						-- horses and guns pitch with the slope under them; men stay upright
+						local fx, fz = math.cos(h), math.sin(h)
+						pitch = (groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2
+					end
+					-- every corner of the footprint clears the surface
+					y += Ground.liftAt(wp.X, wp.Z, y, h, foot[1], foot[2], if pitched then pitch else nil)
 					local sw = 0
 					if animating then
 						local ph = g.phase + s.phase
@@ -23228,15 +23655,9 @@ function Figures.update(dt: number)
 						y += math.abs(math.cos(ph)) * 0.12
 					end
 					swing[si] = sw
-					local h = g.rh + (s.face or 0)
-					if routing then
-						h += math.pi + (s.phase - math.pi) * 0.35
-					end
 					local scf = frame(wp.X, y, wp.Z, h)
 					if pitched then
-						-- horses and guns pitch with the slope under them; men stay upright
-						local fx, fz = math.cos(h), math.sin(h)
-						scf *= CFrame.Angles(0, 0, math.atan((groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2))
+						scf *= CFrame.Angles(0, 0, math.atan(pitch))
 					end
 					if charging then
 						scf *= CFrame.Angles(0, 0, if g.class == "cavalry" then -0.1 else -0.22) -- lean into the charge
@@ -23357,6 +23778,7 @@ function Figures.clear()
 	end
 	table.clear(groups)
 	table.clear(bodies) -- their parts go with the folder
+	Ground.clear()
 	destroyParts(previews)
 	table.clear(prevSelected)
 	pendingKey = ""
@@ -23367,7 +23789,168 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Ground</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Rendered-ground sampler for everything cosmetic (figures, bodies, rings, ghosts, smoke).
+-- The sim's heightmap (`Grid.heightAt`) is an approximation of the voxel terrain; the
+-- figures must stand on what is actually drawn, so this casts rays down onto
+-- workspace.Terrain plus the world's bridges (EoEWorld.Water*), caches one sample per
+-- 2-stud grid node for 0.5 s, and interpolates bilinearly between nodes. Rays are capped
+-- per frame; a node that cannot be refreshed keeps its last sample, and before the world is
+-- ready the heightmap stands in.
+--
+-- `Ground.lift` is the pure four-corner rule: how far an upright (or pitched) body must
+-- rise so no corner of its footprint sinks into the surface.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Grid = require(Shared.Grid)
+local BattleState = require(script.Parent.BattleState)
+
+local Ground = {}
+
+local CELL = 2
+local REFRESH = 0.5
+local MAX_RAYS_PER_FRAME = 100 -- ~1 ms of raycasts at most; stale nodes keep their last sample
+local CLEARANCE = 0.05
+
+type Node = { y: number, t: number }
+local cache: { [number]: Node } = {}
+local params: RaycastParams? = nil
+local worldRoot: Instance? = nil
+local worldKey = ""
+local raysThisFrame = 0
+local rayTime = 0
+local lastRays, lastMs = 0, 0
+
+local function fallback(x: number, z: number): number
+	local m = BattleState.map
+	return if m then Grid.heightAt(m.grid, x, z) else 0
+end
+
+-- Terrain plus the world's bridge decks; rebuilt when the world folder is replaced.
+local function filter(): RaycastParams
+	local root = workspace:FindFirstChild("EoEWorld")
+	local key = if root then tostring(root:GetAttribute("WorldReady") or "") else ""
+	local p = params
+	if p and root == worldRoot and key == worldKey then
+		return p
+	end
+	worldRoot, worldKey = root, key
+	p = RaycastParams.new()
+	p.FilterType = Enum.RaycastFilterType.Include
+	p.IgnoreWater = false -- a figure at the water's edge stands on the surface, never under it
+	local list: { Instance } = { workspace.Terrain }
+	if root then
+		for _, name in { "Water", "WaterQ2" } do
+			local f = root:FindFirstChild(name)
+			if f then
+				table.insert(list, f)
+			end
+		end
+	end
+	p.FilterDescendantsInstances = list
+	params = p
+	return p
+end
+
+local function nodeKey(ix: number, iz: number): number
+	return ix * 1048576 + iz + 524288
+end
+
+-- Ground at a grid node (ix, iz), cached; one raycast per node per REFRESH.
+local function node(ix: number, iz: number, now: number): number
+	local key = nodeKey(ix, iz)
+	local e = cache[key]
+	if e and now - e.t < REFRESH then
+		return e.y
+	end
+	local wx, wz = ix * CELL, iz * CELL
+	if raysThisFrame >= MAX_RAYS_PER_FRAME then
+		return if e then e.y else fallback(wx, wz)
+	end
+	raysThisFrame += 1
+	local t0 = os.clock()
+	local hit = workspace:Raycast(Vector3.new(wx, 1000, wz), Vector3.new(0, -1600, 0), filter())
+	rayTime += os.clock() - t0
+	local y = if hit then hit.Position.Y else fallback(wx, wz)
+	if e then
+		e.y, e.t = y, now
+	else
+		cache[key] = { y = y, t = now }
+	end
+	return y
+end
+
+-- Rendered ground height under (x, z): bilinear between the four surrounding nodes.
+function Ground.heightAt(x: number, z: number): number
+	local gx, gz = x / CELL, z / CELL
+	local ix, iz = math.floor(gx), math.floor(gz)
+	local fx, fz = gx - ix, gz - iz
+	local now = os.clock()
+	local y00 = node(ix, iz, now)
+	local y10 = node(ix + 1, iz, now)
+	local y01 = node(ix, iz + 1, now)
+	local y11 = node(ix + 1, iz + 1, now)
+	return (y00 * (1 - fx) + y10 * fx) * (1 - fz) + (y01 * (1 - fx) + y11 * fx) * fz
+end
+
+-- Four-corner lift (pure). `base` is the height the body stands at under its centre;
+-- `corners` the ground under each footprint corner; `plane` (optional) the body's underside
+-- at each corner when it is pitched to the slope (defaults to `base` everywhere). Returns
+-- how far to raise the body so every corner clears the surface by CLEARANCE, or 0 when
+-- nothing sinks.
+function Ground.lift(base: number, corners: { number }, plane: { number }?): number
+	local worst = 0
+	for i, h in corners do
+		local under = if plane then plane[i] else base
+		local short = h - under
+		if short > worst then
+			worst = short
+		end
+	end
+	return if worst > 0 then worst + CLEARANCE else 0
+end
+
+-- Lift for an upright body with a half-footprint (hx forward, hz right) at (x, z) facing
+-- `heading`, standing at `base`. `slope` (rise per stud forward) describes a pitched body.
+function Ground.liftAt(x: number, z: number, base: number, heading: number, hx: number, hz: number, slope: number?): number
+	local fx, fz = math.cos(heading), math.sin(heading)
+	local rx, rz = -fz, fx
+	local corners: { number } = {}
+	local plane: { number }? = if slope then {} else nil
+	local i = 0
+	for _, dx in { -hx, hx } do
+		for _, dz in { -hz, hz } do
+			i += 1
+			corners[i] = Ground.heightAt(x + fx * dx + rx * dz, z + fz * dx + rz * dz)
+			if plane and slope then
+				plane[i] = base + slope * dx
+			end
+		end
+	end
+	return Ground.lift(base, corners, plane)
+end
+
+-- Per-frame bookkeeping: the ray cap and the cost of the last frame's rays.
+function Ground.beginFrame()
+	lastRays, lastMs = raysThisFrame, rayTime * 1000
+	raysThisFrame = 0
+	rayTime = 0
+end
+
+function Ground.stats(): (number, number)
+	return lastRays, lastMs
+end
+
+function Ground.clear()
+	table.clear(cache)
+	params = nil
+	worldRoot = nil
+end
+
+Ground.CLEARANCE = CLEARANCE
+
+return Ground
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -24281,7 +24864,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, readies the world per map (the
 -- server builds it; the client adds its detail tier and waits for replication and terrain
 -- meshing), wires the modules together and drives the match lifecycle from MatchState messages.
@@ -24864,7 +25447,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -25008,7 +25591,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -25134,7 +25717,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
@@ -25215,7 +25798,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -25259,7 +25842,7 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Touch mode, pure: detection, gesture phases and the UI scale (docs/mobile-contract.md).
 -- No Roblox calls here so the spec can run headless; Settings.touch() feeds the device in.
 
@@ -25309,7 +25892,7 @@ function Touch.scale(viewportX: number, viewportY: number, touch: boolean): numb
 end
 
 return Touch
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -25715,7 +26298,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000090"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000092"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: Quick battles (each battle a framed painting header over its two episode
 -- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
@@ -26048,7 +26631,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -26739,7 +27322,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -27400,7 +27983,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -27648,7 +28231,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -27733,7 +28316,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -28814,7 +29397,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -28917,7 +29500,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents: aged post, tea-stained at the edges with
@@ -29984,7 +30567,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
 -- What the client saw of its own army during one battle, for the results report: one record per
 -- own formation (start, last strength, final status) and counts of squares, charges, routs,
 -- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
@@ -30136,7 +30719,7 @@ function Ledger.counts(): Counts
 end
 
 return Ledger
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (world replication + terrain settle).
 -- Fades out rather than cutting, so the first frame of the field is never a pop.
 
@@ -30250,7 +30833,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -30409,7 +30992,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -30676,7 +31259,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Radial order wheel for touch (docs/mobile-contract.md): eight brass plaques around a gilt
 -- ring under the finger that held a selected unit. Slide onto a plaque and lift to pick it.
 -- Positions come in screen pixels; the screen carries Kit's UIScale, so they are divided out.
@@ -30838,7 +31421,7 @@ function OrderWheel.destroy()
 end
 
 return OrderWheel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Where the stains fall on an aged sheet. Pure numbers (no Roblox types) so the headless spec
 -- can check it: every mark lies inside the unit square, and the same seed gives the same sheet.
 
@@ -30890,7 +31473,7 @@ function PaperLayout.sheet(seed: number): Sheet
 end
 
 return PaperLayout
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -31245,7 +31828,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000090"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, typeface, place names, AI difficulty.
 -- Applies live via Settings.
 
@@ -31434,7 +32017,7 @@ Settings.changed:Connect(function(key: string)
 end)
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -31604,7 +32187,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000096"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000098"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000093"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battlefield light, graded like a painted campaign map: a warm late-afternoon sun by default,
 -- a pale morning fog that lifts into clear sun (the Sun of Austerlitz), and a soft wet overcast
 -- for rain and mud (Waterloo). Built-in sky and post effects only (no asset ids).
@@ -31820,6 +32403,22 @@ end
 
 -- Applies grade `name`, tweened over `seconds` (0 = at once). A newer tween on the same
 -- properties replaces an older one.
+local FOG_RATE = 0.6 -- puffs per second per anchor: ~4 anchors x 0.6/s x 20 s = under 50 live
+
+local function setFogRate(folder: Folder, rate: number, seconds: number)
+	for _, pe in folder:GetDescendants() do
+		if pe:IsA("ParticleEmitter") then
+			if seconds <= 0 then
+				(pe :: ParticleEmitter).Rate = rate
+			else
+				local t = TweenService:Create(pe, TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Rate = rate })
+				t:Play()
+				table.insert(tweens, t)
+			end
+		end
+	end
+end
+
 local function setGrade(name: string, seconds: number)
 	currentGrade = name
 	local g = GRADES[name]
@@ -31867,25 +32466,19 @@ local function setGrade(name: string, seconds: number)
 		Glare = g.atmoGlare,
 	})
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
-	-- valley fog patches show only under the fog grade
+	-- valley mist emitters run only under the fog grade; their rate tweens to 0 with the lift
+	-- and the puffs already out fade over their own lifetime
 	if groundFog then
-		local t = if name == "fog" then 0.8 else 1
-		for _, p in groundFog:GetDescendants() do
-			if p:IsA("BasePart") then
-				to(p, { Transparency = t })
-			end
-		end
+		setFogRate(groundFog, if name == "fog" then FOG_RATE else 0, seconds)
 	end
 end
 
--- Props hands over the folder of flat valley-fog patches it builds for the current map, and
--- asks what transparency a new patch starts at.
+-- Props hands over the folder of valley-mist anchors (each with a ParticleEmitter) for the map.
 function Lighting.setGroundFog(folder: Folder?)
 	groundFog = folder
-end
-
-function Lighting.groundFogTransparency(): number
-	return if currentGrade == "fog" then 0.8 else 1
+	if folder then
+		setFogRate(folder, if currentGrade == "fog" then FOG_RATE else 0, 0)
+	end
 end
 
 function Lighting.apply(quality: number)
@@ -32005,7 +32598,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000092"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000094"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side props. The structure (trees, houses, bridges, walls, hedges, ground) is built
 -- by the server from WorldGen and replicates under workspace.EoEWorld; this module adds the
 -- detail tier for this client (hearth smoke, valley fog) from the same WorldGen, plus ground
@@ -32195,9 +32788,27 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 	end
 	local fog = f:FindFirstChild("GroundFogQ2")
 	if fog then
+		-- each invisible anchor box gets an emitter of slow soft mist puffs drifting along the
+		-- valley; Lighting sets the rate (on under the fog grade, fading to 0 as it lifts)
 		for _, p in fog:GetDescendants() do
 			if p:IsA("BasePart") then
-				(p :: BasePart).Transparency = WorldLighting.groundFogTransparency()
+				local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+				pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+				pe.Color = ColorSequence.new(Color3.fromRGB(226, 224, 218))
+				pe.LightEmission = 0
+				pe.LightInfluence = 1
+				pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 14), NumberSequenceKeypoint.new(1, 24) })
+				pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.86), NumberSequenceKeypoint.new(0.7, 0.92), NumberSequenceKeypoint.new(1, 1) })
+				pe.Lifetime = NumberRange.new(12, 20)
+				pe.Speed = NumberRange.new(0.3, 0.6)
+				pe.EmissionDirection = Enum.NormalId.Right -- along the box's long side: the valley
+				pe.SpreadAngle = Vector2.new(20, 6)
+				pe.Rotation = NumberRange.new(0, 360)
+				pe.RotSpeed = NumberRange.new(-2, 2)
+				pe.Drag = 0
+				pe.Rate = 0
+				pe.Enabled = true
+				pe.Parent = p
 			end
 		end
 		WorldLighting.setGroundFog(fog :: Folder)
@@ -32403,7 +33014,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000093"><Properties><bool name="Disabled">false</bool><string name="Name">Ready</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000095"><Properties><bool name="Disabled">false</bool><string name="Name">Ready</string><ProtectedString name="Source"><![CDATA[--!strict
 -- World readiness gate. The loading screen stays up until (i) the server's world folder has
 -- replicated (part count against its WorldReady attribute), (ii) terrain meshing has settled
 -- (a grid of raycasts hits terrain three checks running) and (iii) two consecutive frames
@@ -32540,7 +33151,7 @@ function Ready.wait(mapId: string, map: any, alive: () -> boolean, onProgress: (
 end
 
 return Ready
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000094"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000096"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -32561,6 +33172,8 @@ return Ready
 -- coat, facings, legwear, headgear and kit, so a French grenadier, a Prussian musketeer, an
 -- Austrian in white and a Highlander read apart at a glance.
 
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Factions = require(script.Parent.Parent.Factions)
 
 local Soldiers = {}
@@ -32822,6 +33435,29 @@ local function fabric(p: BasePart): BasePart
 	return p
 end
 
+-- A Creator Store mesh in an Assets slot, as one Part carrying a SpecialMesh, or nil when
+-- the slot is empty (the procedural build is used instead). `size` is the figure's extent in
+-- studs; the slot's scale/offset are set by the Studio session for that mesh.
+local function meshed(key: string, size: Vector3, colour: Color3): BasePart?
+	local slot = Assets.get(key)
+	if not slot then
+		return nil
+	end
+	local p = mk(size, colour)
+	p.Transparency = 1 -- the Part is only the carrier; the mesh draws
+	local m = Instance.new("SpecialMesh") :: SpecialMesh
+	m.MeshType = Enum.MeshType.FileMesh
+	m.MeshId = slot.mesh
+	m.TextureId = slot.texture
+	m.Scale = Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
+	m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
+	if slot.texture == "" then
+		m.VertexColor = Vector3.new(colour.R, colour.G, colour.B)
+	end
+	m.Parent = p
+	return p
+end
+
 -- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets levelled.
 function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: number, armed: boolean): CFrame
 	if anim == 1 or anim == 2 or anim == 4 or anim == 5 then
@@ -32858,9 +33494,16 @@ end
 local POMPONS = { rgb(40, 120, 60), rgb(120, 170, 214), rgb(220, 130, 40), rgb(120, 60, 140) }
 
 -- `at`: top of the head, facing +X.
+local HEAD_MESH: { [string]: string } = { shako = "shako", bearskin = "bearskin", helmet = "helmet" }
+
 local function headgear(add: Add, L: Look, at: CFrame, detail: boolean, seed: number)
 	local h = L.head
 	local c = L.headColour
+	local hm = meshed(HEAD_MESH[h] or "", Vector3.new(0.5, 0.6, 0.5), L.headColour)
+	if hm then
+		add(hm, at * CFrame.new(0, 0.28, 0), 0, 0)
+		return
+	end
 	local function put(p: BasePart, x: number, y: number, z: number, rot: CFrame?)
 		add(p, at * CFrame.new(x, y, z) * (rot or CFrame.identity), 0, 0)
 	end
@@ -32999,6 +33642,11 @@ end
 -- bearskins with cords and plume. `at`: top of the head, facing +X.
 local function headgearNear(add: Add, L: Look, at: CFrame, seed: number)
 	local h = L.head
+	local hm = meshed(HEAD_MESH[h] or "", Vector3.new(0.5, 0.6, 0.5), L.headColour)
+	if hm then
+		add(hm, at * CFrame.new(0, 0.28, 0), 0, 0)
+		return
+	end
 	local function put(p: BasePart, x: number, y: number, z: number, rot: CFrame?)
 		add(p, at * CFrame.new(x, y, z) * (rot or CFrame.identity), 0, 0)
 	end
@@ -33335,6 +33983,15 @@ export type InfantryRole = "line" | "colour" | "drummer"
 -- Legs, coat with facings, belts, knapsack, head and headgear. `seed` varies company pompons.
 function Soldiers.infantry(add: Add, L: Look, detail: boolean, role: InfantryRole, seed: number?)
 	local s = seed or 0
+	local mesh = meshed("soldierInfantry", Vector3.new(0.9, 3.2, 0.9), L.coat)
+	if mesh then
+		add(mesh, CFrame.new(0, 1.6, 0), 0, 0)
+		if role == "colour" then
+			add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2, POLE.Z), 0, 0)
+			Soldiers.flag(add, L.nation, CFrame.new(POLE.X - 0.03, 3.65, POLE.Z), 1.7, 1.25, 6)
+		end
+		return
+	end
 	if detail then
 		infantryNear(add, L, role, s)
 		return
@@ -33379,6 +34036,11 @@ end
 -- Horse alone (also used for limber teams). `seed` picks a coat colour unless `hide` is given.
 function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, hide: Color3?)
 	local coat = hide or HORSES[seed % #HORSES + 1]
+	local mesh = meshed("horse", Vector3.new(3.4, 3.0, 0.9), coat)
+	if mesh then
+		add(mesh, origin * CFrame.new(0, 1.5, 0), 0, 0)
+		return
+	end
 	add(mk(Vector3.new(2.0, 0.85, 0.75), coat), origin * CFrame.new(0, 1.55, 0), 0, 0)
 	add(mk(Vector3.new(0.45, 0.95, 0.4), coat), origin * CFrame.new(0.95, 2.1, 0) * CFrame.Angles(0, 0, math.rad(-35)), 0, 0)
 	add(mk(Vector3.new(0.75, 0.36, 0.34), coat), origin * CFrame.new(1.38, 2.5, 0) * CFrame.Angles(0, 0, math.rad(-25)), 0, 0)
@@ -33392,6 +34054,11 @@ function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, 
 end
 
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
+	local mesh = meshed("soldierCavalry", Vector3.new(3.6, 4.0, 1.0), L.coat)
+	if mesh then
+		add(mesh, CFrame.new(0, 2.0, 0), 0, 0)
+		return
+	end
 	if detail then
 		riderNear(add, L, seed)
 		return
@@ -33437,6 +34104,23 @@ end
 -- One gun on a two-wheeled carriage with trail, crew of 4; limbered: hooked to a limber
 -- with a two-horse team, crew walking alongside. Carriage paint follows the nation.
 function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, seed: number)
+	local gunMesh = meshed("gun", Vector3.new(4.4, 2.2, 2.6), L.carriage)
+	if gunMesh then
+		local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
+		add(gunMesh, g * CFrame.new(-0.4, 1.1, 0), 0, 0)
+		if limbered then
+			local lim = meshed("limber", Vector3.new(2.6, 2.0, 2.4), L.carriage)
+			if lim then
+				add(lim, CFrame.new(1.4, 1.0, 0), 0, 0)
+			end
+			Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
+			Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
+		end
+		for _, p in { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } do
+			gunner(add, L, CFrame.new(p[1], 0, p[2]))
+		end
+		return
+	end
 	if detail then
 		gunNear(add, L, limbered, seed)
 		return
@@ -33468,7 +34152,7 @@ function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, see
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000095"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000097"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client side of the terrain: the voxels, palette and pick planes are built by the server
 -- (src/server/World.luau) and replicate; this keeps only the per-client bits.
 
@@ -33488,4 +34172,4 @@ function Terrain.pickPlane(): Instance?
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000100"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000101"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000102"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000102"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000103"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000104"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
