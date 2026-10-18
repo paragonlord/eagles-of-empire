@@ -77,7 +77,13 @@ Assets.slots = {
 		native = { 8, 8, 6 },
 	},
 	houseC = slot(),
-	barn = slot(),
+	barn = { -- original 440-triangle timber barn; ridge along +X
+		mesh = "rbxassetid://110230662589871",
+		texture = "rbxassetid://84033137999917",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 13, 7, 6 },
+	},
 	church = slot(), -- nave 13 long with a west tower, ~22 tall
 	windmill = slot(), -- post mill ~20 tall
 	bridgeStone = slot(), -- deck along +X, length = the span given
