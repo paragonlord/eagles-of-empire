@@ -5,10 +5,10 @@
 -- markers are short-lived pooled parts. Deaths are drawn by Figures (falling figures).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
-local Grid = require(Shared.Grid)
 local Settings = require(script.Parent.Settings)
 local BattleState = require(script.Parent.BattleState)
 local Camera = require(script.Parent.Camera)
+local Ground = require(script.Parent.Ground)
 
 local Effects = {}
 
@@ -64,10 +64,7 @@ local FLASH = Color3.fromRGB(255, 214, 120)
 local BLAST = Color3.fromRGB(255, 150, 60)
 local ROUT = Color3.fromRGB(150, 60, 50)
 
-local function groundY(x: number, z: number): number
-	local m = BattleState.map
-	return if m then Grid.heightAt(m.grid, x, z) else 0
-end
+local groundY = Ground.heightAt -- rendered ground (raycast cache), never the heightmap alone
 
 local function makePart(): Part
 	local p = Instance.new("Part") :: Part

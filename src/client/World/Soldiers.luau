@@ -19,6 +19,8 @@
 -- coat, facings, legwear, headgear and kit, so a French grenadier, a Prussian musketeer, an
 -- Austrian in white and a Highlander read apart at a glance.
 
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Factions = require(script.Parent.Parent.Factions)
 
 local Soldiers = {}
@@ -280,6 +282,29 @@ local function fabric(p: BasePart): BasePart
 	return p
 end
 
+-- A Creator Store mesh in an Assets slot, as one Part carrying a SpecialMesh, or nil when
+-- the slot is empty (the procedural build is used instead). `size` is the figure's extent in
+-- studs; the slot's scale/offset are set by the Studio session for that mesh.
+local function meshed(key: string, size: Vector3, colour: Color3): BasePart?
+	local slot = Assets.get(key)
+	if not slot then
+		return nil
+	end
+	local p = mk(size, colour)
+	p.Transparency = 1 -- the Part is only the carrier; the mesh draws
+	local m = Instance.new("SpecialMesh") :: SpecialMesh
+	m.MeshType = Enum.MeshType.FileMesh
+	m.MeshId = slot.mesh
+	m.TextureId = slot.texture
+	m.Scale = Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
+	m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
+	if slot.texture == "" then
+		m.VertexColor = Vector3.new(colour.R, colour.G, colour.B)
+	end
+	m.Parent = p
+	return p
+end
+
 -- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets levelled.
 function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: number, armed: boolean): CFrame
 	if anim == 1 or anim == 2 or anim == 4 or anim == 5 then
@@ -316,9 +341,16 @@ end
 local POMPONS = { rgb(40, 120, 60), rgb(120, 170, 214), rgb(220, 130, 40), rgb(120, 60, 140) }
 
 -- `at`: top of the head, facing +X.
+local HEAD_MESH: { [string]: string } = { shako = "shako", bearskin = "bearskin", helmet = "helmet" }
+
 local function headgear(add: Add, L: Look, at: CFrame, detail: boolean, seed: number)
 	local h = L.head
 	local c = L.headColour
+	local hm = meshed(HEAD_MESH[h] or "", Vector3.new(0.5, 0.6, 0.5), L.headColour)
+	if hm then
+		add(hm, at * CFrame.new(0, 0.28, 0), 0, 0)
+		return
+	end
 	local function put(p: BasePart, x: number, y: number, z: number, rot: CFrame?)
 		add(p, at * CFrame.new(x, y, z) * (rot or CFrame.identity), 0, 0)
 	end
@@ -457,6 +489,11 @@ end
 -- bearskins with cords and plume. `at`: top of the head, facing +X.
 local function headgearNear(add: Add, L: Look, at: CFrame, seed: number)
 	local h = L.head
+	local hm = meshed(HEAD_MESH[h] or "", Vector3.new(0.5, 0.6, 0.5), L.headColour)
+	if hm then
+		add(hm, at * CFrame.new(0, 0.28, 0), 0, 0)
+		return
+	end
 	local function put(p: BasePart, x: number, y: number, z: number, rot: CFrame?)
 		add(p, at * CFrame.new(x, y, z) * (rot or CFrame.identity), 0, 0)
 	end
@@ -793,6 +830,15 @@ export type InfantryRole = "line" | "colour" | "drummer"
 -- Legs, coat with facings, belts, knapsack, head and headgear. `seed` varies company pompons.
 function Soldiers.infantry(add: Add, L: Look, detail: boolean, role: InfantryRole, seed: number?)
 	local s = seed or 0
+	local mesh = meshed("soldierInfantry", Vector3.new(0.9, 3.2, 0.9), L.coat)
+	if mesh then
+		add(mesh, CFrame.new(0, 1.6, 0), 0, 0)
+		if role == "colour" then
+			add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2, POLE.Z), 0, 0)
+			Soldiers.flag(add, L.nation, CFrame.new(POLE.X - 0.03, 3.65, POLE.Z), 1.7, 1.25, 6)
+		end
+		return
+	end
 	if detail then
 		infantryNear(add, L, role, s)
 		return
@@ -837,6 +883,11 @@ end
 -- Horse alone (also used for limber teams). `seed` picks a coat colour unless `hide` is given.
 function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, hide: Color3?)
 	local coat = hide or HORSES[seed % #HORSES + 1]
+	local mesh = meshed("horse", Vector3.new(3.4, 3.0, 0.9), coat)
+	if mesh then
+		add(mesh, origin * CFrame.new(0, 1.5, 0), 0, 0)
+		return
+	end
 	add(mk(Vector3.new(2.0, 0.85, 0.75), coat), origin * CFrame.new(0, 1.55, 0), 0, 0)
 	add(mk(Vector3.new(0.45, 0.95, 0.4), coat), origin * CFrame.new(0.95, 2.1, 0) * CFrame.Angles(0, 0, math.rad(-35)), 0, 0)
 	add(mk(Vector3.new(0.75, 0.36, 0.34), coat), origin * CFrame.new(1.38, 2.5, 0) * CFrame.Angles(0, 0, math.rad(-25)), 0, 0)
@@ -850,6 +901,11 @@ function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, 
 end
 
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
+	local mesh = meshed("soldierCavalry", Vector3.new(3.6, 4.0, 1.0), L.coat)
+	if mesh then
+		add(mesh, CFrame.new(0, 2.0, 0), 0, 0)
+		return
+	end
 	if detail then
 		riderNear(add, L, seed)
 		return
@@ -895,6 +951,23 @@ end
 -- One gun on a two-wheeled carriage with trail, crew of 4; limbered: hooked to a limber
 -- with a two-horse team, crew walking alongside. Carriage paint follows the nation.
 function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, seed: number)
+	local gunMesh = meshed("gun", Vector3.new(4.4, 2.2, 2.6), L.carriage)
+	if gunMesh then
+		local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
+		add(gunMesh, g * CFrame.new(-0.4, 1.1, 0), 0, 0)
+		if limbered then
+			local lim = meshed("limber", Vector3.new(2.6, 2.0, 2.4), L.carriage)
+			if lim then
+				add(lim, CFrame.new(1.4, 1.0, 0), 0, 0)
+			end
+			Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
+			Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
+		end
+		for _, p in { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } do
+			gunner(add, L, CFrame.new(p[1], 0, p[2]))
+		end
+		return
+	end
 	if detail then
 		gunNear(add, L, limbered, seed)
 		return

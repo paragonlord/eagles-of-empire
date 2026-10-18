@@ -5,13 +5,13 @@
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
-local Grid = require(Shared.Grid)
 local Vec = require(Shared.Vec)
 local BattleState = require(script.Parent.BattleState)
 local Selection = require(script.Parent.Selection)
 local Settings = require(script.Parent.Settings)
 local Factions = require(script.Parent.Factions)
 local Soldiers = require(script.Parent.World.Soldiers)
+local Ground = require(script.Parent.Ground)
 local Kit = require(script.Parent.UI.Kit)
 
 local Figures = {}
@@ -126,10 +126,8 @@ local function cylinder(length: number, radius: number, color: Color3): BasePart
 	return p
 end
 
-local function groundY(x: number, z: number): number
-	local m = BattleState.map
-	return if m then Grid.heightAt(m.grid, x, z) else 0
-end
+-- Rendered ground (raycast cache; heightmap fallback before the world is ready).
+local groundY = Ground.heightAt
 
 -- Yaw so local +X points along a sim heading and local +Z is the formation's right.
 local function frame(x: number, y: number, z: number, heading: number): CFrame
@@ -137,7 +135,8 @@ local function frame(x: number, y: number, z: number, heading: number): CFrame
 end
 
 -- Like frame(), but tilted to the slope under a d-deep, w-wide footprint, so blocks, rings and
--- destination markers lie on a hillside instead of floating level through it.
+-- destination markers lie on a hillside instead of floating level through it, then raised
+-- until none of the footprint's four corners is under the ground.
 local function groundFrame(x: number, z: number, lift: number, heading: number, w: number, d: number): CFrame
 	local fx, fz = math.cos(heading), math.sin(heading)
 	local rx, rz = -fz, fx
@@ -146,8 +145,23 @@ local function groundFrame(x: number, z: number, lift: number, heading: number, 
 	local slopeR = (groundY(x + rx * hw, z + rz * hw) - groundY(x - rx * hw, z - rz * hw)) / (2 * hw)
 	local fwd = Vector3.new(fx, slopeF, fz).Unit
 	local up = Vector3.new(rx, slopeR, rz).Unit:Cross(fwd).Unit
-	return CFrame.fromMatrix(Vector3.new(x, groundY(x, z) + lift, z), fwd, up, fwd:Cross(up))
+	local cf = CFrame.fromMatrix(Vector3.new(x, groundY(x, z), z), fwd, up, fwd:Cross(up))
+	local corners: { number } = {}
+	local plane: { number } = {}
+	local i = 0
+	for _, dx in { -hd, hd } do
+		for _, dz in { -hw, hw } do
+			i += 1
+			local c = cf * Vector3.new(dx, 0, dz)
+			corners[i] = groundY(c.X, c.Z)
+			plane[i] = c.Y
+		end
+	end
+	return cf + Vector3.new(0, lift + Ground.lift(0, corners, plane), 0)
 end
+
+-- Half-footprints (forward, right) a figure's body covers, for the four-corner lift.
+local FOOT: { [string]: { number } } = { infantry = { 0.35, 0.45 }, cavalry = { 1.6, 0.5 }, hq = { 1.6, 0.5 }, artillery = { 2.2, 1.6 } }
 
 local function factionColour(faction: string, colourKey: string?): Color3
 	return Factions.colour(faction, colourKey)
@@ -433,8 +447,8 @@ local function spawnBody(g: Group, now: number)
 		end
 	end
 	local pos = g.slotCf[si].Position
-	local origin = frame(pos.X, groundY(pos.X, pos.Z), pos.Z, g.rh + (bodyRng:NextNumber() - 0.5) * 0.8)
-	local b: Body = { parts = {}, locals = {}, origin = origin, aboutX = g.class == "cavalry", fall = 0, lift = 0, t0 = now + bodyRng:NextNumber() * 0.4 }
+	local heading = g.rh + (bodyRng:NextNumber() - 0.5) * 0.8
+	local b: Body = { parts = {}, locals = {}, origin = CFrame.identity, aboutX = g.class == "cavalry", fall = 0, lift = 0, t0 = now + bodyRng:NextNumber() * 0.4 }
 	local add = function(p: BasePart, cf: CFrame, anim: number, pivot: number)
 		p.CastShadow = false
 		p.Parent = folder
@@ -450,11 +464,10 @@ local function spawnBody(g: Group, now: number)
 		Soldiers.infantry(add, look, false, "line", 0)
 		b.lift = if dir > 0 then 0.42 else 0.24
 	end
-	-- lie along the slope: where the head lands decides how far the body turns
-	local hd = if b.aboutX then Vector3.new(0, 0, dir * len) else Vector3.new(-dir * len, 0, 0)
-	local hp = origin * hd
-	local slope = math.atan2(groundY(hp.X, hp.Z) - origin.Position.Y, len)
-	b.fall = dir * math.clamp(math.pi / 2 - slope, 0.7, 1.9)
+	-- the body lies on a frame tilted to the slope and lifted clear of it, so it conforms to
+	-- the hillside instead of poking through it
+	b.origin = if b.aboutX then groundFrame(pos.X, pos.Z, 0, heading, len * 2, 2) else groundFrame(pos.X, pos.Z, 0, heading, 1, len * 2)
+	b.fall = dir * 1.52
 	table.insert(bodies, b)
 	local cap = MAX_BODIES[math.clamp(Settings.get().quality, 1, 3)]
 	while #bodies > cap do
@@ -1294,6 +1307,44 @@ local function stepFlock(g: Group, dt: number, moving: boolean, bound: number, n
 	return any
 end
 
+-- Debug: with the workspace attribute EoEClipCheck set (command bar:
+-- workspace:SetAttribute("EoEClipCheck", true)), every second walk every live figure part and
+-- count those whose lowest corner is below the rendered ground.
+local clipClock = 0
+local function clipCheck(dt: number)
+	clipClock += dt
+	if clipClock < 1 then
+		return
+	end
+	clipClock = 0
+	if not workspace:GetAttribute("EoEClipCheck") then
+		return
+	end
+	local below, total = 0, 0
+	local function check(p: BasePart)
+		total += 1
+		local cf, sz = p.CFrame, p.Size
+		local half = math.abs(cf.XVector.Y) * sz.X / 2 + math.abs(cf.YVector.Y) * sz.Y / 2 + math.abs(cf.ZVector.Y) * sz.Z / 2
+		if cf.Position.Y - half < groundY(cf.Position.X, cf.Position.Z) - 0.02 then
+			below += 1
+		end
+	end
+	for _, g in groups do
+		if g.lod == "near" then
+			for _, p in g.parts do
+				check(p)
+			end
+		end
+	end
+	for _, b in bodies do
+		for _, p in b.parts do
+			check(p)
+		end
+	end
+	local rays, ms = Ground.stats()
+	print(string.format("[EoE clip] %d parts below ground of %d checked; ground rays last frame %d in %.2f ms", below, total, rays, ms))
+end
+
 function Figures.update(dt: number)
 	if not folder then
 		return
@@ -1302,6 +1353,8 @@ function Figures.update(dt: number)
 	if not cam then
 		return
 	end
+	Ground.beginFrame()
+	clipCheck(dt)
 	local camPos = cam.CFrame.Position
 	local now = os.clock()
 	local flockOn = Settings.get().quality >= 2
@@ -1369,6 +1422,7 @@ function Figures.update(dt: number)
 				-- muskets come down for volleys and bayonet charges
 				local armed = state == "firing" or (charging and g.class == "infantry")
 				local pitched = g.class == "cavalry" or g.class == "artillery" or g.class == "hq"
+				local foot = FOOT[g.class] or FOOT.infantry
 				local amp = if routing or charging then 0.75 else 0.45
 				local slotCf: { CFrame } = {}
 				local swing: { number } = {}
@@ -1381,6 +1435,18 @@ function Figures.update(dt: number)
 					end
 					local wp = cf * Vector3.new(sx, 0, sz)
 					local y = groundY(wp.X, wp.Z)
+					local h = g.rh + (s.face or 0)
+					if routing then
+						h += math.pi + (s.phase - math.pi) * 0.35
+					end
+					local pitch = 0
+					if pitched then
+						-- horses and guns pitch with the slope under them; men stay upright
+						local fx, fz = math.cos(h), math.sin(h)
+						pitch = (groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2
+					end
+					-- every corner of the footprint clears the surface
+					y += Ground.liftAt(wp.X, wp.Z, y, h, foot[1], foot[2], if pitched then pitch else nil)
 					local sw = 0
 					if animating then
 						local ph = g.phase + s.phase
@@ -1388,15 +1454,9 @@ function Figures.update(dt: number)
 						y += math.abs(math.cos(ph)) * 0.12
 					end
 					swing[si] = sw
-					local h = g.rh + (s.face or 0)
-					if routing then
-						h += math.pi + (s.phase - math.pi) * 0.35
-					end
 					local scf = frame(wp.X, y, wp.Z, h)
 					if pitched then
-						-- horses and guns pitch with the slope under them; men stay upright
-						local fx, fz = math.cos(h), math.sin(h)
-						scf *= CFrame.Angles(0, 0, math.atan((groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2))
+						scf *= CFrame.Angles(0, 0, math.atan(pitch))
 					end
 					if charging then
 						scf *= CFrame.Angles(0, 0, if g.class == "cavalry" then -0.1 else -0.22) -- lean into the charge
@@ -1517,6 +1577,7 @@ function Figures.clear()
 	end
 	table.clear(groups)
 	table.clear(bodies) -- their parts go with the folder
+	Ground.clear()
 	destroyParts(previews)
 	table.clear(prevSelected)
 	pendingKey = ""
