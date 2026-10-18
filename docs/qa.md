@@ -763,6 +763,22 @@ build de3fbe0.** No errors on either side.
 - `[EoE clip]` still `92 parts below ground (9438 checked)` on Jena: the mesh trees did not
   change it, so the 92 are the reed stems and odd hedge/road pieces from round 24.
 
+**2026-10-18 round 28 (oak, beech, pine and poplar meshes), build 08c265b.** No errors.
+- Jena: 1567 mesh trees (oak 1143, beech 280, pine 144), one part each. The server world is
+  **8,486 parts**, down from 12,794 with the part-built trees (−34 %); `[EoE clip]` 92 of 8181,
+  unchanged (reeds and odd hedge/road pieces, round 24). 60 fps at the menu view, over the woods
+  at 90 studs and at a wood's edge at 12 studs (Studio caps at 60, so the saving shows in the
+  part count rather than the frame rate here).
+- Pass: the woods read as one mixed canopy, faceted oak and beech crowns with pine tips through
+  them (`r28-wood-edge.jpg`); lone trees stand on the ground with branching trunks (round 27);
+  the road avenue to Vierzehnheiligen and the orchards read as rows of single trees
+  (`r28-jena-mesh-trees-mid.jpg`).
+- No poplars on Jena: poplar avenues are the summer look (Waterloo), autumn uses fruit trees, so
+  the poplar mesh was not seen. Waterloo run cut short (Play was stopped from outside the test).
+- Small: the mesh greens are brighter and more lime than the old woods and the reference
+  palette, most visible close up; a VertexColor of ~(0.8, 0.85, 0.75) on the tree meshes, or a
+  darker texture, would bring them to olive.
+
 ## Known failures
 
 None recorded yet.
