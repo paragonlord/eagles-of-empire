@@ -25,7 +25,8 @@ local INK = rgb(P.Ink)
 local SELECT = rgb(P.Select)
 local HOSTILE = rgb(P.Hostile)
 
-local NEAR_TIER_D = 150 -- camera distance within which belts, plumes and lapels are built
+local NEAR_TIER_D = 150 -- camera distance within which the near tier may be built
+local nearBand = NEAR_TIER_D -- the near-tier band in force: shrinks so the closest blocks fit the budget
 local SNAP_DT = 0.1
 local MAX_EXTRAP = 0.15
 local LABEL_INTERVAL = 0.15
@@ -59,7 +60,8 @@ type Group = {
 	colour: Color3,
 	ghost: boolean,
 	lod: string, -- "near" | "far"
-	tier: string, -- near LOD detail: "near" (belts, plumes, lapels) | "mid" (coat, breeches, shako, musket)
+	tier: string, -- near LOD detail: "near" (jointed figures, kit, spoked wheels) | "mid" (coat, breeches, shako, musket)
+	dist: number, -- camera distance last frame
 	parts: { BasePart },
 	locals: { CFrame },
 	slots: { Slot },
@@ -797,6 +799,7 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		ghost = ghost,
 		lod = "far",
 		tier = "mid",
+		dist = math.huge,
 		parts = {},
 		locals = {},
 		slots = {},
@@ -850,12 +853,12 @@ end
 local PARTS_PER_FIGURE = 12
 -- Parts one figure costs per class and detail tier (measured from the Soldiers builders).
 local FIGURE_COST: { [string]: { near: number, mid: number } } = {
-	infantry = { near = 16, mid = 9 },
-	cavalry = { near = 17, mid = 13 },
-	hq = { near = 17, mid = 13 },
-	artillery = { near = 26, mid = 22 },
+	infantry = { near = 34, mid = 9 },
+	cavalry = { near = 52, mid = 13 },
+	hq = { near = 48, mid = 12 },
+	artillery = { near = 140, mid = 30 },
 }
-local SPECIALS_COST = 60 -- officer, colour and two drummers per battalion
+local SPECIALS_COST = { near = 155, mid = 60 } -- officer, colour and two drummers per battalion
 
 local function budget(): number
 	local q = Settings.get().quality
@@ -863,10 +866,35 @@ local function budget(): number
 	return figs * PARTS_PER_FIGURE
 end
 
-local function groupCost(g: Group, f: any): number
+local function groupCost(g: Group, f: any, near: boolean): number
 	local c = FIGURE_COST[g.class] or FIGURE_COST.infantry
-	local per = if g.tier == "near" and Settings.get().quality >= 2 then c.near else c.mid
-	return visualCount(f) * per + (if g.class == "infantry" then SPECIALS_COST else 0)
+	return visualCount(f) * (if near then c.near else c.mid) + (if g.class == "infantry" then (if near then SPECIALS_COST.near else SPECIALS_COST.mid) else 0)
+end
+
+-- Spend the budget where the camera is: near-LOD blocks sorted by camera distance get the
+-- near tier while their cost fits (blocks already near keep it a little longer), the rest
+-- the mid tier; `nearBand` becomes the distance of the first block that did not fit. Returns
+-- the parts the whole near LOD will cost at those tiers.
+local function allocateTiers(list: { { g: Group, f: any } }): number
+	table.sort(list, function(a: { g: Group, f: any }, b: { g: Group, f: any })
+		return a.g.dist < b.g.dist
+	end)
+	local b = budget()
+	local detail = Settings.get().quality >= 2
+	local spent = 0
+	nearBand = NEAR_TIER_D
+	for _, e in list do
+		local g = e.g
+		local nearCost = groupCost(g, e.f, true)
+		local cap = if g.tier == "near" then 0.9 else 0.75
+		if detail and g.dist <= nearBand and spent + nearCost <= b * cap then
+			spent += nearCost
+		else
+			nearBand = math.min(nearBand, g.dist)
+			spent += groupCost(g, e.f, false)
+		end
+	end
+	return spent
 end
 
 local function onSnapshot()
@@ -875,12 +903,12 @@ local function onSnapshot()
 	end
 	local now = os.clock()
 	local seen: { [number]: boolean } = {}
-	local total = 0
+	local nearList: { { g: Group, f: any } } = {}
 	for id, f in BattleState.formations do
 		seen[id] = true
 		local near = groups[id]
 		if near and near.lod == "near" then
-			total += groupCost(near, f) -- the budget only spends parts on near-LOD blocks
+			table.insert(nearList, { g = near, f = f }) -- the budget only spends parts on near-LOD blocks
 		end
 		local existing: Group? = groups[id]
 		if existing and existing.ghost then
@@ -948,7 +976,7 @@ local function onSnapshot()
 			groups[id] = nil
 		end
 	end
-	local newK = math.max(1, math.ceil(total / budget()))
+	local newK = math.max(1, math.ceil(allocateTiers(nearList) / budget()))
 	if newK ~= thinK then
 		thinK = newK
 	end
@@ -1304,13 +1332,14 @@ function Figures.update(dt: number)
 			end
 			-- LOD with hysteresis
 			local dist = (camPos - Vector3.new(g.rx, groundY(g.rx, g.rz), g.rz)).Magnitude
+			g.dist = dist
 			local wantLod = if g.ghost then "far" elseif g.lod == "near" then (if dist > farD * 1.1 then "far" else "near") else (if dist < farD then "near" else "far")
 			if wantLod ~= g.lod then
 				g.lod = wantLod
 			end
 			-- detail tier with the same hysteresis: the fine parts are only built where they are
-			-- more than a pixel (within NEAR_TIER_D of the camera)
-			g.tier = if g.tier == "near" then (if dist > NEAR_TIER_D * 1.15 then "mid" else "near") else (if dist < NEAR_TIER_D then "near" else "mid")
+			-- more than a pixel (within the band the budget allows)
+			g.tier = if g.tier == "near" then (if dist > nearBand * 1.1 then "mid" else "near") else (if dist < nearBand then "near" else "mid")
 			local key = layoutKeyOf(g, f)
 			if key ~= g.layoutKey then
 				g.layoutKey = key

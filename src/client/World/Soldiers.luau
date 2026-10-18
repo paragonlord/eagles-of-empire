@@ -7,6 +7,13 @@
 --             3 musket chain (lc is an offset along the musket; pose by state)
 --             4/5 horse leg (diagonal pairs, swing about the shoulder at `pivot`)
 --             6 colour (flag): swings about the colour pole by the per-frame sway angle
+--             7/8 shin (follows thigh 1/2, bends at the knee) · 9/10 horse cannon (follows 4/5)
+--             11 gun crew: steps clear of the gun while the battery fires (pivot = side, ±1)
+--             12/13 left/right arm: hangs or holds the shouldered musket; reaches forward when levelled
+--
+-- Detail tiers: `detail` false builds the mid tier (coat, breeches, headgear, musket: ~9 parts a
+-- man); true builds the near tier for the low camera (jointed limbs, shako peak and scales,
+-- bayonet, cartridge box, spoked wheels, horses with neck, mane, tail and shabraque).
 --
 -- `Soldiers.look` turns a formation (faction, palette override, class, name) into a uniform:
 -- coat, facings, legwear, headgear and kit, so a French grenadier, a Prussian musketeer, an
@@ -228,6 +235,12 @@ local SHOULDER = CFrame.new(0.02, 1.95, 0.4) * CFrame.Angles(0, 0, math.rad(8))
 local LEVEL = CFrame.new(0.75, 1.85, 0.22) * CFrame.Angles(0, 0, math.rad(-90))
 -- The colour pole's foot in the bearer's frame; flag parts swing about its vertical axis.
 local POLE = Vector3.new(0.05, 0, 0.35)
+-- Arm frames at the shoulder (near tier). Rest: the left arm hangs, the right holds the butt
+-- of the shouldered musket; levelled: both reach forward along the piece.
+local ARM_L_REST = CFrame.new(0.02, 2.08, -0.44) * CFrame.Angles(0, 0, math.rad(8))
+local ARM_R_REST = CFrame.new(0.02, 2.08, 0.44) * CFrame.Angles(0, 0, math.rad(-6))
+local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(20), math.rad(-78))
+local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-62))
 
 local function mk(size: Vector3, color: Color3, className: string?): BasePart
 	local p = Instance.new(className or "Part") :: BasePart
@@ -280,6 +293,19 @@ function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: num
 		return (if armed then LEVEL else SHOULDER) * lc
 	elseif anim == 6 then
 		return CFrame.new(POLE) * CFrame.Angles(0, swing, 0) * CFrame.new(-POLE) * lc
+	elseif anim == 7 or anim == 8 or anim == 9 or anim == 10 then
+		-- lower leg: hip/shoulder swing, then the knee bends as the leg comes forward
+		local a = if anim == 7 or anim == 9 then swing else -swing
+		local kneeY = pivot * 0.5
+		local p = lc.Position
+		local bend = 0.9 * math.max(0, -a)
+		return CFrame.new(p.X, pivot, p.Z) * CFrame.Angles(0, 0, a) * CFrame.new(0, kneeY - pivot, 0) * CFrame.Angles(0, 0, bend) * CFrame.new(0, p.Y - kneeY, 0)
+	elseif anim == 11 then
+		return if armed then CFrame.new(-0.5, 0, pivot * 0.7) * lc else lc
+	elseif anim == 12 then
+		return (if armed then ARM_L_LEVEL else ARM_L_REST) * lc
+	elseif anim == 13 then
+		return (if armed then ARM_R_LEVEL else ARM_R_REST) * lc
 	end
 	return lc
 end
@@ -421,6 +447,345 @@ function Soldiers.flag(add: Add, faction: string, origin: CFrame, w: number, h: 
 	end
 end
 
+-- ------------------------------------------------------------------ near tier
+
+local function wedge(size: Vector3, color: Color3): BasePart
+	return mk(size, color, "WedgePart")
+end
+
+-- Near-tier headgear: shako with peak, chin scales and plate; helmets with comb and mane;
+-- bearskins with cords and plume. `at`: top of the head, facing +X.
+local function headgearNear(add: Add, L: Look, at: CFrame, seed: number)
+	local h = L.head
+	local function put(p: BasePart, x: number, y: number, z: number, rot: CFrame?)
+		add(p, at * CFrame.new(x, y, z) * (rot or CFrame.identity), 0, 0)
+	end
+	local function peakAndScales(y: number, w: number)
+		put(mk(Vector3.new(0.24, 0.03, w * 0.9), INK), 0.3, y, 0, CFrame.Angles(0, 0, math.rad(-14))) -- peak
+		put(metal(mk(Vector3.new(w + 0.04, 0.05, w + 0.04), BRASS)), 0, y + 0.03, 0, nil) -- chin scales / band
+	end
+	if h == "bearskin" or h == "bonnet" then
+		put(mk(Vector3.new(0.5, 0.78, 0.5), FUR), 0, 0.35, 0, nil)
+		put(mk(Vector3.new(0.06, 0.16, 0.5), L.facing), 0.24, 0.5, 0, nil) -- front patch / band
+		put(mk(Vector3.new(0.08, 0.44, 0.08), L.plume or WHITE), 0.02, 0.7, if h == "bonnet" then 0.25 else -0.25, nil)
+		if h == "bearskin" then
+			put(mk(Vector3.new(0.5, 0.03, 0.03), WHITE), 0, 0.2, 0, CFrame.Angles(math.rad(-25), 0, 0)) -- cords
+		end
+	elseif h == "mitre" then
+		put(mk(Vector3.new(0.34, 0.54, 0.4), RED), -0.04, 0.24, 0, nil)
+		put(metal(mk(Vector3.new(0.06, 0.66, 0.42), BRASS)), 0.18, 0.3, 0, nil)
+		put(ball(0.12, WHITE), -0.04, 0.54, 0, nil)
+	elseif h == "stovepipe" then
+		put(mk(Vector3.new(0.4, 0.64, 0.4), INK), 0, 0.29, 0, nil)
+		peakAndScales(0, 0.4)
+		put(metal(mk(Vector3.new(0.04, 0.22, 0.18), L.plate or BRASS)), 0.21, 0.32, 0, nil)
+		put(mk(Vector3.new(0.08, 0.22, 0.08), WHITE), 0.1, 0.68, 0, nil) -- tuft
+	elseif h == "kiwer" then
+		put(mk(Vector3.new(0.42, 0.46, 0.42), INK), 0, 0.21, 0, nil)
+		put(mk(Vector3.new(0.58, 0.08, 0.58), INK), 0, 0.46, 0, nil)
+		peakAndScales(0, 0.42)
+		put(metal(mk(Vector3.new(0.05, 0.2, 0.22), L.plate or GOLD)), 0.22, 0.2, 0, nil)
+		put(ball(0.14, L.plume or WHITE), 0.16, 0.56, 0, nil)
+	elseif h == "kaskett" then
+		put(mk(Vector3.new(0.44, 0.36, 0.44), INK), -0.02, 0.17, 0, nil)
+		put(mk(Vector3.new(0.06, 0.56, 0.44), INK), 0.2, 0.32, 0, nil)
+		put(metal(mk(Vector3.new(0.02, 0.14, 0.3), BRASS)), 0.24, 0.52, 0, nil)
+		put(mk(Vector3.new(0.3, 0.03, 0.44), INK), 0.3, 0.0, 0, CFrame.Angles(0, 0, math.rad(-12)))
+	elseif h == "crested" then
+		put(mk(Vector3.new(0.44, 0.34, 0.44), INK), 0, 0.16, 0, nil)
+		put(mk(Vector3.new(0.56, 0.26, 0.14), FUR), -0.02, 0.44, 0, nil)
+		peakAndScales(0, 0.44)
+	elseif h == "helmet" then
+		local c = L.headColour
+		put(metal(ball(0.52, c)), 0, 0.08, 0, nil)
+		put(metal(mk(Vector3.new(0.3, 0.03, 0.4), c)), 0.3, -0.02, 0, CFrame.Angles(0, 0, math.rad(-14))) -- peak
+		put(metal(mk(Vector3.new(0.58, 0.2, 0.08), if c == STEEL then BRASS else c)), -0.02, 0.36, 0, nil) -- comb
+		put(mk(Vector3.new(0.1, 0.72, 0.12), if L.kind == "carabinier" then RED else FUR), -0.34, 0.0, 0, CFrame.Angles(0, 0, math.rad(-14))) -- mane
+		put(metal(mk(Vector3.new(0.46, 0.04, 0.5), BRASS)), 0, -0.1, 0, nil) -- chin scales
+		if L.plume then
+			put(mk(Vector3.new(0.08, 0.5, 0.08), L.plume), 0.1, 0.52, -0.18, nil)
+		end
+	elseif h == "busby" then
+		put(mk(Vector3.new(0.46, 0.52, 0.46), FUR), 0, 0.24, 0, nil)
+		put(mk(Vector3.new(0.14, 0.4, 0.12), L.pelisse or RED), -0.2, 0.3, 0.22, CFrame.Angles(math.rad(28), 0, 0)) -- bag
+		put(mk(Vector3.new(0.08, 0.46, 0.08), L.plume or WHITE), 0.12, 0.66, 0, nil)
+		put(metal(mk(Vector3.new(0.48, 0.03, 0.03), BRASS)), 0, 0.02, 0, nil) -- chin chain
+	elseif h == "czapka" then
+		put(mk(Vector3.new(0.38, 0.3, 0.38), INK), 0, 0.14, 0, nil)
+		put(mk(Vector3.new(0.5, 0.14, 0.5), L.facing), 0, 0.36, 0, CFrame.Angles(0, math.rad(45), 0))
+		peakAndScales(0, 0.38)
+		put(mk(Vector3.new(0.08, 0.4, 0.08), WHITE), 0.08, 0.6, -0.18, nil)
+	elseif h == "bicorne" then
+		put(mk(Vector3.new(0.3, 0.32, 1.0), INK), 0, 0.15, 0, nil)
+		put(mk(Vector3.new(0.34, 0.18, 0.22), INK), 0, 0.18, 0, nil)
+		put(mk(Vector3.new(0.32, 0.08, 0.64), L.plume or INK), 0, 0.34, 0, nil)
+		put(metal(mk(Vector3.new(0.03, 0.14, 0.14), GOLD)), 0.16, 0.2, 0.05, nil) -- cockade
+	else -- shako
+		put(mk(Vector3.new(0.42, 0.5, 0.44), INK), 0, 0.23, 0, nil)
+		peakAndScales(0, 0.42)
+		put(metal(mk(Vector3.new(0.03, 0.2, 0.18), L.plate or BRASS)), 0.22, 0.26, 0, nil) -- plate
+		put(mk(Vector3.new(0.44, 0.03, 0.03), WHITE), 0, 0.42, 0, CFrame.Angles(math.rad(-20), 0, 0)) -- cords
+		if L.plume then
+			put(mk(Vector3.new(0.08, 0.44, 0.08), L.plume), 0.12, 0.66, 0, nil)
+		elseif L.nation == "france" and L.kind == "line" then
+			put(ball(0.15, POMPONS[seed // 6 % #POMPONS + 1]), 0.16, 0.54, 0, nil)
+		else
+			put(ball(0.14, WHITE), 0.16, 0.54, 0, nil)
+		end
+	end
+end
+
+-- Jointed legs: thigh (anim 1/2) and shin + shoe (anim 7/8) per side, hip at 1.1.
+local function legsNear(add: Add, L: Look)
+	for i, z in { -0.16, 0.16 } do
+		add(mk(Vector3.new(0.3, 0.52, 0.27), L.legs), CFrame.new(0, 0.84, z), i, 1.1)
+		add(mk(Vector3.new(0.26, 0.5, 0.24), L.gaiters or L.legs), CFrame.new(0.01, 0.31, z), i + 6, 1.1)
+		add(mk(Vector3.new(0.4, 0.1, 0.24), INK), CFrame.new(0.07, 0.05, z), i + 6, 1.1)
+	end
+end
+
+-- Arms with bent elbows: upper arm, forearm (cuff colour) and hand, posed by anim 12/13.
+local function armsNear(add: Add, L: Look)
+	-- left: hangs, forearm a little forward (rest), reaches along the musket (levelled)
+	add(mk(Vector3.new(0.2, 0.5, 0.2), L.coat), CFrame.new(0, -0.27, 0), 12, 0)
+	add(mk(Vector3.new(0.18, 0.46, 0.18), L.facing), CFrame.new(0.12, -0.7, 0) * CFrame.Angles(0, 0, math.rad(-28)), 12, 0)
+	add(ball(0.17, SKIN), CFrame.new(0.26, -0.9, 0), 12, 0)
+	-- right: elbow bent to hold the butt at the hip (rest), trigger hand forward (levelled)
+	add(mk(Vector3.new(0.2, 0.5, 0.2), L.coat), CFrame.new(0, -0.27, 0), 13, 0)
+	add(mk(Vector3.new(0.18, 0.46, 0.18), L.facing), CFrame.new(0.2, -0.6, 0) * CFrame.Angles(0, 0, math.rad(-70)), 13, 0)
+	add(ball(0.17, SKIN), CFrame.new(0.42, -0.62, 0), 13, 0)
+end
+
+-- Musket with lock, barrel and bayonet, all on the musket chain (anim 3).
+local function musketNear(add: Add)
+	add(mk(Vector3.new(0.09, 1.7, 0.09), WOOD), CFrame.new(), 3, 0)
+	add(metal(mk(Vector3.new(0.05, 1.2, 0.05), STEEL)), CFrame.new(0.03, 0.4, 0), 3, 0)
+	add(metal(mk(Vector3.new(0.03, 0.5, 0.03), STEEL)), CFrame.new(0.04, 1.1, 0), 3, 0) -- bayonet
+	add(metal(mk(Vector3.new(0.06, 0.14, 0.04), BRASS)), CFrame.new(0, -0.3, 0.05), 3, 0) -- lock
+end
+
+local function infantryNear(add: Add, L: Look, role: InfantryRole, seed: number)
+	legsNear(add, L)
+	-- torso: chest wider at the shoulders, waist, coat tails behind
+	add(mk(Vector3.new(0.46, 0.62, 0.74), L.coat), CFrame.new(0, 1.84, 0), 0, 0)
+	add(mk(Vector3.new(0.4, 0.46, 0.6), L.coat), CFrame.new(0, 1.32, 0), 0, 0)
+	add(wedge(Vector3.new(0.3, 0.6, 0.52), L.coat), CFrame.new(-0.28, 1.0, 0) * CFrame.Angles(0, math.pi, 0), 0, 0) -- tails
+	add(mk(Vector3.new(0.04, 0.2, 0.5), L.facing), CFrame.new(-0.4, 0.78, 0), 0, 0) -- turnbacks
+	add(mk(Vector3.new(0.48, 0.14, 0.64), L.facing), CFrame.new(0, 2.14, 0), 0, 0) -- collar
+	local lapels = L.lapels
+	if lapels and lapels ~= L.coat then
+		add(mk(Vector3.new(0.04, 0.58, 0.38), lapels), CFrame.new(0.25, 1.86, 0), 0, 0)
+	end
+	local ep = L.epaulettes
+	if ep then
+		add(mk(Vector3.new(0.22, 0.09, 0.2), ep), CFrame.new(0, 2.17, -0.36), 0, 0)
+		add(mk(Vector3.new(0.22, 0.09, 0.2), ep), CFrame.new(0, 2.17, 0.36), 0, 0)
+	end
+	-- cross-belts, cartridge box on the right hip, knapsack with the rolled greatcoat
+	add(mk(Vector3.new(0.05, 1.2, 0.1), L.belts), CFrame.new(0.25, 1.62, 0) * CFrame.Angles(0.6, 0, 0), 0, 0)
+	add(mk(Vector3.new(0.05, 1.2, 0.1), L.belts), CFrame.new(0.25, 1.62, 0) * CFrame.Angles(-0.6, 0, 0), 0, 0)
+	add(mk(Vector3.new(0.22, 0.24, 0.32), INK), CFrame.new(-0.22, 1.2, 0.36), 0, 0) -- cartridge box
+	add(mk(Vector3.new(0.28, 0.5, 0.5), L.pack), CFrame.new(-0.36, 1.78, 0), 0, 0)
+	add(cyl(0.54, 0.11, GREATCOAT), CFrame.new(-0.36, 2.1, 0) * CFrame.Angles(0, math.pi / 2, 0), 0, 0)
+	if L.kind == "grenadier" or L.kind == "guard" then
+		add(metal(mk(Vector3.new(0.04, 0.7, 0.05), STEEL)), CFrame.new(-0.15, 1.0, -0.34) * CFrame.Angles(0, 0, math.rad(-18)), 0, 0) -- sabre-briquet
+	end
+	armsNear(add, L)
+	add(mk(Vector3.new(0.18, 0.16, 0.18), SKIN), CFrame.new(0, 2.22, 0), 0, 0) -- neck
+	add(ball(0.46, SKIN), CFrame.new(0, 2.44, 0), 0, 0)
+	headgearNear(add, L, CFrame.new(0, 2.64, 0), seed)
+	if role == "line" then
+		musketNear(add)
+	elseif role == "colour" then
+		add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2, POLE.Z), 0, 0)
+		if L.nation == "france" then
+			add(metal(mk(Vector3.new(0.14, 0.12, 0.12), GOLD)), CFrame.new(POLE.X, 4.45, POLE.Z), 0, 0)
+			add(metal(mk(Vector3.new(0.16, 0.2, 0.12), GOLD)), CFrame.new(POLE.X + 0.02, 4.6, POLE.Z), 0, 0)
+			add(metal(mk(Vector3.new(0.06, 0.14, 0.5), GOLD)), CFrame.new(POLE.X - 0.02, 4.68, POLE.Z) * CFrame.Angles(math.rad(-8), 0, 0), 0, 0)
+			add(metal(mk(Vector3.new(0.1, 0.1, 0.06), GOLD)), CFrame.new(POLE.X + 0.1, 4.72, POLE.Z), 0, 0) -- head
+		else
+			add(metal(mk(Vector3.new(0.1, 0.3, 0.1), GOLD)), CFrame.new(POLE.X, 4.5, POLE.Z) * CFrame.Angles(0, math.rad(45), 0), 0, 0)
+		end
+		Soldiers.flag(add, L.nation, CFrame.new(POLE.X - 0.03, 3.65, POLE.Z), 1.7, 1.25, 6)
+	elseif role == "drummer" then
+		local at = CFrame.new(0.34, 1.22, 0.14) * CFrame.Angles(0, 0, math.pi / 2)
+		add(cyl(0.44, 0.31, if L.nation == "france" then BRASS else WHITE), at, 0, 0)
+		add(cyl(0.48, 0.27, L.facing), at, 0, 0)
+		add(mk(Vector3.new(0.3, 0.03, 0.03), WOOD), CFrame.new(0.5, 1.5, 0.3) * CFrame.Angles(0, 0, math.rad(-30)), 0, 0) -- sticks
+		add(mk(Vector3.new(0.3, 0.03, 0.03), WOOD), CFrame.new(0.5, 1.5, 0.0) * CFrame.Angles(0, 0, math.rad(-40)), 0, 0)
+	end
+end
+
+-- Near-tier horse: barrel, chest and rump, arched neck with mane, head with ears and bridle,
+-- jointed legs (anim 4/5 upper, 9/10 cannon + hoof), tail, saddle and shabraque in `cloth`.
+local function horseNear(add: Add, origin: CFrame, seed: number, cloth: Color3?, hide: Color3?)
+	local coat = hide or HORSES[seed % #HORSES + 1]
+	local function put(p: BasePart, cf: CFrame, anim: number?, pivot: number?)
+		add(p, origin * cf, anim or 0, pivot or 0)
+	end
+	put(mk(Vector3.new(1.5, 0.86, 0.74), coat), CFrame.new(0, 1.6, 0))
+	put(ball(0.82, coat), CFrame.new(0.82, 1.66, 0))
+	put(ball(0.8, coat), CFrame.new(-0.8, 1.62, 0))
+	put(mk(Vector3.new(0.44, 1.0, 0.36), coat), CFrame.new(1.12, 2.2, 0) * CFrame.Angles(0, 0, math.rad(-38))) -- neck
+	put(mk(Vector3.new(0.08, 0.9, 0.1), INK), CFrame.new(0.98, 2.4, 0) * CFrame.Angles(0, 0, math.rad(-38))) -- mane
+	put(mk(Vector3.new(0.66, 0.32, 0.3), coat), CFrame.new(1.58, 2.58, 0) * CFrame.Angles(0, 0, math.rad(-22))) -- head
+	put(mk(Vector3.new(0.3, 0.26, 0.26), coat), CFrame.new(1.85, 2.46, 0) * CFrame.Angles(0, 0, math.rad(-22))) -- muzzle
+	put(mk(Vector3.new(0.08, 0.18, 0.06), coat), CFrame.new(1.34, 2.84, -0.1))
+	put(mk(Vector3.new(0.08, 0.18, 0.06), coat), CFrame.new(1.34, 2.84, 0.1))
+	put(mk(Vector3.new(0.34, 0.04, 0.34), INK), CFrame.new(1.7, 2.52, 0) * CFrame.Angles(0, 0, math.rad(68))) -- noseband
+	put(mk(Vector3.new(0.9, 0.03, 0.03), INK), CFrame.new(0.9, 2.4, 0.2) * CFrame.Angles(0, 0, math.rad(-10))) -- rein
+	put(mk(Vector3.new(0.4, 0.14, 0.14), INK), CFrame.new(-1.2, 1.7, 0) * CFrame.Angles(0, 0, math.rad(50))) -- dock
+	put(mk(Vector3.new(0.7, 0.12, 0.12), INK), CFrame.new(-1.42, 1.1, 0) * CFrame.Angles(0, 0, math.rad(75))) -- tail
+	for _, l in { { 0.72, -0.26, 4 }, { 0.72, 0.26, 5 }, { -0.72, -0.26, 5 }, { -0.72, 0.26, 4 } } do
+		put(mk(Vector3.new(0.22, 0.62, 0.2), coat), CFrame.new(l[1], 0.86, l[2]), l[3], 1.15)
+		put(mk(Vector3.new(0.14, 0.5, 0.14), coat), CFrame.new(l[1], 0.33, l[2]), l[3] + 5, 1.15)
+		put(mk(Vector3.new(0.2, 0.1, 0.18), INK), CFrame.new(l[1] + 0.02, 0.05, l[2]), l[3] + 5, 1.15)
+	end
+	if cloth then
+		put(fabric(mk(Vector3.new(1.1, 0.08, 1.0), cloth)), CFrame.new(-0.12, 2.02, 0))
+		put(fabric(wedge(Vector3.new(0.4, 0.08, 1.0), cloth)), CFrame.new(-0.87, 2.02, 0) * CFrame.Angles(0, math.pi, 0)) -- pointed rear corner
+		put(mk(Vector3.new(0.64, 0.18, 0.56), DARK_WOOD), CFrame.new(-0.05, 2.12, 0)) -- saddle
+		put(mk(Vector3.new(0.05, 0.42, 0.04), STEEL), CFrame.new(0.05, 1.5, 0.5)) -- stirrup leather
+		put(mk(Vector3.new(0.05, 0.42, 0.04), STEEL), CFrame.new(0.05, 1.5, -0.5))
+	end
+end
+
+local function riderNear(add: Add, L: Look, seed: number)
+	horseNear(add, CFrame.new(), seed, L.pelisse or L.coat, L.horse)
+	-- legs bent at the knee down the horse's flanks
+	for _, z in { -0.44, 0.44 } do
+		add(mk(Vector3.new(0.6, 0.24, 0.22), L.legs), CFrame.new(0.2, 2.05, z) * CFrame.Angles(0, 0, math.rad(-15)), 0, 0)
+		add(mk(Vector3.new(0.2, 0.5, 0.2), L.legs), CFrame.new(0.38, 1.7, z), 0, 0)
+		add(mk(Vector3.new(0.32, 0.1, 0.2), INK), CFrame.new(0.42, 1.44, z), 0, 0)
+	end
+	add(mk(Vector3.new(0.42, 0.86, 0.6), L.coat), CFrame.new(-0.05, 2.66, 0), 0, 0)
+	add(mk(Vector3.new(0.46, 0.14, 0.62), L.facing), CFrame.new(-0.05, 3.1, 0), 0, 0) -- collar
+	local cuirass = L.cuirass
+	if cuirass then
+		add(metal(mk(Vector3.new(0.5, 0.6, 0.66), cuirass)), CFrame.new(-0.03, 2.8, 0), 0, 0)
+	elseif L.kind == "hussar" then
+		add(mk(Vector3.new(0.04, 0.5, 0.5), BRASS), CFrame.new(0.17, 2.72, 0), 0, 0) -- dolman braid
+	end
+	local pelisse = L.pelisse
+	if pelisse then
+		add(mk(Vector3.new(0.46, 0.64, 0.2), pelisse), CFrame.new(-0.08, 2.74, -0.38) * CFrame.Angles(math.rad(-10), 0, 0), 0, 0)
+		add(mk(Vector3.new(0.48, 0.1, 0.22), FUR), CFrame.new(-0.08, 3.06, -0.38), 0, 0) -- fur collar
+	end
+	if L.epaulettes then
+		add(mk(Vector3.new(0.18, 0.09, 0.7), L.epaulettes), CFrame.new(-0.05, 3.12, 0), 0, 0)
+	end
+	-- arms: left holds the reins, right the sabre or lance
+	add(mk(Vector3.new(0.2, 0.46, 0.2), L.coat), CFrame.new(-0.05, 2.74, -0.42) * CFrame.Angles(0, 0, math.rad(15)), 0, 0)
+	add(mk(Vector3.new(0.5, 0.18, 0.18), L.coat), CFrame.new(0.3, 2.5, -0.42) * CFrame.Angles(0, 0, math.rad(-10)), 0, 0)
+	add(mk(Vector3.new(0.2, 0.46, 0.2), L.coat), CFrame.new(-0.05, 2.74, 0.42) * CFrame.Angles(0, 0, math.rad(-10)), 0, 0)
+	add(mk(Vector3.new(0.4, 0.18, 0.18), L.coat), CFrame.new(0.2, 2.5, 0.44) * CFrame.Angles(0, 0, math.rad(-30)), 0, 0)
+	add(ball(0.42, SKIN), CFrame.new(-0.05, 3.3, 0), 0, 0)
+	headgearNear(add, L, CFrame.new(-0.05, 3.5, 0), seed)
+	local pennon = L.pennon
+	if pennon then
+		add(mk(Vector3.new(0.06, 5.2, 0.06), DARK_WOOD), CFrame.new(0.1, 3.6, 0.46) * CFrame.Angles(0, 0, math.rad(-6)), 0, 0)
+		add(fabric(wedge(Vector3.new(0.03, 0.16, 0.6), pennon[1])), CFrame.new(-0.2, 6.02, 0.46) * CFrame.Angles(0, math.rad(90), 0), 0, 0)
+		add(fabric(wedge(Vector3.new(0.03, 0.16, 0.6), pennon[2])), CFrame.new(-0.2, 5.86, 0.46) * CFrame.Angles(math.pi, math.rad(90), 0), 0, 0)
+	elseif L.kind ~= "officer" and L.kind ~= "emperor" then
+		add(metal(mk(Vector3.new(0.04, 1.1, 0.05), STEEL)), CFrame.new(0.4, 2.9, 0.5) * CFrame.Angles(0, 0, math.rad(35)), 0, 0) -- drawn sabre
+		add(metal(mk(Vector3.new(0.12, 0.08, 0.12), BRASS)), CFrame.new(0.42, 2.5, 0.5), 0, 0) -- hilt
+		add(metal(mk(Vector3.new(0.04, 1.1, 0.05), INK)), CFrame.new(-0.3, 1.9, 0.5) * CFrame.Angles(0, 0, math.rad(-60)), 0, 0) -- scabbard
+	else
+		add(mk(Vector3.new(0.6, 0.04, 0.04), WHITE), CFrame.new(0.3, 2.95, 0.3), 0, 0) -- pointing the way
+	end
+end
+
+-- Spoked wheel: hub, 8 spokes and an 8-segment rim with iron tyre; axis along local Z.
+local function wheelNear(add: Add, at: CFrame, r: number, paint: Color3)
+	add(cyl(0.26, 0.16, paint), at * CFrame.Angles(0, math.pi / 2, 0), 0, 0)
+	for i = 0, 7 do
+		local a = i * math.pi / 4
+		local rot = at * CFrame.Angles(0, 0, a)
+		add(mk(Vector3.new(0.06, r - 0.12, 0.08), paint), rot * CFrame.new(0, r / 2, 0), 0, 0)
+		local seg = 2 * r * math.sin(math.pi / 8) + 0.02
+		add(mk(Vector3.new(seg, 0.1, 0.14), IRON), rot * CFrame.Angles(0, 0, math.pi / 8) * CFrame.new(0, r - 0.05, 0), 0, 0)
+	end
+end
+
+-- Barrel with muzzle swell, reinforce ring, trunnions and cascabel; axis along local X.
+local function barrelNear(add: Add, at: CFrame, len: number)
+	add(metal(cyl(len, 0.16, BRONZE)), at, 0, 0)
+	add(metal(cyl(0.26, 0.2, BRONZE)), at * CFrame.new(len / 2 - 0.13, 0, 0), 0, 0) -- muzzle swell
+	add(metal(cyl(0.16, 0.2, BRONZE)), at * CFrame.new(-0.1, 0, 0), 0, 0) -- reinforce
+	add(metal(cyl(0.8, 0.07, BRONZE)), at * CFrame.new(-0.05, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), 0, 0) -- trunnions
+	add(metal(ball(0.2, BRONZE)), at * CFrame.new(-len / 2 - 0.08, 0, 0), 0, 0) -- cascabel
+end
+
+-- Crew at their stations: rammer at the muzzle, gun-layer crouched at the breech, ventsman,
+-- loader with the next round. Every part is on anim 11, so they step clear when the gun fires.
+local function gunnerNear(add: Add, L: Look, at: CFrame, side: number, job: string)
+	local function put(p: BasePart, cf: CFrame)
+		add(p, at * cf, 11, side)
+	end
+	local crouch = job == "layer"
+	local lean = if crouch then math.rad(28) else 0
+	for _, z in { -0.16, 0.16 } do
+		put(mk(Vector3.new(0.3, 0.52, 0.27), L.legs), CFrame.new(0, 0.84, z) * CFrame.Angles(0, 0, if crouch then math.rad(-25) else 0))
+		put(mk(Vector3.new(0.26, 0.5, 0.24), L.gaiters or L.legs), CFrame.new(0, 0.3, z))
+	end
+	local torso = CFrame.new(0, 1.6, 0) * CFrame.Angles(0, 0, -lean)
+	put(mk(Vector3.new(0.42, 1.0, 0.64), L.coat), torso)
+	put(mk(Vector3.new(0.46, 0.14, 0.62), L.facing), torso * CFrame.new(0, 0.5, 0))
+	put(mk(Vector3.new(0.05, 1.1, 0.1), WHITE), torso * CFrame.new(0.22, 0, 0) * CFrame.Angles(0.6, 0, 0))
+	put(ball(0.44, SKIN), torso * CFrame.new(0, 0.78, 0))
+	local top = torso * CFrame.new(0, 0.98, 0)
+	put(mk(Vector3.new(0.42, 0.48, 0.42), INK), top * CFrame.new(0, 0.22, 0))
+	put(mk(Vector3.new(0.24, 0.03, 0.38), INK), top * CFrame.new(0.3, 0, 0) * CFrame.Angles(0, 0, math.rad(-14)))
+	put(ball(0.14, RED), top * CFrame.new(0.16, 0.52, 0))
+	-- arms forward on the tool
+	put(mk(Vector3.new(0.5, 0.18, 0.18), L.coat), torso * CFrame.new(0.3, 0.2, -0.4) * CFrame.Angles(0, 0, math.rad(-20)))
+	put(mk(Vector3.new(0.5, 0.18, 0.18), L.coat), torso * CFrame.new(0.3, 0.2, 0.4) * CFrame.Angles(0, 0, math.rad(-20)))
+	if job == "rammer" then
+		put(mk(Vector3.new(2.4, 0.07, 0.07), WOOD), CFrame.new(0.9, 1.7, 0) * CFrame.Angles(0, math.rad(-side * 60), math.rad(-8)))
+		put(cyl(0.2, 0.12, GREATCOAT), CFrame.new(2.0, 1.6, -side * 1.9) * CFrame.Angles(0, math.rad(-side * 60), 0)) -- sponge head
+	elseif job == "loader" then
+		put(metal(ball(0.26, IRON)), torso * CFrame.new(0.5, 0.2, 0)) -- the round
+	elseif job == "vent" then
+		put(mk(Vector3.new(0.9, 0.05, 0.05), WOOD), torso * CFrame.new(0.5, 0.4, 0) * CFrame.Angles(0, 0, math.rad(40))) -- linstock
+	end
+end
+
+local function gunNear(add: Add, L: Look, limbered: boolean, seed: number)
+	local paint = L.carriage
+	local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
+	for side = -1, 1, 2 do
+		wheelNear(add, g * CFrame.new(0, 0.75, side * 0.72), 0.75, paint)
+	end
+	add(mk(Vector3.new(0.16, 0.16, 1.4), paint), g * CFrame.new(0, 0.75, 0), 0, 0) -- axle
+	for side = -1, 1, 2 do
+		add(wedge(Vector3.new(0.14, 0.5, 2.0), paint), g * CFrame.new(-0.6, 0.9, side * 0.3) * CFrame.Angles(0, math.pi / 2, 0), 0, 0) -- cheeks
+	end
+	add(mk(Vector3.new(2.0, 0.22, 0.34), paint), g * CFrame.new(-1.1, 0.42, 0) * CFrame.Angles(0, 0, math.rad(17)), 0, 0) -- trail
+	add(metal(mk(Vector3.new(0.3, 0.1, 0.9), IRON)), g * CFrame.new(0.05, 1.1, 0), 0, 0) -- capsquares
+	add(wedge(Vector3.new(0.3, 0.2, 0.3), WOOD), g * CFrame.new(-0.55, 0.98, 0), 0, 0) -- elevating quoin
+	barrelNear(add, g * CFrame.new(0.4, 1.12, 0) * CFrame.Angles(0, 0, math.rad(4)), 2.3)
+	if limbered then
+		for side = -1, 1, 2 do
+			wheelNear(add, CFrame.new(1.0, 0.65, side * 0.68), 0.65, paint)
+		end
+		add(mk(Vector3.new(0.16, 0.16, 1.3), paint), CFrame.new(1.0, 0.65, 0), 0, 0)
+		add(mk(Vector3.new(1.0, 0.55, 1.0), paint), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
+		add(mk(Vector3.new(1.0, 0.06, 1.04), INK), CFrame.new(1.0, 1.5, 0), 0, 0) -- lid
+		add(mk(Vector3.new(2.6, 0.12, 0.12), paint), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
+		horseNear(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
+		horseNear(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
+		add(mk(Vector3.new(0.05, 0.05, 1.3), INK), CFrame.new(3.4, 1.9, 0), 0, 0) -- traces
+		for _, p in { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } do
+			gunnerNear(add, L, CFrame.new(p[1], 0, p[2]), if p[2] > 0 then 1 else -1, "walk")
+		end
+	else
+		gunnerNear(add, L, CFrame.new(1.2, 0, -1.3) * CFrame.Angles(0, math.rad(90), 0), -1, "rammer")
+		gunnerNear(add, L, CFrame.new(-2.4, 0, 0.5), 1, "layer")
+		gunnerNear(add, L, CFrame.new(-0.9, 0, 1.3) * CFrame.Angles(0, math.rad(-90), 0), 1, "vent")
+		gunnerNear(add, L, CFrame.new(0.4, 0, -1.6) * CFrame.Angles(0, math.rad(90), 0), -1, "loader")
+	end
+end
+
 -- ------------------------------------------------------------------ infantry
 
 export type InfantryRole = "line" | "colour" | "drummer"
@@ -428,41 +793,28 @@ export type InfantryRole = "line" | "colour" | "drummer"
 -- Legs, coat with facings, belts, knapsack, head and headgear. `seed` varies company pompons.
 function Soldiers.infantry(add: Add, L: Look, detail: boolean, role: InfantryRole, seed: number?)
 	local s = seed or 0
-	if detail and L.gaiters then
-		-- breeches above, black gaiters below the knee; both swing about the hip
-		for i, z in { -0.16, 0.16 } do
-			add(mk(Vector3.new(0.3, 0.56, 0.26), L.legs), CFrame.new(0, 0.82, z), i, 1.1)
-			add(mk(Vector3.new(0.31, 0.56, 0.27), L.gaiters :: Color3), CFrame.new(0, 0.28, z), i, 1.1)
-		end
-	else
-		add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, -0.16), 1, 1.1)
-		add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, 0.16), 2, 1.1)
+	if detail then
+		infantryNear(add, L, role, s)
+		return
 	end
+	add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, -0.16), 1, 1.1)
+	add(mk(Vector3.new(0.3, 1.1, 0.26), L.legs), CFrame.new(0, 0.55, 0.16), 2, 1.1)
 	add(mk(Vector3.new(0.42, 1.05, 0.66), L.coat), CFrame.new(0, 1.6, 0), 0, 0)
 	add(mk(Vector3.new(0.46, 0.14, 0.62), L.facing), CFrame.new(0, 2.1, 0), 0, 0) -- collar
 	add(mk(Vector3.new(0.26, 0.5, 0.48), L.pack), CFrame.new(-0.33, 1.72, 0), 0, 0) -- knapsack
-	if detail then
-		local lapels = L.lapels
-		if lapels and lapels ~= L.coat then
-			add(mk(Vector3.new(0.04, 0.6, 0.34), lapels), CFrame.new(0.22, 1.78, 0), 0, 0)
-		end
-		-- cross-belts over the coat front
-		add(mk(Vector3.new(0.05, 1.15, 0.09), L.belts), CFrame.new(0.22, 1.6, 0) * CFrame.Angles(0.6, 0, 0), 0, 0)
-		add(mk(Vector3.new(0.05, 1.15, 0.09), L.belts), CFrame.new(0.22, 1.6, 0) * CFrame.Angles(-0.6, 0, 0), 0, 0)
-		add(cyl(0.5, 0.1, GREATCOAT), CFrame.new(-0.3, 2.04, 0) * CFrame.Angles(0, math.pi / 2, 0), 0, 0) -- rolled greatcoat
-		local ep = L.epaulettes
-		if ep then
-			add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, -0.33), 0, 0)
-			add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, 0.33), 0, 0)
-		end
+	local lapels = L.lapels
+	if lapels and lapels ~= L.coat then
+		add(mk(Vector3.new(0.04, 0.6, 0.34), lapels), CFrame.new(0.22, 1.78, 0), 0, 0)
+	end
+	local ep = L.epaulettes
+	if ep then
+		add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, -0.33), 0, 0)
+		add(mk(Vector3.new(0.18, 0.09, 0.16), ep), CFrame.new(0, 2.12, 0.33), 0, 0)
 	end
 	add(ball(0.46, SKIN), CFrame.new(0, 2.38, 0), 0, 0)
-	headgear(add, L, CFrame.new(0, 2.58, 0), detail, s)
+	headgear(add, L, CFrame.new(0, 2.58, 0), false, s)
 	if role == "line" then
 		add(mk(Vector3.new(0.08, 1.7, 0.08), WOOD), CFrame.new(), 3, 0)
-		if detail then
-			add(metal(mk(Vector3.new(0.04, 0.4, 0.04), STEEL)), CFrame.new(0, 1.03, 0), 3, 0)
-		end
 	elseif role == "colour" then
 		add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2, POLE.Z), 0, 0)
 		if L.nation == "france" then
@@ -498,7 +850,11 @@ function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, 
 end
 
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
-	Soldiers.horse(add, CFrame.new(), seed, if detail then (if L.pelisse then L.pelisse else L.coat) else nil, L.horse)
+	if detail then
+		riderNear(add, L, seed)
+		return
+	end
+	Soldiers.horse(add, CFrame.new(), seed, nil, L.horse)
 	add(mk(Vector3.new(0.35, 0.6, 0.9), L.legs), CFrame.new(-0.05, 2.0, 0), 0, 0)
 	add(mk(Vector3.new(0.4, 0.85, 0.58), L.coat), CFrame.new(-0.05, 2.65, 0), 0, 0)
 	add(ball(0.42, SKIN), CFrame.new(-0.05, 3.3, 0), 0, 0)
@@ -511,34 +867,22 @@ function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
 		-- slung from the left shoulder, fur-trimmed
 		add(mk(Vector3.new(0.46, 0.62, 0.2), pelisse), CFrame.new(-0.08, 2.72, -0.36) * CFrame.Angles(math.rad(-10), 0, 0), 0, 0)
 	end
-	if detail and L.epaulettes then
-		add(mk(Vector3.new(0.18, 0.09, 0.7), L.epaulettes), CFrame.new(-0.05, 3.08, 0), 0, 0)
-	end
-	headgear(add, L, CFrame.new(-0.05, 3.5, 0), detail, seed)
+	headgear(add, L, CFrame.new(-0.05, 3.5, 0), false, seed)
 	local pennon = L.pennon
 	if pennon then
 		-- lance carried upright at the right stirrup, pennon at the tip
 		add(mk(Vector3.new(0.06, 5.2, 0.06), DARK_WOOD), CFrame.new(0.1, 3.6, 0.42) * CFrame.Angles(0, 0, math.rad(-6)), 0, 0)
-		if detail then
-			add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[1])), CFrame.new(-0.05, 6.0, 0.42), 0, 0)
-			add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[2])), CFrame.new(-0.05, 5.86, 0.42), 0, 0)
-		end
-	elseif detail and L.kind ~= "officer" and L.kind ~= "emperor" then
-		-- sabre at the shoulder
-		add(metal(mk(Vector3.new(0.05, 1.1, 0.05), STEEL)), CFrame.new(0.15, 3.15, 0.36) * CFrame.Angles(0, 0, math.rad(20)), 0, 0)
+		add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[1])), CFrame.new(-0.05, 6.0, 0.42), 0, 0)
 	end
 end
 
 -- ------------------------------------------------------------------ artillery
 
-local function gunner(add: Add, L: Look, at: CFrame, detail: boolean, rammer: boolean)
+local function gunner(add: Add, L: Look, at: CFrame)
 	add(mk(Vector3.new(0.3, 1.1, 0.5), L.legs), at * CFrame.new(0, 0.55, 0), 0, 0)
 	add(mk(Vector3.new(0.42, 1.05, 0.62), L.coat), at * CFrame.new(0, 1.6, 0), 0, 0)
 	add(ball(0.44, SKIN), at * CFrame.new(0, 2.36, 0), 0, 0)
 	headgear(add, L, at * CFrame.new(0, 2.56, 0), false, 0)
-	if detail and rammer then
-		add(mk(Vector3.new(0.07, 2.6, 0.07), WOOD), at * CFrame.new(0.3, 1.5, 0) * CFrame.Angles(0, 0, math.rad(-20)), 0, 0)
-	end
 end
 
 -- Painted wheel with an iron tyre; axis along local Z.
@@ -551,6 +895,10 @@ end
 -- One gun on a two-wheeled carriage with trail, crew of 4; limbered: hooked to a limber
 -- with a two-horse team, crew walking alongside. Carriage paint follows the nation.
 function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, seed: number)
+	if detail then
+		gunNear(add, L, limbered, seed)
+		return
+	end
 	local paint = L.carriage
 	local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
 	for side = -1, 1, 2 do
@@ -564,17 +912,15 @@ function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, see
 			wheel(add, CFrame.new(1.0, 0.65, side * 0.65), 0.65, paint)
 		end
 		add(mk(Vector3.new(1.0, 0.55, 1.0), paint), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
-		if detail then
-			add(mk(Vector3.new(2.6, 0.12, 0.12), paint), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
-		end
+		add(mk(Vector3.new(2.6, 0.12, 0.12), paint), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
 		Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
 		Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
 		for _, p in { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } do
-			gunner(add, L, CFrame.new(p[1], 0, p[2]), detail, false)
+			gunner(add, L, CFrame.new(p[1], 0, p[2]))
 		end
 	else
-		for i, p in { { -1.7, -1.1 }, { -1.7, 1.1 }, { 0.3, -1.45 }, { 0.3, 1.45 } } do
-			gunner(add, L, CFrame.new(p[1], 0, p[2]), detail, i == 3)
+		for _, p in { { -1.7, -1.1 }, { -1.7, 1.1 }, { 0.3, -1.45 }, { 0.3, 1.45 } } do
+			gunner(add, L, CFrame.new(p[1], 0, p[2]))
 		end
 	end
 end
