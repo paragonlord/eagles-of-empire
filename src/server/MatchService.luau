@@ -20,6 +20,7 @@ local CommandGate = require(script.Parent.Net.CommandGate)
 local MatchClock = require(script.Parent.Net.MatchClock)
 local CampaignService = require(script.Parent.CampaignService)
 local Coop = require(script.Parent.Coop)
+local World = require(script.Parent.World)
 
 type Sim = Sim.Sim
 
@@ -61,6 +62,7 @@ local mapCache: { [string]: MapGen.MapData } = {}
 local matchCounter = 0
 local heartbeat: RBXScriptConnection? = nil
 local devView = RunService:IsStudio()
+local MENU_MAP = "jena" -- the field behind the menu
 
 local function mapFor(id: string): MapGen.MapData
 	local m = mapCache[id]
@@ -254,6 +256,7 @@ local function destroyMatch()
 	end
 	match = nil
 	roster.pvp = false
+	World.ensure(mapFor(MENU_MAP)) -- the menu shows Jena; a match on another map is cleared
 end
 
 -- Commanding players and their sides: a change re-splits the wings.
@@ -518,6 +521,7 @@ end
 
 local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: string?)
 	local map = mapFor(scenario.map)
+	World.ensure(map) -- built once per map, replicated; clients gate on its WorldReady attribute
 	matchCounter += 1
 	local id = string.format("m%d-%d", os.time() % 100000, matchCounter)
 	local sim = Sim.new({ matchId = id, scenario = scenario, map = map, seed = os.time() + matchCounter * 7919, difficulty = difficulty })
@@ -967,6 +971,7 @@ function MatchService.start()
 		heartbeat:Disconnect()
 	end
 	heartbeat = RunService.Heartbeat:Connect(onHeartbeat)
+	World.ensure(mapFor(MENU_MAP))
 	print("[EoE server] match service started")
 	CampaignService.start(remotes.Campaign, {
 		isCommander = function(player: Player): boolean

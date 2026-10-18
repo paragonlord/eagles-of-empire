@@ -42,6 +42,32 @@ objectives. The client uses the same output to write terrain voxels and place pr
 decorative is ever queried for gameplay; client raycasts only pick the ground for cursor
 position, and the server re-validates every coordinate against the grid.
 
+## World pipeline (voxels and props)
+
+`src/shared/WorldGen.luau` is pure: `WorldGen.terrain(map)` gives the voxel column sampler
+(map, skirt, rivers, field patchwork) and `WorldGen.props(map, terrain, opts)` the part specs
+`{group, q, tier, class, size, cframe, color, material, ...}` in a fixed order (deterministic
+for a map and seed; `tests/world.spec.luau`). Specs carry a tier and a minimum quality:
+
+- `s` structure (ground plane, pick plane, fields, roads, bridges, houses, trees, walls, hedges,
+  distant country): built **once per map on the server** by `src/server/World.luau` through
+  `src/shared/WorldBuild.luau` (voxels, then parts in batches of 300 per frame, each batch
+  parented as one folder) under `workspace.EoEWorld`, capped at quality 2. The root carries
+  `MapId` and, once every part is in, `WorldReady = <part count>`. Quality-2 specs sit in
+  `<group>Q2` folders so a quality-1 client hides them locally (`Props.setQuality`); nothing
+  is rebuilt on a quality change.
+- `d` detail (hearth smoke, valley fog): the client builds its own copy (`Props.build`), plus
+  ground labels, objective markers and the deployment outline, which stay client code.
+
+`MatchService.createMatch` calls `World.ensure(map)`; `destroyMatch` returns the world to the
+menu map (Jena). A build on a different map replaces the folder, and every client sees the
+loading screen again. The client holds the loading screen (`World/Ready.luau`, pure `step`)
+until the world folder has replicated (part count against `WorldReady`), a 40-point raycast
+grid hits terrain on three consecutive 0.2 s checks (meshing settled; 20 s cap) and two
+consecutive frames ran under 20 ms; then it fades the screen and starts the menu sweep.
+Output lines: `[EoE world] built N parts for <map> in X s` (server), `[EoE world] client
+ready after Y s` (client).
+
 Terrain classes: `open`, `road`, `woods`, `village`, `water`, `bridge`, `steep`. Passability,
 speed, cover, sight-blocking and fatigue per class live in `Config.Terrain`.
 

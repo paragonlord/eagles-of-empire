@@ -264,7 +264,7 @@ local function setGrade(name: string, seconds: number)
 	-- valley fog patches show only under the fog grade
 	if groundFog then
 		local t = if name == "fog" then 0.8 else 1
-		for _, p in groundFog:GetChildren() do
+		for _, p in groundFog:GetDescendants() do
 			if p:IsA("BasePart") then
 				to(p, { Transparency = t })
 			end

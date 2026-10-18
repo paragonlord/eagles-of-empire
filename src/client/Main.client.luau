@@ -1,6 +1,7 @@
 --!strict
--- Client bootstrap: waits for shared modules and remotes, builds the world per map, wires the
--- modules together and drives the match lifecycle from MatchState messages.
+-- Client bootstrap: waits for shared modules and remotes, readies the world per map (the
+-- server builds it; the client adds its detail tier and waits for replication and terrain
+-- meshing), wires the modules together and drives the match lifecycle from MatchState messages.
 
 local RunService = game:GetService("RunService") :: RunService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -18,6 +19,7 @@ local Figures = require(script.Parent.Figures)
 local Effects = require(script.Parent.Effects)
 local Terrain = require(script.Parent.World.Terrain)
 local Props = require(script.Parent.World.Props)
+local Ready = require(script.Parent.World.Ready)
 local WorldLighting = require(script.Parent.World.Lighting)
 local Kit = require(script.Parent.UI.Kit)
 local Menu = require(script.Parent.UI.Menu)
@@ -48,7 +50,9 @@ local conns: { Signal.Connection } = {}
 
 -- ------------------------------------------------------------------ world
 
--- Generates (cached) and builds terrain + props for a map. Yields. False if superseded.
+-- Readies a map for this client: generates (cached) MapData, builds the client's detail props,
+-- then holds the loading screen until the server's world has replicated, the terrain has
+-- meshed and the frame rate has settled (World/Ready). Yields. False if superseded.
 local function ensureWorld(mapId: string): boolean
 	if builtMapId == mapId then
 		return true
@@ -64,35 +68,29 @@ local function ensureWorld(mapId: string): boolean
 	BattleState.map = map
 	Camera.setMap(map)
 	builtMapId = nil
-	Terrain.clear()
-	Props.clear()
-	local ok = Terrain.build(map, function(p: number)
-		Loading.setProgress(p * 0.7, "Raising the hills…")
-	end)
-	if not ok or token ~= buildToken then
-		return false
-	end
-	ok = Props.build(map, Settings.get().quality, function(p: number)
-		Loading.setProgress(0.6 + p * 0.25, "Planting woods and villages…")
-	end)
-	if not ok or token ~= buildToken then
-		return false
-	end
-	-- Every voxel is written, but Roblox meshes a large map over several seconds (Studio showed
-	-- holes for ~15 s on Austerlitz). Hold the loading screen, looking over the field so the
-	-- centre meshes first, for a time scaled by map area.
-	Camera.reset(map.width / 2, map.depth * 0.4)
-	local settle = math.clamp(3 + 5 * (map.width * map.depth) / (1600 * 1200), 4, 14)
 	local t0 = os.clock()
-	while os.clock() - t0 < settle do
-		if token ~= buildToken then
-			return false
-		end
-		Loading.setProgress(0.85 + 0.15 * (os.clock() - t0) / settle, "Letting the ground settle…")
-		task.wait(0.1)
+	local q = Settings.get().quality
+	Terrain.setDecoration(q >= 2)
+	local ok = Props.build(map, q, function(p: number)
+		Loading.setProgress(p * 0.3, "Planting woods and villages…")
+	end)
+	if not ok or token ~= buildToken then
+		return false
 	end
+	-- look over the field while it arrives so the centre meshes first
+	Camera.reset(map.width / 2, map.depth * 0.4)
+	ok = Ready.wait(mapId, map, function()
+		return token == buildToken
+	end, function(p: number, text: string)
+		Loading.setProgress(0.3 + 0.7 * p, text)
+	end)
+	if not ok or token ~= buildToken then
+		return false
+	end
+	Props.setQuality(q) -- the world folder is complete now: hide its quality-2 tier on phones
 	builtMapId = mapId
-	Loading.hide()
+	print(string.format("[EoE world] client ready after %.1f s (%s)", os.clock() - t0, mapId))
+	Loading.fade()
 	return true
 end
 
@@ -343,6 +341,7 @@ local function onMatchState(msg: any)
 			local m = BattleState.map
 			Camera.setDefaultYaw(nil)
 			Camera.reset(m.width / 2, m.depth * 0.45)
+			Camera.playIntro() -- the menu's sweep over the field starts only once the world is in
 		end
 	elseif state == "loading" then
 		Loading.show("The army is forming…")
@@ -512,13 +511,10 @@ local function wire()
 	table.insert(conns, Settings.changed:Connect(function(key: string)
 		if key == "quality" then
 			Effects.applySettings()
-			WorldLighting.apply(Settings.get().quality)
-			local id = builtMapId
-			if id then
-				task.spawn(function()
-					Props.build(mapCache[id], Settings.get().quality, nil)
-				end)
-			end
+			local q = Settings.get().quality
+			WorldLighting.apply(q)
+			Terrain.setDecoration(q >= 2)
+			Props.setQuality(q) -- hides or shows the quality-2 tier; nothing is rebuilt
 		elseif key == "reducedEffects" then
 			Effects.applySettings()
 		elseif key == "placeNames" then
