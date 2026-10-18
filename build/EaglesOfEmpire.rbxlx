@@ -31894,6 +31894,13 @@ function Lighting.apply(quality: number)
 	atmosphere, cc, bloom, rays, clouds = nil, nil, nil, nil, nil
 	setTechnology()
 	local L = LightingService
+	-- Studio puts its own ColorGrading (Retro tonemapper) into Lighting; it turned the field teal
+	-- (round 18). The grade here is ours alone.
+	for _, c in L:GetChildren() do
+		if c.ClassName == "ColorGradingEffect" then
+			(c :: any).Enabled = false
+		end
+	end
 	L.GeographicLatitude = 50
 	L.GlobalShadows = true
 	-- low environment light keeps the shaded side of a ridge dark, as in the reference
