@@ -15756,7 +15756,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000093"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000092"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000091"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000095"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000094"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000093"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Sound registry + pooled Sound instances. Asset ids are intentionally empty: nothing is
 -- invented. With an empty id a play() is a silent no-op and Audio.isSilent() reports it.
 
@@ -16344,6 +16344,8 @@ local bound = false
 local enabled = true
 local rotating = false -- middle-mouse drag in progress
 local ROTATE_DRAG = 0.006 -- radians per pixel
+local PAN_DRAG = 1.7 -- touch: studs per pixel per stud of height, over the viewport height
+local pinch: { dist: number, ang: number, height: number }? = nil -- two-finger gesture in progress
 -- cinematic intro: sweeps from `from` to `to` over INTRO_SECONDS; any input skips it
 type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
@@ -16535,6 +16537,30 @@ function Camera.init()
 			finishIntro()
 		end
 	end))
+	-- Touch: two fingers pinch to zoom (height) and twist to rotate (yaw), measured from the
+	-- finger positions so the units Roblox reports do not matter.
+	table.insert(connections, UserInputService.TouchPinch:Connect(function(touches: { Vector2 }, _scale: number, _velocity: number, state: EnumUserInputState, gp: boolean)
+		if not enabled or not Settings.touch() or #touches < 2 then
+			return
+		end
+		local a, b = touches[1], touches[2]
+		local d = math.max((b - a).Magnitude, 1)
+		local ang = math.atan2(b.Y - a.Y, b.X - a.X)
+		if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			pinch = nil
+		elseif pinch == nil then
+			if not gp then
+				finishIntro()
+				pinch = { dist = d, ang = ang, height = target.height }
+			end
+		else
+			local g = pinch :: { dist: number, ang: number, height: number }
+			target.height = g.height * g.dist / d
+			target.yaw -= (ang - g.ang + math.pi) % (2 * math.pi) - math.pi
+			g.ang = ang
+			clampTarget()
+		end
+	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, gp: boolean)
 		if input.UserInputType == Enum.UserInputType.MouseWheel and intro then
 			finishIntro()
@@ -16562,6 +16588,21 @@ end
 
 function Camera.setEnabled(on: boolean)
 	enabled = on
+end
+
+-- Touch: a finger dragged (dx, dy) pixels carries the ground with it.
+function Camera.panPixels(dx: number, dy: number)
+	if not enabled then
+		return
+	end
+	finishIntro()
+	local cam = workspace.CurrentCamera
+	local k = cur.height * PAN_DRAG / (if cam then math.max(cam.ViewportSize.Y, 1) else 720)
+	local fx, fz = math.cos(cur.yaw), math.sin(cur.yaw)
+	local rx, rz = math.cos(cur.yaw - math.pi / 2), math.sin(cur.yaw - math.pi / 2)
+	target.x += (fx * dy - rx * dx) * k
+	target.z += (fz * dy - rz * dx) * k
+	clampTarget()
 end
 
 function Camera.focusOn(x: number, z: number, snap: boolean?)
@@ -16635,6 +16676,7 @@ function Camera.destroy()
 	RunService:UnbindFromRenderStep("EoECamera")
 	intro = nil
 	rotating = false
+	pinch = nil
 	for _, c in connections do
 		c:Disconnect()
 	end
@@ -21164,6 +21206,7 @@ return Figures
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
+local RunService = game:GetService("RunService") :: RunService
 local Players = game:GetService("Players") :: Players
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
@@ -21176,11 +21219,15 @@ local Net = require(script.Parent.Net)
 local Figures = require(script.Parent.Figures)
 local Signal = require(script.Parent.Signal)
 local Terrain = require(script.Parent.World.Terrain)
+local Settings = require(script.Parent.Settings)
+local Touch = require(script.Parent.Touch)
+local OrderWheel = require(script.Parent.UI.OrderWheel)
 
 local Input = {}
 
 Input.action = Signal.new() -- (name: string) for escape, dev, help
 Input.orderSent = Signal.new() -- (kind) so the HUD can flash
+Input.wheelPick = Signal.new() -- (key) from the touch order wheel; the HUD runs the command
 
 type Vec = { x: number, z: number }
 
@@ -21196,7 +21243,12 @@ local left: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boo
 local right: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local deployHeading: { [number]: number } = {}
 local middleAt: Vector2? = nil -- middle-button press point: a click (not a rotate drag) pings
-local armed: string? = nil -- "Charge": the next right-click charges instead of moving
+local armed: string? = nil -- "Charge": the next right-click charges instead of moving (touch: also Move / AttackMove)
+
+-- Touch (docs/mobile-contract.md): one finger on the field at a time; a second cancels it.
+type Finger = { obj: InputObject, t0: number, sx: number, sy: number, lx: number, ly: number, ground: Vec?, phase: string, formation: number?, kind: string?, action: string? }
+local finger: Finger? = nil
+local down: { [InputObject]: boolean } = {} -- touches that began on the field
 
 -- ------------------------------------------------------------------ picking
 
@@ -21492,6 +21544,9 @@ local function cancelDrags()
 	right.formation = nil
 	hideBox()
 	Figures.setPreview(nil)
+	finger = nil
+	table.clear(down)
+	OrderWheel.hide()
 end
 
 -- Co-op ping: G look, Shift+G attack, Ctrl+G defend (middle click: look). Inert solo.
@@ -21736,6 +21791,207 @@ local function onKey(input: InputObject)
 	end
 end
 
+-- ------------------------------------------------------------------ touch
+
+local function cancelFinger()
+	finger = nil
+	OrderWheel.hide()
+	Figures.setPreview(nil)
+end
+
+local function armedOrder(g: Vec, id: number?, kind: string?)
+	local what = armed
+	armed = nil
+	Input.action:Fire("disarm")
+	if what == "Charge" then
+		local ids = {}
+		for _, f in selectedFormations() do
+			if f.class == "infantry" or f.class == "cavalry" then
+				table.insert(ids, f.id)
+			end
+		end
+		if #ids > 0 then
+			if id and (kind == "enemy" or kind == "ghost") then
+				sendOrder("Charge", ids, { targetId = id, queue = false })
+			else
+				sendOrder("Charge", ids, { pos = clampToMap(g), queue = false })
+			end
+		end
+	elseif what == "AttackMove" then
+		local ids = {}
+		for _, f in selectedFormations() do
+			if f.class == "infantry" or f.class == "cavalry" then
+				table.insert(ids, f.id)
+			end
+		end
+		if #ids > 0 then
+			sendOrder("AttackMove", ids, { pos = clampToMap(g), queue = false })
+		end
+	elseif what == "Move" then
+		if id and (kind == "enemy" or kind == "ghost") then
+			issueEngage(id, false)
+		else
+			issueMove(g, false)
+		end
+	end
+end
+
+local function onTap(fg: Finger)
+	local g = groundUnderMouse() or fg.ground
+	if not g then
+		return
+	end
+	local id, kind = pickAt(g)
+	if mode == "deploy" then
+		if id and kind == "own" then
+			Selection.set({ id })
+		else
+			Selection.clear()
+		end
+		return
+	end
+	if armed and Selection.count() > 0 and not (kind == "own" and id) then
+		armedOrder(g, id, kind)
+	elseif id and kind == "own" then
+		Selection.toggle(id)
+	elseif id and (kind == "enemy" or kind == "ghost") then
+		if Selection.count() > 0 then
+			issueEngage(id, false)
+		end
+	else
+		Selection.clear()
+		if armed then
+			armed = nil
+			Input.action:Fire("disarm")
+		end
+	end
+end
+
+local function openWheel(fg: Finger)
+	fg.action = "wheel"
+	OrderWheel.show(fg.lx, fg.ly, function(key: string)
+		if key == "move" then
+			armed = "Move"
+		elseif key == "attackmove" then
+			armed = "AttackMove"
+		else
+			Input.wheelPick:Fire(key)
+		end
+	end)
+end
+
+-- The finger stayed HOLD_S: wheel on an own unit, a move anchor on the ground, else a ping.
+local function onHold(fg: Finger)
+	local id, kind = fg.formation, fg.kind
+	if mode == "battle" and id and kind == "own" then
+		if not Selection.isSelected(id) then
+			Selection.set({ id })
+		end
+		openWheel(fg)
+	elseif mode == "deploy" and id and kind == "own" then
+		fg.action = "facing"
+	elseif Selection.count() > 0 and mode == "battle" then
+		fg.action = "line"
+	elseif Selection.count() == 0 then
+		fg.action = "ping"
+		ping()
+	end
+end
+
+local function advanceFinger(fg: Finger, x: number, y: number)
+	local dist = math.max(math.abs(x - fg.sx), math.abs(y - fg.sy))
+	local phase = Touch.phase(fg.phase, os.clock() - fg.t0, dist)
+	if phase ~= fg.phase then
+		fg.phase = phase
+		if phase == "hold" then
+			onHold(fg)
+		end
+	end
+end
+
+local function onTouchBegan(input: InputObject)
+	if next(down) ~= nil then
+		down[input] = true
+		cancelFinger() -- a second finger: pinch / twist belong to the camera
+		return
+	end
+	down[input] = true
+	local p = input.Position
+	local g = groundUnderMouse()
+	local id, kind = nil, nil
+	if g then
+		id, kind = pickAt(g)
+	end
+	finger = { obj = input, t0 = os.clock(), sx = p.X, sy = p.Y, lx = p.X, ly = p.Y, ground = g, phase = "pending", formation = id, kind = kind, action = nil }
+end
+
+local function onTouchChanged(input: InputObject)
+	local fg = finger
+	if not fg or fg.obj ~= input then
+		return
+	end
+	local p = input.Position
+	advanceFinger(fg, p.X, p.Y)
+	local g = groundUnderMouse()
+	if fg.phase == "drag" then
+		if mode == "deploy" and fg.formation and fg.kind == "own" then
+			deployPreview(fg.formation, g, nil)
+		else
+			Camera.panPixels(p.X - fg.lx, p.Y - fg.ly)
+		end
+	elseif fg.phase == "holdDrag" then
+		if fg.action == "wheel" then
+			OrderWheel.hover(p.X, p.Y)
+		elseif fg.action == "line" and fg.ground and g then
+			if Vec.dist(g, fg.ground) > 8 then
+				previewLine(fg.ground, g)
+			end
+		elseif fg.action == "facing" and fg.formation and fg.ground and g then
+			deployPreview(fg.formation, nil, Vec.heading(Vec.sub(g, fg.ground)))
+		end
+	end
+	fg.lx, fg.ly = p.X, p.Y
+end
+
+local function onTouchEnded(input: InputObject)
+	down[input] = nil
+	local fg = finger
+	if not fg or fg.obj ~= input then
+		return
+	end
+	finger = nil
+	local p = input.Position
+	advanceFinger(fg, p.X, p.Y)
+	local result = Touch.release(fg.phase)
+	local g = groundUnderMouse()
+	Figures.setPreview(nil)
+	if result == "tap" then
+		onTap(fg)
+	elseif result == "drag" then
+		if mode == "deploy" and fg.formation and fg.kind == "own" and g then
+			local f = BattleState.formations[fg.formation]
+			if f then
+				sendDeploy(fg.formation, g, deployHeading[fg.formation] or f.heading)
+			end
+		end
+	elseif fg.action == "wheel" then
+		OrderWheel.release(p.X, p.Y)
+	elseif fg.action == "line" and fg.ground and g then
+		if result == "holdDrag" and Vec.dist(g, fg.ground) > 8 then
+			issueLineMove(fg.ground, g, false)
+		else
+			issueMove(g, false)
+		end
+	elseif fg.action == "facing" and result == "holdDrag" and fg.formation and fg.ground and g then
+		local f = BattleState.formations[fg.formation]
+		if f then
+			local h = Vec.heading(Vec.sub(g, fg.ground))
+			deployHeading[fg.formation] = h
+			sendDeploy(fg.formation, { x = f.x, z = f.z }, h)
+		end
+	end
+end
+
 -- ------------------------------------------------------------------ public
 
 function Input.init()
@@ -21757,7 +22013,11 @@ function Input.init()
 		if gp then
 			return -- the GUI consumed it: never a battlefield order
 		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if Settings.touch() then
+				onTouchBegan(input)
+			end
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
 			onLeftDown()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightDown()
@@ -21770,7 +22030,9 @@ function Input.init()
 			return
 		end
 		-- releases are handled even when over the GUI so drags always finish
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.Touch then
+			onTouchEnded(input)
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
 			onLeftUp()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightUp()
@@ -21783,8 +22045,20 @@ function Input.init()
 		end
 	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, _gp: boolean)
-		if mode ~= "off" and input.UserInputType == Enum.UserInputType.MouseMovement then
+		if mode == "off" then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
 			onMouseMove()
+		elseif input.UserInputType == Enum.UserInputType.Touch then
+			onTouchChanged(input)
+		end
+	end))
+	-- a still finger has no events: the hold is timed here
+	table.insert(connections, RunService.Heartbeat:Connect(function()
+		local fg = finger
+		if fg and fg.phase == "pending" then
+			advanceFinger(fg, fg.lx, fg.ly)
 		end
 	end))
 	table.insert(connections, UserInputService.WindowFocusReleased:Connect(cancelDrags))
@@ -21836,6 +22110,7 @@ function Input.destroy()
 		gui = nil
 		box = nil
 	end
+	OrderWheel.destroy()
 	table.clear(deployHeading)
 end
 
@@ -22686,7 +22961,9 @@ return Selection
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
+local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Signal = require(script.Parent.Signal)
+local Touch = require(script.Parent.Touch)
 
 export type Values = {
 	quality: number, -- 1..3
@@ -22697,12 +22974,24 @@ export type Values = {
 	reducedEffects: boolean,
 	typeface: string, -- one of Settings.TYPEFACES (UI/Kit presets)
 	placeNames: string, -- one of Settings.PLACE_NAMES (World/Props label modes)
+	controls: string, -- one of Touch.CONTROLS: auto / touch / desktop (docs/mobile-contract.md)
 }
 
 local Settings = {}
 
+-- Device flags, guarded so the headless test runner (no UserInputService members) loads too.
+local function flag(name: string): boolean
+	local ok, v = pcall(function()
+		return (UserInputService :: any)[name]
+	end)
+	return ok and v == true
+end
+
+-- Touch devices start on quality 1 (figure budget, no near tier, fewer smoke parts).
+local touchDevice = Touch.detect(flag("TouchEnabled"), flag("KeyboardEnabled"), "auto")
+
 local values: Values = {
-	quality = 2,
+	quality = if touchDevice then 1 else 2,
 	master = 0.8,
 	sfx = 1.0,
 	music = 0.6,
@@ -22710,6 +22999,7 @@ local values: Values = {
 	reducedEffects = false,
 	typeface = "Garamond",
 	placeNames = "ground",
+	controls = "auto",
 }
 
 -- Type presets the owner can switch live to judge readability (built in UI/Kit).
@@ -22718,6 +23008,12 @@ Settings.TYPEFACES = { "Garamond", "Bodoni", "Legible", "Antique" }
 Settings.PLACE_NAMES = { "ground", "floating", "hover", "off" }
 
 Settings.changed = Signal.new()
+Settings.CONTROLS = Touch.CONTROLS
+
+-- Touch mode: a touch screen without a keyboard, or the controls override.
+function Settings.touch(): boolean
+	return Touch.detect(flag("TouchEnabled"), flag("KeyboardEnabled"), values.controls)
+end
 
 function Settings.get(): Values
 	return values
@@ -22732,8 +23028,9 @@ function Settings.set(key: string, value: any)
 		value = math.clamp(math.round(value), 1, 3)
 	elseif key == "master" or key == "sfx" or key == "music" then
 		value = math.clamp(value, 0, 1)
-	elseif key == "typeface" or key == "placeNames" then
-		if table.find(if key == "typeface" then Settings.TYPEFACES else Settings.PLACE_NAMES, value) == nil then
+	elseif key == "typeface" or key == "placeNames" or key == "controls" then
+		local list = if key == "typeface" then Settings.TYPEFACES elseif key == "placeNames" then Settings.PLACE_NAMES else Settings.CONTROLS
+		if table.find(list, value) == nil then
 			return
 		end
 	end
@@ -22786,7 +23083,57 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Touch mode, pure: detection, gesture phases and the UI scale (docs/mobile-contract.md).
+-- No Roblox calls here so the spec can run headless; Settings.touch() feeds the device in.
+
+local Touch = {}
+
+Touch.HOLD_S = 0.35
+Touch.DRAG_PX = 12
+Touch.CONTROLS = { "auto", "touch", "desktop" }
+
+-- Touch when there is a touch screen and no keyboard, unless the setting says otherwise.
+function Touch.detect(touchEnabled: boolean, keyboardEnabled: boolean, controls: string?): boolean
+	if controls == "touch" then
+		return true
+	elseif controls == "desktop" then
+		return false
+	end
+	return touchEnabled and not keyboardEnabled
+end
+
+-- One finger: "pending" until it moves (drag) or stays HOLD_S (hold); a hold that then moves
+-- is a "holdDrag". Phases never go back.
+function Touch.phase(prev: string, elapsed: number, dist: number): string
+	if prev == "pending" then
+		if dist > Touch.DRAG_PX then
+			return "drag"
+		elseif elapsed >= Touch.HOLD_S then
+			return "hold"
+		end
+	elseif prev == "hold" and dist > Touch.DRAG_PX then
+		return "holdDrag"
+	end
+	return prev
+end
+
+-- What a release means: a finger lifted while still pending was a tap.
+function Touch.release(phase: string): string
+	return if phase == "pending" then "tap" else phase
+end
+
+-- UI scale: phones (short side under 600 px) 1.5 so 30 px plaques meet the 44 px tap target,
+-- tablets 1.15, desktop 1.
+function Touch.scale(viewportX: number, viewportY: number, touch: boolean): number
+	if not touch then
+		return 1
+	end
+	return if math.min(viewportX, viewportY) < 600 then 1.5 else 1.15
+end
+
+return Touch
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -23192,7 +23539,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000085"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000087"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: Quick battles (each battle a framed painting header over its two episode
 -- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
@@ -23525,7 +23872,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -24216,7 +24563,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -24735,8 +25082,10 @@ local function fitWidth()
 	end
 	local layout = s:FindFirstChildOfClass("UIListLayout") :: UIListLayout?
 	local sg = p.Parent :: ScreenGui
-	local content = if layout then layout.AbsoluteContentSize.X else 0
-	local avail = math.max(sg.AbsoluteSize.X - 2 * CardBar.SIDE_MARGIN, CARD_W + 2 * PAD)
+	local k = Kit.scale() -- absolute sizes carry the touch UIScale; offsets do not
+	local content = if layout then layout.AbsoluteContentSize.X / k else 0
+	-- touch: the bar starts at the left edge and stops short of the command panel on the right
+	local avail = math.max(if Kit.touch() then sg.AbsoluteSize.X / k - 8 - 272 else sg.AbsoluteSize.X / k - 2 * CardBar.SIDE_MARGIN, CARD_W + 2 * PAD)
 	local overflow = content + 2 * PAD > avail
 	for _, a in arrows do
 		a.Visible = overflow
@@ -24761,6 +25110,10 @@ function CardBar.create(sg: ScreenGui)
 	CardBar.destroy()
 	local p = Kit.panel(sg, { size = UDim2.fromOffset(200, CardBar.HEIGHT), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), padding = PAD, transparency = 0.12 })
 	p.Name = "CardBar"
+	if Kit.touch() then
+		p.Position = UDim2.new(0, 8, 1, -8)
+		p.AnchorPoint = Vector2.new(0, 1)
+	end
 	local s = Instance.new("ScrollingFrame") :: ScrollingFrame
 	s.Size = UDim2.fromScale(1, 1)
 	s.BackgroundTransparency = 1
@@ -24871,7 +25224,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -24898,6 +25251,7 @@ local playersBox: Frame? = nil -- co-op / PvP roster (hidden solo co-op)
 local callbacks: Callbacks? = nil
 
 local HINTS = "· Left-drag a formation to re-place it inside your zone.\n· Right-drag from a formation to set its facing.\n· Objectives are marked with flags; north is up on the minimap."
+local TOUCH_HINTS = "· Drag a formation to re-place it inside your zone.\n· Hold a formation, then drag, to set its facing.\n· Drag the ground to look around; pinch to zoom, twist to turn."
 
 local function section(parent: Instance, heading: string, body: string, order: number, colour: Color3?)
 	local h = Kit.title(parent, heading, { size = UDim2.new(1, 0, 0, 22), textSize = 18, spaced = true })
@@ -24912,8 +25266,9 @@ function Deployment.show(cb: Callbacks)
 	Deployment.destroy()
 	local sg = Kit.screen("EoEDeploy", 20)
 	local sc = BattleState.scenario or {}
-	-- the dispatch: a parchment document sealed in crimson
-	local panel = Kit.panel(sg, { size = UDim2.new(0, 420, 1, -96), position = UDim2.new(0, 24, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = 18, parchment = true })
+	local touch = Kit.touch()
+	-- the dispatch: a parchment document sealed in crimson (on a phone it fills the height)
+	local panel = Kit.panel(sg, { size = UDim2.new(0, 420, 1, if touch then -16 else -96), position = UDim2.new(0, if touch then 8 else 24, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = if touch then 12 else 18, parchment = true })
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(420, 660)
 	cap.Parent = panel
@@ -24952,7 +25307,7 @@ function Deployment.show(cb: Callbacks)
 	end
 	-- the stamp fills the foot of the margin; a short sheet (small viewport) gets a smaller one
 	local cam = workspace.CurrentCamera
-	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y else 720) - 96)
+	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y / Kit.scale() else 720) - (if touch then 16 else 96))
 	local d = math.clamp(math.floor((sheetH - 260) / 3), 56, 88)
 	Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
 	local rule = Kit.rule(panel, UDim2.fromOffset(0, 66))
@@ -24985,7 +25340,7 @@ function Deployment.show(cb: Callbacks)
 	playersBox = pb
 	callbacks = cb
 	section(body, "Orders", sc.briefing or "", 10)
-	section(body, "Deployment", HINTS, 20, Kit.MUTED)
+	section(body, "Deployment", if touch then TOUCH_HINTS else HINTS, 20, Kit.MUTED)
 	if sc.summary then
 		section(body, "What happened", sc.summary, 30, Kit.MUTED)
 	end
@@ -24996,12 +25351,12 @@ function Deployment.show(cb: Callbacks)
 	row.BackgroundTransparency = 1
 	row.Parent = panel
 	Kit.list(row, 8, true)
-	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
+	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, if touch then -74 else -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
 	local bs = b:FindFirstChildOfClass("UIStroke") :: UIStroke?
 	if bs then
 		bs.Thickness = 2
 	end
-	Kit.button(row, "Settings", cb.settings, { size = UDim2.new(0, 90, 1, 0), order = 2 })
+	Kit.button(row, if touch then "Set." else "Settings", cb.settings, { size = UDim2.new(0, if touch then 66 else 90, 1, 0), order = 2 })
 	if (BattleState.coop() and BattleState.role == "officer") or BattleState.pvp() then
 		b.Text = "Ready"
 	elseif not BattleState.isCommander then
@@ -25117,7 +25472,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -25202,7 +25557,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -25228,6 +25583,14 @@ export type Callbacks = { settings: () -> (), help: () -> (), menu: () -> () }
 local EDGE = 8
 local CMD_W = 256
 local BOTTOM_H = CardBar.HEIGHT
+-- Touch layout (docs/mobile-contract.md): the command panel, Settings / Menu / Select all and
+-- the general's ability stack bottom-right; the minimap sits top-left under the bar; no inspector.
+local touch = false
+local MINI_W = 110
+local TOUCH_CELL_H = 34
+local TOUCH_CMD_H = 3 * TOUCH_CELL_H + 6 + 18
+local TOUCH_ROW_H = 34
+local playersCollapsed = false
 
 local gui: ScreenGui? = nil
 local cb: Callbacks? = nil
@@ -25310,7 +25673,7 @@ local function buildTopBar(sg: ScreenGui)
 		line.Parent = bar
 	end
 	local sc = BattleState.scenario
-	local name = Kit.title(bar, if sc then sc.name else "", { size = UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
+	local name = Kit.title(bar, if sc then sc.name else "", { size = if touch then UDim2.new(0, 150, 1, 0) else UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 
 	-- centre: clock / limit, pause, speeds, weather
@@ -25323,7 +25686,7 @@ local function buildTopBar(sg: ScreenGui)
 	mid.Parent = bar
 	local ml = Kit.list(mid, 6, true)
 	ml.VerticalAlignment = Enum.VerticalAlignment.Center
-	clockLabel = Kit.label(mid, "00:00", { size = UDim2.fromOffset(118, 26), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right })
+	clockLabel = Kit.label(mid, "00:00", { size = UDim2.fromOffset(if touch then 84 else 118, 26), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right })
 	;(clockLabel :: TextLabel).LayoutOrder = 1
 	local pb = Kit.button(mid, "II", function()
 		if BattleState.state == "paused" then
@@ -25342,35 +25705,38 @@ local function buildTopBar(sg: ScreenGui)
 		end, { size = UDim2.fromOffset(34, 26), order = 2 + i, tooltip = "Speed ×" .. s .. " (key " .. i .. ")" })
 		speedButtons[s] = b
 	end
-	weatherLabel = Kit.title(mid, "", { size = UDim2.fromOffset(118, 26), textSize = 18 })
+	weatherLabel = Kit.title(mid, "", { size = UDim2.fromOffset(if touch then 0 else 118, 26), textSize = 18 })
+	;(weatherLabel :: TextLabel).Visible = not touch
 	;(weatherLabel :: TextLabel).LayoutOrder = 6
 	lagLabel = Kit.label(mid, "", { size = UDim2.fromOffset(0, 26), textSize = 11, colour = Kit.HOSTILE })
 	;(lagLabel :: TextLabel).AutomaticSize = Enum.AutomaticSize.X
 	;(lagLabel :: TextLabel).LayoutOrder = 7
 
-	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.fromOffset(220, 26)
-	right.Position = UDim2.new(1, -EDGE, 0, 5)
-	right.AnchorPoint = Vector2.new(1, 0)
-	right.BackgroundTransparency = 1
-	right.Parent = bar
-	local l = Kit.list(right, 6, true)
-	l.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	Kit.button(right, "Help", function()
-		if cb then
-			cb.help()
-		end
-	end, { size = UDim2.fromOffset(60, 26), order = 1 })
-	Kit.button(right, "Settings", function()
-		if cb then
-			cb.settings()
-		end
-	end, { size = UDim2.fromOffset(80, 26), order = 2 })
-	Kit.button(right, "Menu", function()
-		if cb then
-			cb.menu()
-		end
-	end, { size = UDim2.fromOffset(60, 26), order = 3, tooltip = "Leave the battle" })
+	if not touch then
+		local right = Instance.new("Frame") :: Frame
+		right.Size = UDim2.fromOffset(220, 26)
+		right.Position = UDim2.new(1, -EDGE, 0, 5)
+		right.AnchorPoint = Vector2.new(1, 0)
+		right.BackgroundTransparency = 1
+		right.Parent = bar
+		local l = Kit.list(right, 6, true)
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		Kit.button(right, "Help", function()
+			if cb then
+				cb.help()
+			end
+		end, { size = UDim2.fromOffset(60, 26), order = 1 })
+		Kit.button(right, "Settings", function()
+			if cb then
+				cb.settings()
+			end
+		end, { size = UDim2.fromOffset(80, 26), order = 2 })
+		Kit.button(right, "Menu", function()
+			if cb then
+				cb.menu()
+			end
+		end, { size = UDim2.fromOffset(60, 26), order = 3, tooltip = "Leave the battle" })
+	end
 
 	-- balance of power: own strength against the enemy strength we can see
 	local bal = Kit.panel(sg, { size = UDim2.fromOffset(320, 12), position = UDim2.new(0.5, 0, 0, 42), anchor = Vector2.new(0.5, 0), transparency = 0, plain = true })
@@ -25514,10 +25880,15 @@ end
 
 -- ------------------------------------------------------------------ ticker
 
+-- Left column x: on touch the minimap sits under the bar and the ticker beside it.
+local function tickerX(): number
+	return if touch then EDGE + MINI_W + 12 + 8 else 12
+end
+
 local function buildTicker(sg: ScreenGui)
 	local f = Instance.new("Frame") :: Frame
-	f.Size = UDim2.fromOffset(440, 96)
-	f.Position = UDim2.new(0, 12, 0, 44)
+	f.Size = UDim2.fromOffset(if touch then 300 else 440, 96)
+	f.Position = UDim2.new(0, tickerX(), 0, 44)
 	f.BackgroundTransparency = 1
 	f.Parent = sg
 	Kit.list(f, 3)
@@ -25525,7 +25896,7 @@ local function buildTicker(sg: ScreenGui)
 	local pl = Instance.new("Frame") :: Frame
 	pl.Size = UDim2.fromOffset(220, 0)
 	pl.AutomaticSize = Enum.AutomaticSize.Y
-	pl.Position = UDim2.new(0, 12, 0, 44)
+	pl.Position = UDim2.new(0, tickerX(), 0, 44)
 	pl.BackgroundTransparency = 1
 	pl.Visible = false
 	pl.Parent = sg
@@ -25572,11 +25943,30 @@ local function updatePlayers()
 		end
 	end
 	pl.Visible = #rows > 0
+	local function place()
+		tf.Position = UDim2.new(0, tickerX(), 0, 44 + (if #rows > 0 then (if touch then 24 else 0) + (if playersCollapsed then 0 else #rows * 20) + 6 else 0))
+	end
+	if touch and #rows > 0 then
+		-- a plaque folds the roster away so the field stays clear on a phone
+		local head: TextButton
+		head = Kit.button(pl, "", function()
+			playersCollapsed = not playersCollapsed
+			head.Text = if playersCollapsed then "Officers ›" else "Officers ‹"
+			for _, c in pl:GetChildren() do
+				if c:IsA("Frame") then
+					(c :: Frame).Visible = not playersCollapsed
+				end
+			end
+			place()
+		end, { size = UDim2.fromOffset(110, 22), order = 0, textSize = 12 })
+		head.Text = if playersCollapsed then "Officers ›" else "Officers ‹"
+	end
 	for i, p in rows do
 		local row = Instance.new("Frame") :: Frame
 		row.Size = UDim2.new(1, 0, 0, 18)
 		row.BackgroundTransparency = 1
 		row.LayoutOrder = i
+		row.Visible = not (touch and playersCollapsed)
 		row.Parent = pl
 		if p.header then
 			local h = Kit.label(row, string.upper(tostring(p.header)), { size = UDim2.fromScale(1, 1), textSize = 13, colour = Kit.GILT })
@@ -25593,7 +25983,7 @@ local function updatePlayers()
 		local l = Kit.label(row, text, { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(16, 0), textSize = 14, colour = if p.userId == BattleState.userId then Kit.GILT_BRIGHT else Kit.IVORY })
 		l.TextStrokeTransparency = 0.5
 	end
-	tf.Position = UDim2.new(0, 12, 0, 44 + (if #rows > 0 then #rows * 20 + 6 else 0))
+	place()
 end
 
 local function escape(s: string): string
@@ -25839,13 +26229,15 @@ local function runCommand(key: string)
 end
 
 local function buildCommandPanel(sg: ScreenGui)
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, BOTTOM_H), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 9 })
+	local p = if touch
+		then Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, TOUCH_CMD_H), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.1, padding = 9 })
+		else Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, BOTTOM_H), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 9 })
 	local grid = Instance.new("Frame") :: Frame
 	grid.Size = UDim2.fromScale(1, 1)
 	grid.BackgroundTransparency = 1
 	grid.Parent = p
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), 24)
+	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else 24)
 	g.CellPadding = UDim2.fromOffset(3, 3)
 	g.FillDirectionMaxCells = 4
 	g.SortOrder = Enum.SortOrder.LayoutOrder
@@ -25876,6 +26268,35 @@ local function buildCommandPanel(sg: ScreenGui)
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
+	if touch then
+		-- the row above the command panel: Select all / Settings / Menu (Help is keyboard talk)
+		local row = Instance.new("Frame") :: Frame
+		row.Size = UDim2.fromOffset(CMD_W, TOUCH_ROW_H)
+		row.Position = UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_CMD_H - 4)
+		row.AnchorPoint = Vector2.new(1, 1)
+		row.BackgroundTransparency = 1
+		row.Parent = sg
+		Kit.list(row, 4, true)
+		Kit.button(row, "Select all", function()
+			local ids = {}
+			for id in BattleState.formations do
+				if BattleState.canCommand(id) then
+					table.insert(ids, id)
+				end
+			end
+			Selection.set(ids)
+		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 1, textSize = 13 })
+		Kit.button(row, "Settings", function()
+			if cb then
+				cb.settings()
+			end
+		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 2, textSize = 13 })
+		Kit.button(row, "Menu", function()
+			if cb then
+				cb.menu()
+			end
+		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 3, textSize = 13 })
+	end
 end
 
 -- ------------------------------------------------------------------ general's ability
@@ -25911,7 +26332,7 @@ local function buildAbility(sg: ScreenGui)
 		if f and g then
 			Input.sendOrder("Ability", { f.id }, { abilityId = g.ability.id })
 		end
-	end, { size = UDim2.fromOffset(CMD_W, 46), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
+	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_CMD_H - 4 - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
 	b.RichText = true
 	b.Visible = false
 	b.ClipsDescendants = true
@@ -26078,9 +26499,11 @@ end
 
 local function buildMinimap(sg: ScreenGui)
 	local m = BattleState.map
-	local w = 200
+	local w = if touch then MINI_W else 200
 	local h = if m then math.round(w * m.depth / m.width) else 150
-	local frame = Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.05, padding = 6 })
+	local frame = if touch
+		then Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(0, EDGE, 0, 42), transparency = 0.05, padding = 6 })
+		else Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.05, padding = 6 })
 	frame.Name = "MinimapFrame"
 	Minimap.create(frame, UDim2.fromScale(1, 1), UDim2.new(), Vector2.new(0, 0))
 	local n = Kit.title(frame, "N", { size = UDim2.fromOffset(14, 14), position = UDim2.new(0.5, 0, 0, -6), anchor = Vector2.new(0.5, 0.5), textSize = 14, align = Enum.TextXAlignment.Center })
@@ -26107,10 +26530,13 @@ function HUD.show(callbacks: Callbacks)
 	HUD.destroy()
 	cb = callbacks
 	weather = if BattleState.scenario then BattleState.scenario.weather else nil
+	touch = Kit.touch()
 	local sg = Kit.screen("EoEHUD", 10)
 	buildTopBar(sg)
 	buildTicker(sg)
-	buildInspector(sg)
+	if not touch then
+		buildInspector(sg) -- ponytail: touch has no room for it; the card and its tip carry the numbers
+	end
 	buildCommandPanel(sg)
 	buildAbility(sg)
 	CardBar.create(sg)
@@ -26136,6 +26562,7 @@ function HUD.show(callbacks: Callbacks)
 			HUD.refreshCommands()
 		end
 	end))
+	table.insert(conns, Input.wheelPick:Connect(runCommand))
 	refreshAll()
 end
 
@@ -26211,7 +26638,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -26314,7 +26741,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents: aged post, tea-stained at the edges with
@@ -26330,6 +26757,7 @@ local Factions = require(script.Parent.Parent.Factions)
 local BattleState = require(script.Parent.Parent.BattleState)
 local PaperLayout = require(script.Parent.PaperLayout)
 local Settings = require(script.Parent.Parent.Settings)
+local Touch = require(script.Parent.Parent.Touch)
 
 local Kit = {}
 
@@ -26479,6 +26907,36 @@ function Kit.factionName(faction: string?): string
 	return Factions.name(faction)
 end
 
+-- UI scale (docs/mobile-contract.md): 1 on desktop; phones and tablets grow every screen
+-- through a UIScale, so AbsoluteSize read back from the screen is divided by this.
+function Kit.scale(): number
+	local cam = workspace.CurrentCamera
+	local v = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	return Touch.scale(v.X, v.Y, Settings.touch())
+end
+
+function Kit.touch(): boolean
+	return Settings.touch()
+end
+
+local scales: { UIScale } = {}
+local function rescale()
+	local s = Kit.scale()
+	for i = #scales, 1, -1 do
+		local u = scales[i]
+		if u.Parent then
+			u.Scale = s
+		else
+			table.remove(scales, i)
+		end
+	end
+end
+Settings.changed:Connect(function(key: string)
+	if key == "controls" then
+		rescale()
+	end
+end)
+
 function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenGui
 	local sg = Instance.new("ScreenGui") :: ScreenGui
 	sg.Name = name
@@ -26487,6 +26945,12 @@ function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenG
 	sg.DisplayOrder = order
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+	if Settings.touch() then
+		local u = Instance.new("UIScale") :: UIScale
+		u.Scale = Kit.scale()
+		u.Parent = sg
+		table.insert(scales, u)
+	end
 	return sg
 end
 
@@ -27024,7 +27488,8 @@ local function showTooltip(text: string)
 	local maxX = if cam then cam.ViewportSize.X - 248 else m.X + 14
 	-- grows upward from just above the cursor and stays on screen at the right edge
 	t.AnchorPoint = Vector2.new(0, 1)
-	t.Position = UDim2.fromOffset(math.min(m.X + 14, maxX), math.max(m.Y - 10, 40))
+	local k = Kit.scale() -- offsets are scaled on touch screens
+	t.Position = UDim2.fromOffset(math.min(m.X + 14, maxX) / k, math.max(m.Y - 10, 40) / k)
 	t.Visible = true
 end
 
@@ -27336,7 +27801,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
 -- What the client saw of its own army during one battle, for the results report: one record per
 -- own formation (start, last strength, final status) and counts of squares, charges, routs,
 -- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
@@ -27488,7 +27953,7 @@ function Ledger.counts(): Counts
 end
 
 return Ledger
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (terrain + props build).
 
 local Kit = require(script.Parent.Kit)
@@ -27565,7 +28030,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -27724,7 +28189,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -27991,7 +28456,169 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Radial order wheel for touch (docs/mobile-contract.md): eight brass plaques around a gilt
+-- ring under the finger that held a selected unit. Slide onto a plaque and lift to pick it.
+-- Positions come in screen pixels; the screen carries Kit's UIScale, so they are divided out.
+
+local Kit = require(script.Parent.Kit)
+
+local OrderWheel = {}
+
+export type Item = { key: string, text: string }
+local ITEMS: { Item } = {
+	{ key = "move", text = "Move" },
+	{ key = "attackmove", text = "Attack-move" },
+	{ key = "charge", text = "Charge" },
+	{ key = "hold", text = "Hold" },
+	{ key = "square", text = "Square" },
+	{ key = "line", text = "Line" },
+	{ key = "column", text = "Column" },
+	{ key = "retreat", text = "Retreat" },
+}
+OrderWheel.ITEMS = ITEMS
+
+local RADIUS = 96
+local DEAD = 34 -- inside this nothing is chosen (lift to cancel)
+local PLAQUE = Vector2.new(92, 32)
+
+local gui: ScreenGui? = nil
+local plaques: { TextButton } = {}
+local centre = Vector2.new(0, 0) -- logical (scaled) pixels
+local hovered: number? = nil
+local onPick: ((key: string) -> ())? = nil
+
+local function build()
+	local sg = Kit.screen("EoEWheel", 30) -- InputObject positions are in GUI (inset) space
+	local ring = Instance.new("Frame") :: Frame
+	ring.Name = "Ring"
+	ring.Size = UDim2.fromOffset(2 * RADIUS, 2 * RADIUS)
+	ring.AnchorPoint = Vector2.new(0.5, 0.5)
+	ring.BackgroundColor3 = Kit.INSET
+	ring.BackgroundTransparency = 0.55
+	ring.BorderSizePixel = 0
+	ring.Parent = sg
+	local c = Instance.new("UICorner") :: UICorner
+	c.CornerRadius = UDim.new(1, 0)
+	c.Parent = ring
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = Kit.GILT
+	s.Thickness = 2
+	s.Parent = ring
+	local hub = Instance.new("Frame") :: Frame
+	hub.Size = UDim2.fromOffset(2 * DEAD, 2 * DEAD)
+	hub.Position = UDim2.fromScale(0.5, 0.5)
+	hub.AnchorPoint = Vector2.new(0.5, 0.5)
+	hub.BackgroundTransparency = 1
+	hub.Parent = ring
+	local hs = Instance.new("UIStroke") :: UIStroke
+	hs.Color = Kit.GILT_DARK
+	hs.Parent = hub
+	local hc = Instance.new("UICorner") :: UICorner
+	hc.CornerRadius = UDim.new(1, 0)
+	hc.Parent = hub
+	for i, item in ITEMS do
+		local a = (i - 1) / #ITEMS * 2 * math.pi - math.pi / 2 -- first plaque at the top, clockwise
+		local key = item.key
+		local b = Kit.button(ring, item.text, function()
+			local pick = onPick
+			OrderWheel.hide()
+			if pick then
+				pick(key)
+			end
+		end, { size = UDim2.fromOffset(PLAQUE.X, PLAQUE.Y), position = UDim2.new(0.5, math.round(math.cos(a) * RADIUS), 0.5, math.round(math.sin(a) * RADIUS)), anchor = Vector2.new(0.5, 0.5), textSize = 13 })
+		plaques[i] = b
+	end
+	gui = sg
+end
+
+local function ring(): Frame?
+	return if gui then gui:FindFirstChild("Ring") :: Frame? else nil
+end
+
+local function setHovered(i: number?)
+	if hovered == i then
+		return
+	end
+	hovered = i
+	for j, b in plaques do
+		Kit.setActiveLook(b, j == i)
+	end
+end
+
+-- Opens the wheel around a screen point, kept wholly on screen.
+function OrderWheel.show(x: number, y: number, pick: (key: string) -> ())
+	if not gui then
+		build()
+	end
+	local sg = gui :: ScreenGui
+	local k = Kit.scale()
+	local cam = workspace.CurrentCamera
+	local view = if cam then cam.ViewportSize / k else Vector2.new(1280, 720)
+	local pad = RADIUS + PLAQUE.X / 2 + 4
+	centre = Vector2.new(math.clamp(x / k, pad, math.max(pad, view.X - pad)), math.clamp(y / k, RADIUS + PLAQUE.Y, math.max(RADIUS + PLAQUE.Y, view.Y - RADIUS - PLAQUE.Y)))
+	local r = ring()
+	if r then
+		r.Position = UDim2.fromOffset(centre.X, centre.Y)
+	end
+	onPick = pick
+	setHovered(nil)
+	sg.Enabled = true
+end
+
+function OrderWheel.isOpen(): boolean
+	return gui ~= nil and (gui :: ScreenGui).Enabled
+end
+
+-- The finger moved: the plaque in its direction lights up (none inside the hub).
+function OrderWheel.hover(x: number, y: number)
+	if not OrderWheel.isOpen() then
+		return
+	end
+	local k = Kit.scale()
+	local d = Vector2.new(x / k, y / k) - centre
+	if d.Magnitude < DEAD then
+		setHovered(nil)
+		return
+	end
+	local a = (math.atan2(d.Y, d.X) + math.pi / 2) % (2 * math.pi)
+	local n = #ITEMS
+	setHovered(math.floor(a / (2 * math.pi) * n + 0.5) % n + 1)
+end
+
+-- The finger lifted: the lit plaque is picked.
+function OrderWheel.release(x: number, y: number)
+	if not OrderWheel.isOpen() then
+		return
+	end
+	OrderWheel.hover(x, y)
+	local i, pick = hovered, onPick
+	OrderWheel.hide()
+	if i and pick then
+		pick(ITEMS[i].key)
+	end
+end
+
+function OrderWheel.hide()
+	if gui then
+		(gui :: ScreenGui).Enabled = false
+	end
+	hovered = nil
+	onPick = nil
+end
+
+function OrderWheel.destroy()
+	if gui then
+		gui:Destroy()
+		gui = nil
+	end
+	table.clear(plaques)
+	hovered = nil
+	onPick = nil
+end
+
+return OrderWheel
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Where the stains fall on an aged sheet. Pure numbers (no Roblox types) so the headless spec
 -- can check it: every mark lies inside the unit square, and the same seed gives the same sheet.
 
@@ -28043,7 +28670,7 @@ function PaperLayout.sheet(seed: number): Sheet
 end
 
 return PaperLayout
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -28398,7 +29025,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, typeface, place names, AI difficulty.
 -- Applies live via Settings.
 
@@ -28430,13 +29057,25 @@ end
 function SettingsPanel.show()
 	if not gui then
 		local sg = Kit.screen("EoESettings", 36)
-		local panel = Kit.panel(sg, { size = UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+		local touch = Kit.touch()
+		-- on a phone the sheet takes the height it can get and the list scrolls inside it
+		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
+		if touch then
+			local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
+			cap.MaxSize = Vector2.new(420, 640)
+			cap.Parent = panel
+		end
 		Kit.title(panel, "Settings", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
-		Kit.button(panel, "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
-		local list = Instance.new("Frame") :: Frame
+		Kit.button(panel, if touch then "Close" else "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, if touch then 34 else 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
+		local list = Instance.new("ScrollingFrame") :: ScrollingFrame
 		list.Size = UDim2.new(1, 0, 1, -48)
 		list.Position = UDim2.new(0, 0, 0, 44)
 		list.BackgroundTransparency = 1
+		list.BorderSizePixel = 0
+		list.ScrollBarThickness = if touch then 6 else 0
+		list.ScrollBarImageColor3 = Kit.GILT
+		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		list.CanvasSize = UDim2.new()
 		list.Parent = panel
 		Kit.list(list, 10)
 		local order = 0
@@ -28507,6 +29146,7 @@ function SettingsPanel.show()
 			end
 			refresh()
 		end
+		choices("Controls (choose Touch in Studio's device emulator)", "controls", Settings.CONTROLS, { "Auto", "Touch", "Desktop" })
 		choices("Typeface (headings and text)", "typeface", Settings.TYPEFACES, nil)
 		choices("Place names on the field", "placeNames", Settings.PLACE_NAMES, { "On the ground", "Floating", "Under cursor", "Off" })
 
@@ -28555,7 +29195,7 @@ function SettingsPanel.destroy()
 end
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -28725,7 +29365,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000090"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000092"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battlefield light, graded like a painted campaign map: a warm late-afternoon sun by default,
 -- a pale morning fog that lifts into clear sun (the Sun of Austerlitz), and a soft wet overcast
 -- for rain and mud (Waterloo). Built-in sky and post effects only (no asset ids).
@@ -29119,7 +29759,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Decorative props derived from MapData: trees, houses, bridges, ground labels, objective
 -- markers and the deployment zone outline. Anchored, non-colliding, non-queryable parts.
 
@@ -29383,10 +30023,10 @@ local function tree(parent: Instance, species: Species, x: number, z: number, r:
 	for i = 0, n - 1 do
 		local f = i / math.max(n - 1, 1)
 		local a = seed * 6.28 + i * 2.39996 -- golden angle: lobes spread evenly around
-		local spread = if beech then r * 0.45 else r * 0.7
+		local spread = (if beech then r * 0.45 else r * 0.7) * (if full then 1 else 0.5)
 		local off = spread * (0.35 + 0.65 * h01(x + i, z, 45))
-		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3)
-		local hgt = w * (if beech then 0.95 else 0.72)
+		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3) * (if full then 1 else 1.15)
+		local hgt = w * (if beech then 0.95 else 0.72) * (if full then 1 else 0.8)
 		local ly = gy + trunkH + (if beech then r * 0.35 + f * r * 1.1 else r * 0.3 + f * r * 0.75)
 		local col = if f < 0.34 then shade elseif f < 0.7 then base else lit
 		blob(parent, Vector3.new(w, hgt, w * (0.85 + h01(z, x + i, 46) * 0.3)), CFrame.new(x + math.cos(a) * off, ly, z + math.sin(a) * off) * CFrame.Angles(0, a, 0), col)
@@ -29459,11 +30099,15 @@ local function house(parent: Instance, x: number, z: number, heading: number, w:
 		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
 		part(parent, nil, Vector3.new(0.7, roofH + 0.9, 0.7), top, c3(120, 96, 80))
 		if h01(x + 1, z, salt + 5) < 0.5 then
-			-- a wisp of hearth smoke
-			local smoke = blob(parent, Vector3.new(1.6, 2.6, 1.6), top * CFrame.new(0.3, roofH * 0.5 + 1.6, 0), c3(200, 198, 192))
-			smoke.Material = Enum.Material.SmoothPlastic
-			smoke.Transparency = 0.6
-			smoke.CastShadow = false
+			-- hearth smoke: three small wisps rising, drifting and thinning (one egg read as a balloon)
+			local drift = h01(x, z + 2, salt + 7) * 6.28
+			for i = 0, 2 do
+				local sz = 0.7 + i * 0.45
+				local smoke = blob(parent, Vector3.new(sz, sz * 1.3, sz), top * CFrame.new(math.cos(drift) * i * 0.7, roofH * 0.5 + 1.0 + i * 1.4, math.sin(drift) * i * 0.7), c3(206, 204, 198))
+				smoke.Material = Enum.Material.SmoothPlastic
+				smoke.Transparency = 0.6 + i * 0.12
+				smoke.CastShadow = false
+			end
 		end
 	end
 	-- footprint variety: an L-wing at one end, or a lean-to shed along the back
@@ -30045,8 +30689,7 @@ local function buildOrchard(parent: Instance, o: any)
 			local z = o.z + u * sa + w * ca + (h01(w, u, 111) - 0.5) * 1.5
 			if isOpen(x, z) then
 				local y = groundY(x, z)
-				part(parent, Enum.PartType.Cylinder, Vector3.new(2.2, 0.6, 0.6), CFrame.new(x, y + 1.1, z) * CFrame.Angles(0, 0, math.pi / 2), TRUNK)
-				part(parent, Enum.PartType.Ball, Vector3.one * (4.4 + h01(x, z, 112)), CFrame.new(x, y + 3.6, z), crownColor(x, z):Lerp(c3(96, 116, 52), 0.3))
+				tree(parent, "oak", x, z, 2.1 + h01(x, z, 112) * 0.5, false, y)
 			end
 		end
 	end
@@ -30098,9 +30741,17 @@ local function buildGroundFog(parent: Instance, jobs: { () -> () })
 			for z = 60, currentMap.depth - 60, 90 do
 				local px, pz = x + (h01(x, z, 150) - 0.5) * 50, z + (h01(z, x, 151) - 0.5) * 50
 				local y = groundY(px, pz)
-				if y < floorY and h01(px, pz, 152) < 0.7 then
-					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in Studio
-					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), yaw(px, y + 1.5, pz, h01(x + z, 2, 155) * 3), c3(222, 220, 214))
+				local sx = (groundY(px + 30, pz) - groundY(px - 30, pz)) / 60
+				local sz = (groundY(px, pz + 30) - groundY(px, pz - 30)) / 60
+				if y < floorY and h01(px, pz, 152) < 0.7 and sx * sx + sz * sz < 0.08 * 0.08 then
+					-- thin and faint (Lighting: 0.8): a 4-stud sphere at 0.55 read as a white ice sheet in
+					-- Studio; tilted to the local slope so the rim does not cut the ground
+					local a = h01(x + z, 2, 155) * 3
+					local fwd = Vector3.new(math.cos(a), math.cos(a) * sx + math.sin(a) * sz, math.sin(a)).Unit
+					local rightV = Vector3.new(-math.sin(a), -math.sin(a) * sx + math.cos(a) * sz, math.cos(a)).Unit
+					local up = rightV:Cross(fwd).Unit
+					local cf = CFrame.fromMatrix(Vector3.new(px, y + 1.2, pz), fwd, up, fwd:Cross(up))
+					local p = blob(parent, Vector3.new(110 + h01(x, z, 153) * 60, 0.6, 70 + h01(z, x, 154) * 40), cf, c3(222, 220, 214))
 					p.Material = Enum.Material.SmoothPlastic
 					p.Transparency = WorldLighting.groundFogTransparency()
 					p.CastShadow = false
@@ -30448,6 +31099,8 @@ function Props.updateLabels(cameraHeight: number)
 		local bb = t.Parent :: BillboardGui
 		local scale = math.clamp(cameraHeight / 420, 0.8, 1.8) * (l.size / 20)
 		bb.Size = UDim2.fromOffset(math.floor(l.len / l.size * 22 * scale), math.floor(22 * scale))
+		-- higher off the ground as the camera climbs so ridges and unit plates do not clip the name
+		bb.StudsOffsetWorldSpace = Vector3.new(0, 6 + cameraHeight * 0.04, 0)
 		local pos = l.part.Position
 		local target = 1
 		if labelMode == "floating" then
@@ -30537,7 +31190,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000090"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -31465,7 +32118,7 @@ function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, see
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Writes the MapGen heightmap into workspace.Terrain as 4-stud voxels, chunk by chunk,
 -- yielding between chunks. Everything comes from MapData; nothing is authored here.
 
@@ -32132,6 +32785,14 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 		local crest = smooth((d - 200) / 280) * (1 - 0.45 * smooth((d - 500) / 140))
 		local damp = if rlvl then smooth((rd - rhalf) / 220) else 1
 		h += crest * damp * (14 + noise(x, z, 240, seed + 5) ^ 1.6 * 46)
+		-- the last 100 studs ramp down onto the ground plane so the skirt ends in no step
+		local ramp = smooth((d - (SKIRT * cell - 100)) / 100)
+		if ramp > 0 then
+			h += (planeY + 1 - h) * ramp
+			if ramp > 0.5 and not rlvl then
+				return h, Enum.Material.Grass, nil
+			end
+		end
 		-- rivers run on past the edge along their end segments; banks rise above the water
 		if rlvl then
 			if rd < rhalf then
@@ -32254,4 +32915,4 @@ function Terrain.clear()
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000094"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000095"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000096"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000096"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000097"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000098"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
