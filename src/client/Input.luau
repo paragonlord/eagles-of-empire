@@ -3,6 +3,7 @@
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
+local RunService = game:GetService("RunService") :: RunService
 local Players = game:GetService("Players") :: Players
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
@@ -15,11 +16,15 @@ local Net = require(script.Parent.Net)
 local Figures = require(script.Parent.Figures)
 local Signal = require(script.Parent.Signal)
 local Terrain = require(script.Parent.World.Terrain)
+local Settings = require(script.Parent.Settings)
+local Touch = require(script.Parent.Touch)
+local OrderWheel = require(script.Parent.UI.OrderWheel)
 
 local Input = {}
 
 Input.action = Signal.new() -- (name: string) for escape, dev, help
 Input.orderSent = Signal.new() -- (kind) so the HUD can flash
+Input.wheelPick = Signal.new() -- (key) from the touch order wheel; the HUD runs the command
 
 type Vec = { x: number, z: number }
 
@@ -35,7 +40,12 @@ local left: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boo
 local right: { down: boolean, sx: number, sy: number, ground: Vec?, dragging: boolean, formation: number? } = { down = false, sx = 0, sy = 0, ground = nil, dragging = false, formation = nil }
 local deployHeading: { [number]: number } = {}
 local middleAt: Vector2? = nil -- middle-button press point: a click (not a rotate drag) pings
-local armed: string? = nil -- "Charge": the next right-click charges instead of moving
+local armed: string? = nil -- "Charge": the next right-click charges instead of moving (touch: also Move / AttackMove)
+
+-- Touch (docs/mobile-contract.md): one finger on the field at a time; a second cancels it.
+type Finger = { obj: InputObject, t0: number, sx: number, sy: number, lx: number, ly: number, ground: Vec?, phase: string, formation: number?, kind: string?, action: string? }
+local finger: Finger? = nil
+local down: { [InputObject]: boolean } = {} -- touches that began on the field
 
 -- ------------------------------------------------------------------ picking
 
@@ -331,6 +341,9 @@ local function cancelDrags()
 	right.formation = nil
 	hideBox()
 	Figures.setPreview(nil)
+	finger = nil
+	table.clear(down)
+	OrderWheel.hide()
 end
 
 -- Co-op ping: G look, Shift+G attack, Ctrl+G defend (middle click: look). Inert solo.
@@ -575,6 +588,211 @@ local function onKey(input: InputObject)
 	end
 end
 
+-- ------------------------------------------------------------------ touch
+
+local function cancelFinger()
+	finger = nil
+	OrderWheel.hide()
+	Figures.setPreview(nil)
+end
+
+local function armedOrder(g: Vec, id: number?, kind: string?)
+	local what = armed
+	armed = nil
+	Input.action:Fire("disarm")
+	if what == "Charge" then
+		local ids = {}
+		for _, f in selectedFormations() do
+			if f.class == "infantry" or f.class == "cavalry" then
+				table.insert(ids, f.id)
+			end
+		end
+		if #ids > 0 then
+			if id and (kind == "enemy" or kind == "ghost") then
+				sendOrder("Charge", ids, { targetId = id, queue = false })
+			else
+				sendOrder("Charge", ids, { pos = clampToMap(g), queue = false })
+			end
+		end
+	elseif what == "AttackMove" then
+		local ids = {}
+		for _, f in selectedFormations() do
+			if f.class == "infantry" or f.class == "cavalry" then
+				table.insert(ids, f.id)
+			end
+		end
+		if #ids > 0 then
+			sendOrder("AttackMove", ids, { pos = clampToMap(g), queue = false })
+		end
+	elseif what == "Move" then
+		if id and (kind == "enemy" or kind == "ghost") then
+			issueEngage(id, false)
+		else
+			issueMove(g, false)
+		end
+	end
+end
+
+local function onTap(fg: Finger)
+	local g = groundUnderMouse() or fg.ground
+	if not g then
+		return
+	end
+	local id, kind = pickAt(g)
+	if mode == "deploy" then
+		if id and kind == "own" then
+			Selection.set({ id })
+		else
+			Selection.clear()
+		end
+		return
+	end
+	if armed and Selection.count() > 0 and not (kind == "own" and id) then
+		armedOrder(g, id, kind)
+	elseif id and kind == "own" then
+		Selection.toggle(id)
+	elseif id and (kind == "enemy" or kind == "ghost") then
+		if Selection.count() > 0 then
+			issueEngage(id, false)
+		end
+	else
+		Selection.clear()
+		if armed then
+			armed = nil
+			Input.action:Fire("disarm")
+		end
+	end
+end
+
+local function openWheel(fg: Finger)
+	fg.action = "wheel"
+	OrderWheel.show(fg.lx, fg.ly, function(key: string)
+		if key == "move" then
+			armed = "Move"
+		elseif key == "attackmove" then
+			armed = "AttackMove"
+		else
+			Input.wheelPick:Fire(key)
+		end
+	end)
+end
+
+-- The finger stayed HOLD_S: wheel on an own unit, a move anchor on the ground, else a ping.
+local function onHold(fg: Finger)
+	local id, kind = fg.formation, fg.kind
+	if mode == "battle" and id and kind == "own" then
+		if not Selection.isSelected(id) then
+			Selection.set({ id })
+		end
+		openWheel(fg)
+	elseif mode == "deploy" and id and kind == "own" then
+		fg.action = "facing"
+	elseif Selection.count() > 0 and mode == "battle" then
+		fg.action = "line"
+		local g = fg.ground
+		if g then
+			previewLine(g, g)
+		end
+	elseif Selection.count() == 0 then
+		fg.action = "ping"
+		ping()
+	end
+end
+
+local function advanceFinger(fg: Finger, x: number, y: number)
+	local dist = math.max(math.abs(x - fg.sx), math.abs(y - fg.sy))
+	local phase = Touch.phase(fg.phase, os.clock() - fg.t0, dist)
+	if phase ~= fg.phase then
+		fg.phase = phase
+		if phase == "hold" then
+			onHold(fg)
+		end
+	end
+end
+
+local function onTouchBegan(input: InputObject)
+	if next(down) ~= nil then
+		down[input] = true
+		cancelFinger() -- a second finger: pinch / twist belong to the camera
+		return
+	end
+	down[input] = true
+	local p = input.Position
+	local g = groundUnderMouse()
+	local id, kind = nil, nil
+	if g then
+		id, kind = pickAt(g)
+	end
+	finger = { obj = input, t0 = os.clock(), sx = p.X, sy = p.Y, lx = p.X, ly = p.Y, ground = g, phase = "pending", formation = id, kind = kind, action = nil }
+end
+
+local function onTouchChanged(input: InputObject)
+	local fg = finger
+	if not fg or fg.obj ~= input then
+		return
+	end
+	local p = input.Position
+	advanceFinger(fg, p.X, p.Y)
+	local g = groundUnderMouse()
+	if fg.phase == "drag" then
+		if mode == "deploy" and fg.formation and fg.kind == "own" then
+			deployPreview(fg.formation, g, nil)
+		else
+			Camera.panPixels(p.X - fg.lx, p.Y - fg.ly)
+		end
+	elseif fg.phase == "holdDrag" then
+		if fg.action == "wheel" then
+			OrderWheel.hover(p.X, p.Y)
+		elseif fg.action == "line" and fg.ground and g then
+			if Vec.dist(g, fg.ground) > 8 then
+				previewLine(fg.ground, g)
+			end
+		elseif fg.action == "facing" and fg.formation and fg.ground and g then
+			deployPreview(fg.formation, nil, Vec.heading(Vec.sub(g, fg.ground)))
+		end
+	end
+	fg.lx, fg.ly = p.X, p.Y
+end
+
+local function onTouchEnded(input: InputObject)
+	down[input] = nil
+	local fg = finger
+	if not fg or fg.obj ~= input then
+		return
+	end
+	finger = nil
+	local p = input.Position
+	advanceFinger(fg, p.X, p.Y)
+	local result = Touch.release(fg.phase)
+	local g = groundUnderMouse()
+	Figures.setPreview(nil)
+	if result == "tap" then
+		onTap(fg)
+	elseif result == "drag" then
+		if mode == "deploy" and fg.formation and fg.kind == "own" and g then
+			local f = BattleState.formations[fg.formation]
+			if f then
+				sendDeploy(fg.formation, g, deployHeading[fg.formation] or f.heading)
+			end
+		end
+	elseif fg.action == "wheel" then
+		OrderWheel.release(p.X, p.Y)
+	elseif fg.action == "line" and fg.ground and g then
+		if result == "holdDrag" and Vec.dist(g, fg.ground) > 8 then
+			issueLineMove(fg.ground, g, false)
+		else
+			issueMove(g, false)
+		end
+	elseif fg.action == "facing" and result == "holdDrag" and fg.formation and fg.ground and g then
+		local f = BattleState.formations[fg.formation]
+		if f then
+			local h = Vec.heading(Vec.sub(g, fg.ground))
+			deployHeading[fg.formation] = h
+			sendDeploy(fg.formation, { x = f.x, z = f.z }, h)
+		end
+	end
+end
+
 -- ------------------------------------------------------------------ public
 
 function Input.init()
@@ -596,7 +814,11 @@ function Input.init()
 		if gp then
 			return -- the GUI consumed it: never a battlefield order
 		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if Settings.touch() then
+				onTouchBegan(input)
+			end
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
 			onLeftDown()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightDown()
@@ -609,7 +831,9 @@ function Input.init()
 			return
 		end
 		-- releases are handled even when over the GUI so drags always finish
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.Touch then
+			onTouchEnded(input)
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
 			onLeftUp()
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			onRightUp()
@@ -622,8 +846,20 @@ function Input.init()
 		end
 	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, _gp: boolean)
-		if mode ~= "off" and input.UserInputType == Enum.UserInputType.MouseMovement then
+		if mode == "off" then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
 			onMouseMove()
+		elseif input.UserInputType == Enum.UserInputType.Touch then
+			onTouchChanged(input)
+		end
+	end))
+	-- a still finger has no events: the hold is timed here
+	table.insert(connections, RunService.Heartbeat:Connect(function()
+		local fg = finger
+		if fg and fg.phase == "pending" then
+			advanceFinger(fg, fg.lx, fg.ly)
 		end
 	end))
 	table.insert(connections, UserInputService.WindowFocusReleased:Connect(cancelDrags))
@@ -675,6 +911,7 @@ function Input.destroy()
 		gui = nil
 		box = nil
 	end
+	OrderWheel.destroy()
 	table.clear(deployHeading)
 end
 

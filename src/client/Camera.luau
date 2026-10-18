@@ -37,6 +37,8 @@ local bound = false
 local enabled = true
 local rotating = false -- middle-mouse drag in progress
 local ROTATE_DRAG = 0.006 -- radians per pixel
+local PAN_DRAG = 1.7 -- touch: studs per pixel per stud of height, over the viewport height
+local pinch: { dist: number, ang: number, height: number }? = nil -- two-finger gesture in progress
 -- cinematic intro: sweeps from `from` to `to` over INTRO_SECONDS; any input skips it
 type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
@@ -228,6 +230,30 @@ function Camera.init()
 			finishIntro()
 		end
 	end))
+	-- Touch: two fingers pinch to zoom (height) and twist to rotate (yaw), measured from the
+	-- finger positions so the units Roblox reports do not matter.
+	table.insert(connections, UserInputService.TouchPinch:Connect(function(touches: { Vector2 }, _scale: number, _velocity: number, state: EnumUserInputState, gp: boolean)
+		if not enabled or not Settings.touch() or #touches < 2 then
+			return
+		end
+		local a, b = touches[1], touches[2]
+		local d = math.max((b - a).Magnitude, 1)
+		local ang = math.atan2(b.Y - a.Y, b.X - a.X)
+		if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			pinch = nil
+		elseif pinch == nil then
+			if not gp then
+				finishIntro()
+				pinch = { dist = d, ang = ang, height = target.height }
+			end
+		else
+			local g = pinch :: { dist: number, ang: number, height: number }
+			target.height = g.height * g.dist / d
+			target.yaw -= (ang - g.ang + math.pi) % (2 * math.pi) - math.pi
+			g.ang = ang
+			clampTarget()
+		end
+	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, gp: boolean)
 		if input.UserInputType == Enum.UserInputType.MouseWheel and intro then
 			finishIntro()
@@ -255,6 +281,21 @@ end
 
 function Camera.setEnabled(on: boolean)
 	enabled = on
+end
+
+-- Touch: a finger dragged (dx, dy) pixels carries the ground with it.
+function Camera.panPixels(dx: number, dy: number)
+	if not enabled then
+		return
+	end
+	finishIntro()
+	local cam = workspace.CurrentCamera
+	local k = cur.height * PAN_DRAG / (if cam then math.max(cam.ViewportSize.Y, 1) else 720)
+	local fx, fz = math.cos(cur.yaw), math.sin(cur.yaw)
+	local rx, rz = math.cos(cur.yaw - math.pi / 2), math.sin(cur.yaw - math.pi / 2)
+	target.x += (fx * dy - rx * dx) * k
+	target.z += (fz * dy - rz * dx) * k
+	clampTarget()
 end
 
 function Camera.focusOn(x: number, z: number, snap: boolean?)
@@ -328,6 +369,7 @@ function Camera.destroy()
 	RunService:UnbindFromRenderStep("EoECamera")
 	intro = nil
 	rotating = false
+	pinch = nil
 	for _, c in connections do
 		c:Disconnect()
 	end

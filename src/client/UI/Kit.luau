@@ -14,6 +14,7 @@ local Factions = require(script.Parent.Parent.Factions)
 local BattleState = require(script.Parent.Parent.BattleState)
 local PaperLayout = require(script.Parent.PaperLayout)
 local Settings = require(script.Parent.Parent.Settings)
+local Touch = require(script.Parent.Parent.Touch)
 
 local Kit = {}
 
@@ -163,6 +164,36 @@ function Kit.factionName(faction: string?): string
 	return Factions.name(faction)
 end
 
+-- UI scale (docs/mobile-contract.md): 1 on desktop; phones and tablets grow every screen
+-- through a UIScale, so AbsoluteSize read back from the screen is divided by this.
+function Kit.scale(): number
+	local cam = workspace.CurrentCamera
+	local v = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	return Touch.scale(v.X, v.Y, Settings.touch())
+end
+
+function Kit.touch(): boolean
+	return Settings.touch()
+end
+
+local scales: { UIScale } = {}
+local function rescale()
+	local s = Kit.scale()
+	for i = #scales, 1, -1 do
+		local u = scales[i]
+		if u.Parent then
+			u.Scale = s
+		else
+			table.remove(scales, i)
+		end
+	end
+end
+Settings.changed:Connect(function(key: string)
+	if key == "controls" then
+		rescale()
+	end
+end)
+
 function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenGui
 	local sg = Instance.new("ScreenGui") :: ScreenGui
 	sg.Name = name
@@ -171,6 +202,12 @@ function Kit.screen(name: string, order: number, ignoreInset: boolean?): ScreenG
 	sg.DisplayOrder = order
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+	if Settings.touch() then
+		local u = Instance.new("UIScale") :: UIScale
+		u.Scale = Kit.scale()
+		u.Parent = sg
+		table.insert(scales, u)
+	end
 	return sg
 end
 
@@ -708,7 +745,8 @@ local function showTooltip(text: string)
 	local maxX = if cam then cam.ViewportSize.X - 248 else m.X + 14
 	-- grows upward from just above the cursor and stays on screen at the right edge
 	t.AnchorPoint = Vector2.new(0, 1)
-	t.Position = UDim2.fromOffset(math.min(m.X + 14, maxX), math.max(m.Y - 10, 40))
+	local k = Kit.scale() -- offsets are scaled on touch screens
+	t.Position = UDim2.fromOffset(math.min(m.X + 14, maxX) / k, math.max(m.Y - 10, 40) / k)
 	t.Visible = true
 end
 
