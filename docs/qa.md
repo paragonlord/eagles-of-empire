@@ -493,6 +493,31 @@ Boots clean, no EoE errors.
 - Small: isolated tree clumps and orchards read as piles of balls from the default height
   (`r13-intro-high.jpg`, left edge); the woods read fine as canopy.
 
+**2026-10-18 round 14 (typography pass, typeface presets, place-name modes), build 66fb515.**
+Boots clean, no EoE errors or warnings.
+- Pass: the briefing's text column and margin work: weather and time sit in the margin and the
+  stamp covers no text, in solo and PvP. The brass Settings button and wax Start Battle read well
+  (`r14-settings.jpg`).
+- Fixed: **the coffee ring was a pill** (81×132 px): its size was a scale of the sheet's width
+  *and* height, so a tall sheet stretched it. It now has a UIAspectRatioConstraint and is round
+  (`r14-briefing-ring.jpg`). SizeConstraint RelativeXX did nothing here, because the ring sits
+  under the Deco folder.
+- Fixed: **the typeface setting changed only the Start Battle button.** `Kit`'s typeset table
+  was weak-keyed, and Luau drops an Instance key once its wrapper is collected, even while the
+  label is on screen. Only labels a screen kept a handle on (startBtn) stayed registered. It now
+  has strong keys and removes each label on Destroying.
+- Fixed, uncovered by the above: labels built as ui text and then given `Kit.ITALIC` / `Kit.BOLD`
+  by a screen (16 places: the briefing date, margin facts, difficulty note, results subtitle, menu,
+  campaign, battle select...) turned into Source Sans on any preset change. `Kit.typeset` now
+  re-roles a ui/figures label to body when its face is Garamond one frame after it is built.
+  Checked: Antique gives Merriweather italic/bold, RomanAntique titles; back to Garamond restores
+  everything (`r14-typeface-antique.jpg`).
+- Fixed: **"Floating" place names were invisible**: the ground names hid, but the billboards
+  (AlwaysOnTop) drew nothing in Studio (`r14-names-floating-before.jpg`). With AlwaysOnTop off
+  they show (`r14-names-floating-fixed.jpg`); a name can now be clipped by a ridge or a formation
+  plate ("losewitz", "Landgrafenberg" behind a plate). "Under cursor" shows only the hovered
+  name (`r14-names-hover.jpg`); "Off" hides all.
+
 ## Known failures
 
 None recorded yet.

@@ -80,10 +80,14 @@ local PRESETS: { [string]: Preset } = {
 	-- Caslon-like display over a sturdy transitional serif body
 	Antique = { display = Enum.Font.Antique, body = Enum.Font.Merriweather, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
 }
+local GARAMOND = Font.fromEnum(Enum.Font.Garamond).Family
 local function preset(): Preset
 	return PRESETS[Settings.get().typeface] or PRESETS.Garamond
 end
-local typeset: { [TextLabel | TextButton]: string } = setmetatable({}, { __mode = "k" }) :: any
+-- Strong keys, dropped on Destroying: a weak table loses an Instance key as soon as Luau collects
+-- its wrapper, even while the label is on screen (Studio: only buttons a screen kept a handle on
+-- changed typeface; the briefing title stayed Garamond).
+local typeset: { [TextLabel | TextButton]: string } = {}
 
 -- The family of the preset's role, keeping the label's own weight and style (bold, italic).
 local function refont(l: TextLabel | TextButton, role: string)
@@ -94,6 +98,20 @@ end
 
 -- Registers `l` under `role` and sets its face; later preset changes re-set it.
 function Kit.typeset(l: TextLabel | TextButton, role: string)
+	if typeset[l] == nil then
+		l.Destroying:Once(function()
+			typeset[l] = nil
+		end)
+		-- screens set Kit.ITALIC / Kit.BOLD (Garamond) right after building a label: that makes
+		-- it body text, or a preset change would turn it into the ui face
+		task.defer(function()
+			local r = typeset[l]
+			if (r == "ui" or r == "figures") and l.FontFace.Family == GARAMOND then
+				typeset[l] = "body"
+				refont(l, "body")
+			end
+		end)
+	end
 	typeset[l] = role
 	refont(l, role)
 end
@@ -378,6 +396,9 @@ function Kit.paper(f: Frame, pad: number, seed: number)
 	if ring then
 		-- a thin darker ring round a soft fill
 		local r = layer("Ring", UDim2.fromScale(ring.w, ring.h), UDim2.fromScale(ring.x, ring.y), Kit.PARCHMENT_STAIN, 0.9)
+		-- keep it round: scale on a tall sheet stretched it to a pill (SizeConstraint is ignored
+		-- under the Deco folder in Studio)
+		Instance.new("UIAspectRatioConstraint").Parent = r
 		round(r)
 		hairline(r, Kit.PARCHMENT_STAIN, 2, ring.alpha)
 	end

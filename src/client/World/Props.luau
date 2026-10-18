@@ -1108,7 +1108,7 @@ local function floatLabel(l: { part: Part, size: number, len: number, text: Text
 	bb.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
 	bb.Size = UDim2.fromOffset(160, 22)
 	bb.LightInfluence = 0
-	bb.AlwaysOnTop = true
+	bb.AlwaysOnTop = false -- Studio: AlwaysOnTop billboards drew nothing at all (fog grade, Future)
 	bb.Parent = l.part
 	local t = l.text:Clone() :: TextLabel
 	t.TextTransparency = 1
