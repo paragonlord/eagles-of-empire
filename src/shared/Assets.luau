@@ -91,7 +91,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 22, 22, 7.4 },
 	},
-	windmill = slot(), -- post mill ~20 tall
+	windmill = { -- original 908-triangle post mill; bounds include all four sails
+		mesh = "rbxassetid://127694156629914",
+		texture = "rbxassetid://84909055465369",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 20, 20, 20 },
+	},
 	bridgeStone = slot(), -- deck along +X, length = the span given
 	bridgeTimber = slot(),
 	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
