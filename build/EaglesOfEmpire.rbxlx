@@ -13,8 +13,8 @@ export type Slot = {
 	offset: { number }, -- SpecialMesh.Offset (x, y, z), studs
 }
 
-local function slot(): Slot
-	return { mesh = "", texture = "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
+local function slot(texture: string?): Slot
+	return { mesh = "", texture = texture or "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
 end
 
 local Assets = {}
@@ -45,9 +45,10 @@ Assets.slots = {
 	bridgeStone = slot(), -- deck along +X, length = the span given
 	bridgeTimber = slot(),
 	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
-	bark = slot(),
-	roofTile = slot(),
-	wall = slot(),
+	-- image ids (not the store's decal ids), free on the Creator Store, picked in Studio (qa round 22)
+	bark = slot("rbxassetid://6490108541"), -- "TexturesCom_PineBark2_512_albedo", DarthRevan404
+	roofTile = slot("rbxassetid://18708362091"), -- "roof_tile_texture4127", Phatgamingsk2
+	wall = slot("rbxassetid://762795527"), -- "Seamless wall white paint stucco plaster", yumahap
 	thatch = slot(),
 }
 
@@ -4664,13 +4665,19 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 	end
 	local tex = if s.texture then Assets.textureOf(s.texture) else nil
 	if tex then
-		local faces = if s.class == "WedgePart" then { Enum.NormalId.Top } else { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
+		-- a cylinder's axis is X, so its round side is Top/Bottom/Front/Back (Left/Right are the ends)
+		local faces = if s.class == "WedgePart" then { Enum.NormalId.Top } elseif s.shape == Enum.PartType.Cylinder then { Enum.NormalId.Top, Enum.NormalId.Bottom, Enum.NormalId.Front, Enum.NormalId.Back } else { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
 		for _, face in faces do
 			local t = Instance.new("Texture") :: Texture
 			t.Texture = tex
 			t.Face = face
 			t.StudsPerTileU = 4
 			t.StudsPerTileV = 4
+			-- tinted by the part so roofs and walls keep their own colours; bark stays as drawn
+			-- (tinted by the dark trunk colour it went black in Studio)
+			if s.texture ~= "bark" then
+				t.Color3 = p.Color
+			end
 			t.Parent = p
 		end
 	end
