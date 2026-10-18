@@ -31,7 +31,7 @@ tools/check.sh            # strict type analysis with Roblox globals + all tests
 python3 tools/test.py -k sim   # one test group
 python3 tools/analyze.py src/client
 ```
-Requires the Luau CLI (`luau`, `luau-analyze`) on PATH; see `docs/plan.md` for how they were
+Requires the Luau CLI (`luau`, `luau-analyze`) on PATH; see `docs/handoff.md` for how they are
 built in this environment. The analyzer is a patched build that accepts
 `--definitions=tools/globalTypes.d.luau`.
 

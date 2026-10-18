@@ -1,6 +1,6 @@
 # Handoff / checkpoint
 
-Resume from here; do not recap. Updated 2026-10-18.
+Resume from here; do not recap. Updated 2026-10-19.
 
 ## State of the build
 
@@ -12,7 +12,7 @@ Resume from here; do not recap. Updated 2026-10-18.
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
   place-name modes, server-built world with a readiness-gated loading screen, no-clip placement
   of every figure and object, AI-vs-AI balance harness.
-- Studio QA log: `docs/qa.md` (rounds 1–28). Balance table: `docs/balance.md`.
+- Studio QA log: `docs/qa.md` (rounds 1–29). Balance table: `docs/balance.md`.
 
 ## Workflow
 
@@ -31,22 +31,29 @@ python3 tools/build_place.py             # build/EaglesOfEmpire.rbxlx
 python3 tools/balance.py --seeds 3       # AI-vs-AI pass over every scenario (~10 min)
 ```
 
-Analyzer note: `tools/analyze.py` needs a `luau-analyze` that accepts `--definitions=` and has the
-type-checker limits lifted (a patched build of luau-lang/luau). The stock release (0.743) rejects
-`--definitions`; until a patched build is installed locally, rely on `tools/test.py` plus Studio's
-own script analysis, and let the cloud-built check catch type errors.
+Analyzer note: `luau` and `luau-analyze` live in `~/.local/bin`. The analyzer is Luau 0.743 plus
+`tools/luau-analyze.patch` (adds `--definitions=`, lifts the child limit that the Roblox
+definitions trip); `tools/check.sh` runs it through `tools/analyze.py`, which fails on any
+diagnostic. To rebuild (macOS needs only the Xcode command line tools, ~30 s):
+
+```
+git clone --depth 1 --branch 0.743 https://github.com/luau-lang/luau.git && cd luau
+git apply ~/eagles-of-empire/tools/luau-analyze.patch
+make config=release -j8 luau luau-analyze
+cp build/release/luau build/release/luau-analyze ~/.local/bin/
+```
 
 ## Assets (src/shared/Assets.luau, guide in docs/assets-brief.md)
 
 - Filled: trees `treeOak`, `treeBeech`, `treePine`, `treePoplar` (mesh + texture + `native`);
-  textures `bark`, `roofTile`, `wall`, `thatch`; `Kit.paperTextureId`.
+  buildings `houseA`, `houseB`, `barn`, `church`, `windmill`; textures `bark`, `roofTile`,
+  `wall`, `thatch`; `Kit.paperTextureId`. Only `houseA` has been seen in Studio (QA round 29).
 - A slot needs `mesh`, `texture`, `native` (the mesh's size in studs as Studio shows on import);
   leave `scale` at `{1, 1, 1}`. Trees stand on their centre; buildings on their highest corner
   with a stone plinth; bridges put the deck at bank height.
-- Next: `houseA` (7 × 6 × 5), `houseB` (8 × 8 × 6), `barn` (13 × 7 × 6), `church`
-  (22 × 22 × 7.4, nave along +X), `windmill` (20 × 20 × 20); then `soldierInfantry` (French) and
-  the eight priority sounds in `Assets.sounds`: musketVolley, cannonFire, drumsMarchFr,
-  ambienceField, menuMusic, uiClick, bugleCharge, cavalryCharge.
+- Next: `soldierInfantry` (French) and the eight priority sounds in `Assets.sounds`:
+  musketVolley, cannonFire, drumsMarchFr, ambienceField, menuMusic, uiClick, bugleCharge,
+  cavalryCharge.
 
 ## Open items
 

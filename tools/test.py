@@ -6,6 +6,8 @@ Tree mapping mirrors default.project.json:
   src/shared -> ReplicatedStorage/EoE, src/server -> ServerScriptService/EoE,
   src/client -> StarterPlayer/StarterPlayerScripts/EoEClient, tests -> Tests
 """
+from __future__ import annotations  # `X | None` hints on macOS's Python 3.9
+
 import argparse
 import json
 import os

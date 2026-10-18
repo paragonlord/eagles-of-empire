@@ -315,9 +315,12 @@ function Combat.gather(sim: SimLike): { Attack }
 	-- Contacts first (charges land before volleys in the same tick; both still resolve).
 	for _, id in sim.order do
 		local f = sim.formations[id]
+		-- `state` is a copy so that `state == a or state == b` narrows the copy, not f: the analyzer
+		-- would otherwise stop accepting f as a Formation in the calls below.
+		local state = f and f.state
 		if f and Formation.isActive(f) and f.state ~= "routing" and f.state ~= "rallying" then
 			-- Charging into a target
-			if f.state == "charging" and f.order and f.order.targetId then
+			if state == "charging" and f.order and f.order.targetId then
 				local target = sim.findFormation(sim, f.order.targetId)
 				if target and Formation.isActive(target) and Combat.inContact(f, target) then
 					if f.chargeReady and f.timers.chargeRecover <= 0 then
@@ -334,7 +337,7 @@ function Combat.gather(sim: SimLike): { Attack }
 				elseif target and Formation.isActive(target) and f.class == "cavalry" and not f.chargeReady and f.timers.chargeRecover <= 0 then
 					f.chargeReady = true
 				end
-			elseif f.state == "charging" and f.order and f.order.pos and not f.order.targetId then
+			elseif state == "charging" and f.order and f.order.pos and not f.order.targetId then
 				-- charge toward a position: hit whatever enemy we touch
 				for _, oid in sim.order do
 					local o = sim.formations[oid]
@@ -353,7 +356,7 @@ function Combat.gather(sim: SimLike): { Attack }
 						break
 					end
 				end
-			elseif f.order and f.order.kind == "Engage" and f.order.targetId and (f.state == "moving" or f.state == "idle") then
+			elseif f.order and f.order.kind == "Engage" and f.order.targetId and (state == "moving" or state == "idle") then
 				local target = sim.findFormation(sim, f.order.targetId)
 				if target and Formation.isActive(target) and Combat.inContact(f, target) and f.class ~= "artillery" then
 					f.state = "melee"
@@ -372,7 +375,8 @@ function Combat.gather(sim: SimLike): { Attack }
 	-- walked into us): touching footprints fight. Guns and staff never start a melee themselves.
 	for _, id in sim.order do
 		local f = sim.formations[id]
-		if f and Formation.isActive(f) and f.class ~= "artillery" and f.class ~= "hq" and (f.state == "idle" or f.state == "moving" or f.state == "firing") then
+		local state = f and f.state
+		if f and Formation.isActive(f) and f.class ~= "artillery" and f.class ~= "hq" and (state == "idle" or state == "moving" or state == "firing") then
 			for _, oid in sim.order do
 				local o = sim.formations[oid]
 				if o and o.faction ~= f.faction and Formation.isActive(o) and o.state ~= "routing" and o.state ~= "rallying" and Combat.inContact(f, o) then
@@ -423,7 +427,8 @@ function Combat.gather(sim: SimLike): { Attack }
 	-- Fire.
 	for _, id in sim.order do
 		local f = sim.formations[id]
-		if f and Formation.isActive(f) and (f.state == "idle" or f.state == "firing" or f.state == "moving") then
+		local state = f and f.state
+		if f and Formation.isActive(f) and (state == "idle" or state == "firing" or state == "moving") then
 			local target = Combat.pickFireTarget(sim, f)
 			if target then
 				if f.class == "artillery" then

@@ -8,6 +8,8 @@ Line numbers are preserved, so reported positions apply to the real files.
 
 Usage: tools/analyze.py [src/shared src/server ...]   (default: all of src/)
 """
+from __future__ import annotations  # `X | None` hints on macOS's Python 3.9
+
 import os
 import pathlib
 import re

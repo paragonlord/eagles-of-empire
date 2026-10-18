@@ -1,0 +1,79 @@
+diff --git a/CLI/src/Analyze.cpp b/CLI/src/Analyze.cpp
+index 9f86a61..3a28122 100644
+--- a/CLI/src/Analyze.cpp
++++ b/CLI/src/Analyze.cpp
+@@ -33,6 +33,7 @@
+ #endif
+ 
+ LUAU_FASTFLAG(DebugLuauTimeTracing)
++LUAU_FASTINT(LuauTarjanChildLimit)
+ LUAU_FASTFLAG(DebugLuauLogSolverToJsonFile)
+ 
+ enum class ReportFormat
+@@ -143,6 +144,7 @@ static void displayHelp(const char* argv0)
+     printf("  --mode={strict|nonstrict}: set the analyzer to use the given mode as the default for typechecking (default: `nonstrict`)\n");
+     printf("  --solver={new|old}: selects which typechecker to use (default: `new`)\n");
+     printf("  --timetrace: record compiler time tracing information into trace.json\n");
++    printf("  --definitions=<file>: load a type definition file (e.g. Roblox globals) before checking\n");
+ }
+ 
+ static int assertionHandler(const char* expr, const char* file, int line, const char* function)
+@@ -401,6 +403,9 @@ int main(int argc, char** argv)
+ 
+     setLuauFlagsDefault();
+ 
++    // Roblox-sized definition files exceed the default child limit (10000) and fail as "too complex"; 0 lifts it.
++    FInt::LuauTarjanChildLimit.value = 0;
++
+     if (argc >= 2 && strcmp(argv[1], "--help") == 0)
+     {
+         displayHelp(argv[0]);
+@@ -413,6 +418,7 @@ int main(int argc, char** argv)
+     int threadCount = 0;
+     std::string basePath = "";
+     Luau::SolverMode solverMode = Luau::SolverMode::New;
++    std::string definitionsPath;
+ 
+     for (int i = 1; i < argc; ++i)
+     {
+@@ -441,6 +447,8 @@ int main(int argc, char** argv)
+             solverMode = Luau::SolverMode::Old;
+         else if (strcmp(argv[i], "--solver=new") == 0)
+             solverMode = Luau::SolverMode::New;
++        else if (strncmp(argv[i], "--definitions=", 14) == 0)
++            definitionsPath = argv[i] + 14;
+         else
+         {
+             fprintf(stderr, "Error: Unrecognized option '%s'.\n\n", argv[i]);
+@@ -486,6 +494,31 @@ int main(int argc, char** argv)
+     }
+ 
+     Luau::registerBuiltinGlobals(frontend, frontend.globals);
++
++    if (!definitionsPath.empty())
++    {
++        std::optional<std::string> defs = readFile(definitionsPath);
++        if (!defs)
++        {
++            fprintf(stderr, "Error: cannot read definitions file '%s'\n", definitionsPath.c_str());
++            return 1;
++        }
++
++        Luau::LoadDefinitionFileResult loaded =
++            frontend.loadDefinitionFile(frontend.globals, frontend.globals.globalScope, *defs, "@defs", /* captureComments */ false);
++        if (!loaded.success)
++        {
++            for (const Luau::ParseError& error : loaded.parseResult.errors)
++                fprintf(stderr, "%s(%d,%d): SyntaxError: %s\n", definitionsPath.c_str(), error.getLocation().begin.line + 1,
++                    error.getLocation().begin.column + 1, error.getMessage().c_str());
++            if (loaded.module)
++                for (const Luau::TypeError& error : loaded.module->errors)
++                    fprintf(stderr, "%s(%d,%d): TypeError: %s\n", definitionsPath.c_str(), error.location.begin.line + 1,
++                        error.location.begin.column + 1, Luau::toString(error).c_str());
++            return 1;
++        }
++    }
++
+     Luau::freeze(frontend.globals.globalTypes);
+ 
+ #ifdef CALLGRIND
