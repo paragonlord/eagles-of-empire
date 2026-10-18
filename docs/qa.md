@@ -729,6 +729,21 @@ build de3fbe0.** No errors on either side.
   crossfade every ~18 s. A longer hold before switching back (or hysteresis on the tension score)
   would sit better.
 
+**2026-10-18 round 26 (new AI, no orders given), build 1310358.** No errors.
+- Jena, idle: Prussia advanced and took all three neutral objectives in the first minute
+  (Vierzehnheiligen 0:38, Closewitz 0:45, Dornberg 1:04), then held them; at 25:00 **defeat**,
+  "Time expired; the enemy holds more objectives" (`r26-jena-idle-defeat.jpg`). Doing nothing no
+  longer wins. But not a shot was fired all battle (0 % casualties both sides): once it holds more
+  objectives the AI defends and never comes for the army on the Landgrafenberg.
+- Auerstedt, idle: a real attack. Poppel taken at 3:10, Hassenhausen at 8:04; by 12:23 Prussia had
+  fired 42 volleys, ~21 cannonades and 11 charges, routed and destroyed French units and killed
+  Davout's HQ. Batterie Oranien and Reitende Batterie Blücher stood on the right flank of the
+  Prussian line beside IR 22 and IR 30, with clear lanes and gunsmoke (`r26-auerstedt-guns-flank.jpg`).
+  Run stopped at 12:23 (usage limit), so no final result recorded; "reinforces an objective under
+  attack" not tested (needs the player to attack one).
+- Two-player test still to do: Studio's server task refuses command-line launch ("Invalid Launch
+  Intent! Too many arguments provided"), so it needs Test → Clients and Servers → 2 Players by hand.
+
 ## Known failures
 
 None recorded yet.
