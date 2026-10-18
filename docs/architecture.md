@@ -17,7 +17,7 @@ Short, binding decisions. Code that contradicts this file is a bug in one of the
 | --- | --- | --- |
 | `ReplicatedStorage/EoE` | `src/shared/` | Config, Types, Protocol, Vec, RNG, Grid, MapGen, Scenarios, Util |
 | `ServerScriptService/EoE` | `src/server/` | `Main.server.luau`, MatchService, Sim/*, AI/*, Net/*, Campaign/*, Persist/* |
-| `StarterPlayer/StarterPlayerScripts/EoEClient` | `src/client/` | `Main.client.luau`, Camera, Input, Selection, Net, World/*, Figures, UI/*, Effects, Audio |
+| `StarterPlayer/StarterPlayerScripts/EoEClient` | `src/client/` | `Main.client.luau`, Camera, Input, Touch, Selection, Net, World/*, Figures, UI/*, Effects, Audio |
 
 `ReplicatedStorage` holds only what clients need (map generator, config, protocol). Simulation,
 AI, campaign and persistence code lives under `ServerScriptService` and never replicates.

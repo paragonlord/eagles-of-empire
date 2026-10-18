@@ -689,10 +689,6 @@ local function onHold(fg: Finger)
 		fg.action = "facing"
 	elseif Selection.count() > 0 and mode == "battle" then
 		fg.action = "line"
-		local g = fg.ground
-		if g then
-			previewLine(g, g)
-		end
 	elseif Selection.count() == 0 then
 		fg.action = "ping"
 		ping()
