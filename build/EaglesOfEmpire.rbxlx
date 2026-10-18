@@ -6971,6 +6971,9 @@ return WorldGen
 --
 -- Hierarchy: army plan (posture, wing roles, gun/HQ/reserve positions, every ~20 s or on a
 -- trigger) -> per-formation decisions each decision tick with commitment so goals do not flap.
+-- Postures: defend (hold own-side objectives, shifting toward the one under attack), advance
+-- (holding no more objectives than the enemy would lose on the clock: attack-move on the nearest
+-- objective not ours), attack (a seen enemy outnumbered 1.5:1), withdraw (half the army broken).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
@@ -7002,6 +7005,9 @@ type Unit = {
 	nextMove: number, -- throttle for maintenance moves / facing
 	orderedStep: number, -- decision step of the last command that included this unit
 	point: Vec?, -- goal point for guard / exploit goals
+	lastPos: Vec?, -- artillery: where it was at lastPosAt (progress check while limbered)
+	lastPosAt: number,
+	guardId: number?, -- infantry on guard: the battery it covers
 }
 
 export type AIState = {
@@ -7043,7 +7049,7 @@ local function unitOf(state: AIState, id: number): Unit
 	if u then
 		return u
 	end
-	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil }
+	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil, lastPos = nil, lastPosAt = 0, guardId = nil }
 	state.units[id] = fresh
 	return fresh
 end
@@ -7216,6 +7222,23 @@ local function desiredPosture(state: AIState): string
 	if seen >= ownStr * 0.4 and ownStr > seen * 1.5 then
 		return "attack"
 	end
+	-- Holding no more objectives than the enemy loses (or draws) on the clock: go and take one.
+	-- Neutral objectives on our side of the field count as ours (defend walks onto them anyway).
+	local home, enemyHome = sim:homeEdge(state.faction), sim:homeEdge(state.enemy)
+	local mineN, theirs = 0, 0
+	for _, o in sim.objectives do
+		local p = o.def.pos
+		local ours = o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, home) < Vec.dist(p, enemyHome))
+		if o.owner == state.faction or ours then
+			mineN += 1
+		else
+			theirs += 1
+		end
+	end
+	local deployedEnemy = sim.deployed[state.enemy] or 0
+	if theirs > 0 and (mineN < theirs or (mineN == theirs and deployed >= deployedEnemy)) then
+		return "advance"
+	end
 	return "defend"
 end
 
@@ -7223,23 +7246,25 @@ local function lateral(state: AIState, p: Vec): number
 	return Vec.dot(p, state.right)
 end
 
--- Gun position: high ground with LOS forward, behind the wing's line, within ~55 of it.
-local function pickGunPos(state: AIState, wing: Vec, taken: { Vec }, from: Vec): Vec
+-- Gun position: high ground with LOS forward, on a flank of the wing's line (its own infantry
+-- would otherwise stand in the fire lane); an attacking line stands at musket range of the
+-- enemy, so its guns stand `standoff` further back.
+local function pickGunPos(state: AIState, wing: Vec, taken: { Vec }, from: Vec, standoff: number): Vec
 	local grid = state.sim.grid
 	local probe = Vec.add(wing, Vec.scale(state.forward, 200))
-	local best = Vec.sub(wing, Vec.scale(state.forward, 35))
+	local best = Vec.sub(wing, Vec.scale(state.forward, 35 + standoff))
 	local bestScore = -math.huge
-	for _, d in { 25, 35 } do
-		for _, s in { -20, 0, 20 } do
+	for _, d in { 10 + standoff, 25 + standoff } do
+		for _, s in { -35, 0, 35 } do
 			local p = walkable(state, Vec.add(Vec.sub(wing, Vec.scale(state.forward, d)), Vec.scale(state.right, s)))
-			local ok = Vec.dist(p, wing) <= 45
+			local ok = Vec.dist(p, wing) <= 55 + standoff
 			for _, t in taken do
 				if Vec.dist(t, p) < 24 then
 					ok = false
 				end
 			end
 			if ok then
-				local score = Grid.heightAt(grid, p.x, p.z) + (if Grid.lineOfSight(grid, p, probe) then 20 else 0) - Vec.dist(p, from) / 20
+				local score = Grid.heightAt(grid, p.x, p.z) + (if Grid.lineOfSight(grid, p, probe) then 20 else 0) - Vec.dist(p, from) / 20 - (if Vec.distToSegment(wing, p, probe) < 30 then 30 else 0)
 				if score > bestScore then
 					best, bestScore = p, score
 				end
@@ -7281,6 +7306,25 @@ local function plan(state: AIState)
 		local centre = Vec.sub(target, Vec.scale(dir, 70))
 		local r = Vec.right(dir)
 		wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(r, 150)), Vec.add(centre, Vec.scale(r, 150))
+	elseif posture == "advance" then
+		-- Nearest objective not ours, approached from the army's centre, line 70 short of it.
+		local ownC, m = { x = 0, z = 0 }, 0
+		for _, f in state.mine do
+			ownC, m = Vec.add(ownC, f.pos), m + 1
+		end
+		ownC = Vec.scale(ownC, 1 / math.max(1, m))
+		local target, best = enemyHome, math.huge
+		for _, o in sim.objectives do
+			local d = Vec.dist(o.def.pos, ownC)
+			if o.owner ~= state.faction and d < best then
+				target, best = o.def.pos, d
+			end
+		end
+		local dir = Vec.normalize(Vec.sub(target, ownC))
+		state.facing = Vec.heading(dir)
+		local centre = Vec.sub(target, Vec.scale(dir, 70))
+		local r = Vec.right(dir)
+		wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(r, 150)), Vec.add(centre, Vec.scale(r, 150))
 	elseif posture == "withdraw" then
 		local centre = Vec.sub(base, Vec.scale(forward, 200))
 		wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(state.right, 140)), Vec.add(centre, Vec.scale(state.right, 140))
@@ -7291,6 +7335,27 @@ local function plan(state: AIState)
 			local ours = o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, home) < Vec.dist(p, enemyHome))
 			if o.owner == state.faction or ours then
 				objs[#objs + 1] = Vec.add(p, Vec.scale(forward, 25))
+			end
+		end
+		-- A concentrated attack on one objective pulls the unthreatened wings halfway toward it.
+		local hot, hotN = nil, 0
+		local threat: { number } = {}
+		for i, p in objs do
+			threat[i] = 0
+			for _, k in state.known do
+				if k.age < 90 and k.class == "infantry" and Vec.dist(k.pos, p) < 300 then
+					threat[i] += 1
+				end
+			end
+			if threat[i] > hotN then
+				hot, hotN = p, threat[i]
+			end
+		end
+		if hot then
+			for i, p in objs do
+				if threat[i] == 0 then
+					objs[i] = Vec.lerp(p, hot :: Vec, 0.5)
+				end
 			end
 		end
 		table.sort(objs, function(a, b)
@@ -7400,7 +7465,7 @@ local function plan(state: AIState)
 		if f.class == "artillery" then
 			local w = WINGS[gi % #WINGS + 1]
 			gi += 1
-			local p = pickGunPos(state, wing[w], taken, f.pos)
+			local p = pickGunPos(state, wing[w], taken, f.pos, if posture == "attack" or posture == "advance" then 90 else 0)
 			taken[#taken + 1] = p
 			state.gunPos[f.id] = p
 		end
@@ -7412,7 +7477,7 @@ local function plan(state: AIState)
 		local engaged = nearestVisible(state, f.pos, MUSKET + 30) ~= nil
 		return (f.state == "idle" or f.state == "moving") and not engaged and f.shape ~= "square" and f.pendingShape == nil and (u.goal == "idle" or string.sub(u.goal, 1, 4) == "line" or u.goal == "reserve" or u.goal == "march")
 	end
-	local moveKind = if posture == "attack" then "AttackMove" else "Move"
+	local moveKind = if posture == "attack" or posture == "advance" then "AttackMove" else "Move"
 	for _, w in WINGS do
 		local ids: { number } = {}
 		local far = false
@@ -7476,17 +7541,33 @@ local function availableInfantry(state: AIState, f: Formation): boolean
 	return f.class == "infantry" and f.state == "idle" and healthy(f) and f.shape ~= "square" and (u.goal == "idle" or u.goal == "reserve" or string.sub(u.goal, 1, 4) == "line")
 end
 
--- Every battery in position keeps an infantry formation within 60.
+-- Every battery keeps an infantry formation within 60: beside it in position, or walking to
+-- its planned position while it is still on the move.
+local function gunAnchor(state: AIState, g: Formation): Vec
+	return if unitOf(state, g.id).goal == "deploying" then state.gunPos[g.id] or g.pos else g.pos
+end
+
 local function guardGuns(state: AIState)
+	-- Guard duty ends when the battery is gone or has moved on; the line logic takes over.
+	for _, f in state.mine do
+		local u = unitOf(state, f.id)
+		if u.goal == "guard" then
+			local g = u.guardId and state.sim.formations[u.guardId :: number]
+			if not g or not Formation.isActive(g) or u.point == nil or Vec.dist(u.point :: Vec, gunAnchor(state, g)) > 60 then
+				u.goal, u.reason, u.guardId = "idle", "guard duty over", nil
+			end
+		end
+	end
 	for _, g in state.mine do
 		local ug = unitOf(state, g.id)
-		if g.class == "artillery" and (ug.goal == "fire" or ug.goal == "guns" or ug.goal == "unlimbering") then
-			local _, d = nearestOwn(state, g.pos, function(f)
+		if g.class == "artillery" and (ug.goal == "fire" or ug.goal == "guns" or ug.goal == "unlimbering" or ug.goal == "deploying") then
+			local anchor = gunAnchor(state, g)
+			local _, d = nearestOwn(state, anchor, function(f)
 				return f.class == "infantry" and not Formation.isBroken(f) and f.id ~= g.id
 			end)
-			local _, en = nearestOwn(state, g.pos, function(f)
+			local _, en = nearestOwn(state, anchor, function(f)
 				local uf = unitOf(state, f.id)
-				return f.class == "infantry" and uf.goal == "guard" and uf.point ~= nil and Vec.dist(uf.point :: Vec, g.pos) < 50
+				return f.class == "infantry" and uf.goal == "guard" and uf.point ~= nil and Vec.dist(uf.point :: Vec, anchor) < 50
 			end)
 			if d > 50 and en == math.huge then
 				local best, bd = nearestOwn(state, g.pos, function(f)
@@ -7499,9 +7580,10 @@ local function guardGuns(state: AIState)
 				end
 				if best and bd <= 300 then
 					local u = unitOf(state, best.id)
-					local p = walkable(state, Vec.add(g.pos, Vec.scale(state.forward, 35)))
+					local p = walkable(state, Vec.add(Vec.add(anchor, Vec.scale(state.forward, 10)), Vec.scale(state.right, 35)))
 					if issue(state, "Move", { best.id }, { pos = p, heading = state.facing }) then
 						u.point = p
+						u.guardId = g.id
 						setGoal(state, best.id, "guard", "covering " .. g.name)
 					end
 				end
@@ -7524,7 +7606,11 @@ local function exploit(state: AIState)
 			local _, inside = nearestOwn(state, p, function(f)
 				return (f.class == "infantry" or f.class == "cavalry") and not Formation.isBroken(f)
 			end)
-			if not threatened and inside > o.def.radius and quality(state) then
+			local _, onWay = nearestOwn(state, p, function(f)
+				local uf = unitOf(state, f.id)
+				return uf.goal == "exploit" and uf.point ~= nil and Vec.dist(uf.point :: Vec, p) < 40 and not Formation.isBroken(f)
+			end)
+			if not threatened and inside > o.def.radius and onWay == math.huge and quality(state) then
 				local best, bd = nearestOwn(state, p, function(f)
 					return availableInfantry(state, f) and not committed(state, unitOf(state, f.id))
 				end)
@@ -7662,7 +7748,7 @@ local function infantry(state: AIState, f: Formation)
 	end)
 	if tgt then
 		local goalName = "engage:" .. tgt.id
-		if (state.posture == "attack" or Formation.moraleBandOf(tgt) == "shaken") and u.goal ~= goalName and not committed(state, u) then
+		if (state.posture == "attack" or state.posture == "advance" or Formation.moraleBandOf(tgt) == "shaken") and u.goal ~= goalName and not committed(state, u) then
 			if quality(state) and issue(state, "Engage", { f.id }, { targetId = tgt.id }) then
 				setGoal(state, f.id, goalName, string.format("engaging %s at %.0f", tgt.name, d))
 				return
@@ -7788,6 +7874,15 @@ local function artillery(state: AIState, f: Formation)
 		end
 		return true
 	end)
+	if threat and threat.class == "cavalry" and not limbered and f.pendingLimber == nil and f.ammo > 0 then
+		-- Canister beats limbering up (25 s helpless, shock x3) when infantry stands beside the guns.
+		local _, guard = nearestOwn(state, f.pos, function(i)
+			return i.class == "infantry" and not Formation.isBroken(i)
+		end)
+		if guard <= 60 then
+			threat = nil
+		end
+	end
 	if threat then
 		u.withdrawUntil = clock + 30 * state.reaction
 	end
@@ -7811,12 +7906,23 @@ local function artillery(state: AIState, f: Formation)
 	end
 	local gp = state.gunPos[f.id]
 	if limbered then
-		if gp and Vec.dist(f.pos, gp) > 24 then
+		-- No progress for 30 s (hemmed in by friends, a village, a wood): unlimber where it stands.
+		local stuck = f.state == "moving" and u.lastPos ~= nil and clock - u.lastPosAt >= 30 and Vec.dist(f.pos, u.lastPos :: Vec) < 8
+		if f.state ~= "moving" then
+			u.lastPos = nil
+		elseif u.lastPos == nil or clock - u.lastPosAt >= 30 then
+			u.lastPos, u.lastPosAt = { x = f.pos.x, z = f.pos.z }, clock
+		end
+		if gp and Vec.dist(f.pos, gp) > 24 and not stuck then
 			if f.state == "idle" and clock >= u.nextMove then
 				u.nextMove = clock + 10
 				if issue(state, "Move", { f.id }, { pos = gp, heading = state.facing }) then
 					setGoal(state, f.id, "deploying", "moving into position")
 				end
+			end
+		elseif stuck then
+			if issue(state, "Limber", { f.id }, { limbered = false }) then
+				setGoal(state, f.id, "unlimbering", "hemmed in: deploying here")
 			end
 		elseif f.state == "idle" then
 			if math.abs(Vec.angleDiff(f.heading, state.facing)) > 0.3 then
