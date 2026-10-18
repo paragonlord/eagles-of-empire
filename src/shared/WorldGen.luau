@@ -827,13 +827,38 @@ local function obj(kind: ObjKind, f: () -> (), fp: Footprint?)
 end
 
 -- One mesh part in place of a part assembly when the Assets slot is filled; false otherwise.
-local function meshObject(group: string, key: string, x: number, z: number, heading: number, w: number, h: number, d: number): boolean
+-- "point" objects (trees) stand on the ground at their centre; "footprint" objects (houses,
+-- church, mill) stand on the highest ground under their corners with a stone plinth down to the
+-- lowest, so none sinks into a slope or floats off it; "deck" objects (bridges) put their top at
+-- `deckY` and are buried (piers in the water).
+type MeshMode = "point" | "footprint" | "deck"
+local function meshObject(group: string, key: string, x: number, z: number, heading: number, w: number, h: number, d: number, mode: MeshMode?, deckY: number?): boolean
 	if not Assets.get(key) then
 		return false
 	end
-	-- stand on the same terrain model the clip check uses (bilinear, cliff- and water-aware)
-	local p = part(group, nil, Vector3.new(w, h, d), CFrame.new(x, model.heightAt(x, z) + h / 2, z) * CFrame.Angles(0, -heading, 0), Color3.new(1, 1, 1), Enum.Material.Plastic)
+	local rot = CFrame.Angles(0, -heading, 0)
+	local base = model.heightAt(x, z) -- the same terrain model the clip check uses
+	local m = mode or "point"
+	if m == "footprint" then
+		local lo = base
+		for _, o in { { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } } do
+			local c = CFrame.new(x, 0, z) * rot * Vector3.new(o[1] * w / 2, 0, o[2] * d / 2)
+			local gy = model.heightAt(c.X, c.Z)
+			base = math.max(base, gy)
+			lo = math.min(lo, gy)
+		end
+		if base - lo > 0.15 then
+			local depth = base - lo + 0.6
+			local plinth = part(group, nil, Vector3.new(w + 0.3, depth, d + 0.3), CFrame.new(x, base - depth / 2 + 0.05, z) * rot, STONE:Lerp(c3(110, 104, 92), 0.3), Enum.Material.Cobblestone)
+			plinth.buried = true
+		end
+	end
+	local cy = if m == "deck" and deckY then deckY + 0.5 - h / 2 else base + h / 2
+	local p = part(group, nil, Vector3.new(w, h, d), CFrame.new(x, cy, z) * rot, Color3.new(1, 1, 1), Enum.Material.Plastic)
 	p.fileMesh = key
+	if m == "deck" then
+		p.buried = true
+	end
 	return true
 end
 
@@ -1153,7 +1178,7 @@ end
 -- Village furniture: a cart, barrels by the well, a haystack by a barn, a wayside shrine.
 local function house(group: string, x: number, z: number, heading: number, w: number, d: number, kind: HouseKind, salt: number)
 	local key = if kind == "barn" then "barn" else pick({ "houseA", "houseB", "houseC" }, h01(x, z, salt + 8))
-	if meshObject(group, key, x, z, heading, w, WALL_H + d * 0.62, d) then
+	if meshObject(group, key, x, z, heading, w, WALL_H + d * 0.62, d, "footprint") then
 		return
 	end
 	obj("footprint", function()
@@ -1251,7 +1276,7 @@ local churchParts
 -- Village church: nave with a steep roof, west tower with a spire (two crossed steep gables) or,
 -- in Moravia, a baroque onion dome.
 local function church(group: string, x: number, z: number, heading: number)
-	if meshObject(group, "church", x, z, heading, 22, 22, 7.4) then
+	if meshObject(group, "church", x, z, heading, 22, 22, 7.4, "footprint") then
 		return
 	end
 	obj("footprint", function()
@@ -1354,7 +1379,7 @@ end
 local windmillParts
 -- Post mill on a rise near a village: trestle, weatherboarded body, gable roof and four sails.
 local function windmill(group: string, x: number, z: number, heading: number)
-	if meshObject(group, "windmill", x, z, heading, 20, 20, 20) then
+	if meshObject(group, "windmill", x, z, heading, 20, 20, 20, "footprint") then
 		return
 	end
 	obj("footprint", function()
@@ -1475,7 +1500,7 @@ local function buildBridge(group: string, br: any)
 		sp.buried = true
 		return sp
 	end
-	if meshObject(group, if stoneBridge then "bridgeStone" else "bridgeTimber", mid.x, mid.z, heading, len, 6, br.width) then
+	if meshObject(group, if stoneBridge then "bridgeStone" else "bridgeTimber", mid.x, mid.z, heading, len, 6, br.width, "deck", (y1 + y2) / 2) then
 		return
 	end
 	local a0 = #out + 1

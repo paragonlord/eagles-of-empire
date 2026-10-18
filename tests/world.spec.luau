@@ -102,8 +102,8 @@ test("WorldGen: no part sits below the terrain at its corners, on every map", fu
 	end
 end)
 
-test("WorldGen: a filled tree slot turns each tree into one mesh part standing on the ground", function()
-	local key = "treeOak"
+test("WorldGen: filled tree and house slots turn each object into one mesh part standing on the ground", function()
+	for _, key in { "treeOak", "houseA" } do
 	local slot = Assets.slots[key]
 	slot.mesh = "rbxassetid://1"
 	local ok, err = pcall(function()
@@ -120,12 +120,13 @@ test("WorldGen: a filled tree slot turns each tree into one mesh part standing o
 					end
 				end
 			end
-			assertTrue(meshes > 50, id .. " has oak meshes")
-			assertEq(bad, 0, id .. ": oak bases below ground")
+			assertTrue(meshes > 10, id .. " has " .. key .. " meshes")
+			assertEq(bad, 0, id .. ": " .. key .. " bases below ground")
 		end
 	end)
 	slot.mesh = ""
 	assertTrue(ok, tostring(err))
+	end
 end)
 
 local function run(samples, settleCap, replicateCap)
