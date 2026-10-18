@@ -838,10 +838,12 @@ local function withQ(q: number, f: () -> ())
 	emitQ = prev
 end
 
+-- Detail tier is quality 2 too (as the detail-only jobs are): without it the chimney-smoke
+-- anchors went into "Smoke", the client looks for "SmokeQ2", and no smoke ever ran (round 24).
 local function detail(f: () -> ())
 	local prev = emitTier
 	emitTier = "d"
-	f()
+	withQ(2, f)
 	emitTier = prev
 end
 

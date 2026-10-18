@@ -687,6 +687,29 @@ build de3fbe0.** No errors on either side.
   (`r23-hougoumont-wall-step.jpg`, top left). Under the fog grade the far ground plane reads as an
   orange band on the horizon (`r23-mist-after.jpg`).
 
+**2026-10-18 round 24 (World QA 21-23), build 7151589.** No errors on either side.
+- `[EoE clip]` with the true-shape check: Jena **92** (12489 checked, was 992), Austerlitz
+  **58** (14429, was 1174). Not 0 yet. Of Austerlitz's 58, 46 are under 0.3 studs and only one
+  is deeper than 1; 52 are the new reed stems (WaterQ2, Grass, 1-1.3 wide × 2-3 tall × 0.3)
+  set on the steep bank, the rest single hedge, road and village pieces.
+- Pass: trees read as single lumpy crowns, not stacked discs (`r24-trees-ground-level.jpg`);
+  10 mist anchors along the Goldbach instead of 4; the thatch reads as straw close up
+  (`r24-thatch-close.jpg`).
+- Fixed: **no chimney smoke anywhere.** `WorldGen`'s `detail()` switched to the detail tier but
+  left quality at 1, so the smoke anchors went into a "Smoke" folder while the client looks for
+  "SmokeQ2"; the 65 anchors on Austerlitz never got an emitter. `detail()` now runs at quality 2
+  (its only caller is the smoke). Rebuilt place: 65 emitters, faint grey wisps tinted to the
+  fog, no balloons.
+- Fixed: **the horizon was still an orange band under fog** (`r24-goldbach-orange-band.jpg`):
+  the ground plane is tinted to the fog colour now, but the fog grade's Atmosphere Color/Decay
+  (255,172,140) was itself the orange. Tried live: 236,206,190 for both turns the field blue
+  again; Color 255,190,160 with Decay 236,206,190 keeps the field neutral, the horizon grey and
+  the mist veils visible (`r24-goldbach-fog-fixed.jpg`).
+- Open: the new reed beds read as flat green cards stuck in the bank, not stems (both shots
+  above, along the brook). The haystacks (domed drum on a pole) are the right shape but pale
+  cream with a swirl, so they read as cupcakes (`r24-haystacks.jpg`); a warmer, darker straw
+  (~170,140,80) would read as hay.
+
 ## Known failures
 
 None recorded yet.
