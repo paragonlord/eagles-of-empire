@@ -97,7 +97,7 @@ local SEASONS: { [string]: Season } = {
 		borders = { 0.10, 0.15, 0.25, 0.62 },
 		grass = { 122, 126, 70 },
 		leafy = { 86, 102, 52 },
-		wheat = { 168, 158, 118 },
+		wheat = { 141, 133, 99 }, -- 0.84x: Limestone renders bright
 		plough = { 90, 72, 56 },
 	},
 	summer = {
@@ -105,7 +105,7 @@ local SEASONS: { [string]: Season } = {
 		borders = { 0.46, 0.51, 0.66, 0.82 },
 		grass = { 116, 136, 58 },
 		leafy = { 76, 108, 42 },
-		wheat = { 170, 160, 90 },
+		wheat = { 143, 134, 76 }, -- 0.84x: Limestone renders bright
 		plough = { 104, 82, 58 },
 	},
 }
@@ -366,14 +366,8 @@ local function clearPickPlanes()
 	table.clear(pickPlanes)
 end
 
--- Invisible pick floor under the map and skirt, tiled because a part is capped at 2048 studs.
-local function ensurePickPlane(map: any, minY: number)
-	clearPickPlanes()
-	local folder = Instance.new("Folder") :: Folder
-	folder.Name = "EoEPickPlane"
-	folder.Parent = workspace
-	pickFolder = folder
-	local margin = 2000
+-- Tiled plane (a part is capped at 2048 studs) `margin` studs beyond the map on every side.
+local function tilePlane(folder: Folder, map: any, margin: number, y: number, setup: (Part) -> ())
 	local TILE = 2048
 	local x0, z0 = -margin, -margin
 	local x1, z1 = map.width + margin, map.depth + margin
@@ -384,21 +378,42 @@ local function ensurePickPlane(map: any, minY: number)
 		while z < z1 do
 			local d = math.min(TILE, z1 - z)
 			local p = Instance.new("Part") :: Part
-			p.Name = "EoEPickPlane"
 			p.Anchored = true
 			p.CanCollide = false
 			p.CanTouch = false
-			p.CanQuery = true
-			p.Transparency = 1
-			p.CastShadow = false
 			p.Size = Vector3.new(w, 1, d)
-			p.CFrame = CFrame.new(x + w / 2, minY - 1, z + d / 2)
+			p.CFrame = CFrame.new(x + w / 2, y, z + d / 2)
+			setup(p)
 			p.Parent = folder
-			table.insert(pickPlanes, p)
 			z += d
 		end
 		x += w
 	end
+end
+
+-- Invisible pick floor under the map and skirt, and a visible ground plane under the skirt's
+-- outer edge so the country runs to the horizon from any height (the skirt alone ended in a
+-- cut edge over the sky from the intro sweep's 700 studs).
+local function ensurePickPlane(map: any, minY: number, groundY: number, ground: Color3)
+	clearPickPlanes()
+	local folder = Instance.new("Folder") :: Folder
+	folder.Name = "EoEPickPlane"
+	folder.Parent = workspace
+	pickFolder = folder
+	tilePlane(folder, map, 2000, minY - 1, function(p: Part)
+		p.Name = "EoEPickPlane"
+		p.CanQuery = true
+		p.Transparency = 1
+		p.CastShadow = false
+		table.insert(pickPlanes, p)
+	end)
+	tilePlane(folder, map, 5000, groundY, function(p: Part)
+		p.Name = "EoEGround"
+		p.CanQuery = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Grass
+		p.Color = ground
+	end)
 end
 
 -- The folder holding every pick-plane tile; raycast include lists take descendants.
@@ -503,7 +518,12 @@ function Terrain.build(map: any, onProgress: ((fraction: number) -> ())?): boole
 	local plain = edgeSum / edgeN
 	local seed = (map.seed or 1) + 77
 	bounds = { minY = math.floor((minH - 8) / VOXEL) * VOXEL, maxY = 0 }
-	ensurePickPlane(map, minH)
+	-- the ground plane sits under the skirt's noise and below any river channel leaving the map
+	local planeY = plain - 16
+	for _, river in map.rivers do
+		planeY = math.min(planeY, river.level - 8)
+	end
+	ensurePickPlane(map, math.min(minH, planeY), planeY, rgb(season.grass):Lerp(Color3.new(0, 0, 0), 0.12))
 
 	-- River ends that touch the border, extended 800 studs outward along their last segment.
 	local outs: { { a: { x: number, z: number }, b: { x: number, z: number }, half: number, level: number } } = {}

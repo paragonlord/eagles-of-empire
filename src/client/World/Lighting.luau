@@ -8,6 +8,7 @@
 
 local LightingService = game:GetService("Lighting") :: Lighting
 local TweenService = game:GetService("TweenService") :: TweenService
+local RunService = game:GetService("RunService") :: RunService
 
 local Lighting = {}
 
@@ -116,7 +117,7 @@ local GRADES: { [string]: Grade } = {
 		contrast = 0.04,
 		saturation = -0.12,
 		bloom = 0.2,
-		atmoDensity = 0.45,
+		atmoDensity = 0.4,
 		atmoOffset = 0,
 		atmoColor = c3(255, 172, 140),
 		atmoDecay = c3(255, 172, 140),
@@ -192,6 +193,8 @@ local currentGrade = "afternoon"
 local fogLifted = false -- the battle opened in fog: the clear light after it is morning, not afternoon
 
 local atmosphere: Atmosphere? = nil
+local tweens: { Tween } = {}
+local heightConn: RBXScriptConnection? = nil
 local cc: ColorCorrectionEffect? = nil
 local bloom: BloomEffect? = nil
 local rays: SunRaysEffect? = nil
@@ -214,6 +217,10 @@ local function setGrade(name: string, seconds: number)
 	currentGrade = name
 	local g = GRADES[name]
 	local L = LightingService
+	for _, t in tweens do
+		t:Cancel()
+	end
+	table.clear(tweens)
 	local info = TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 	local function to(inst: Instance?, props: { [string]: any })
 		if not inst then
@@ -224,7 +231,9 @@ local function setGrade(name: string, seconds: number)
 				(inst :: any)[k] = v
 			end
 		else
-			TweenService:Create(inst, info, props):Play()
+			local t = TweenService:Create(inst, info, props)
+			t:Play()
+			table.insert(tweens, t)
 		end
 	end
 	to(L, {
@@ -288,11 +297,46 @@ function Lighting.apply(quality: number)
 		clouds = own(Instance.new("Clouds") :: Clouds, workspace.Terrain)
 	end
 	setGrade(gradeFor(currentWeather), 0)
+	-- Fog thins as the camera climbs (the intro sweep starts at 700; the default view is ~420):
+	-- from high up a full-density Atmosphere shows nothing but fog, and plates must stay legible.
+	if heightConn then
+		heightConn:Disconnect()
+	end
+	local acc = 0
+	heightConn = RunService.Heartbeat:Connect(function(dt: number)
+		acc += dt
+		if acc < 0.25 then
+			return
+		end
+		acc = 0
+		local atmo = atmosphere
+		local cam = workspace.CurrentCamera
+		if not atmo or not cam then
+			return
+		end
+		for _, t in tweens do
+			if t.PlaybackState == Enum.PlaybackState.Playing then
+				return
+			end
+		end
+		local g = GRADES[currentGrade]
+		local factor = if currentGrade == "fog" then math.clamp(1 - (cam.CFrame.Position.Y - 330) / 900, 0.4, 1) else 1
+		atmo.Density = g.atmoDensity * factor
+	end)
 end
 
--- A new map starts from the default light until its scenario weather arrives.
-function Lighting.setMap(_mapId: string?)
+-- A new battle (or map) opens in its scenario weather with nothing carried over from the last
+-- one: a clear battle after a foggy one is an afternoon, not a fog lifting.
+function Lighting.beginBattle()
 	fogLifted = false
+	local name = gradeFor(currentWeather)
+	if name ~= currentGrade then
+		setGrade(name, 0)
+	end
+end
+
+function Lighting.setMap(_mapId: string?)
+	Lighting.beginBattle()
 end
 
 -- Scenario weather (`fog`, `rain`, `mud`, ... or nil for clear). Fog arrives at once; when it
@@ -321,6 +365,10 @@ end
 
 function Lighting.destroy()
 	clearOwned()
+	if heightConn then
+		heightConn:Disconnect()
+		heightConn = nil
+	end
 end
 
 return Lighting
