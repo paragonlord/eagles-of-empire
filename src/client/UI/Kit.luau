@@ -1,8 +1,9 @@
 --!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
--- primary actions), parchment only for documents. Every panel is Active so clicks never reach
--- the field. Screens build from these pieces, so restyling here restyles everything.
+-- primary actions), parchment only for documents: aged post, tea-stained at the edges with
+-- foxing, a crease and now and then a coffee ring (Kit.paper). Every panel is Active so clicks
+-- never reach the field. Screens build from these pieces, so restyling here restyles everything.
 
 local Players = game:GetService("Players") :: Players
 local UserInputService = game:GetService("UserInputService") :: UserInputService
@@ -10,6 +11,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
 local BattleState = require(script.Parent.Parent.BattleState)
+local PaperLayout = require(script.Parent.PaperLayout)
 
 local Kit = {}
 
@@ -33,10 +35,16 @@ Kit.IVORY = hex(0xEFE6CF) -- text on dark
 Kit.WALNUT = hex(0x2A1E17) -- panel body, bottom
 Kit.WALNUT_LIGHT = hex(0x3B2A1F) -- panel body, top
 Kit.INSET = hex(0x14100D) -- wells, tracks, nested panels
-Kit.PARCHMENT = hex(0xE8DCC0) -- documents only
-Kit.PARCHMENT_EDGE = hex(0xC9B58A)
-Kit.INK = rgb(P.Ink) -- text on parchment
-Kit.INK_MUTED = hex(0x6E5A44)
+Kit.PARCHMENT = hex(0xE6D7B4) -- documents only: mid tone of the aged sheet
+Kit.PARCHMENT_LIGHT = hex(0xF1E7CB) -- warm ivory at the heart of the sheet
+Kit.PARCHMENT_EDGE = hex(0xC8AB72) -- tea-stain ochre at the edges
+Kit.PARCHMENT_STAIN = hex(0x8A6A3A) -- foxing, rings, the vignette (laid on at high transparency)
+Kit.INK = hex(0x2F2116) -- iron-gall ink on parchment (10:1 on the mid tone)
+Kit.INK_MUTED = hex(0x6B5640) -- 4.6:1 on the mid tone
+Kit.STAMP = hex(0xA3362E) -- faded red of a dépôt stamp
+-- A Creator Store paper texture: set to "rbxassetid://..." and Kit.paper lays it under the
+-- gradients at low opacity. Empty, the procedural layers stand alone.
+Kit.paperTextureId = ""
 Kit.MUTED = hex(0xB3A285) -- secondary text on dark (resolves to INK_MUTED on parchment)
 Kit.SLATE = hex(0x4A4B52) -- disabled lacquer
 
@@ -174,12 +182,21 @@ function Kit.rosette(parent: Instance, pos: UDim2, size: number?): Frame
 	return holder
 end
 
--- Gold rule with a centred diamond; `width` in px (or the parent's width when nil).
+-- Gold rule with a centred diamond; `width` in px (or the parent's width when nil). On parchment
+-- it is drawn in ink as a thin double line with the diamond as its ornament.
 function Kit.rule(parent: Instance, pos: UDim2, width: number?, anchorX: number?): Frame
-	local r = frame(parent, if width then UDim2.fromOffset(width, 1) else UDim2.new(1, 0, 0, 1), pos, Kit.GILT)
+	local doc = onParchment(parent)
+	local colour = if doc then Kit.INK else Kit.GILT
+	local r = frame(parent, if width then UDim2.fromOffset(width, 1) else UDim2.new(1, 0, 0, 1), pos, colour)
 	r.Name = "Rule"
 	r.AnchorPoint = Vector2.new(anchorX or 0, 0.5)
-	local d = frame(r, UDim2.fromOffset(6, 6), UDim2.fromScale(0.5, 0.5), Kit.GILT)
+	if doc then
+		r.BackgroundTransparency = 0.35
+		local second = frame(r, UDim2.new(1, -16, 0, 1), UDim2.new(0.5, 0, 0, 3), colour)
+		second.AnchorPoint = Vector2.new(0.5, 0)
+		second.BackgroundTransparency = 0.55
+	end
+	local d = frame(r, UDim2.fromOffset(6, 6), UDim2.fromScale(0.5, 0.5), colour)
 	d.AnchorPoint = Vector2.new(0.5, 0.5)
 	d.Rotation = 45
 	return r
@@ -206,6 +223,7 @@ export type PanelProps = {
 	dark: boolean?, -- nested well: near-black inset with a dark-gold hairline
 	plain: boolean?, -- single thin frame, no rosettes (chips, bars)
 	parchment: boolean?, -- a document: briefing dispatch, report, history
+	seed: number?, -- parchment: where its stains fall (default: from the parent's name and the size)
 }
 
 -- Inner hairline 4 px inside the outer gold stroke, with rosettes at the corners.
@@ -230,6 +248,119 @@ local function trim(f: Frame, pad: number, colour: Color3)
 	end
 end
 
+local function round(f: GuiObject, radius: number?): UICorner
+	local c = Instance.new("UICorner") :: UICorner
+	c.CornerRadius = UDim.new(radius or 0.5, 0)
+	c.Parent = f
+	return c
+end
+
+local function hairline(f: GuiObject, colour: Color3, thickness: number, transparency: number): UIStroke
+	local s = Instance.new("UIStroke") :: UIStroke
+	s.Color = colour
+	s.Thickness = thickness
+	s.Transparency = transparency
+	s.Parent = f
+	return s
+end
+
+-- Aged post. The tone varies across the sheet: ochre creeps in from the edges along two
+-- angles and darkens towards the foot; then foxing spots, a crease, a folded corner and on some
+-- sheets a coffee ring, all placed by PaperLayout from `seed` so a panel looks the same each
+-- time it opens. A deckled double edge rounds it off. Everything sits in a "Deco" Folder at
+-- ZIndex 0 under the content; sizes are Scale-only so an auto-sized panel never grows for it.
+-- About 15 instances (18 with a ring), fewer than the gilt trim it replaces.
+function Kit.paper(f: Frame, pad: number, seed: number)
+	local deco = Instance.new("Folder")
+	deco.Name = "Deco"
+	deco.Parent = f
+	-- the padding is applied to the panel, so the sheet layers reach back out to its edge
+	local full = UDim2.new(1, 2 * pad, 1, 2 * pad)
+	local origin = UDim2.fromOffset(-pad, -pad)
+	local function layer(name: string, size: UDim2, pos: UDim2, colour: Color3, transparency: number): Frame
+		local l = frame(deco, size, pos, colour)
+		l.Name = name
+		l.ZIndex = 0
+		l.BackgroundTransparency = transparency
+		return l
+	end
+	if Kit.paperTextureId ~= "" then
+		local img = Instance.new("ImageLabel") :: ImageLabel
+		img.Name = "Texture"
+		img.Size = full
+		img.Position = origin
+		img.BackgroundTransparency = 1
+		img.Image = Kit.paperTextureId
+		img.ImageTransparency = 0.6
+		img.ScaleType = Enum.ScaleType.Crop
+		img.ZIndex = 0
+		img.Parent = deco
+	end
+	-- tea stain along two angles, clear at the heart; the second runs ochre into a darker
+	-- vignette at its far end
+	for i, rot in { 28, 117 } do
+		local t = layer("Stain" .. i, full, origin, Kit.PARCHMENT_EDGE, 0)
+		local g = Instance.new("UIGradient") :: UIGradient
+		g.Rotation = rot
+		if i == 2 then
+			g.Color = ColorSequence.new(Kit.PARCHMENT_EDGE, Kit.PARCHMENT_STAIN)
+		end
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.4),
+			NumberSequenceKeypoint.new(0.25, 0.88),
+			NumberSequenceKeypoint.new(0.5, 1),
+			NumberSequenceKeypoint.new(0.78, 0.86),
+			NumberSequenceKeypoint.new(1, 0.45),
+		})
+		g.Parent = t
+	end
+	local sheet = PaperLayout.sheet(seed)
+	for i, m in sheet.blotches do
+		round(layer("Fox" .. i, UDim2.fromScale(m.w, m.h), UDim2.fromScale(m.x, m.y), Kit.PARCHMENT_STAIN, m.alpha))
+	end
+	local ring = sheet.ring
+	if ring then
+		-- a thin darker ring round a soft fill
+		local r = layer("Ring", UDim2.fromScale(ring.w, ring.h), UDim2.fromScale(ring.x, ring.y), Kit.PARCHMENT_STAIN, 0.9)
+		round(r)
+		hairline(r, Kit.PARCHMENT_STAIN, 2, ring.alpha)
+	end
+	-- a fold: a darker line with the light catching just below it
+	local crease = layer("Crease", UDim2.new(1, 2 * pad, 0, 1), UDim2.new(0, -pad, sheet.crease.y, 0), Kit.PARCHMENT_STAIN, 0.72)
+	crease.Rotation = sheet.crease.rotation
+	local lit = frame(crease, UDim2.new(1, 0, 0, 1), UDim2.fromOffset(0, 1), Kit.PARCHMENT_LIGHT)
+	lit.BackgroundTransparency = 0.45
+	-- a dog-eared corner: a rotated square that just overruns the edge
+	local cx, cy = (sheet.chip - 1) % 2, (sheet.chip - 1) // 2
+	local chip = layer("Chip", UDim2.fromOffset(18, 18), UDim2.new(cx, if cx == 0 then -pad else pad, cy, if cy == 0 then -pad else pad), Kit.PARCHMENT_EDGE, 0.3)
+	chip.AnchorPoint = Vector2.new(cx, cy)
+	chip.Rotation = 45
+	-- deckled edge: a second, offset hairline inside the outer stroke
+	local deckle = layer("Deckle", UDim2.new(1, 2 * pad - 5, 1, 2 * pad - 5), UDim2.fromOffset(3 - pad, 2 - pad), Kit.PARCHMENT_STAIN, 1)
+	hairline(deckle, Kit.PARCHMENT_STAIN, 1, 0.55)
+end
+
+-- A faded circular stamp ("DÉPÔT DE LA GUERRE"): two rings and the legend, the whole set a
+-- little askew as if struck in haste. `d` is the diameter in px.
+function Kit.stamp(parent: Instance, text: string, pos: UDim2, d: number, anchor: Vector2?): Frame
+	local s = frame(parent, UDim2.fromOffset(d, d), pos, Kit.STAMP)
+	s.Name = "Stamp"
+	s.AnchorPoint = anchor or Vector2.new(0.5, 0.5)
+	s.BackgroundTransparency = 0.93
+	s.Rotation = -11
+	round(s)
+	hairline(s, Kit.STAMP, 3, 0.45)
+	local inner = frame(s, UDim2.fromScale(0.84, 0.84), UDim2.fromScale(0.5, 0.5), Kit.STAMP)
+	inner.AnchorPoint = Vector2.new(0.5, 0.5)
+	inner.BackgroundTransparency = 1
+	round(inner)
+	hairline(inner, Kit.STAMP, 1, 0.5)
+	local l = Kit.label(s, Kit.upper(text), { size = UDim2.fromScale(0.8, 0.8), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), textSize = math.max(10, math.floor(d / 6.5)), font = Enum.Font.Garamond, colour = Kit.STAMP, align = Enum.TextXAlignment.Center, wrap = true })
+	l.FontFace = Kit.BOLD
+	l.TextTransparency = 0.4
+	return s
+end
+
 function Kit.panel(parent: Instance, props: PanelProps): Frame
 	local f = Instance.new("Frame") :: Frame
 	f.Size = props.size
@@ -244,18 +375,17 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 	if props.parchment then
 		f:SetAttribute("parchment", true)
 		f.BackgroundColor3 = Color3.new(1, 1, 1)
-		local g = Instance.new("UIGradient") :: UIGradient
+		-- the base sheet already shifts from ivory to the mid tone; Kit.paper ages it
+		local g = gradient(f, Kit.PARCHMENT_LIGHT, Kit.PARCHMENT, 75)
 		g.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Kit.PARCHMENT_EDGE),
-			ColorSequenceKeypoint.new(0.08, hex(0xEFE4CA)),
-			ColorSequenceKeypoint.new(0.85, Kit.PARCHMENT),
-			ColorSequenceKeypoint.new(1, Kit.PARCHMENT_EDGE),
+			ColorSequenceKeypoint.new(0, Kit.PARCHMENT_LIGHT),
+			ColorSequenceKeypoint.new(0.5, Kit.PARCHMENT),
+			ColorSequenceKeypoint.new(1, Kit.PARCHMENT:Lerp(Kit.PARCHMENT_EDGE, 0.5)),
 		})
-		g.Rotation = 90
-		g.Parent = f
-		stroke.Color = hex(0x9C8456)
+		stroke.Color = Kit.PARCHMENT_STAIN
 		stroke.Thickness = 2
-		trim(f, props.padding or 0, hex(0xB59E72))
+		stroke.Transparency = 0.2
+		Kit.paper(f, props.padding or 0, props.seed or PaperLayout.seed(parent.Name .. tostring(props.size)))
 	elseif props.dark then
 		f:SetAttribute("parchment", false)
 		f.BackgroundColor3 = Kit.INSET

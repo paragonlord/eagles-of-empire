@@ -54,6 +54,7 @@ function Deployment.show(cb: Callbacks)
 	fit.MaxTextSize = 26
 	fit.Parent = title
 	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
+	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -36, 1, -100), 96)
 	local facts = {}
 	local w = (Config.Weather :: any)[sc.weather or ""]
 	if w then

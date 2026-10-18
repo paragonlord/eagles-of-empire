@@ -219,6 +219,7 @@ function Results.show(results: any, cb: Callbacks)
 	local subLine = Kit.label(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 56), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
 	subLine.FontFace = Kit.ITALIC
 	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
+	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -50, 0, 100), 100)
 
 	local sidesRow = Instance.new("Frame") :: Frame
 	sidesRow.Size = UDim2.new(1, 0, 0, 160)
