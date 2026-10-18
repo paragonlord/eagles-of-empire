@@ -554,6 +554,13 @@ are untested here (Device Emulator test for Bartosz).
   ("80?", `r16-settings-touch-sheet.jpg`). The deployment's Settings button reads "SET.";
   "Settings" at 12 px or a gear would read better.
 
+**2026-10-18 round 17 (Controls live), build 7b0d9e6.** Boots clean, no game errors.
+- Pass: picking Touch in the briefing rebuilds it in the touch layout at 1.15 with "Options"
+  that fits, and the Settings sheet's percentages now clear the scrollbar
+  (`r17-live-touch-briefing.jpg`). Picking Desktop mid-battle rebuilds the HUD and the
+  Settings panel in the desktop layout (`r17-live-desktop-battle.jpg`). All three round 16
+  touch notes are closed. Gestures and the order wheel still need a Device Emulator run.
+
 ## Known failures
 
 None recorded yet.
