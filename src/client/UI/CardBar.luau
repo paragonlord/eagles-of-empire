@@ -517,8 +517,10 @@ local function fitWidth()
 	end
 	local layout = s:FindFirstChildOfClass("UIListLayout") :: UIListLayout?
 	local sg = p.Parent :: ScreenGui
-	local content = if layout then layout.AbsoluteContentSize.X else 0
-	local avail = math.max(sg.AbsoluteSize.X - 2 * CardBar.SIDE_MARGIN, CARD_W + 2 * PAD)
+	local k = Kit.scale() -- absolute sizes carry the touch UIScale; offsets do not
+	local content = if layout then layout.AbsoluteContentSize.X / k else 0
+	-- touch: the bar starts at the left edge and stops short of the command panel on the right
+	local avail = math.max(if Kit.touch() then sg.AbsoluteSize.X / k - 8 - 272 else sg.AbsoluteSize.X / k - 2 * CardBar.SIDE_MARGIN, CARD_W + 2 * PAD)
 	local overflow = content + 2 * PAD > avail
 	for _, a in arrows do
 		a.Visible = overflow
@@ -543,6 +545,10 @@ function CardBar.create(sg: ScreenGui)
 	CardBar.destroy()
 	local p = Kit.panel(sg, { size = UDim2.fromOffset(200, CardBar.HEIGHT), position = UDim2.new(0.5, 0, 1, -8), anchor = Vector2.new(0.5, 1), padding = PAD, transparency = 0.12 })
 	p.Name = "CardBar"
+	if Kit.touch() then
+		p.Position = UDim2.new(0, 8, 1, -8)
+		p.AnchorPoint = Vector2.new(0, 1)
+	end
 	local s = Instance.new("ScrollingFrame") :: ScrollingFrame
 	s.Size = UDim2.fromScale(1, 1)
 	s.BackgroundTransparency = 1

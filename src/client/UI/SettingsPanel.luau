@@ -30,13 +30,25 @@ end
 function SettingsPanel.show()
 	if not gui then
 		local sg = Kit.screen("EoESettings", 36)
-		local panel = Kit.panel(sg, { size = UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+		local touch = Kit.touch()
+		-- on a phone the sheet takes the height it can get and the list scrolls inside it
+		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
+		if touch then
+			local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
+			cap.MaxSize = Vector2.new(420, 640)
+			cap.Parent = panel
+		end
 		Kit.title(panel, "Settings", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
-		Kit.button(panel, "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
-		local list = Instance.new("Frame") :: Frame
+		Kit.button(panel, if touch then "Close" else "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, if touch then 34 else 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
+		local list = Instance.new("ScrollingFrame") :: ScrollingFrame
 		list.Size = UDim2.new(1, 0, 1, -48)
 		list.Position = UDim2.new(0, 0, 0, 44)
 		list.BackgroundTransparency = 1
+		list.BorderSizePixel = 0
+		list.ScrollBarThickness = if touch then 6 else 0
+		list.ScrollBarImageColor3 = Kit.GILT
+		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		list.CanvasSize = UDim2.new()
 		list.Parent = panel
 		Kit.list(list, 10)
 		local order = 0
@@ -107,6 +119,7 @@ function SettingsPanel.show()
 			end
 			refresh()
 		end
+		choices("Controls (choose Touch in Studio's device emulator)", "controls", Settings.CONTROLS, { "Auto", "Touch", "Desktop" })
 		choices("Typeface (headings and text)", "typeface", Settings.TYPEFACES, nil)
 		choices("Place names on the field", "placeNames", Settings.PLACE_NAMES, { "On the ground", "Floating", "Under cursor", "Off" })
 

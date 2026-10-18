@@ -31,7 +31,7 @@ local hovered: number? = nil
 local onPick: ((key: string) -> ())? = nil
 
 local function build()
-	local sg = Kit.screen("EoEWheel", 30, true)
+	local sg = Kit.screen("EoEWheel", 30) -- InputObject positions are in GUI (inset) space
 	local ring = Instance.new("Frame") :: Frame
 	ring.Name = "Ring"
 	ring.Size = UDim2.fromOffset(2 * RADIUS, 2 * RADIUS)

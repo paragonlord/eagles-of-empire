@@ -25,6 +25,7 @@ local playersBox: Frame? = nil -- co-op / PvP roster (hidden solo co-op)
 local callbacks: Callbacks? = nil
 
 local HINTS = "· Left-drag a formation to re-place it inside your zone.\n· Right-drag from a formation to set its facing.\n· Objectives are marked with flags; north is up on the minimap."
+local TOUCH_HINTS = "· Drag a formation to re-place it inside your zone.\n· Hold a formation, then drag, to set its facing.\n· Drag the ground to look around; pinch to zoom, twist to turn."
 
 local function section(parent: Instance, heading: string, body: string, order: number, colour: Color3?)
 	local h = Kit.title(parent, heading, { size = UDim2.new(1, 0, 0, 22), textSize = 18, spaced = true })
@@ -39,8 +40,9 @@ function Deployment.show(cb: Callbacks)
 	Deployment.destroy()
 	local sg = Kit.screen("EoEDeploy", 20)
 	local sc = BattleState.scenario or {}
-	-- the dispatch: a parchment document sealed in crimson
-	local panel = Kit.panel(sg, { size = UDim2.new(0, 420, 1, -96), position = UDim2.new(0, 24, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = 18, parchment = true })
+	local touch = Kit.touch()
+	-- the dispatch: a parchment document sealed in crimson (on a phone it fills the height)
+	local panel = Kit.panel(sg, { size = UDim2.new(0, 420, 1, if touch then -16 else -96), position = UDim2.new(0, if touch then 8 else 24, 0.5, 0), anchor = Vector2.new(0, 0.5), padding = if touch then 12 else 18, parchment = true })
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(420, 660)
 	cap.Parent = panel
@@ -79,7 +81,7 @@ function Deployment.show(cb: Callbacks)
 	end
 	-- the stamp fills the foot of the margin; a short sheet (small viewport) gets a smaller one
 	local cam = workspace.CurrentCamera
-	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y else 720) - 96)
+	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y / Kit.scale() else 720) - (if touch then 16 else 96))
 	local d = math.clamp(math.floor((sheetH - 260) / 3), 56, 88)
 	Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
 	local rule = Kit.rule(panel, UDim2.fromOffset(0, 66))
@@ -112,7 +114,7 @@ function Deployment.show(cb: Callbacks)
 	playersBox = pb
 	callbacks = cb
 	section(body, "Orders", sc.briefing or "", 10)
-	section(body, "Deployment", HINTS, 20, Kit.MUTED)
+	section(body, "Deployment", if touch then TOUCH_HINTS else HINTS, 20, Kit.MUTED)
 	if sc.summary then
 		section(body, "What happened", sc.summary, 30, Kit.MUTED)
 	end
@@ -123,12 +125,12 @@ function Deployment.show(cb: Callbacks)
 	row.BackgroundTransparency = 1
 	row.Parent = panel
 	Kit.list(row, 8, true)
-	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
+	local b = Kit.button(row, "Start Battle", cb.ready, { size = UDim2.new(1, if touch then -74 else -98, 1, 0), primary = true, order = 1, textSize = 24, font = Enum.Font.Garamond })
 	local bs = b:FindFirstChildOfClass("UIStroke") :: UIStroke?
 	if bs then
 		bs.Thickness = 2
 	end
-	Kit.button(row, "Settings", cb.settings, { size = UDim2.new(0, 90, 1, 0), order = 2 })
+	Kit.button(row, if touch then "Set." else "Settings", cb.settings, { size = UDim2.new(0, if touch then 66 else 90, 1, 0), order = 2 })
 	if (BattleState.coop() and BattleState.role == "officer") or BattleState.pvp() then
 		b.Text = "Ready"
 	elseif not BattleState.isCommander then
