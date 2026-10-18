@@ -1,5 +1,6 @@
 --!strict
--- Settings: quality, volumes, reduced shake/effects, AI difficulty. Applies live via Settings.
+-- Settings: quality, volumes, reduced shake/effects, typeface, place names, AI difficulty.
+-- Applies live via Settings.
 
 local Kit = require(script.Parent.Kit)
 local Settings = require(script.Parent.Parent.Settings)
@@ -29,7 +30,7 @@ end
 function SettingsPanel.show()
 	if not gui then
 		local sg = Kit.screen("EoESettings", 36)
-		local panel = Kit.panel(sg, { size = UDim2.fromOffset(420, 540), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+		local panel = Kit.panel(sg, { size = UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
 		Kit.title(panel, "Settings", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
 		Kit.button(panel, "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 		local list = Instance.new("Frame") :: Frame
@@ -81,6 +82,33 @@ function SettingsPanel.show()
 		Kit.toggle(list, "Reduced effects (half the smoke and dust)", v.reducedEffects, function(x)
 			Settings.set("reducedEffects", x)
 		end).LayoutOrder = next()
+
+		-- a row of choices: the chosen one sits sunk
+		local function choices(label: string, key: string, options: { string }, names: { string }?)
+			local l = Kit.label(list, label, { size = UDim2.new(1, 0, 0, 18) })
+			l.LayoutOrder = next()
+			local rowF = Instance.new("Frame") :: Frame
+			rowF.Size = UDim2.new(1, 0, 0, 30)
+			rowF.BackgroundTransparency = 1
+			rowF.LayoutOrder = next()
+			rowF.Parent = list
+			Kit.list(rowF, 6, true)
+			local buttons: { TextButton } = {}
+			local function refresh()
+				for i, b in buttons do
+					Kit.setActiveLook(b, (Settings.get() :: any)[key] == options[i])
+				end
+			end
+			for i, opt in options do
+				buttons[i] = Kit.button(rowF, if names then names[i] else opt, function()
+					Settings.set(key, opt)
+					refresh()
+				end, { size = UDim2.new(1 / #options, -5, 1, 0), order = i, textSize = 13 })
+			end
+			refresh()
+		end
+		choices("Typeface (headings and text)", "typeface", Settings.TYPEFACES, nil)
+		choices("Place names on the field", "placeNames", Settings.PLACE_NAMES, { "On the ground", "Floating", "Under cursor", "Off" })
 
 		local d = Kit.label(list, "AI difficulty (Hard: the enemy gets +5 morale)", { size = UDim2.new(1, 0, 0, 18) })
 		d.LayoutOrder = next()

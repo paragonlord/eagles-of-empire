@@ -45,16 +45,26 @@ function Deployment.show(cb: Callbacks)
 	cap.MaxSize = Vector2.new(420, 660)
 	cap.Parent = panel
 
-	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = UDim2.new(1, -60, 0, 18), textSize = 17 })
+	-- The sheet is set as a letter: a text column on the left and a margin on the right that
+	-- carries the seal, the notes (weather, time) and, at its foot, the stamp. The column
+	-- (and the scrolling body below) never reaches the margin, so the stamp covers no text.
+	local MARGIN = 96
+	local col = UDim2.new(1, -MARGIN - 12, 0, 18)
+	local dated = Kit.label(panel, "Headquarters, " .. (sc.date or "the eve of battle"), { size = col, textSize = 17 })
 	dated.FontFace = Kit.ITALIC
-	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -60, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
+	local title = Kit.title(panel, sc.name or "Deployment", { size = UDim2.new(1, -MARGIN - 12, 0, 30), position = UDim2.fromOffset(0, 18), textSize = 26 })
 	-- long episode names ("The Fight for Vierzehnheiligen") shrink to fit instead of "THE FIGHT FOR…"
 	title.TextScaled = true
 	local fit = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
 	fit.MaxTextSize = 26
 	fit.Parent = title
-	Kit.seal(panel, UDim2.new(1, 4, 0, 18), 52)
-	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -36, 1, -100), 96)
+	local margin = Instance.new("Frame") :: Frame
+	margin.Size = UDim2.new(0, MARGIN, 1, -62)
+	margin.Position = UDim2.fromScale(1, 0)
+	margin.AnchorPoint = Vector2.new(1, 0)
+	margin.BackgroundTransparency = 1
+	margin.Parent = panel
+	Kit.seal(margin, UDim2.new(0.5, 0, 0, 26), 52)
 	local facts = {}
 	local w = (Config.Weather :: any)[sc.weather or ""]
 	if w then
@@ -63,11 +73,19 @@ function Deployment.show(cb: Callbacks)
 	if sc.timeLimit and sc.timeLimit > 0 then
 		table.insert(facts, string.format("%d minutes", math.floor(sc.timeLimit / 60)))
 	end
-	Kit.title(panel, table.concat(facts, "  ·  "), { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 47), textSize = 16, colour = Kit.MUTED, caps = false })
-	Kit.rule(panel, UDim2.fromOffset(0, 66))
-
+	for i, fact in facts do
+		local n = Kit.label(margin, fact, { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 50 + i * 18), textSize = 15, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		n.FontFace = Kit.ITALIC
+	end
+	-- the stamp fills the foot of the margin; a short sheet (small viewport) gets a smaller one
+	local cam = workspace.CurrentCamera
+	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y else 720) - 96)
+	local d = math.clamp(math.floor((sheetH - 260) / 3), 56, 88)
+	Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
+	local rule = Kit.rule(panel, UDim2.fromOffset(0, 66))
+	rule.Size = UDim2.new(1, -MARGIN - 12, 0, 1)
 	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
-	body.Size = UDim2.new(1, 0, 1, -72 - 62)
+	body.Size = UDim2.new(1, -MARGIN - 12, 1, -72 - 62)
 	body.Position = UDim2.fromOffset(0, 70)
 	body.BackgroundTransparency = 1
 	body.BorderSizePixel = 0
@@ -191,7 +209,7 @@ function Deployment.refresh()
 				chip.BackgroundColor3 = Kit.slotColour(p.slot)
 				chip.BorderSizePixel = 0
 				chip.Parent = row
-				local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then "  ✓" else "")
+				local who = tostring(p.name) .. (if p.role == "commander" then " (commander)" else "") .. (if p.ready then " · ready" else "")
 				Kit.label(row, who, { size = UDim2.new(1, -20, 1, 0), position = UDim2.fromOffset(20, 0), textSize = 16, font = Enum.Font.Garamond })
 				if giver and p.userId ~= BattleState.userId and group.faction == BattleState.viewerFaction then
 					local uid = p.userId

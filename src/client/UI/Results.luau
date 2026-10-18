@@ -45,7 +45,7 @@ local function sideBlock(parent: Instance, faction: string, name: string, s: any
 	local f = Kit.panel(parent, { size = UDim2.new(0.5, -6, 1, 0), position = UDim2.new(), dark = true, padding = 10 })
 	f.LayoutOrder = order
 	local colour = Kit.factionColour(faction)
-	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 22, spaced = true, colour = Kit.GILT })
+	local t = Kit.title(f, name, { size = UDim2.new(1, 0, 0, 26), textSize = 22, spaced = true })
 	t.Name = "Title"
 	local deployed = math.max(s.deployed or 0, 1)
 	local lost = s.casualties or 0
@@ -219,7 +219,6 @@ function Results.show(results: any, cb: Callbacks)
 	local subLine = Kit.label(panel, string.format("%s%s · %s", if sub ~= "" then sub .. " · " else "", tostring(results.reason or ""), Kit.formatClock(results.clock or 0)), { size = UDim2.new(1, 0, 0, 20), position = UDim2.new(0, 0, 0, 56), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
 	subLine.FontFace = Kit.ITALIC
 	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
-	Kit.stamp(panel, "Dépôt de la Guerre", UDim2.new(1, -50, 0, 100), 100)
 
 	local sidesRow = Instance.new("Frame") :: Frame
 	sidesRow.Size = UDim2.new(1, 0, 0, 160)
@@ -307,6 +306,13 @@ function Results.show(results: any, cb: Callbacks)
 
 	heading("Order of battle")
 	formationTable(body, nextOrder())
+	-- the stamp closes the report under the last block, in space of its own
+	local foot = Instance.new("Frame") :: Frame
+	foot.Size = UDim2.new(1, -14, 0, 96)
+	foot.BackgroundTransparency = 1
+	foot.LayoutOrder = nextOrder()
+	foot.Parent = body
+	Kit.stamp(foot, "Dépôt de la Guerre", UDim2.new(1, -10, 0.5, 0), 84, Vector2.new(1, 0.5))
 
 	local buttons = Instance.new("Frame") :: Frame
 	buttons.Size = UDim2.new(1, 0, 0, 42)

@@ -385,7 +385,7 @@ local function updatePlayers()
 		chip.BackgroundColor3 = Kit.slotColour(p.slot)
 		chip.BorderSizePixel = 0
 		chip.Parent = row
-		local text = tostring(p.name) .. (if p.role == "commander" then " ★" else "") .. (if p.ready then "  ✓" else "")
+		local text = tostring(p.name) .. (if p.role == "commander" then " (cdt.)" else "") .. (if p.ready then " · ready" else "")
 		local l = Kit.label(row, text, { size = UDim2.new(1, -16, 1, 0), position = UDim2.fromOffset(16, 0), textSize = 14, colour = if p.userId == BattleState.userId then Kit.GILT_BRIGHT else Kit.IVORY })
 		l.TextStrokeTransparency = 0.5
 	end

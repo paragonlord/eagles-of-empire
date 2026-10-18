@@ -6,12 +6,14 @@
 -- never reach the field. Screens build from these pieces, so restyling here restyles everything.
 
 local Players = game:GetService("Players") :: Players
+local TweenService = game:GetService("TweenService") :: TweenService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
 local BattleState = require(script.Parent.Parent.BattleState)
 local PaperLayout = require(script.Parent.PaperLayout)
+local Settings = require(script.Parent.Parent.Settings)
 
 local Kit = {}
 
@@ -63,8 +65,62 @@ Kit.MORALE = {
 	shattered = Color3.fromRGB(70, 60, 54),
 }
 
+-- ------------------------------------------------------------------ typefaces
+-- Roblox takes no font uploads, so the look is chosen among the built-in families. Every label
+-- and button registers its role; Settings.typeface swaps the families live so the owner can
+-- judge readability in play. Roles: display (titles, large buttons), body (paragraphs, set in
+-- Garamond by the screens), ui (small labels, small buttons), figures (bold sans numerals).
+type Preset = { display: EnumFont, body: EnumFont, ui: EnumFont, figures: EnumFont }
+local PRESETS: { [string]: Preset } = {
+	Garamond = { display = Enum.Font.Garamond, body = Enum.Font.Garamond, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
+	-- Didone display, as on the Empire's own printed orders; Garamond keeps the body readable
+	Bodoni = { display = Enum.Font.Bodoni, body = Enum.Font.Garamond, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
+	-- Garamond for the headings only; a plain grotesque for everything one has to read fast
+	Legible = { display = Enum.Font.Garamond, body = Enum.Font.Gotham, ui = Enum.Font.Gotham, figures = Enum.Font.GothamBold },
+	-- Caslon-like display over a sturdy transitional serif body
+	Antique = { display = Enum.Font.Antique, body = Enum.Font.Merriweather, ui = Enum.Font.SourceSans, figures = Enum.Font.GothamBold },
+}
+local function preset(): Preset
+	return PRESETS[Settings.get().typeface] or PRESETS.Garamond
+end
+local typeset: { [TextLabel | TextButton]: string } = setmetatable({}, { __mode = "k" }) :: any
+
+-- The family of the preset's role, keeping the label's own weight and style (bold, italic).
+local function refont(l: TextLabel | TextButton, role: string)
+	local family = Font.fromEnum((preset() :: any)[role] :: EnumFont).Family
+	local cur = l.FontFace
+	l.FontFace = Font.new(family, cur.Weight, cur.Style)
+end
+
+-- Registers `l` under `role` and sets its face; later preset changes re-set it.
+function Kit.typeset(l: TextLabel | TextButton, role: string)
+	typeset[l] = role
+	refont(l, role)
+end
+
+local function roleOf(font: EnumFont?): string
+	if font == nil or font == Enum.Font.SourceSans then
+		return "ui"
+	elseif font == Enum.Font.Garamond then
+		return "body"
+	end
+	return "figures" -- GothamBold, SourceSansBold and the like: numerals and small strong labels
+end
+
+-- Body face in italic and bold; screens set these on labels built by Kit.label, and the
+-- registered role keeps the style when the preset changes.
 Kit.ITALIC = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Regular, Enum.FontStyle.Italic)
 Kit.BOLD = Font.new(Font.fromEnum(Enum.Font.Garamond).Family, Enum.FontWeight.Bold)
+
+Settings.changed:Connect(function(key: string)
+	if key == "typeface" then
+		for l, role in typeset do
+			if l.Parent then
+				refont(l, role)
+			end
+		end
+	end
+end)
 
 -- Co-op player slots: 1 gold, 2 sky blue, 3 crimson, 4 ivory green.
 Kit.SLOT = { Kit.GILT_BRIGHT, hex(0x6FA8DC), Kit.CRIMSON_LIGHT, hex(0xB8CFA0) }
@@ -386,6 +442,15 @@ function Kit.panel(parent: Instance, props: PanelProps): Frame
 		stroke.Thickness = 2
 		stroke.Transparency = 0.2
 		Kit.paper(f, props.padding or 0, props.seed or PaperLayout.seed(parent.Name .. tostring(props.size)))
+	elseif props.dark and onParchment(parent) then
+		-- a section of the sheet ruled off in ink, not a box on the paper
+		f.BackgroundTransparency = 1
+		stroke.Enabled = false
+		for _, y in { 0, 1 } do
+			local r = frame(f, UDim2.new(1, 2 * (props.padding or 0), 0, 1), UDim2.new(0, -(props.padding or 0), y, if y == 1 then -1 else 0), Kit.INK)
+			r.Name = "Rule"
+			r.BackgroundTransparency = 0.55
+		end
 	elseif props.dark then
 		f:SetAttribute("parchment", false)
 		f.BackgroundColor3 = Kit.INSET
@@ -442,13 +507,15 @@ function Kit.label(parent: Instance, text: string, props: TextProps?): TextLabel
 	l.BackgroundTransparency = 1
 	-- SourceSans sets small: one point up keeps the old Gotham sizes readable
 	l.Font = p.font or Enum.Font.SourceSans
-	l.TextSize = (p.textSize or 14) + (if p.font == nil then 1 else 0)
+	-- wrapped text is a paragraph: never under 14 px
+	l.TextSize = math.max(p.textSize or 14, if p.wrap then 14 else 0) + (if p.font == nil then 1 else 0)
 	l.TextColor3 = colour
 	l.TextXAlignment = p.align or Enum.TextXAlignment.Left
 	l.TextWrapped = p.wrap == true
 	l.RichText = p.rich == true
 	l.Text = text
 	l.Parent = parent
+	Kit.typeset(l, roleOf(p.font))
 	return l
 end
 
@@ -458,6 +525,7 @@ function Kit.title(parent: Instance, text: string, props: TextProps?): TextLabel
 	p.textSize = p.textSize or 26
 	local t = if p.spaced then Kit.spaced(text) elseif p.caps == false then text else Kit.upper(text)
 	local l = Kit.label(parent, t, p)
+	Kit.typeset(l, "display")
 	if p.rule then
 		local centred = p.align == Enum.TextXAlignment.Center
 		Kit.rule(l, UDim2.new(if centred then 0.5 else 0, 0, 1, 3), 140, if centred then 0.5 else 0)
@@ -644,7 +712,9 @@ export type ButtonProps = {
 	order: number?,
 }
 
--- One look function for every state combination, driven by attributes.
+-- One look function for every state combination, driven by attributes. Plaques are engraved
+-- brass (ink lettering on gilt) and primary actions pressed crimson wax; hover is mechanical:
+-- the lettering darkens and the rim sharpens, pressed sinks, the chosen one sits sunk in walnut.
 local function restyle(b: TextButton)
 	local disabled = b:GetAttribute("disabled") == true
 	local active = b:GetAttribute("active") == true
@@ -658,27 +728,34 @@ local function restyle(b: TextButton)
 		pad.PaddingBottom = UDim.new(0, if hover and not pressed then 2 else 0)
 	end
 	if b:GetAttribute("flat") == true then
+		-- a text entry: on hover the rule under it runs out from the left
 		local u = b:FindFirstChild("Underline") :: Frame?
 		if u then
-			u.Visible = hover or active
+			local show = hover or active
+			if show and not u.Visible then
+				u.Size = UDim2.new(0.25, 0, 0, 1)
+				TweenService:Create(u, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, 1) }):Play()
+			end
+			u.Visible = show
 		end
 		b.TextColor3 = if disabled then Kit.SLATE elseif hover then Kit.GILT_BRIGHT else Kit.GILT
 		return
 	end
-	local body = if disabled then Kit.SLATE elseif active then Kit.GILT_DARK elseif primary then Kit.CRIMSON else Kit.BLUE
+	local body = if disabled then Kit.SLATE elseif active then Kit.WALNUT elseif primary then Kit.CRIMSON else Kit.GILT
 	if pressed then
-		body = body:Lerp(Color3.new(0, 0, 0), 0.35)
+		body = body:Lerp(Color3.new(0, 0, 0), 0.3)
 	elseif hover then
-		body = body:Lerp(Color3.new(1, 1, 1), 0.1)
+		body = body:Lerp(Color3.new(1, 1, 1), 0.08)
 	end
 	b.BackgroundColor3 = body
-	b.TextColor3 = Kit.IVORY
+	local ink = if primary or disabled then Kit.IVORY elseif active then Kit.GILT_BRIGHT elseif hover then Kit.INSET else Kit.INK
+	b.TextColor3 = ink
 	b.TextTransparency = if disabled then 0.5 else 0
 	if grad then
 		grad.Enabled = not pressed
 	end
 	if stroke then
-		stroke.Color = if disabled then Kit.GILT_DARK elseif hover or active then Kit.GILT_BRIGHT else Kit.GILT
+		stroke.Color = if disabled then Kit.GILT_DARK elseif hover or active then Kit.GILT_BRIGHT elseif primary then Kit.GILT else Kit.GILT_DARK
 		stroke.Transparency = if disabled then 0.5 else 0
 	end
 end
@@ -731,8 +808,9 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		-- top highlight fading into the lacquer
 		g.Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.45, Color3.fromRGB(205, 205, 205)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 160, 160)),
+			ColorSequenceKeypoint.new(0.4, Color3.fromRGB(222, 222, 222)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(190, 190, 190)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 150, 150)),
 		})
 		g.Rotation = 90
 		g.Parent = b
@@ -742,6 +820,7 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		s.Thickness = 1
 		s.Parent = b
 	end
+	Kit.typeset(b, if b.Font == Enum.Font.Garamond then "display" else "ui")
 	b:SetAttribute("primary", p.primary == true)
 	b:SetAttribute("reason", "")
 	b:SetAttribute("tip", p.tooltip or "")
@@ -866,17 +945,26 @@ function Kit.slider(parent: Instance, labelText: string, value: number, onChange
 	return row
 end
 
+-- A ledger tick box: gilt square, filled when on; the text entry beside it.
 function Kit.toggle(parent: Instance, labelText: string, value: boolean, onChange: (v: boolean) -> ()): TextButton
 	local b: TextButton
-	local function text(v: boolean): string
-		return (if v then "[x] " else "[ ] ") .. labelText
-	end
-	b = Kit.button(parent, text(value), function()
+	local fill: Frame
+	b = Kit.button(parent, labelText, function()
 		value = not value
-		b.Text = text(value)
+		fill.Visible = value
 		onChange(value)
-	end, { size = UDim2.new(1, 0, 0, 28), caps = false })
+	end, { size = UDim2.new(1, 0, 0, 28), caps = false, flat = true })
 	b.TextXAlignment = Enum.TextXAlignment.Left
+	local lift = b:FindFirstChild("Lift") :: UIPadding?
+	if lift then
+		lift.PaddingLeft = UDim.new(0, 26)
+	end
+	local box = frame(b, UDim2.fromOffset(14, 14), UDim2.new(0, -24, 0.5, 0), Kit.INSET)
+	box.AnchorPoint = Vector2.new(0, 0.5)
+	hairline(box, Kit.GILT, 1, 0)
+	fill = frame(box, UDim2.fromOffset(8, 8), UDim2.fromScale(0.5, 0.5), Kit.GILT_BRIGHT)
+	fill.AnchorPoint = Vector2.new(0.5, 0.5)
+	fill.Visible = value
 	return b
 end
 

@@ -244,7 +244,7 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 			local r = row(p, 10 + i, if honours then 48 else 34)
 			local x = 0
 			if own then
-				local pick = Kit.button(r, if split[k] then "✓" else "", function()
+				local pick = Kit.button(r, if split[k] then "×" else "", function()
 					split[k] = not split[k] or nil
 					rerender()
 				end, { size = UDim2.fromOffset(20, 20), position = UDim2.fromOffset(0, 4), caps = false, tooltip = "Mark for splitting off" })
