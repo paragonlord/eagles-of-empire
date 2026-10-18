@@ -201,6 +201,202 @@ ENV.settings = function()
 end
 ENV.typeof = typeof or type
 
+-- Roblox datatypes (Vector3, CFrame, Color3, Enum) good enough for WorldGen's geometry: exact
+-- arithmetic, no rendering. CFrame.Angles composes X, Y, Z like Roblox; lookAt looks down -Z.
+local V3 = {}
+V3.__index = V3
+local function v3(x, y, z)
+	return setmetatable({ X = x, Y = y, Z = z }, V3)
+end
+V3.__add = function(a, b)
+	return v3(a.X + b.X, a.Y + b.Y, a.Z + b.Z)
+end
+V3.__sub = function(a, b)
+	return v3(a.X - b.X, a.Y - b.Y, a.Z - b.Z)
+end
+V3.__unm = function(a)
+	return v3(-a.X, -a.Y, -a.Z)
+end
+V3.__mul = function(a, b)
+	if type(a) == "number" then
+		return v3(a * b.X, a * b.Y, a * b.Z)
+	elseif type(b) == "number" then
+		return v3(a.X * b, a.Y * b, a.Z * b)
+	end
+	return v3(a.X * b.X, a.Y * b.Y, a.Z * b.Z)
+end
+V3.__div = function(a, b)
+	return v3(a.X / b, a.Y / b, a.Z / b)
+end
+V3.__eq = function(a, b)
+	return a.X == b.X and a.Y == b.Y and a.Z == b.Z
+end
+V3.__tostring = function(a)
+	return string.format("%g, %g, %g", a.X, a.Y, a.Z)
+end
+function V3.Dot(a, b)
+	return a.X * b.X + a.Y * b.Y + a.Z * b.Z
+end
+function V3.Cross(a, b)
+	return v3(a.Y * b.Z - a.Z * b.Y, a.Z * b.X - a.X * b.Z, a.X * b.Y - a.Y * b.X)
+end
+function V3.Lerp(a, b, t)
+	return a + (b - a) * t
+end
+local v3index = V3.__index
+V3.__index = function(self, k)
+	if k == "Magnitude" then
+		return math.sqrt(self.X * self.X + self.Y * self.Y + self.Z * self.Z)
+	elseif k == "Unit" then
+		local m = math.sqrt(self.X * self.X + self.Y * self.Y + self.Z * self.Z)
+		return v3(self.X / m, self.Y / m, self.Z / m)
+	end
+	return v3index[k]
+end
+ENV.Vector3 = {
+	new = function(x, y, z)
+		return v3(x or 0, y or 0, z or 0)
+	end,
+	zero = v3(0, 0, 0),
+	one = v3(1, 1, 1),
+	xAxis = v3(1, 0, 0),
+	yAxis = v3(0, 1, 0),
+	zAxis = v3(0, 0, 1),
+}
+
+local CF = {}
+local function cf(x, y, z, r)
+	return setmetatable({ X = x, Y = y, Z = z, R = r }, CF)
+end
+local IDENT = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }
+local function fromAxes(pos, vx, vy, vz)
+	return cf(pos.X, pos.Y, pos.Z, { vx.X, vy.X, vz.X, vx.Y, vy.Y, vz.Y, vx.Z, vy.Z, vz.Z })
+end
+local function mulRot(a, b)
+	local r = {}
+	for i = 0, 2 do
+		for j = 0, 2 do
+			r[i * 3 + j + 1] = a[i * 3 + 1] * b[j + 1] + a[i * 3 + 2] * b[3 + j + 1] + a[i * 3 + 3] * b[6 + j + 1]
+		end
+	end
+	return r
+end
+local function rotVec(r, v)
+	return v3(r[1] * v.X + r[2] * v.Y + r[3] * v.Z, r[4] * v.X + r[5] * v.Y + r[6] * v.Z, r[7] * v.X + r[8] * v.Y + r[9] * v.Z)
+end
+CF.__mul = function(a, b)
+	if getmetatable(b) == V3 then
+		local p = rotVec(a.R, b)
+		return v3(p.X + a.X, p.Y + a.Y, p.Z + a.Z)
+	end
+	local p = rotVec(a.R, v3(b.X, b.Y, b.Z))
+	return cf(p.X + a.X, p.Y + a.Y, p.Z + a.Z, mulRot(a.R, b.R))
+end
+CF.__index = function(self, k)
+	if k == "Position" then
+		return v3(self.X, self.Y, self.Z)
+	elseif k == "LookVector" then
+		local r = self.R
+		return v3(-r[3], -r[6], -r[9])
+	elseif k == "RightVector" or k == "XVector" then
+		local r = self.R
+		return v3(r[1], r[4], r[7])
+	elseif k == "UpVector" or k == "YVector" then
+		local r = self.R
+		return v3(r[2], r[5], r[8])
+	end
+	return CF[k]
+end
+CF.__tostring = function(a)
+	return string.format("%g, %g, %g, %s", a.X, a.Y, a.Z, table.concat(a.R, ", "))
+end
+function CF.GetComponents(self)
+	local r = self.R
+	return self.X, self.Y, self.Z, r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]
+end
+function CF.PointToWorldSpace(self, v)
+	return self * v
+end
+function CF.VectorToWorldSpace(self, v)
+	return rotVec(self.R, v)
+end
+local function angles(rx, ry, rz)
+	local cx, sx, cy, sy, cz, sz = math.cos(rx), math.sin(rx), math.cos(ry), math.sin(ry), math.cos(rz), math.sin(rz)
+	local X = { 1, 0, 0, 0, cx, -sx, 0, sx, cx }
+	local Y = { cy, 0, sy, 0, 1, 0, -sy, 0, cy }
+	local Z = { cz, -sz, 0, sz, cz, 0, 0, 0, 1 }
+	return cf(0, 0, 0, mulRot(mulRot(X, Y), Z))
+end
+ENV.CFrame = {
+	new = function(x, y, z, ...)
+		if x == nil then
+			return cf(0, 0, 0, IDENT)
+		elseif getmetatable(x) == V3 then
+			return cf(x.X, x.Y, x.Z, IDENT)
+		end
+		local n = select("#", ...)
+		if n == 9 then
+			return cf(x, y, z, { ... })
+		end
+		return cf(x, y, z, IDENT)
+	end,
+	Angles = angles,
+	fromEulerAnglesXYZ = angles,
+	fromMatrix = function(pos, vx, vy, vz)
+		return fromAxes(pos, vx, vy, vz or vx:Cross(vy))
+	end,
+	lookAt = function(from, to, up)
+		up = up or v3(0, 1, 0)
+		local f = (to - from).Unit
+		local z = -f
+		local x = up:Cross(z)
+		if x.Magnitude < 1e-6 then
+			x = v3(1, 0, 0)
+		end
+		x = x.Unit
+		local y = z:Cross(x)
+		return fromAxes(from, x, y, z)
+	end,
+	identity = cf(0, 0, 0, IDENT),
+}
+
+local C3 = {}
+C3.__index = C3
+local function c3(r, g, b)
+	return setmetatable({ R = r, G = g, B = b }, C3)
+end
+C3.__eq = function(a, b)
+	return a.R == b.R and a.G == b.G and a.B == b.B
+end
+C3.__tostring = function(a)
+	return string.format("%g, %g, %g", a.R, a.G, a.B)
+end
+function C3.Lerp(a, b, t)
+	return c3(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t)
+end
+ENV.Color3 = {
+	new = function(r, g, b)
+		return c3(r or 0, g or 0, b or 0)
+	end,
+	fromRGB = function(r, g, b)
+		return c3(r / 255, g / 255, b / 255)
+	end,
+}
+
+-- Enum.X.Y: one stable item per name, comparable by identity, printable by name.
+local enumItem = { __tostring = function(e)
+	return "Enum." .. e.EnumType .. "." .. e.Name
+end }
+ENV.Enum = setmetatable({}, { __index = function(enums, enumName)
+	local items = setmetatable({}, { __index = function(t, name)
+		local e = setmetatable({ Name = name, EnumType = enumName }, enumItem)
+		rawset(t, name, e)
+		return e
+	end })
+	rawset(enums, enumName, items)
+	return items
+end })
+
 -- Test API --------------------------------------------------------------------------------
 local tests = {}
 ENV.test = function(name, fn)
