@@ -10,7 +10,7 @@ local Settings = require(script.Parent.Settings)
 
 local Camera = {}
 
-local MIN_HEIGHT, MAX_HEIGHT = 120, 900
+local MIN_HEIGHT, MAX_HEIGHT = 55, 900 -- at the floor a soldier is ~30 px tall, so the uniforms read
 local MIN_PITCH, MAX_PITCH = math.rad(35), math.rad(65)
 local DEFAULT_PITCH = math.rad(52)
 -- NTW-style: the view tilts toward the horizon as it nears the ground (full tilt at MIN_HEIGHT,
@@ -26,6 +26,7 @@ local ZOOM_STEP = 1.15
 local DAMP = 10
 
 -- target values (inputs move these) and smoothed values (what is rendered)
+local defaultYaw = DEFAULT_YAW -- per side: faces the enemy (Camera.setDefaultYaw)
 local target = { x = 800, z = 600, yaw = DEFAULT_YAW, pitch = DEFAULT_PITCH, height = DEFAULT_HEIGHT }
 local cur = { x = 800, z = 600, yaw = DEFAULT_YAW, pitch = DEFAULT_PITCH, height = DEFAULT_HEIGHT }
 local map: any = nil
@@ -267,11 +268,16 @@ end
 -- Default angle: high oblique, look north from the south at 52°, 420 studs up.
 function Camera.reset(x: number, z: number)
 	intro = nil
-	target.yaw = DEFAULT_YAW
+	target.yaw = defaultYaw
 	target.pitch = DEFAULT_PITCH
 	target.height = DEFAULT_HEIGHT
 	Camera.focusOn(x, z, true)
 	cur.yaw, cur.pitch, cur.height = target.yaw, target.pitch, target.height
+end
+
+-- The yaw Camera.reset returns to; nil restores north. Each side looks toward its enemy.
+function Camera.setDefaultYaw(yaw: number?)
+	defaultYaw = yaw or DEFAULT_YAW
 end
 
 -- Sweeps in from high over the far side of the field, turning onto the current default view

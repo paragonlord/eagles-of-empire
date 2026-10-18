@@ -25,6 +25,7 @@ local INK = rgb(P.Ink)
 local SELECT = rgb(P.Select)
 local HOSTILE = rgb(P.Hostile)
 
+local NEAR_TIER_D = 150 -- camera distance within which belts, plumes and lapels are built
 local SNAP_DT = 0.1
 local MAX_EXTRAP = 0.15
 local LABEL_INTERVAL = 0.15
@@ -58,6 +59,7 @@ type Group = {
 	colour: Color3,
 	ghost: boolean,
 	lod: string, -- "near" | "far"
+	tier: string, -- near LOD detail: "near" (belts, plumes, lapels) | "mid" (coat, breeches, shako, musket)
 	parts: { BasePart },
 	locals: { CFrame },
 	slots: { Slot },
@@ -348,7 +350,7 @@ end
 local function buildNear(g: Group, f: any)
 	local n = figureCount(g.class, f.strength)
 	g.slots = layoutSlots(g.class, f.shape, n, f.width, f.depth, thinK, g.id * 7919)
-	local detail = Settings.get().quality >= 2
+	local detail = Settings.get().quality >= 2 and g.tier == "near"
 	local slotIndex = 0
 	local function adder(): Soldiers.Add
 		local si = slotIndex
@@ -782,7 +784,7 @@ local function rebuildBody(g: Group, f: any)
 end
 
 local function layoutKeyOf(g: Group, f: any): string
-	return string.format("%s|%d|%d|%d|%d|%d|%d", f.shape, math.round(f.width), math.round(f.depth), visualCount(f), thinK, if g.lod == "near" then 1 else 0, Settings.get().quality)
+	return string.format("%s|%d|%d|%d|%d|%s|%d", f.shape, math.round(f.width), math.round(f.depth), visualCount(f), thinK, if g.lod == "near" then g.tier else "far", Settings.get().quality)
 end
 
 local function newGroup(id: number, f: any, ghost: boolean): Group
@@ -794,6 +796,7 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		colour = colour,
 		ghost = ghost,
 		lod = "far",
+		tier = "mid",
 		parts = {},
 		locals = {},
 		slots = {},
@@ -842,8 +845,28 @@ end
 
 -- ------------------------------------------------------------------ snapshot intake
 
+-- The budget is spent in parts, not figures: MaxFigures × the ~12 parts a plain figure took
+-- before the uniform pass, so the old ceiling holds whatever the detail tier builds.
+local PARTS_PER_FIGURE = 12
+-- Parts one figure costs per class and detail tier (measured from the Soldiers builders).
+local FIGURE_COST: { [string]: { near: number, mid: number } } = {
+	infantry = { near = 16, mid = 9 },
+	cavalry = { near = 17, mid = 13 },
+	hq = { near = 17, mid = 13 },
+	artillery = { near = 26, mid = 22 },
+}
+local SPECIALS_COST = 60 -- officer, colour and two drummers per battalion
+
 local function budget(): number
-	return if Settings.get().quality >= 3 then Config.Visual.MaxFiguresHigh elseif Settings.get().quality == 2 then (Config.Visual.MaxFiguresHigh + Config.Visual.MaxFiguresLow) // 2 else Config.Visual.MaxFiguresLow
+	local q = Settings.get().quality
+	local figs = if q >= 3 then Config.Visual.MaxFiguresHigh elseif q == 2 then (Config.Visual.MaxFiguresHigh + Config.Visual.MaxFiguresLow) // 2 else Config.Visual.MaxFiguresLow
+	return figs * PARTS_PER_FIGURE
+end
+
+local function groupCost(g: Group, f: any): number
+	local c = FIGURE_COST[g.class] or FIGURE_COST.infantry
+	local per = if g.tier == "near" and Settings.get().quality >= 2 then c.near else c.mid
+	return visualCount(f) * per + (if g.class == "infantry" then SPECIALS_COST else 0)
 end
 
 local function onSnapshot()
@@ -857,7 +880,7 @@ local function onSnapshot()
 		seen[id] = true
 		local near = groups[id]
 		if near and near.lod == "near" then
-			total += visualCount(f) -- the budget only spends figures on near-LOD blocks
+			total += groupCost(near, f) -- the budget only spends parts on near-LOD blocks
 		end
 		local existing: Group? = groups[id]
 		if existing and existing.ghost then
@@ -1285,6 +1308,9 @@ function Figures.update(dt: number)
 			if wantLod ~= g.lod then
 				g.lod = wantLod
 			end
+			-- detail tier with the same hysteresis: the fine parts are only built where they are
+			-- more than a pixel (within NEAR_TIER_D of the camera)
+			g.tier = if g.tier == "near" then (if dist > NEAR_TIER_D * 1.15 then "mid" else "near") else (if dist < NEAR_TIER_D then "near" else "mid")
 			local key = layoutKeyOf(g, f)
 			if key ~= g.layoutKey then
 				g.layoutKey = key
