@@ -214,7 +214,41 @@ end
 
 -- Applies grade `name`, tweened over `seconds` (0 = at once). A newer tween on the same
 -- properties replaces an older one.
-local FOG_RATE = 0.6 -- puffs per second per anchor: ~4 anchors x 0.6/s x 20 s = under 50 live
+local fogRate = 0.6 -- puffs per second per mist anchor, set from the anchor count: <= 60 live
+local smokeFolder: Folder? = nil
+local groundBase: { [BasePart]: Color3 } = {} -- the far ground plane's own colour, per tile
+
+-- Chimney smoke and the far ground plane take the colour of the sky they sit against, so
+-- under fog or overcast the puffs are not white balloons and the plane not an orange band.
+local function tintToGrade(name: string)
+	local g = GRADES[name]
+	local foggy = name == "fog" or name == "overcast"
+	if smokeFolder then
+		local col = if foggy then g.fogColor:Lerp(c3(190, 190, 186), 0.3) else c3(214, 210, 204)
+		for _, pe in smokeFolder:GetDescendants() do
+			if pe:IsA("ParticleEmitter") then
+				(pe :: ParticleEmitter).Color = ColorSequence.new(col)
+				;(pe :: ParticleEmitter).Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, if foggy then 0.75 else 0.55), NumberSequenceKeypoint.new(0.6, if foggy then 0.9 else 0.8), NumberSequenceKeypoint.new(1, 1) })
+			end
+		end
+	end
+	local world = workspace:FindFirstChild("EoEWorld")
+	local planes = if world then world:FindFirstChild("PickPlane") else nil
+	if planes then
+		local k = if name == "fog" then 0.7 elseif name == "overcast" then 0.45 else 0.12
+		for _, p in planes:GetDescendants() do
+			if p:IsA("BasePart") and p.Name == "EoEGround" then
+				local bp = p :: BasePart
+				local base = groundBase[bp]
+				if not base then
+					base = bp.Color
+					groundBase[bp] = base
+				end
+				bp.Color = base:Lerp(g.fogColor, k)
+			end
+		end
+	end
+end
 
 local function setFogRate(folder: Folder, rate: number, seconds: number)
 	for _, pe in folder:GetDescendants() do
@@ -280,15 +314,29 @@ local function setGrade(name: string, seconds: number)
 	-- valley mist emitters run only under the fog grade; their rate tweens to 0 with the lift
 	-- and the puffs already out fade over their own lifetime
 	if groundFog then
-		setFogRate(groundFog, if name == "fog" then FOG_RATE else 0, seconds)
+		setFogRate(groundFog, if name == "fog" then fogRate else 0, seconds)
 	end
+	tintToGrade(name)
+end
+
+-- Props hands over the folder of chimney-smoke anchors (each with a ParticleEmitter).
+function Lighting.setSmoke(folder: Folder?)
+	smokeFolder = folder
+	tintToGrade(currentGrade)
 end
 
 -- Props hands over the folder of valley-mist anchors (each with a ParticleEmitter) for the map.
 function Lighting.setGroundFog(folder: Folder?)
 	groundFog = folder
 	if folder then
-		setFogRate(folder, if currentGrade == "fog" then FOG_RATE else 0, 0)
+		local n = 0
+		for _, pe in folder:GetDescendants() do
+			if pe:IsA("ParticleEmitter") then
+				n += 1
+			end
+		end
+		fogRate = math.min(0.6, 60 / (math.max(n, 1) * 16)) -- ~16 s mean life: <= 60 live puffs
+		setFogRate(folder, if currentGrade == "fog" then fogRate else 0, 0)
 	end
 end
 
@@ -340,6 +388,7 @@ function Lighting.apply(quality: number)
 		heightConn:Disconnect()
 	end
 	local acc = 0
+	local planeTick = 0
 	heightConn = RunService.Heartbeat:Connect(function(dt: number)
 		acc += dt
 		if acc < 0.25 then
@@ -359,6 +408,10 @@ function Lighting.apply(quality: number)
 		local g = GRADES[currentGrade]
 		local factor = if currentGrade == "fog" then math.clamp(1 - (cam.CFrame.Position.Y - 330) / 900, 0.4, 1) else 1
 		atmo.Density = g.atmoDensity * factor
+		planeTick += 1
+		if planeTick % 8 == 0 then
+			tintToGrade(currentGrade) -- the world's ground plane may have arrived since the grade was set
+		end
 	end)
 end
 

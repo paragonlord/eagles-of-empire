@@ -214,6 +214,32 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 		end
 		WorldLighting.setGroundFog(fog :: Folder)
 	end
+	local smoke = f:FindFirstChild("SmokeQ2")
+	if smoke then
+		-- hearth smoke: a tiny slow emitter on each chimney anchor; Lighting tints it to the sky
+		for _, p in smoke:GetDescendants() do
+			if p:IsA("BasePart") then
+				local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+				pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+				pe.Color = ColorSequence.new(Color3.fromRGB(214, 210, 204))
+				pe.LightEmission = 0
+				pe.LightInfluence = 1
+				pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 2.4) })
+				pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(0.6, 0.8), NumberSequenceKeypoint.new(1, 1) })
+				pe.Lifetime = NumberRange.new(5, 8)
+				pe.Speed = NumberRange.new(0.5, 0.9)
+				pe.EmissionDirection = Enum.NormalId.Top
+				pe.SpreadAngle = Vector2.new(12, 12)
+				pe.Acceleration = Vector3.new(0.15, 0.05, 0.05)
+				pe.Rotation = NumberRange.new(0, 360)
+				pe.RotSpeed = NumberRange.new(-8, 8)
+				pe.Rate = 0.35
+				pe.Enabled = true
+				pe.Parent = p
+			end
+		end
+		WorldLighting.setSmoke(smoke :: Folder)
+	end
 	local villageNames: { [string]: boolean } = {}
 	for _, v in map.villages do
 		villageNames[v.name] = true

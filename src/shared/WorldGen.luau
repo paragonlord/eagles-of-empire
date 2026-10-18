@@ -639,8 +639,25 @@ function WorldGen.terrain(map: any): TerrainModel
 		orchards = orchards,
 		column = column,
 		heightAt = function(x: number, z: number): (number, boolean)
-			local h, _, lvl = column(math.floor(x / cell), math.floor(z / cell))
-			return h, lvl ~= nil
+			local cx, cz = math.floor(x / cell), math.floor(z / cell)
+			local h, _, lvl = column(cx, cz)
+			if lvl then
+				return math.max(h, lvl), true
+			end
+			if cx >= 0 and cz >= 0 and cx < cols and cz < rows then
+				-- the drawn surface runs between cell centres; next to a cliff it bulges above the
+				-- straight line, so lean part way toward the highest of the cells around the point
+				local bi = Grid.heightAt(g, x, z)
+				local hi = h
+				for _, o in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+					local nx, nz = cx + o[1], cz + o[2]
+					if nx >= 0 and nz >= 0 and nx < cols and nz < rows then
+						hi = math.max(hi, g.height[nz * cols + nx + 1])
+					end
+				end
+				return math.max(bi, bi + (hi - bi) * 0.35), false
+			end
+			return h, false
 		end,
 	}
 end
@@ -693,19 +710,58 @@ end
 local currentMap: any = nil
 local model: TerrainModel
 
--- Clipping. Sample points on a spec in its local frame (half-extent units): box corners, or
--- points on an ellipsoid for spheres and sphere meshes.
+-- Clipping. The points of a part that can touch the ground, by its true shape: box corners;
+-- the lowest point of an ellipsoid (spheres, sphere meshes; Ball parts use the X extent);
+-- the lowest points of a cylinder's two end circles (axis along local X). World space.
 local CORNERS = { { -1, -1, -1 }, { 1, -1, -1 }, { -1, -1, 1 }, { 1, -1, 1 }, { -1, 1, -1 }, { 1, 1, -1 }, { -1, 1, 1 }, { 1, 1, 1 } }
-local ELLIPSOID = { { 0, -1, 0 }, { 0.55, -0.8, 0 }, { -0.55, -0.8, 0 }, { 0, -0.8, 0.55 }, { 0, -0.8, -0.55 }, { 0, 1, 0 } }
+export type ShapeKind = "box" | "ellipsoid" | "cylinder"
 
--- How far the lowest sample point of `s` sits below the terrain (positive = clipping), and
--- the world Y of its lowest point.
+function WorldGen.lowPoints(cf: CFrame, size: Vector3, kind: ShapeKind): { Vector3 }
+	-- world up in the part's local axes
+	local ux, uy, uz = cf.XVector.Y, cf.YVector.Y, -cf.LookVector.Y
+	if kind == "ellipsoid" then
+		local a, b, c = size.X / 2, size.Y / 2, size.Z / 2
+		local d = math.sqrt((a * ux) ^ 2 + (b * uy) ^ 2 + (c * uz) ^ 2)
+		if d < 1e-6 then
+			return { cf.Position }
+		end
+		local lowest = cf * Vector3.new(-a * a * ux / d, -b * b * uy / d, -c * c * uz / d)
+		return { lowest, cf * Vector3.new(a * a * ux / d, b * b * uy / d, c * c * uz / d) }
+	elseif kind == "cylinder" then
+		local hl, r = size.X / 2, math.min(size.Y, size.Z) / 2
+		local m = math.sqrt(uy * uy + uz * uz)
+		local dy, dz = 1, 0
+		if m >= 1e-6 then
+			dy, dz = uy / m, uz / m
+		end
+		local pts = {}
+		for _, e in { -hl, hl } do
+			table.insert(pts, cf * Vector3.new(e, -r * dy, -r * dz))
+			table.insert(pts, cf * Vector3.new(e, r * dy, r * dz))
+		end
+		return pts
+	end
+	local pts = {}
+	for _, o in CORNERS do
+		table.insert(pts, cf * Vector3.new(o[1] * size.X / 2, o[2] * size.Y / 2, o[3] * size.Z / 2))
+	end
+	return pts
+end
+
+local function shapeOf(s: Spec): ShapeKind
+	if s.shape == Enum.PartType.Ball or s.mesh then
+		return "ellipsoid"
+	elseif s.shape == Enum.PartType.Cylinder then
+		return "cylinder"
+	end
+	return "box"
+end
+
+-- How far the lowest point of `s` sits below the terrain (positive = clipping), and the
+-- world Y of its lowest point.
 local function shortfall(s: Spec): (number, number)
-	local cf, sz = s.cframe, s.size
-	local pts = if s.shape == Enum.PartType.Ball or s.mesh then ELLIPSOID else CORNERS
 	local worst, low = -math.huge, math.huge
-	for _, o in pts do
-		local q = cf * Vector3.new(o[1] * sz.X / 2, o[2] * sz.Y / 2, o[3] * sz.Z / 2)
+	for _, q in WorldGen.lowPoints(s.cframe, s.size, shapeOf(s)) do
 		local gy = model.heightAt(q.X, q.Z)
 		worst = math.max(worst, gy - q.Y)
 		low = math.min(low, q.Y)
@@ -968,17 +1024,21 @@ local function treeParts(group: string, species: Species, x: number, z: number, 
 	if full then
 		branch(group, x, gy + trunkH * 0.75, z, r * 0.9, trunkD * 0.45, seed * 6.28, if beech then 0.5 else 0.95, bark)
 	end
-	local n = if full then 4 + math.floor(seed * 3) else 2
+	-- a few big lobes, each tilted and turned its own way and taller or flatter than the next,
+	-- overlapping into one lumpy crown (flat, level lobes stacked up read as plates)
+	local n = if full then 3 + math.floor(seed * 2) else 2
 	for i = 0, n - 1 do
 		local f = i / math.max(n - 1, 1)
 		local a = seed * 6.28 + i * 2.39996 -- golden angle: lobes spread evenly around
-		local spread = (if beech then r * 0.45 else r * 0.7) * (if full then 1 else 0.5)
+		local spread = (if beech then r * 0.4 else r * 0.55) * (if full then 1 else 0.5)
 		local off = spread * (0.35 + 0.65 * h01(x + i, z, 45))
-		local w = r * (if beech then 1.15 else 1.35) * (1 - f * 0.3) * (if full then 1 else 1.15)
-		local hgt = w * (if beech then 0.95 else 0.72) * (if full then 1 else 0.8)
-		local ly = gy + trunkH + (if beech then r * 0.35 + f * r * 1.1 else r * 0.3 + f * r * 0.75)
+		local w = r * (if beech then 1.3 else 1.55) * (1 - f * 0.25) * (if full then 1 else 1.15)
+		local aspect = 0.65 + h01(x + i * 3, z, 54) * 0.6 -- 0.65 flat .. 1.25 tall
+		local hgt = w * aspect * (if beech then 1.1 else 1)
+		local ly = gy + trunkH + (if beech then r * 0.4 + f * r * 1.0 else r * 0.35 + f * r * 0.65)
 		local col = if f < 0.34 then shade elseif f < 0.7 then base else lit
-		blob(group, Vector3.new(w, hgt, w * (0.85 + h01(z, x + i, 46) * 0.3)), CFrame.new(x + math.cos(a) * off, ly, z + math.sin(a) * off) * CFrame.Angles(0, a, 0), col)
+		local tilt = CFrame.Angles((h01(x, z + i, 55) - 0.5) * 0.7, a, (h01(z + i, x, 56) - 0.5) * 0.7)
+		blob(group, Vector3.new(w, hgt, w * (0.8 + h01(z, x + i, 46) * 0.4)), CFrame.new(x + math.cos(a) * off, ly, z + math.sin(a) * off) * tilt, col)
 	end
 end
 
@@ -1060,16 +1120,13 @@ local function houseParts(group: string, x: number, z: number, heading: number, 
 		local top = yaw(x, y + wallH + roofH * 0.5 + 0.2, z, heading) * CFrame.new(cx, 0, d * 0.12)
 		part(group, nil, Vector3.new(0.7, roofH + 0.9, 0.7), top, c3(120, 96, 80))
 		if h01(x + 1, z, salt + 5) < 0.5 then
-			-- hearth smoke (detail tier): three small wisps rising, drifting and thinning
+			-- hearth smoke (detail tier): an invisible anchor at the chimney top; the client's Props
+			-- puts a small slow ParticleEmitter on it and Lighting tints it to the sky
 			detail(function()
-				local drift = h01(x, z + 2, salt + 7) * 6.28
-				for i = 0, 2 do
-					local sz = 0.7 + i * 0.45
-					local smoke = blob(group, Vector3.new(sz, sz * 1.3, sz), top * CFrame.new(math.cos(drift) * i * 0.7, roofH * 0.5 + 1.0 + i * 1.4, math.sin(drift) * i * 0.7), c3(206, 204, 198))
-					smoke.material = Enum.Material.SmoothPlastic
-					smoke.transparency = 0.6 + i * 0.12
-					smoke.castShadow = false
-				end
+				local anchor = part("Smoke", nil, Vector3.new(0.6, 0.3, 0.6), top * CFrame.new(0, roofH * 0.5 + 0.6, 0), c3(206, 204, 198))
+				anchor.transparency = 1
+				anchor.castShadow = false
+				anchor.buried = true
 			end)
 		end
 	end
@@ -1120,9 +1177,12 @@ end
 local function haystack(group: string, x: number, z: number)
 	obj("point", function()
 		local y = groundY(x, z)
-		local p = blob(group, Vector3.new(5, 3.6, 4.2), CFrame.new(x, y + 1.8, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), look.stook:Lerp(c3(150, 130, 80), 0.25))
-		p.material = Enum.Material.Sand
-		part(group, nil, Vector3.new(0.25, 4.6, 0.25), CFrame.new(x, y + 2.2, z), BEAM)
+		local straw = look.stook:Lerp(c3(150, 130, 80), 0.25)
+		-- a drum of hay with a domed top, built round a pole
+		part(group, Enum.PartType.Cylinder, Vector3.new(2.0, 4.6, 4.6), CFrame.new(x, y + 1.0, z) * CFrame.Angles(0, 0, math.pi / 2), straw, Enum.Material.Sand)
+		local dome = blob(group, Vector3.new(4.8, 3.0, 4.8), CFrame.new(x, y + 2.0, z) * CFrame.Angles(0, h01(x, z, 115) * 3, 0), straw:Lerp(c3(120, 104, 64), 0.2))
+		dome.material = Enum.Material.Sand
+		part(group, nil, Vector3.new(0.25, 4.8, 0.25), CFrame.new(x, y + 2.4, z), BEAM)
 	end)
 end
 
@@ -1480,12 +1540,18 @@ local function buildRiverside(group: string, river: any, jobs: { Job })
 					local k = h01(c.x + side, c.z, 70)
 					if k < 0.55 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 1.5 + k * 3)))
-						if classAt(p.x, p.z) ~= nil and not nearBridge(p.x, p.z, 6) then
-							-- a thin pale fringe of reed bed along the water's edge
+						if classAt(p.x, p.z) ~= nil and classAt(p.x, p.z) ~= IDS.water and not nearBridge(p.x, p.z, 6) then
+							-- a reed bed: clusters of thin tall stems, each leaning its own way, khaki-green
 							withQ(2, function()
 								obj("point", function()
-									local r = part(group, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.6 + k * 0.6, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
-									r.castShadow = false
+									local hd = Vec.heading(dir)
+									for j = -1, 1 do
+										local q = Vec.add(p, Vec.scale(dir, j * 1.6))
+										local hh = 2.0 + k * 1.2 + h01(q.x, q.z, 71) * 0.8
+										local lean = CFrame.Angles((h01(q.x, q.z, 72) - 0.5) * 0.45, 0, (h01(q.z, q.x, 73) - 0.5) * 0.45)
+										local r = part(group, nil, Vector3.new(1.3, hh, 0.3), yaw(q.x, groundY(q.x, q.z) + hh / 2, q.z, hd + (k - 0.3) * 0.5 + j * 0.3) * lean, c3(128, 132, 76):Lerp(c3(96, 104, 58), k), Enum.Material.Grass)
+										r.castShadow = false
+									end
 								end)
 							end)
 						end
@@ -1809,20 +1875,48 @@ local function buildGroundFog(group: string, jobs: { Job })
 			return p.y < q.y or (p.y == q.y and (p.x < q.x or (p.x == q.x and p.z < q.z)))
 		end)
 		local chosen: { Site } = {}
-		for _, s in sites do
-			local ok = true
+		local function take(s: Site, apart: number): boolean
 			for _, c in chosen do
-				if (s.x - c.x) ^ 2 + (s.z - c.z) ^ 2 < 320 * 320 then
-					ok = false
-					break
+				if (s.x - c.x) ^ 2 + (s.z - c.z) ^ 2 < apart * apart then
+					return false
 				end
 			end
-			if ok then
-				table.insert(chosen, s)
-				if #chosen == 4 then
-					break
+			table.insert(chosen, s)
+			return true
+		end
+		-- one at every bridge, one every 250 studs along the rivers where the ground is low
+		for _, br in currentMap.bridges do
+			local m = Vec.lerp(br.a, br.b, 0.5)
+			take({ x = m.x, z = m.z, y = groundY(m.x, m.z) }, 120)
+		end
+		for _, river in currentMap.rivers do
+			if river.width <= 60 then
+				local pts = river.points
+				local acc = 125
+				for n = 1, #pts - 1 do
+					local a, b = pts[n], pts[n + 1]
+					local len = Vec.dist(a, b)
+					local d = acc
+					while d < len do
+						local q = Vec.lerp(a, b, d / len)
+						if q.x > 40 and q.z > 40 and q.x < currentMap.width - 40 and q.z < currentMap.depth - 40 then
+							local y = groundY(q.x, q.z)
+							if y < floorY + (hi - lo) * 0.15 then
+								take({ x = q.x, z = q.z, y = y }, 200)
+							end
+						end
+						d += 250
+					end
+					acc = d - len
 				end
 			end
+		end
+		-- then the lowest open ground away from them
+		for _, s in sites do
+			if #chosen >= 10 then
+				break
+			end
+			take(s, 320)
 		end
 		for _, s in chosen do
 			-- along the valley: the nearest river's direction, else the contour direction
@@ -1838,7 +1932,7 @@ local function buildGroundFog(group: string, jobs: { Job })
 					end
 				end
 			end
-			local p = part(group, nil, Vector3.new(140, 3, 70), yaw(s.x, s.y + 5, s.z, a), c3(222, 220, 214))
+			local p = part(group, nil, Vector3.new(110, 3, 50), yaw(s.x, s.y + 4, s.z, a), c3(222, 220, 214))
 			p.transparency = 1
 			p.castShadow = false
 			p.buried = true -- invisible emitter box; may overlap a bank

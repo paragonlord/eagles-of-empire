@@ -56,9 +56,9 @@ local function build(map: any)
 	task.spawn(World.checkClip, root, alive)
 end
 
--- Debug: raycasts down onto the terrain under the bottom corners of every world part (parts
--- marked Buried are meant to sit in the ground) and reports how many sit below the surface.
--- Spread over frames; prints "[EoE clip] world: N parts below ground" (expect 0).
+-- Debug: raycasts down onto the terrain under the lowest points of every world part (parts
+-- marked Buried are meant to sit in the ground) and reports how many sit more than 0.1 below
+-- the surface. Spread over frames; prints "[EoE clip] world: N parts below ground" (expect 0).
 function World.checkClip(root: Instance, alive: () -> boolean)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
@@ -68,12 +68,20 @@ function World.checkClip(root: Instance, alive: () -> boolean)
 	for _, p in root:GetDescendants() do
 		if p:IsA("BasePart") and not p:GetAttribute("Buried") and (p :: BasePart).Transparency < 1 then
 			local bp = p :: BasePart
-			local cf, sz = bp.CFrame, bp.Size
+			-- the part's true shape: a sphere's lowest point, a cylinder's end circles, a box's corners
+			local kind: WorldGen.ShapeKind = "box"
+			if bp:IsA("Part") then
+				local shape = (bp :: Part).Shape
+				if shape == Enum.PartType.Ball or bp:FindFirstChildOfClass("SpecialMesh") then
+					kind = "ellipsoid"
+				elseif shape == Enum.PartType.Cylinder then
+					kind = "cylinder"
+				end
+			end
 			local worst = false
-			for _, c in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
-				local q = cf * Vector3.new(c[1] * sz.X / 2, -sz.Y / 2, c[2] * sz.Z / 2)
+			for _, q in WorldGen.lowPoints(bp.CFrame, bp.Size, kind) do
 				local hit = workspace:Raycast(q + Vector3.new(0, 60, 0), Vector3.new(0, -120, 0), params)
-				if hit and hit.Position.Y > q.Y + 0.05 then
+				if hit and hit.Position.Y > q.Y + 0.1 then
 					worst = true
 					break
 				end

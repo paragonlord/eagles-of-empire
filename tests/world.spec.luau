@@ -51,7 +51,7 @@ test("WorldGen: tiers and quality filters", function()
 		assertEq(s.tier, "d", "detail tier")
 		groups[s.group] = true
 	end
-	assertTrue(groups.Villages and groups.GroundFog, "detail = hearth smoke and valley fog")
+	assertTrue(groups.Smoke and groups.GroundFog, "detail = hearth smoke and valley fog")
 	assertTrue(#phone < #server, "quality 1 shows fewer parts")
 	for _, s in phone do
 		assertEq(s.q, 1, "quality 1 specs")
