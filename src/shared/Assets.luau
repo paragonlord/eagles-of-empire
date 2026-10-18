@@ -84,7 +84,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 13, 7, 6 },
 	},
-	church = slot(), -- nave 13 long with a west tower, ~22 tall
+	church = { -- original 1490-triangle church; nave +X, tower at the -X end
+		mesh = "rbxassetid://136170488950314",
+		texture = "rbxassetid://84909055465369",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 22, 22, 7.4 },
+	},
 	windmill = slot(), -- post mill ~20 tall
 	bridgeStone = slot(), -- deck along +X, length = the span given
 	bridgeTimber = slot(),
