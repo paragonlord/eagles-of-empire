@@ -427,7 +427,12 @@ function Kit.paper(f: Frame, pad: number, seed: number)
 	end
 	local sheet = PaperLayout.sheet(seed)
 	for i, m in sheet.blotches do
-		round(layer("Fox" .. i, UDim2.fromScale(m.w, m.h), UDim2.fromScale(m.x, m.y), Kit.PARCHMENT_STAIN, m.alpha))
+		local spot = layer("Fox" .. i, UDim2.fromScale(m.w, m.h), UDim2.fromScale(m.x, m.y), Kit.PARCHMENT_STAIN, m.alpha)
+		-- w and h are both in sheet widths: hold the oval's shape, or a tall sheet makes it a pill
+		local keep = Instance.new("UIAspectRatioConstraint") :: UIAspectRatioConstraint
+		keep.AspectRatio = m.w / m.h
+		keep.Parent = spot
+		round(spot)
 	end
 	local ring = sheet.ring
 	if ring then

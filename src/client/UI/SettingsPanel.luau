@@ -32,7 +32,8 @@ function SettingsPanel.show()
 		local sg = Kit.screen("EoESettings", 36)
 		local touch = Kit.touch()
 		-- on a phone the sheet takes the height it can get and the list scrolls inside it
-		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
+		-- desktop: 710 tall so the AI difficulty row clears the bottom edge (the list has no scrollbar)
+		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 710), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
 		if touch then
 			local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 			cap.MaxSize = Vector2.new(420, 640)
@@ -166,5 +167,17 @@ function SettingsPanel.destroy()
 	table.clear(qualityButtons)
 	table.clear(difficultyButtons)
 end
+
+-- The sheet is laid out for touch or desktop when it is built, and it is built once: rebuild it
+-- when Controls changes, or picking Touch in Studio's emulator never shows the touch sheet.
+Settings.changed:Connect(function(key: string)
+	if key == "controls" and gui then
+		local open = SettingsPanel.isOpen()
+		SettingsPanel.destroy()
+		if open then
+			SettingsPanel.show()
+		end
+	end
+end)
 
 return SettingsPanel

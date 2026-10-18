@@ -532,6 +532,28 @@ Boots clean, no EoE errors or warnings.
 - Small: the haystack in the village is one big golden ball the size of a cottage door
   (`r15-village-smoke-trees.jpg`, centre).
 
+**2026-10-18 round 16 (mobile: touch layout), build b47a09a.** Boots clean, 0 errors. Touch
+gestures and the order wheel need real touches; Studio MCP only sends mouse input, so those
+are untested here (Device Emulator test for Bartosz).
+- Pass, desktop: the battle HUD is unchanged (`r16-desktop-hud.jpg`).
+- Pass, touch (Controls: Touch, 1080p, so scale 1.15): the deployment sheet has the touch hints
+  (drag, hold then drag, pinch, twist), and the HUD has the minimap top left, the card bar
+  bottom left and Select all / Settings / Menu over the command panel bottom right
+  (`r16-touch-deployment.jpg`, `r16-touch-hud.jpg`).
+- Fixed, desktop: **the Controls row pushed AI difficulty below the Settings panel's edge**
+  (`r16-settings-cut-off.jpg`); the list scrolls but shows no scrollbar on desktop, so the row
+  was simply gone. The desktop panel is 710 tall now (`r16-settings-desktop-fixed.jpg`).
+- Fixed: **picking Touch never showed the touch Settings sheet.** The panel is built once and
+  reused, and in Studio's emulator you must open it to pick Touch, so it was always the desktop
+  build. It now rebuilds when Controls changes (`r16-settings-touch-sheet.jpg`).
+- Fixed: **foxing spots were pills** on tall sheets, like the ring was (Fox3 89×133 px). Their
+  w and h are both in sheet widths, so each now keeps its own aspect ratio (Fox3 78×64).
+- Open, touch: switching Controls mid-battle leaves the HUD and briefing in the desktop layout
+  until the next battle (the UIScale is only added at build time); fine for players, confusing
+  in Studio. In the touch Settings sheet the volume percentages are clipped by the scrollbar
+  ("80?", `r16-settings-touch-sheet.jpg`). The deployment's Settings button reads "SET.";
+  "Settings" at 12 px or a gear would read better.
+
 ## Known failures
 
 None recorded yet.
