@@ -577,6 +577,33 @@ client or the server.
   could build the next map while the briefing for the current one is read, or keep the last
   built maps.
 
+**2026-10-18 round 19 (world loading checks asked for), build b8f7507.** No errors on either
+side.
+- Output: `[EoE world] built 11071 parts for jena in 36.1 s` / `client ready after 35.0 s
+  (jena)`; `built 13312 parts for austerlitz in 42.5 s` / `client ready after 41.0 s
+  (austerlitz)`. Jena's battle reuses the menu's world: no loading screen at all.
+- Pass, holes: none when the fade ends, on the fresh menu boot (`r19-fade-end-menu.jpg`) and a
+  fresh Austerlitz build (`r19-austerlitz-fade-end.jpg`). HITS_NEEDED can stay at 3.
+- Pass, quality 1↔2 in battle: Low hides all 2978 parts of the `*Q2` folders (Woods, Villages,
+  Water, Fields, GroundFog) and drops the Atmosphere; Medium shows them all again. No errors,
+  nothing rebuilt.
+- Pass, ground clicks: card-select the 34e Ligne, right-click open ground: it marches there
+  ("Marching · No target") with the destination ghost on the spot (`r19-ground-click-move.jpg`).
+- Fixed: **the loading screen could stay up forever.** In one Studio session the client ran at
+  55-78 ms a frame; the gate waits for two frames under 20 ms and has no cap on that wait, so
+  "Forming up…" never ended (150 s, `r19-stuck-forming-up.jpg`). A phone at 30 fps would hit
+  the same wall. `Ready.step` now opens at most `FRAME_CAP` (3 s) after the world is in and
+  settled; a test in `tests/world.spec.luau` covers it (not run here: no Luau CLI on this Mac).
+- Open, Austerlitz: **236 valley-fog patches** cover the low ground as overlapping white discs
+  with hard rims (`r19-austerlitz-fade-end.jpg`). Jena has 11. The "lowest 30 %" rule takes in
+  most of a flat map; cap the count (~20, lowest and flattest first) or space them wider.
+- Open, quality 1 (the phone default): with no Atmosphere the fog grade's plain distance fog
+  (300-1500) washes the whole field white from the default height (`r19-quality1-fog.jpg`).
+  Start/end ~800/3000 at q1 would keep the field readable.
+- Open: the menu's long view toward the horizon is teal again (`r19-fade-end-menu.jpg`, top
+  half), with ColorGrading confirmed off; it's the afternoon Atmosphere haze over the new
+  far ground plane. Bring the menu camera lower or the haze warmer for that view.
+
 ## Known failures
 
 None recorded yet.

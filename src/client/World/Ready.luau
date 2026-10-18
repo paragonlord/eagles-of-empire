@@ -14,6 +14,7 @@ export type State = {
 	hits: number, -- consecutive raycast checks that all hit terrain
 	settled: boolean,
 	goodFrames: number, -- consecutive frames under the budget
+	waited: number, -- seconds spent waiting for quiet frames once replicated and settled
 	settleCap: number, -- seconds after which meshing counts as settled anyway
 	replicateCap: number, -- seconds after which a missing world no longer blocks (offline menu)
 }
@@ -29,9 +30,12 @@ Ready.FRAME_MS = 20
 Ready.CHECK_EVERY = 0.2
 Ready.HITS_NEEDED = 3
 Ready.FRAMES_NEEDED = 2
+-- A device that never runs under FRAME_MS (a phone at 30 fps; Studio at 15) would wait forever:
+-- once the world is in and settled, quiet frames are waited for this long at most.
+Ready.FRAME_CAP = 3
 
 function Ready.new(settleCap: number?, replicateCap: number?): State
-	return { t = 0, replicated = false, hits = 0, settled = false, goodFrames = 0, settleCap = settleCap or 20, replicateCap = replicateCap or 90 }
+	return { t = 0, replicated = false, hits = 0, settled = false, goodFrames = 0, waited = 0, settleCap = settleCap or 20, replicateCap = replicateCap or 90 }
 end
 
 -- Feeds one sample; true once every condition holds.
@@ -53,7 +57,10 @@ function Ready.step(st: State, s: Sample): boolean
 			st.goodFrames = 0
 		end
 	end
-	return st.replicated and st.settled and st.goodFrames >= Ready.FRAMES_NEEDED
+	if st.replicated and st.settled then
+		st.waited += s.dt
+	end
+	return st.replicated and st.settled and (st.goodFrames >= Ready.FRAMES_NEEDED or st.waited >= Ready.FRAME_CAP)
 end
 
 -- The server's world folder for `mapId`, when its WorldReady count of parts has replicated.

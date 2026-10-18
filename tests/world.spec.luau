@@ -123,4 +123,13 @@ test("Ready gate: caps on settling and replication", function()
 	end
 	assertEq((run(s2, 20, 90)), true, "replication cap")
 	assertEq((run({ unrep, unrep, unrep, unrep }, 20, 90)), false, "before the cap")
+	-- a device that never runs under the frame budget opens after FRAME_CAP, not never
+	local hit = { dt = 0.016, replicated = true, allHit = true, frameMs = 60 }
+	local slow = { dt = 0.06, replicated = true, frameMs = 60 }
+	local s3 = { hit, hit, hit }
+	for _ = 1, math.ceil(Ready.FRAME_CAP / 0.06) + 1 do
+		table.insert(s3, slow)
+	end
+	assertEq((run(s3)), true, "frame cap")
+	assertEq((run({ hit, hit, hit, slow, slow, slow })), false, "before the frame cap")
 end)
