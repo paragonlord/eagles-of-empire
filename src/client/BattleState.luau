@@ -368,6 +368,21 @@ function BattleState.ownFormations(): { Formation }
 	return out
 end
 
+-- Camera yaw for this side: from its deploy zone toward the enemy's, snapped to 90° so the
+-- ground labels line up. Nil when a zone is missing (the camera keeps looking north).
+function BattleState.sideYaw(): number?
+	local m = BattleState.map
+	local zones = if m then m.deployZones else nil
+	local own = zones and zones[BattleState.viewerFaction]
+	local foe = zones and zones[BattleState.enemyFaction]
+	if not own or not foe then
+		return nil
+	end
+	local dx = (foe.x0 + foe.x1 - own.x0 - own.x1) / 2
+	local dz = (foe.z0 + foe.z1 - own.z0 - own.z1) / 2
+	return math.round(math.atan2(dz, dx) / (math.pi / 2)) * (math.pi / 2)
+end
+
 -- Centre of the viewer's army (or the map centre when nothing is fielded).
 function BattleState.armyCentre(): Vec
 	local sx, sz, n = 0, 0, 0

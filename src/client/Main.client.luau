@@ -311,6 +311,7 @@ local function onMatchState(msg: any)
 		diag(string.format("menu shown (commander=%s), world built=%s", tostring(BattleState.isCommander), tostring(built)))
 		if built then
 			local m = BattleState.map
+			Camera.setDefaultYaw(nil)
 			Camera.reset(m.width / 2, m.depth * 0.45)
 		end
 	elseif state == "loading" then
@@ -355,6 +356,7 @@ local function onMatchState(msg: any)
 		Input.setMode(if BattleState.canOrder() then "deploy" else "off")
 		Camera.setEnabled(true)
 		if zone then
+			Camera.setDefaultYaw(BattleState.sideYaw()) -- each side looks toward its enemy
 			Camera.reset((zone.x0 + zone.x1) / 2, (zone.z0 + zone.z1) / 2)
 			Camera.playIntro() -- sweep over the field while the briefing is read
 			needCameraReset = false
@@ -474,6 +476,7 @@ local function wire()
 		if needCameraReset and next(BattleState.formations) ~= nil then
 			needCameraReset = false
 			local c = BattleState.armyCentre()
+			Camera.setDefaultYaw(BattleState.sideYaw())
 			Camera.reset(c.x, c.z)
 		end
 	end))
@@ -546,6 +549,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	Effects.update(dt)
 	HUD.update(dt)
 	Props.updateLabels(Camera.height())
+	Props.setLabelYaw(Camera.getYaw())
 	pendingClock += dt
 	if pendingClock > 1 then
 		pendingClock = 0

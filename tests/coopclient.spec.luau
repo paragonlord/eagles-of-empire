@@ -82,6 +82,15 @@ test("PvP client: own side is the viewer's, sides grouped own first, enemy offic
 	setup({ matchId = "m", state = "running", viewerFaction = "france", isCommander = true, role = "commander", players = { players[1] }, scenario = { factions = { player = "france", enemy = "prussia" } } })
 	assertTrue(not BattleState.pvp() and BattleState.isLead(), "lead falls back to the commander")
 	assertEq(BattleState.sides()[1].faction, "france")
+	-- camera yaw: each side looks from its zone toward the enemy's, snapped to 90°
+	BattleState.map = { deployZones = { france = { x0 = 0, z0 = 0, x1 = 1600, z1 = 300 }, prussia = { x0 = 0, z0 = 900, x1 = 1600, z1 = 1200 } } } :: any
+	assertEq(BattleState.sideYaw(), math.pi / 2, "France looks north")
+	BattleState.viewerFaction, BattleState.enemyFaction = "prussia", "france"
+	assertEq(BattleState.sideYaw(), -math.pi / 2, "Prussia looks south")
+	BattleState.map = { deployZones = { france = { x0 = 0, z0 = 0, x1 = 300, z1 = 1200 }, prussia = { x0 = 1300, z0 = 100, x1 = 1600, z1 = 1200 } } } :: any
+	assertEq(math.cos(BattleState.sideYaw() :: number), -1, "Prussia in the east looks west")
+	BattleState.map = nil
+	assertEq(BattleState.sideYaw(), nil, "no map: default")
 	BattleState.reset()
 	BattleState.applyMatchState({ matchId = "", state = "menu" })
 end)

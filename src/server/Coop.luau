@@ -193,6 +193,13 @@ function Coop.setSide(roster: Roster, userId: number, side: Side): boolean
 	return true
 end
 
+-- A new match: everyone back on the player side; PvP players pick again.
+function Coop.resetSides(roster: Roster)
+	for _, mem in roster.members do
+		mem.side = "player"
+	end
+end
+
 -- Host force-balance: the host keeps their side, the others alternate in join order starting
 -- on the other side (1v1, 2v1, 2v2).
 function Coop.balance(roster: Roster)

@@ -547,6 +547,7 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 		votes = {},
 	}
 	local m = match :: Match
+	Coop.resetSides(roster) -- sides do not carry over between battles
 	roster.pvp = mode == "pvp" and pvpAllowed(m)
 	if roster.pvp then
 		MatchClock.setSpeed(m.clock, 1)

@@ -136,7 +136,7 @@ local LOOKS: { [string]: Look } = {
 	autumn = {
 		crowns = { c3(56, 78, 34), c3(64, 86, 38), c3(74, 92, 40), c3(90, 98, 44), c3(108, 104, 50), c3(116, 92, 52) },
 		conifer = 0.12,
-		hedge = c3(62, 80, 36),
+		hedge = c3(84, 106, 50),
 		roofs = { c3(122, 60, 42), c3(108, 54, 40), c3(132, 72, 50), c3(92, 56, 44), c3(116, 66, 48) },
 		walls = { c3(222, 214, 194), c3(214, 204, 180), c3(206, 196, 172) },
 		timber = 0.45,
@@ -150,7 +150,7 @@ local LOOKS: { [string]: Look } = {
 	winter = {
 		crowns = { c3(86, 84, 60), c3(96, 90, 64), c3(78, 80, 56), c3(104, 94, 70), c3(70, 78, 50) },
 		conifer = 0.35,
-		hedge = c3(76, 80, 54),
+		hedge = c3(100, 106, 72),
 		roofs = { c3(118, 62, 46), c3(104, 58, 44), c3(128, 74, 54) },
 		walls = { c3(226, 220, 204), c3(218, 212, 196), c3(210, 202, 184) },
 		timber = 0.0,
@@ -164,7 +164,7 @@ local LOOKS: { [string]: Look } = {
 	summer = {
 		crowns = { c3(50, 80, 32), c3(58, 90, 36), c3(66, 98, 40), c3(76, 104, 44), c3(54, 74, 34) },
 		conifer = 0.05,
-		hedge = c3(54, 82, 32),
+		hedge = c3(74, 108, 46),
 		roofs = { c3(120, 58, 42), c3(106, 52, 40), c3(76, 76, 82), c3(130, 68, 48) },
 		walls = { c3(222, 216, 200), c3(212, 204, 186), c3(150, 82, 62), c3(140, 76, 58) },
 		timber = 0.0,
@@ -218,7 +218,7 @@ local function poplar(parent: Instance, x: number, z: number, y: number?)
 end
 
 local function bush(parent: Instance, x: number, z: number, r: number)
-	local p = blob(parent, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.35, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(40, 52, 28), h01(z, x, 48) * 0.5))
+	local p = blob(parent, Vector3.new(r * 2.2, r * 1.1, r * 1.8), yaw(x, groundY(x, z) + r * 0.35, z, h01(x, z, 47) * 3), look.hedge:Lerp(c3(56, 72, 40), h01(z, x, 48) * 0.4))
 	p.CastShadow = false
 end
 
@@ -447,46 +447,66 @@ end
 
 local function buildBridge(parent: Instance, br: any)
 	local a, b = br.a, br.b
-	local len = Vec.dist(a, b)
 	local dir = Vec.normalize(Vec.sub(b, a))
-	local h = math.max(groundY(a.x, a.z), groundY(b.x, b.z))
 	local mid = Vec.lerp(a, b, 0.5)
 	local heading = Vec.heading(dir)
-	local deck = yaw(mid.x, h, mid.z, heading)
-	if len >= 90 then
+	-- the deck spans the water plus a short ramp on each bank and follows the bank heights;
+	-- the crossing's cells beyond it are plain ground (MapGen flattens the whole band)
+	local half = Vec.dist(a, b) / 2 - 8
+	for _, river in currentMap.rivers do
+		local pts = river.points
+		for n = 1, #pts - 1 do
+			if Vec.distToSegment(mid, pts[n], pts[n + 1]) < river.width / 2 + 20 then
+				half = math.min(half, river.width / 2)
+			end
+		end
+	end
+	local stoneBridge = half >= 20
+	local ramp = if stoneBridge then 9 else 5
+	local reach = half + ramp
+	local e1 = Vec.sub(mid, Vec.scale(dir, reach))
+	local e2 = Vec.add(mid, Vec.scale(dir, reach))
+	local y1, y2 = groundY(e1.x, e1.z), groundY(e2.x, e2.z)
+	local len = reach * 2
+	local pitch = math.atan2(y2 - y1, len)
+	local deck = yaw(mid.x, (y1 + y2) / 2, mid.z, heading) * CFrame.Angles(0, 0, pitch)
+	local function pier(t: number, size: Vector3, color: Color3, material: EnumMaterial?)
+		local px, pz = e1.x + (e2.x - e1.x) * t, e1.z + (e2.z - e1.z) * t
+		local top = y1 + (y2 - y1) * t
+		local bottom = groundY(px, pz) - 2
+		local ph = math.max(top - bottom, 1)
+		return part(parent, nil, Vector3.new(size.X, ph, size.Z), yaw(px, bottom + ph / 2, pz, heading), color, material)
+	end
+	if stoneBridge then
 		-- stone bridge: deck, parapets with coping, piers with cutwaters down to the bed
 		local stone = c3(150, 140, 122)
-		part(parent, nil, Vector3.new(len + 4, 1.4, br.width), deck * CFrame.new(0, 0.3, 0), stone, Enum.Material.Cobblestone)
+		part(parent, nil, Vector3.new(len, 1.4, br.width), deck * CFrame.new(0, 0.3, 0), stone, Enum.Material.Cobblestone)
 		for side = -1, 1, 2 do
-			part(parent, nil, Vector3.new(len + 4, 1.6, 0.9), deck * CFrame.new(0, 1.6, side * (br.width / 2 - 0.45)), stone, Enum.Material.Slate)
+			part(parent, nil, Vector3.new(len, 1.6, 0.9), deck * CFrame.new(0, 1.6, side * (br.width / 2 - 0.45)), stone, Enum.Material.Slate)
 		end
-		for i = 0, 3 do
-			local t = 0.14 + i * 0.24
-			local px, pz = a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t
+		local dark = stone:Lerp(c3(60, 56, 50), 0.25)
+		for i = 0, 2 do
+			local t = 0.25 + i * 0.25
+			pier(t, Vector3.new(3.4, 0, br.width - 1), dark, Enum.Material.Slate)
+			local px, pz = e1.x + (e2.x - e1.x) * t, e1.z + (e2.z - e1.z) * t
 			local bottom = groundY(px, pz) - 2
-			local ph = math.max(h - bottom, 1)
-			local pier = yaw(px, bottom + ph / 2, pz, heading)
-			part(parent, nil, Vector3.new(3.4, ph, br.width - 1), pier, stone:Lerp(c3(60, 56, 50), 0.25), Enum.Material.Slate)
-			part(parent, nil, Vector3.new(2.4, ph, 2.4), pier * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), stone:Lerp(c3(60, 56, 50), 0.25), Enum.Material.Slate)
+			local ph = math.max(y1 + (y2 - y1) * t - bottom, 1)
+			part(parent, nil, Vector3.new(2.4, ph, 2.4), yaw(px, bottom + ph / 2, pz, heading) * CFrame.new(0, 0, br.width / 2) * CFrame.Angles(0, math.pi / 4, 0), dark, Enum.Material.Slate)
 		end
 	else
 		-- timber bridge over a brook: plank deck, trestles and a post-and-rail on both sides
 		local wood = c3(104, 80, 58)
-		part(parent, nil, Vector3.new(len + 4, 0.8, br.width - 4), deck * CFrame.new(0, 0.2, 0), wood, Enum.Material.WoodPlanks)
-		local n = math.max(2, math.floor(len / 9))
+		part(parent, nil, Vector3.new(len, 0.6, br.width - 6), deck * CFrame.new(0, 0.2, 0), wood, Enum.Material.WoodPlanks)
+		local n = math.max(2, math.floor(len / 7))
 		for side = -1, 1, 2 do
-			local zOff = side * (br.width / 2 - 2.3)
-			part(parent, nil, Vector3.new(len + 4, 0.3, 0.3), deck * CFrame.new(0, 2.0, zOff), wood)
+			local zOff = side * (br.width / 2 - 3.3)
+			part(parent, nil, Vector3.new(len, 0.25, 0.25), deck * CFrame.new(0, 1.7, zOff), wood)
 			for k = 0, n do
-				part(parent, nil, Vector3.new(0.35, 2.2, 0.35), deck * CFrame.new(-len / 2 - 2 + k * (len + 4) / n, 1.0, zOff), BEAM)
+				part(parent, nil, Vector3.new(0.3, 1.8, 0.3), deck * CFrame.new(-len / 2 + k * len / n, 0.9, zOff), BEAM)
 			end
 		end
 		for k = 1, n - 1 do
-			local t = k / n
-			local px, pz = a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t
-			local bottom = groundY(px, pz) - 2
-			local ph = math.max(h - bottom, 1)
-			part(parent, nil, Vector3.new(0.8, ph, br.width - 5), yaw(px, bottom + ph / 2, pz, heading), BEAM)
+			pier(k / n, Vector3.new(0.7, 0, br.width - 7), BEAM)
 		end
 	end
 end
@@ -518,7 +538,8 @@ local function buildRiverside(parent: Instance, river: any, q: number, jobs: { (
 					if q >= 2 and k < 0.55 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 1.5 + k * 3)))
 						if classAt(p.x, p.z) ~= nil and not nearBridge(p.x, p.z, 6) then
-							local r = blob(parent, Vector3.new(4.5, 2.6 + k * 2, 2.6), yaw(p.x, groundY(p.x, p.z) + 0.9, p.z, Vec.heading(dir)), c3(122, 118, 70):Lerp(c3(92, 98, 56), k))
+							-- a thin pale fringe of reed bed along the water's edge
+							local r = part(parent, nil, Vector3.new(7, 1.2 + k * 1.2, 0.5), yaw(p.x, groundY(p.x, p.z) + 0.5, p.z, Vec.heading(dir) + (k - 0.3) * 0.5), c3(186, 172, 112):Lerp(c3(150, 150, 90), k), Enum.Material.Sand)
 							r.CastShadow = false
 						end
 					end
@@ -590,7 +611,7 @@ local function borderPiece(parent: Instance, kind: number, ax: number, az: numbe
 	end
 	if kind == 1 then
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
-		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(36, 48, 26), h01(mz, mx, 91) * 0.4), Enum.Material.Grass, 1.2)
+		along(hh, 2.6, hh / 2 - 0.5, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
 		if h01(mx, mz, 92) < 0.13 then
 			deciduous(parent, mx, mz, 4 + h01(mz, mx, 93) * 2, true)
 		end
@@ -965,6 +986,20 @@ function Props.build(map: any, quality: number, onProgress: ((fraction: number) 
 	return generation == myGen
 end
 
+-- Ground labels turn with the camera in 90° steps so they never read upside down. `yaw` is
+-- the camera's (Camera.getYaw); the plates were built for the north-facing default (π/2).
+local lastLabelYaw = math.pi / 2
+function Props.setLabelYaw(yaw: number)
+	local step = math.round(yaw / (math.pi / 2)) * (math.pi / 2)
+	if math.abs(step - lastLabelYaw) < 0.01 then
+		return
+	end
+	lastLabelYaw = step
+	for _, l in labelParts do
+		l.part.CFrame = CFrame.new(l.part.Position) * CFrame.Angles(0, math.pi - step, 0)
+	end
+end
+
 -- Ground labels grow with camera height so they stay readable from any zoom.
 local lastLabelK = -1
 function Props.updateLabels(cameraHeight: number)
@@ -1010,6 +1045,7 @@ function Props.setDeployZone(rect: any?, faction: string?)
 	if not rect or not currentMap then
 		return
 	end
+	WorldLighting.beginBattle() -- deployment: the light starts from this battle's own weather
 	local zf = Instance.new("Folder") :: Folder
 	zf.Name = "EoEDeployZone"
 	zf.Parent = workspace

@@ -161,6 +161,12 @@ test("PvP roster: sides on join, leads, AI only for an empty side, balance", fun
 	Coop.add(r, 4, "d")
 	assertEq(Coop.sideOf(r, 4), "player", "fourth evens it 2v2")
 	assertTrue(not Coop.setSide(r, 99, "player"), "strangers have no side")
+	-- a new match starts everyone on the player side again
+	Coop.resetSides(r)
+	for i = 1, 4 do
+		assertEq(Coop.sideOf(r, i), "player", "side reset on a new match")
+	end
+	assertEq(Coop.aiSide(r), "enemy")
 end)
 
 test("PvP views: own side's faction; spectators the host's; per-side wing split", function()
