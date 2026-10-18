@@ -561,6 +561,22 @@ are untested here (Device Emulator test for Bartosz).
   Settings panel in the desktop layout (`r17-live-desktop-battle.jpg`). All three round 16
   touch notes are closed. Gestures and the order wheel still need a Device Emulator run.
 
+**2026-10-18 round 18 (server-built world), build 901927d.** Boots clean, no errors on the
+client or the server.
+- Pass: the server builds the menu world once (`[EoE world] built 11071 parts for jena in
+  36.1 s`), and the client gate drops the loading screen when it has replicated (35 s). Starting
+  Waterloo from the menu replaces it (MapId waterloo, 19194 parts) and the briefing is up after
+  59 s (`r18-waterloo-server-world.jpg`). Jena with the new trees, villages and fields matches
+  the client-built world from round 15.
+- Fixed: **a teal cast over the whole field.** Studio puts its own `ColorGrading` effect
+  (Retro tonemapper) and a zero-strength `Bloom` into Lighting; they are not in our place file,
+  so they come from Studio and would be published. The grading cooled the greens and darkened
+  the woods (`r18-grading-on.jpg` vs `r18-grading-off.jpg`, same camera). `Lighting.apply` now
+  disables any ColorGradingEffect, so the grade is EoE's alone; checked in the rebuilt place.
+- Note: 35 s (Jena) and 59 s (Waterloo) behind the loading bar is long for a phone. The server
+  could build the next map while the briefing for the current one is read, or keep the last
+  built maps.
+
 ## Known failures
 
 None recorded yet.
