@@ -42,6 +42,8 @@ Config.Slope = {
 	UphillPenalty = 0.6, -- speed *= 1 - penalty * max(0, slopeAlongMotion)
 	DownhillBonus = 0.15,
 	UphillFireBonus = 0.1, -- firing from higher ground
+	DownhillChargeBonus = 0.25, -- charge impact from higher ground
+	DownhillMeleeBonus = 0.1, -- melee from higher ground
 }
 
 -- Visibility

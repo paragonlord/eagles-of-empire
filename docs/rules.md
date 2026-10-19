@@ -119,6 +119,9 @@ Artillery: per gun, per shot. Round shot range 60–450, hit 0.5 × rangeF, 3 ca
 18 s. Ammunition mode `auto` picks canister inside 120. A gun reports why it cannot fire:
 `Limbered`, `Reloading`, `Out of range`, `Line of fire blocked`, `No target`, `Out of ammunition`.
 
+Higher ground (attacker more than 3 studs above the target): charge impact ×1.25, melee ×1.1
+(`Config.Slope`), on top of the musket's ×1.1.
+
 Round shot carries on past its target (`Config.Combat.Ricochet`): the two nearest formations of
 either side whose footprints touch the next 140 studs of the line of fire take 0.45 of the first
 strike (before shape), fading to half at the far end, × their own shape's artillery factor; half the

@@ -36,7 +36,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 ## Phase 3: battlefield physics and terrain
 - [x] Round shot travels a lane and bounces through what is behind (friendly fire)
 - [x] Howitzer shells: indirect, area hits
-- [ ] Downhill charge and melee bonus
+- [x] Downhill charge and melee bonus
 - [ ] Fords
 - [ ] Garrisonable buildings (strongpoints)
 - [ ] Walls and hedges as cover lines

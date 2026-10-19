@@ -308,6 +308,9 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	if att.moraleBand == "shaken" then
 		rate *= C.ShakenMeleeFactor
 	end
+	if uphill(sim, att.pos, def.pos) then
+		rate *= 1 + Config.Slope.DownhillMeleeBonus
+	end
 	rate /= unitD.melee.defense
 	local casualties = rollCasualties(sim, rate * DT)
 	local extra = 0
@@ -335,6 +338,9 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 			shapeF *= C.ChargeRoutingFactor * (unit.pursuit or 1) -- light cavalry rides down fugitives
 		end
 		local impact = att.strength * ch.base * runUpF * dirF * shapeF * Formation.fatigueFactor(att, C.FatigueMeleePenalty) * att.mods.chargeImpact
+		if uphill(sim, att.pos, def.pos) then
+			impact *= 1 + Config.Slope.DownhillChargeBonus
+		end
 		if att.inWoods then
 			impact *= 0.5
 		end

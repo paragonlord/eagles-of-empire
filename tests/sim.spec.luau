@@ -350,6 +350,46 @@ test("Howitzers lob shells over a crest at what the army can see, and the burst 
 	assertTrue(splash > 0, "the burst reaches the next battalion")
 end)
 
+test("Charging downhill hits harder than charging up", function()
+	-- a slope on Jena where 30 studs of ground fall more than 5 studs, both ends passable
+	local hx, hz
+	for x = 100, 1500, 10 do
+		for z = 100, 1100, 10 do
+			if not hx and Grid.heightAt(MAP.grid, x, z) - Grid.heightAt(MAP.grid, x + 30, z) > 5 and Grid.terrainAt(MAP.grid, x, z).passable and Grid.terrainAt(MAP.grid, x + 30, z).passable then
+				hx, hz = x, z
+			end
+		end
+	end
+	assertTrue(hx ~= nil, "a slope exists")
+	local function impact(attackerX, targetX, heading)
+		local s2 = newSim({
+			unit("prussia", "infantry", "Target", targetX, hz, 0),
+			unit("france", "cavalry", "15e Dragons", attackerX, hz, heading),
+		})
+		local t, h = s2.formations[1], s2.formations[2]
+		t.heading = Vec.heading(Vec.sub(h.pos, t.pos)) -- both take it in the front
+		h.state = "charging"
+		h.order = { kind = "Charge", targetId = t.id } :: any
+		h.chargeReady = true
+		h.runUp = 200
+		local total = 0
+		for _ = 1, 20 do
+			h.chargeReady = true
+			h.timers.chargeRecover = 0
+			h.state = "charging"
+			for _, a in Combat.gather(s2) do
+				if a.attackerId == h.id and a.kind == "charge" then
+					total += a.casualties
+				end
+			end
+		end
+		return total
+	end
+	local down = impact(hx, hx + 30, 0)
+	local up = impact(hx + 30, hx, math.pi)
+	assertTrue(down > up * 1.1, string.format("downhill %d vs uphill %d", down, up))
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x
