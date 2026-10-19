@@ -37,9 +37,9 @@ AI.TARGET_RANGE = AI.THEATRE
 
 -- Hops from the nearest province `nation` controls (owned and not occupied, or occupied by it);
 -- sea lanes count only for Britain (the only AI that sails; it ferries armies to friendly ports and
--- never makes opposed landings) while the sea is open to it.
+-- never makes opposed landings, from ports where its fleets lie).
 local function seaAI(s: State, nation: string): boolean
-	return nation == "britain" and not Movement.seaBlocked(s, nation)
+	return nation == "britain"
 end
 
 local function theatre(s: State, nation: string): { [string]: number }

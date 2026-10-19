@@ -107,4 +107,7 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     `view.agents = { {id, provinceId, movesLeft, movesMax} }` (the player's); armies within two
     marches of one carry `units`. Refusals: `needs:government:1`, `spyHere`, `tooManySpies`,
     `notYourSpy`, `tooFar`, `notBesieging`, `spyResting`, `nothingToSabotage`.
+23. Navy: `view.fleets = { {id, nation, name, provinceId, line, frigates, movesLeft?, movesMax?} }`
+    (the player's side's and any in sight; moves for the player's own). A sea crossing without a
+    fleet of the army's side in the port is refused `noEscort`.
 

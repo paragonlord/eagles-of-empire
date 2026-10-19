@@ -150,6 +150,9 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 	for _, ag in s.agents do
 		ag.movesLeft = State.SPY_MOVES
 	end
+	for _, f in s.fleets do
+		f.movesLeft = State.FLEET_MOVES
+	end
 	-- an army still facing a pending battle cannot march away from it
 	for _, b in s.pendingBattles do
 		for _, a in Battles.armies(s, b) do
@@ -688,6 +691,14 @@ function GrandCampaign.view(s: State): { [string]: any }
 			odds = Battles.odds(s, b, player),
 		}
 	end
+	-- fleets of the player's side, and any in sight
+	local fleets = {}
+	for _, f in s.fleets do
+		local own = f.nation == player
+		if own or State.friendly(s, player, f.nation) or seen[f.provinceId] then
+			fleets[#fleets + 1] = { id = f.id, nation = f.nation, name = f.name, provinceId = f.provinceId, line = f.line, frigates = f.frigates, movesLeft = if own then f.movesLeft else nil, movesMax = if own then State.FLEET_MOVES else nil }
+		end
+	end
 	local agents = {}
 	for _, ag in s.agents do
 		if ag.nation == player then
@@ -715,6 +726,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		events = events,
 		pendingBattle = pending,
 		agents = agents,
+		fleets = fleets,
 		log = table.clone(s.log),
 		victory = State.copy(s.victory),
 		objectives = objectives(s),

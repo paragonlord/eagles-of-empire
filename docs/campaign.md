@@ -183,8 +183,8 @@ Prussia Jäger) and Russia's cavalry (Cossacks).
   marched, retreated or been halted this turn cannot force on (`alreadyMarched`).
 - A march order beyond this turn's reach is kept and goes on at the start of each new turn (after
   events), until it arrives or the rules stop it; a new order replaces it. AI marches keep nothing.
-- Sea lanes join ports, need the full allowance and use it all. After Trafalgar no nation at war
-  with Britain may use them.
+- Sea lanes join ports, need the full allowance and use it all, and a fleet of the army's own
+  nation or an ally lying in the port it sails from (`noEscort` otherwise; see Navy).
 - Fog: the player sees its own and allied armies, and others only in or next to provinces the player's
   side controls or stands in; foreign armies show strength, never units.
 
@@ -274,6 +274,17 @@ besiegers cannot move or assault again that turn.
 - Gifts (`action = "gift", amount`): gold to the other treasury, relations +1 per 50.
 - War between two nations ends their trade agreement and access both ways.
 
+## Navy
+
+- Fleets of ships of the line and frigates (`EuropeData.ShipClasses`, power 3 and 1) lie in ports.
+  1805 (`EuropeData.StartFleets`): Britain's Channel Fleet (England), Mediterranean Fleet (Lisbon)
+  and Cork Squadron (Ireland); France's Brest (Normandy) and Toulon (Provence) squadrons; Spain at
+  Cádiz; the Dutch, Danish, Swedish, Russian Baltic and Ottoman fleets.
+- An army crosses a sea lane only from a port where its own or an ally's fleet lies.
+- Trafalgar sinks every French and Spanish fleet.
+- A save from before the navy gets the 1805 fleets, less the French and Spanish ones if Trafalgar
+  was fought.
+
 ## Spies
 
 - `recruitSpy {provinceId}`: 300 gold at an owned, unoccupied province with a government
@@ -295,7 +306,7 @@ any AI), replenish when the treasury allows, merge small armies in the same prov
 - **Theatre**: no army considers a province more than 4 marches from land its nation controls
   (allied land does not extend this), so armies stay at their front. Ordinary attacks reach at most
   2 marches beyond that land. Only Britain's AI uses sea lanes, and only into friendly ports (it
-  ferries troops; it never makes opposed landings).
+  ferries troops from ports where its fleets lie; it never makes opposed landings).
 - **Strategic target** (majors): the enemy capital within the theatre of the enemy whose field
   strength is at most 1.25 × ours, a major's before any minor's, then ours / (theirs + 5000) per
   march. Field armies (a general or 6+ units) score every reachable province nearer to it,
@@ -329,7 +340,7 @@ the player gets a pop-up, an AI takes the first option.
 | Event | Window | Conditions | Effect (first choice) | Other choice |
 |---|---|---|---|---|
 | Third Coalition | Jul–Dec 1805 | Austria at peace with France, Britain at war with France | Bavaria, Württemberg ally France; Austria, Russia, Britain, Sweden, Naples at war with France (Austria chooses) | Austria stays out; Russia, Britain, Sweden fight on |
-| Trafalgar | Sep–Oct 1805 | Britain at war with France, France does not hold England | naval supremacy: Britain's enemies cannot use sea lanes | — |
+| Trafalgar | Sep–Oct 1805 | Britain at war with France, France does not hold England | the French and Spanish fleets are sunk (`sinkFleets`), flag `navalSupremacy` | — |
 | Confederation of the Rhine | Jul–Dec 1806 | Austria's last peace with France dictated or won by France, at peace | flag, Bavaria and Württemberg allied, +300 treasury, Prussia −40 relation (France chooses) | leave the Empire standing: Prussia and Austria +20 |
 | Fourth Coalition | Sep 1806–Apr 1807 | Prussia at peace with France; the Confederation exists or France holds Hanover | Prussia + Saxony allied; Prussia, Saxony, Russia, Britain at war with France (Prussia chooses) | keep the peace |
 | Continental System | Nov 1806–Dec 1807 | at war with Britain; France holds Berlin or has beaten Prussia or Austria | blockade flag (incomes above) | — |

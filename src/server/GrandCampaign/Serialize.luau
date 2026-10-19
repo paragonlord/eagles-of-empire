@@ -13,7 +13,7 @@ local Serialize = {}
 
 Serialize.VERSION = 1
 
-local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "agents", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
+local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "agents", "fleets", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
 
 function Serialize.serialize(s: State): { [string]: any }
 	local p: { [string]: any } = {
@@ -145,6 +145,8 @@ function Serialize.deserialize(p: any): State?
 	p.trades = if p.trades == nil then {} else p.trades
 	p.access = if p.access == nil then {} else p.access
 	p.agents = if p.agents == nil then {} else p.agents
+	local preNavy = p.fleets == nil
+	p.fleets = if preNavy then {} else p.fleets
 	for _, f in FIELDS do
 		if type(p[f]) ~= "table" then
 			return nil
@@ -152,6 +154,14 @@ function Serialize.deserialize(p: any): State?
 	end
 	if #p.agents > State.SPY_MAX * #EuropeData.NationOrder then
 		return nil
+	end
+	if #p.fleets > 200 then
+		return nil
+	end
+	for _, f in p.fleets do
+		if type(f) ~= "table" or not isStr(f.id) or not nationOk(f.nation) or not isStr(f.name) or not provinceOk(f.provinceId) or not isNum(f.line) or not isNum(f.frigates) or not isNum(f.movesLeft) then
+			return nil
+		end
 	end
 	for _, ag in p.agents do
 		if type(ag) ~= "table" or not isStr(ag.id) or not nationOk(ag.nation) or not provinceOk(ag.provinceId) or not isNum(ag.movesLeft) then
@@ -298,6 +308,12 @@ function Serialize.deserialize(p: any): State?
 	}
 	for _, f in FIELDS do
 		s[f] = State.copy(p[f])
+	end
+	if preNavy then
+		-- a save from before the navy: the 1805 fleets, less those Trafalgar sank
+		s.fleets = {}
+		local sunk = if s.flags.navalSupremacy then { france = true, spain = true } else nil
+		State.startFleets(s :: State, sunk)
 	end
 	return s :: State
 end

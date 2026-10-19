@@ -521,9 +521,10 @@ test("Grand movement: sea lanes need ports and a full allowance; Trafalgar close
 	assertEq(err, nil)
 	assertEq(cost, 2)
 	assertTrue(stops)
-	s.flags.navalSupremacy = true
+	-- Trafalgar sinks the squadrons that would have carried it
+	Events.apply(s, EuropeData.EventById.trafalgar.effects)
 	local ok, why = Movement.move(s, "france", a.id, { "england" })
-	assertTrue(not ok and why == "navalSupremacy")
+	assertTrue(not ok and why == "noEscort")
 	local w = army(s, "britain", "england", { line = 2 })
 	ok = Movement.move(s, "britain", w.id, { "ireland" })
 	assertTrue(ok, "Britain still sails")
@@ -531,6 +532,54 @@ test("Grand movement: sea lanes need ports and a full allowance; Trafalgar close
 	ok, why = Movement.move(s, "france", a.id, { "paris", "england" })
 	assertTrue(ok)
 	assertEq(a.provinceId, "paris", "stopped before the sea")
+end)
+
+test("Grand navy: fleets in port carry armies over the sea; Trafalgar sinks the French and Spanish squadrons", function()
+	local s = empty(23)
+	local function fleetsOf(n)
+		local out = {}
+		for _, f in s.fleets do
+			if f.nation == n then
+				out[#out + 1] = f
+			end
+		end
+		return out
+	end
+	assertTrue(#fleetsOf("britain") >= 2 and #fleetsOf("france") >= 2 and #fleetsOf("spain") >= 1, "the 1805 navies")
+	for _, f in s.fleets do
+		assertTrue(EuropeData.province(f.provinceId).isPort, f.name .. " lies in a port")
+		assertTrue(f.line + f.frigates > 0 and f.movesLeft == State.FLEET_MOVES)
+	end
+	-- an army crosses only from a port where its side has a fleet; an ally's will do
+	Diplomacy.declareWar(s, "prussia", "sweden")
+	local pr = army(s, "prussia", "eastprussia", { line = 1 })
+	local ok, why = Movement.move(s, "prussia", pr.id, { "stockholm" })
+	assertTrue(not ok and why == "noEscort", "Prussia has no navy")
+	local _, _, err = Movement.step(s, "france", "holland", "england", 2, 2)
+	assertEq(err, nil, "the Batavian squadron carries its French ally")
+	-- Trafalgar: the French and Spanish squadrons are gone, the Royal Navy rules
+	Events.apply(s, EuropeData.EventById.trafalgar.effects)
+	assertEq(#fleetsOf("france"), 0)
+	assertEq(#fleetsOf("spain"), 0)
+	assertTrue(#fleetsOf("britain") >= 2)
+	-- the view shows fleets in sight; a save keeps them; a save from before the navy gets the
+	-- 1805 fleets, less the French and Spanish ones once Trafalgar was fought
+	local v = GrandCampaign.view(s)
+	local seen = 0
+	for _, f in v.fleets do
+		seen += 1
+		assertTrue(f.line ~= nil and f.frigates ~= nil and f.provinceId ~= nil)
+	end
+	assertTrue(seen >= 1)
+	local saved = ProfileStore.clone(GrandCampaign.serialize(s))
+	assertEq(#GrandCampaign.deserialize(saved).fleets, #s.fleets)
+	saved.fleets = nil
+	local old = GrandCampaign.deserialize(saved)
+	local french = 0
+	for _, f in old.fleets do
+		french += if f.nation == "france" or f.nation == "spain" then 1 else 0
+	end
+	assertTrue(#old.fleets > 0 and french == 0)
 end)
 
 -- Sieges and occupation -------------------------------------------------------------------------------

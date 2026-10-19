@@ -3,8 +3,8 @@
 -- Entering a province costs 1, +1 inside an enemy zone of control (a neighbouring province holds
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
 -- (battle) or that a nation at war with the mover controls (siege / occupation). Sea lanes join two
--- ports, need a full allowance and use all of it; after Trafalgar no nation at war with Britain
--- may use them. Armies may enter only their own, allied or enemy (at war) provinces. Contacts are
+-- ports, need a full allowance and use all of it, and a fleet of the army's side in the port it
+-- sails from (State.escortAt). Armies may enter only their own, allied or enemy (at war) provinces. Contacts are
 -- resolved at the end of the turn, after every nation has moved: an army that shares its province
 -- with a hostile army may still march off before then (refusing battle), and that is logged.
 
@@ -76,10 +76,6 @@ function Movement.inZoc(s: State, nation: string, provinceId: string): boolean
 	return false
 end
 
-function Movement.seaBlocked(s: State, nation: string): boolean
-	return s.flags.navalSupremacy == true and State.atWar(s, nation, "britain")
-end
-
 -- Cost of one step for an army with `movesLeft` of `maxMoves`. Returns cost, stops, error.
 function Movement.step(s: State, nation: string, from: string, to: string, movesLeft: number, maxMoves: number): (number, boolean, string?)
 	if EuropeData.province(to) == nil or not Movement.adjacent(from, to) then
@@ -90,8 +86,8 @@ function Movement.step(s: State, nation: string, from: string, to: string, moves
 	end
 	local stops = State.hostileArmyIn(s, to, nation) or State.atWar(s, nation, State.controller(s, to))
 	if EuropeData.isSeaLane(from, to) then
-		if Movement.seaBlocked(s, nation) then
-			return 0, false, "navalSupremacy"
+		if not State.escortAt(s, nation, from) then
+			return 0, false, "noEscort"
 		end
 		if movesLeft < maxMoves then
 			return 0, false, "seaNeedsFullMoves"
@@ -168,7 +164,7 @@ function Movement.search(s: State, nation: string, from: string, sea: string?): 
 	local parent: { [string]: string } = {}
 	local queue = { from }
 	local head = 1
-	local seaOk = sea ~= "none" and not Movement.seaBlocked(s, nation)
+	local seaOk = sea ~= "none"
 	while head <= #queue do
 		local id = queue[head]
 		head += 1
@@ -177,7 +173,7 @@ function Movement.search(s: State, nation: string, from: string, sea: string?): 
 		if passable then
 			for _, n in State.province(id).neighbours do
 				local lane = EuropeData.isSeaLane(id, n)
-				if dist[n] == nil and Movement.canEnter(s, nation, n) and (not lane or (seaOk and (sea ~= "friendly" or State.friendly(s, nation, State.controller(s, n))))) then
+				if dist[n] == nil and Movement.canEnter(s, nation, n) and (not lane or (seaOk and State.escortAt(s, nation, id) and (sea ~= "friendly" or State.friendly(s, nation, State.controller(s, n))))) then
 					dist[n] = dist[id] + 1
 					parent[n] = id
 					queue[#queue + 1] = n

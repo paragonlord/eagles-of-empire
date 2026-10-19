@@ -14,6 +14,8 @@ export type General = { name: string, rating: number, wins: number?, losses: num
 -- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
 export type Siege = { by: string, turnsLeft: number }
+-- A fleet in a port: ships of the line and frigates; sails FLEET_MOVES fleet lanes a turn
+export type Fleet = { id: string, nation: string, name: string, provinceId: string, line: number, frigates: number, movesLeft: number }
 -- A spy: moves SPY_MOVES provinces a turn over any border, sees armies within SPY_SIGHT marches
 export type Agent = { id: string, nation: string, provinceId: string, movesLeft: number }
 export type Construction = { chain: string, turnsLeft: number }
@@ -50,6 +52,7 @@ export type State = {
 	trades: { [string]: boolean }, -- pair -> a trade agreement
 	access: { [string]: boolean }, -- "a>b" -> a's armies may march through b's land
 	agents: { Agent },
+	fleets: { Fleet },
 	truces: { [string]: number }, -- pair -> last turn of the truce
 	peaces: { [string]: Peace }, -- pair -> last peace
 	armies: { Army }, -- ascending creation order
@@ -74,6 +77,7 @@ State.LOG_MAX = 80
 State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
 State.APPOINT_COST = 500 -- a new general for an army that has none
+State.FLEET_MOVES = 3
 State.SPY_COST = 300
 State.SPY_MAX = 3 -- spies a nation keeps at once
 State.SPY_MOVES = 2
@@ -166,6 +170,32 @@ end
 
 function State.allied(s: State, a: string, b: string): boolean
 	return a ~= b and s.alliances[State.pair(a, b)] == true
+end
+
+-- Fleets count on their own (army and unit ids, whose order breaks AI ties, stay as they were).
+function State.newFleetId(s: State): string
+	local n = (s.counters.fleet or 0) + 1
+	s.counters.fleet = n
+	return "f" .. n
+end
+
+-- The 1805 navies (`sunk`: nations whose fleets are gone, for saves from before the navy).
+function State.startFleets(s: State, sunk: { [string]: boolean }?)
+	for _, def in EuropeData.StartFleets do
+		if not (sunk and sunk[def.nation]) then
+			s.fleets[#s.fleets + 1] = { id = State.newFleetId(s), nation = def.nation, name = def.name, provinceId = def.port, line = def.line, frigates = def.frigates, movesLeft = State.FLEET_MOVES }
+		end
+	end
+end
+
+-- An army of `nation` may cross the sea from `provinceId`: its own or an ally's fleet lies there.
+function State.escortAt(s: State, nation: string, provinceId: string): boolean
+	for _, f in s.fleets do
+		if f.provinceId == provinceId and State.friendly(s, nation, f.nation) then
+			return true
+		end
+	end
+	return false
 end
 
 function State.agentById(s: State, id: string): Agent?
@@ -449,6 +479,7 @@ function State.new(seed: number, playerNation: string?): State
 		trades = {},
 		access = {},
 		agents = {},
+		fleets = {},
 		truces = {},
 		peaces = {},
 		armies = {},
@@ -490,6 +521,7 @@ function State.new(seed: number, playerNation: string?): State
 		local a = State.newArmy(s, def.nation, def.name, def.province, def.general)
 		State.addUnits(s, a, def.units, def.experience)
 	end
+	State.startFleets(s)
 	State.log(s, string.format("The campaign opens. You lead the %s.", State.nationName(player)))
 	return s
 end

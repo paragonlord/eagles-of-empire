@@ -21,6 +21,7 @@ Logic.REASONS = {
 	badPath = "No road leads there",
 	seaNeedsFullMoves = "A sea crossing needs the army's full movement",
 	navalSupremacy = "The Royal Navy holds the seas against you",
+	noEscort = "No fleet of yours lies in that port to carry the army",
 	insufficientFunds = "Not enough treasury",
 	insufficientManpower = "Not enough manpower",
 	queueFull = "The recruitment queue is full",
@@ -157,8 +158,14 @@ local function inZoc(view: any, id: string): boolean
 	return false
 end
 
-local function seaBlocked(view: any): boolean
-	return view.flags ~= nil and view.flags.navalSupremacy == true and Logic.atWar(view, "britain")
+-- Same rule as the server: an army sails only from a port where its side has a fleet.
+local function escortAt(view: any, id: string): boolean
+	for _, f in view.fleets or {} do
+		if f.provinceId == id and friendly(view, f.nation) then
+			return true
+		end
+	end
+	return false
 end
 
 -- Shortest march for army `a` to `goal` as board steps (turn numbers from movement points;
@@ -172,7 +179,6 @@ function Logic.route(view: any, a: any, goal: string): { Step }?
 	local seen: { [string]: boolean } = { [start] = true }
 	local queue = { start }
 	local head = 1
-	local seaOk = not seaBlocked(view)
 	while head <= #queue do
 		local id = queue[head]
 		head += 1
@@ -181,7 +187,7 @@ function Logic.route(view: any, a: any, goal: string): { Step }?
 		end
 		if id == start or not stops(view, id) then
 			for _, n in (EuropeData.province(id) :: any).neighbours do
-				if not seen[n] and canEnter(view, n) and (seaOk or not EuropeData.isSeaLane(id, n)) then
+				if not seen[n] and canEnter(view, n) and (not EuropeData.isSeaLane(id, n) or escortAt(view, id)) then
 					seen[n] = true
 					parent[n] = id
 					table.insert(queue, n)

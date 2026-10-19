@@ -292,6 +292,40 @@ EuropeData.SeaLanes = {
 	{ "stockholm", "eastprussia" },
 }
 
+-- The navy. Fleets lie in ports and sail port to port along these lanes (the army crossings and
+-- the coastal passages around them); an army crosses a sea lane only from a port where its side
+-- has a fleet.
+EuropeData.FleetLanes = {
+	{ "england", "ireland" }, { "england", "normandy" }, { "england", "belgium" }, { "england", "holland" },
+	{ "england", "denmark" }, { "england", "lisbon" }, { "naples", "sicily" }, { "stockholm", "denmark" },
+	{ "stockholm", "stpetersburg" }, { "stockholm", "eastprussia" },
+	{ "normandy", "aquitaine" }, { "aquitaine", "lisbon" }, { "lisbon", "andalusia" }, { "andalusia", "catalonia" },
+	{ "catalonia", "provence" }, { "provence", "naples" }, { "naples", "dalmatia" }, { "dalmatia", "venetia" },
+	{ "sicily", "constantinople" }, { "belgium", "holland" }, { "holland", "hanover" }, { "hanover", "denmark" },
+	{ "denmark", "eastprussia" }, { "eastprussia", "lithuania" }, { "lithuania", "stpetersburg" },
+}
+
+export type ShipClass = { name: string, cost: number, power: number }
+EuropeData.ShipClasses = {
+	frigate = { name = "Frigate", cost = 400, power = 1 },
+	line = { name = "Ship of the line", cost = 900, power = 3 },
+} :: { [string]: ShipClass }
+
+export type StartFleet = { nation: string, name: string, port: string, line: number, frigates: number }
+EuropeData.StartFleets = {
+	{ nation = "britain", name = "Channel Fleet", port = "england", line = 10, frigates = 6 },
+	{ nation = "britain", name = "Mediterranean Fleet", port = "lisbon", line = 8, frigates = 4 },
+	{ nation = "britain", name = "Cork Squadron", port = "ireland", line = 2, frigates = 3 },
+	{ nation = "france", name = "Brest Squadron", port = "normandy", line = 6, frigates = 3 },
+	{ nation = "france", name = "Toulon Squadron", port = "provence", line = 8, frigates = 4 },
+	{ nation = "spain", name = "Cádiz Squadron", port = "andalusia", line = 8, frigates = 3 },
+	{ nation = "netherlands", name = "Batavian Squadron", port = "holland", line = 3, frigates = 2 },
+	{ nation = "denmark", name = "Danish Fleet", port = "denmark", line = 4, frigates = 2 },
+	{ nation = "sweden", name = "Swedish Fleet", port = "stockholm", line = 3, frigates = 2 },
+	{ nation = "russia", name = "Baltic Fleet", port = "stpetersburg", line = 6, frigates = 3 },
+	{ nation = "ottoman", name = "Ottoman Fleet", port = "constantinople", line = 4, frigates = 3 },
+} :: { StartFleet }
+
 -- Water between the provinces: Voronoi sites that shape coastlines but belong to no province.
 local SEA_SITES: { Vec } = {
 	-- Atlantic, Biscay, Channel, Irish Sea, North Sea
@@ -377,6 +411,16 @@ end
 
 function EuropeData.isSeaLane(a: string, b: string): boolean
 	return seaLane[a .. "|" .. b] == true
+end
+
+local fleetLane: { [string]: boolean } = {}
+for _, l in EuropeData.FleetLanes do
+	fleetLane[l[1] .. "|" .. l[2]] = true
+	fleetLane[l[2] .. "|" .. l[1]] = true
+end
+
+function EuropeData.isFleetLane(a: string, b: string): boolean
+	return fleetLane[a .. "|" .. b] == true
 end
 
 -- Signed polygon area (positive = counter-clockwise with +z north).
@@ -675,9 +719,9 @@ EuropeData.Events = {
 		id = "trafalgar",
 		turn = T(9, 1805),
 		title = "Trafalgar",
-		text = "Nelson has destroyed the combined French and Spanish fleets off Cape Trafalgar. The Royal Navy rules the seas: no army at war with Britain can cross the water any more.",
+		text = "Nelson has destroyed the combined French and Spanish fleets off Cape Trafalgar. The Royal Navy rules the seas: without ships no French army can cross the water.",
 		condition = { { "atWar", "britain", "france" }, { "notControls", "france", "england" } },
-		effects = { { op = "flag", name = "navalSupremacy" }, { op = "relation", a = "spain", b = "france", delta = -15 } },
+		effects = { { op = "flag", name = "navalSupremacy" }, { op = "sinkFleets", nations = { "france", "spain" } }, { op = "relation", a = "spain", b = "france", delta = -15 } },
 		historical = "21 October 1805: Villeneuve's Franco-Spanish fleet was destroyed; Nelson was killed.",
 	},
 	{
@@ -879,6 +923,11 @@ EuropeData.Events = {
 		historical = "Paris capitulated on 31 March 1814; Napoleon abdicated at Fontainebleau on 6 April.",
 	},
 } :: { Event }
+
+EuropeData.EventById = {} :: { [string]: Event }
+for _, e in EuropeData.Events do
+	EuropeData.EventById[e.id] = e
+end
 
 -- Historical battles offered when an army battle happens in that province in that window.
 -- attacker/defender: the battle sides must contain these nations (or their allies) on opposite sides.

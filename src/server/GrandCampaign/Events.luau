@@ -96,6 +96,12 @@ function Events.apply(s: State, effects: { EuropeData.Effect })
 			Diplomacy.makePeace(s, f.a, f.b)
 		elseif op == "flag" then
 			s.flags[f.name] = if f.value == false then nil else true
+		elseif op == "sinkFleets" then
+			for i = #s.fleets, 1, -1 do
+				if table.find(f.nations, s.fleets[i].nation) then
+					table.remove(s.fleets, i)
+				end
+			end
 		elseif op == "relation" then
 			State.addRelation(s, f.a, f.b, f.delta)
 		elseif op == "treasury" then
