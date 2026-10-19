@@ -97,4 +97,7 @@ Errors come back as `{ kind = "error", requestId, reason }`.
 19. Generals: `appoint {armyId}` (500 gold, a pool name at rating 2). Armies with a general carry
     `wins, losses, sieges, traits` ("Victor", "Unlucky", "Siege-master"). Refusals: `hasGeneral`,
     `noGenerals`, `insufficientFunds`.
+20. `assault {provinceId}` (player phase, a siege by the player): a pending battle with
+    `assault = true` (also on `pendingBattle`, whose `defenderMen` count the garrison); `retreat`
+    calls it off. Refusals: `notBesieging`, `noArmyReady`.
 

@@ -233,6 +233,15 @@ An uncontested army at war with a province's controller besieges it for fort + 1
 taken at once). The province is then occupied (or liberated, if the besieger's side owns it).
 Occupation changes control, not ownership: ownership moves only by treaty.
 
+Assault (`assault {provinceId}`, the player only; the AI waits sieges out): besiegers that can
+still march storm the fortress now instead. It is a battle against the garrison, made afresh from
+the fort level (2 line battalions and 1 battery per level, experience 1, the controller's). On the
+tactical field (the province map, titled "Storming of …") the garrison has the defender's role, so
+the battle AI holds and occupies the villages. In auto-resolve the garrison fights behind its
+walls (× 1.15 + 0.1 fort). Won: the province falls at once. Lost: the besiegers retreat as from
+any lost battle. "Call off" (`retreat`) cancels it at no cost; the siege goes on, but the
+besiegers cannot move or assault again that turn.
+
 ## War, peace, alliances
 
 - War score per pair, −100..100: battle won +8 (+4 if an enemy army is destroyed), province taken

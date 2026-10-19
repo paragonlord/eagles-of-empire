@@ -49,6 +49,8 @@ Logic.REASONS = {
 	badArgs = "Malformed order",
 	building = "Already building here",
 	alreadyForced = "Already marching hard",
+	notBesieging = "You are not besieging that province",
+	noArmyReady = "Your besiegers have already acted this turn",
 	hasGeneral = "That army already has a general",
 	noGenerals = "No general is free to take command",
 	fullyBuilt = "Fully built",
@@ -264,7 +266,8 @@ function Logic.battleSides(view: any, pb: any): (Side, Side, string)
 	local mineIsDefender = att.nation ~= player and (def.nation == player or table.find(pb.defenders or {}, player) ~= nil)
 	local mine, theirs = if mineIsDefender then def.men else att.men, if mineIsDefender then att.men else def.men
 	local odds = tostring(pb.odds or "even")
-	if mine > 0 and theirs > 0 then
+	-- a garrison behind walls is worth more than its men: keep the server's odds for an assault
+	if mine > 0 and theirs > 0 and not pb.assault then
 		local r = mine / theirs
 		odds = if r >= 1.25 then "favourable" elseif r <= 0.8 then "poor" else "even"
 	end

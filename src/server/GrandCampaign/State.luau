@@ -25,7 +25,8 @@ export type Peace = { winner: string, dictated: boolean, turn: number } -- winne
 export type Recruit = { nation: string, provinceId: string, unitType: string, turnsLeft: number }
 export type Offer = { id: string, from: string, to: string, kind: string, terms: { [string]: any }, turn: number }
 -- reinforcements: army ids per side in neighbouring provinces that march to the battle
-export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean, reinforcements: { attackers: { string }, defenders: { string } }? }
+-- assault: the besiegers storm the fortress; its garrison (Battles.garrison) defends
+export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean, reinforcements: { attackers: { string }, defenders: { string } }?, assault: boolean? }
 export type Applied = { battleId: string, winner: string, turn: number }
 export type InboxChoice = { id: string, label: string }
 export type Inbox = { id: string, title: string, text: string, turn: number, choices: { InboxChoice }? }

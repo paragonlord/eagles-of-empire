@@ -316,6 +316,17 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		Economy.attrit(s, a, Economy.FORCED_MARCH)
 		State.log(s, a.name .. " marches hard: one province more this turn, none the next.")
 		return true, nil
+	elseif kind == "assault" then
+		local pid = str(cmd.provinceId)
+		if not pid or not EuropeData.province(pid) then
+			return false, "badArgs"
+		end
+		local _, why = Battles.assault(s, player, pid)
+		if why then
+			return false, why
+		end
+		s.phase = "battle"
+		return true, nil
 	elseif kind == "appoint" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -600,6 +611,9 @@ function GrandCampaign.view(s: State): { [string]: any }
 			table.insert(ids[side], a.id)
 			men[side] += State.men(a)
 		end
+		if b.assault then
+			men.defenders += State.men(Battles.garrison(s, b.provinceId))
+		end
 		pending = {
 			armies = { attacker = ids.attackers, defender = ids.defenders },
 			attackerMen = men.attackers,
@@ -613,6 +627,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			attackers = State.copy(b.attackers),
 			defenders = State.copy(b.defenders),
 			scenarioId = b.scenarioId,
+			assault = b.assault,
 			odds = Battles.odds(s, b, player),
 		}
 	end

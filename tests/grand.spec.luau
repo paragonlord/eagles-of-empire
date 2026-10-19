@@ -566,6 +566,66 @@ test("Grand sieges: fort + 1 turns, broken by a relieving army, then occupation 
 	local _ = p
 end)
 
+test("Grand sieges: an assault storms a fortress before the siege ends, against a garrison by fort level", function()
+	local s = empty(19, "france")
+	Diplomacy.declareWar(s, "france", "prussia")
+	local a = army(s, "france", "eastprussia", { line = 8, artillery = 2 }, { name = "Davout", rating = 4 })
+	local ok, why = GrandCampaign.command(s, { kind = "assault", provinceId = "eastprussia" })
+	assertTrue(not ok and why == "notBesieging", "no siege yet")
+	Battles.sieges(s)
+	assertEq(s.provinces.eastprussia.siege.turnsLeft, 2)
+	-- the garrison: two line battalions and a battery per fort level
+	local fort = State.fortLevel(s, "eastprussia")
+	local g = Battles.garrison(s, "eastprussia")
+	assertEq(g.nation, "prussia")
+	assertEq(#g.units, 3 * fort)
+	assertTrue(GrandCampaign.command(s, { kind = "assault", provinceId = "eastprussia" }))
+	assertEq(s.phase, "battle")
+	assertEq(a.movesLeft, 0)
+	local b = GrandCampaign.pendingPlayerBattle(s)
+	assertTrue(b.assault == true and b.attacker == "france" and b.defender == "prussia")
+	-- auto-resolve weighs the garrison behind its walls
+	local power = 0
+	for _, u in g.units do
+		power += State.unitPower(u)
+	end
+	assertTrue(math.abs(Battles.sideStrength(s, b, "defenders") - power * (1.15 + 0.1 * fort)) < 1e-6)
+	-- the view and a save carry it
+	local v = GrandCampaign.view(s)
+	assertTrue(v.pendingBattle.assault == true)
+	assertEq(v.pendingBattle.defenderMen, 2 * fort * 600 + fort * 120)
+	local back = GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s)))
+	assertTrue(back.pendingBattles[1].assault == true)
+	-- the tactical battle: the garrison holds the field (the AI defends and occupies the buildings)
+	local sc = GrandCampaign.battleScenario(s, b.battleId)
+	assertEq(sc.attacker, sc.factions.player)
+	local garrisonN = 0
+	for _, u in sc.units do
+		if u.faction == sc.factions.enemy and not u.commander then
+			garrisonN += 1
+		end
+	end
+	assertEq(garrisonN, 3 * fort)
+	-- stormed: the fortress falls at once and counts for the general
+	assertTrue(Battles.apply(s, b.battleId, results("victory"), {}))
+	assertEq(s.provinces.eastprussia.occupiedBy, "france")
+	assertEq(s.provinces.eastprussia.siege, nil)
+	assertEq(a.general.sieges, 1)
+	-- an assault can be called off: no cost, the siege goes on, no second assault this turn
+	s.phase = "player"
+	a.provinceId, a.movesLeft = "brandenburg", 2
+	Battles.sieges(s)
+	assertTrue(GrandCampaign.command(s, { kind = "assault", provinceId = "brandenburg" }))
+	local men = State.men(a)
+	assertTrue(GrandCampaign.command(s, { kind = "retreat" }))
+	assertEq(s.phase, "player")
+	assertEq(a.provinceId, "brandenburg")
+	assertEq(State.men(a), men)
+	assertTrue(s.provinces.brandenburg.siege ~= nil)
+	ok, why = GrandCampaign.command(s, { kind = "assault", provinceId = "brandenburg" })
+	assertTrue(not ok and why == "noArmyReady")
+end)
+
 -- Peace -------------------------------------------------------------------------------------------------
 
 test("Grand peace: the winner keeps floor(score/20) occupied provinces, never the capital; truce; strays go home", function()

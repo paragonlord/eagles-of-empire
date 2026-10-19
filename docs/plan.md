@@ -67,7 +67,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Adjacent armies reinforce battles
 - [x] Forced march
 - [x] General careers: traits, rank, death, appointment
-- [ ] Siege assault
+- [x] Siege assault
 
 ## Phase 9: diplomacy and agents
 - [ ] Trade agreements, military access, gifts

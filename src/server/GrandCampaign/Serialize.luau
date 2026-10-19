@@ -102,7 +102,7 @@ local function validBattle(b: any): boolean
 	if type(b) ~= "table" or not isStr(b.battleId) or not provinceOk(b.provinceId) or not isNum(b.turn) or not nationOk(b.attacker) or not nationOk(b.defender) or type(b.player) ~= "boolean" then
 		return false
 	end
-	if type(b.attackers) ~= "table" or type(b.defenders) ~= "table" or (b.scenarioId ~= nil and not isStr(b.scenarioId)) then
+	if type(b.attackers) ~= "table" or type(b.defenders) ~= "table" or (b.scenarioId ~= nil and not isStr(b.scenarioId)) or (b.assault ~= nil and type(b.assault) ~= "boolean") then
 		return false
 	end
 	local r = b.reinforcements

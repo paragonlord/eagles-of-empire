@@ -401,6 +401,12 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	local siege = ps.siege
 	if type(siege) == "table" then
 		text(panelF, string.format("Besieged by %s: falls in %s unless relieved.", Data.name(siege.by), plural(tonumber(siege.turnsLeft) or 0, "turn")), 6, { colour = Kit.HOSTILE })
+		if siege.by == ctx.player then
+			local ab = Kit.button(buttonRow(panelF, 7), "Assault", function()
+				send("assault", { provinceId = id })
+			end, { size = UDim2.new(1, 0, 1, 0), tooltip = "Storm the walls now instead of waiting: a battle against the garrison" })
+			Kit.setEnabled(ab, ctx.canAct, ctx.actReason)
+		end
 	end
 	if owner ~= ctx.player then
 		return
@@ -660,7 +666,7 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	local view = ctx.view or {}
 	local p = modal(sg, 520)
 	local prov = Data.byId[pb.provinceId]
-	Kit.title(p, "Battle at " .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
+	Kit.title(p, (if pb.assault then "Storming of " else "Battle at ") .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
 	local att, def, odds = Logic.battleSides(view, pb)
 	local sides = row(p, 2, 0)
 	sides.AutomaticSize = Enum.AutomaticSize.Y
@@ -685,6 +691,8 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	text(p, "The odds are " .. odds .. ".", 3, { align = Enum.TextXAlignment.Center, textSize = 16, colour = if odds == "favourable" then Kit.MORALE.steady elseif odds == "poor" then Kit.HOSTILE else Kit.IVORY })
 	if pb.scenarioId then
 		text(p, "This is the field of a famous battle: the historical engagement will be fought.", 4, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
+	elseif pb.assault then
+		text(p, "The fortress garrison holds the villages and fights behind its walls.", 4, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
 	end
 	local br = buttonRow(p, 5, 38)
 	Kit.button(br, "Fight", function()
@@ -693,9 +701,9 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	Kit.button(br, "Auto-resolve", function()
 		send("autoResolve")
 	end, { size = UDim2.new(1 / 3, -4, 1, 0), textSize = 15, tooltip = "The staff decides from strength, ground and experience" })
-	Kit.button(br, "Retreat", function()
+	Kit.button(br, if pb.assault then "Call off" else "Retreat", function()
 		send("retreat")
-	end, { size = UDim2.new(1 / 3, -4, 1, 0), textSize = 15, tooltip = "Withdraw to a neighbouring province, losing some stragglers" })
+	end, { size = UDim2.new(1 / 3, -4, 1, 0), textSize = 15, tooltip = if pb.assault then "Stand the storming parties down; the siege goes on" else "Withdraw to a neighbouring province, losing some stragglers" })
 end
 
 local function summaryDoc(sg: ScreenGui, s: { lines: { string }, title: string })

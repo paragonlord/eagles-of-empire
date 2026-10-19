@@ -152,11 +152,33 @@ function Battles.matchSetPiece(s: State, provinceId: string, turn: number, attac
 	return nil
 end
 
+Battles.GARRISON = { line = 2, artillery = 1 } :: { [string]: number } -- a stormed fortress's garrison, per fort level
+
+-- The garrison that defends a fortress against an assault: not an army on the board, made up
+-- afresh from the fort level whenever it is needed (keys "g:…" are left out of the outcome).
+function Battles.garrison(s: State, provinceId: string): Army
+	local c = State.controller(s, provinceId)
+	local p = State.province(provinceId)
+	local fort = State.fortLevel(s, provinceId)
+	local g: Army = { id = "garrison:" .. provinceId, nation = c, name = "Garrison of " .. p.name, provinceId = provinceId, units = {}, movesLeft = 0 }
+	for _, t in { "line", "artillery" } do
+		local cl = EuropeData.UnitClasses[t]
+		for i = 1, Battles.GARRISON[t] * fort do
+			local name = string.format("%s %s %d", p.name, if t == "line" then "Garrison Battalion" else "Fortress Battery", i)
+			g.units[#g.units + 1] = { key = string.format("g:%s:%d", t, i), type = t, name = name, strength = cl.strength, maxStrength = cl.strength, experience = 1 }
+		end
+	end
+	return g
+end
+
 local function sideStrength(s: State, b: Battle, side: string): number
 	local t = 0
 	for _, a in Battles.armies(s, b, side) do
 		-- the Corps system: an army under a general fights a tenth better
 		t += State.armyStrength(a) * (if a.general and State.hasTech(s, a.nation, "corps") then 1.1 else 1)
+	end
+	if side == "defenders" and b.assault then
+		t += State.armyStrength(Battles.garrison(s, b.provinceId))
 	end
 	if side == "defenders" and table.find(b.defenders, State.controller(s, b.provinceId)) then
 		t *= 1.15 + 0.1 * State.fortLevel(s, b.provinceId)
@@ -244,6 +266,35 @@ function Battles.detect(s: State, autoplay: boolean?): { Battle }
 		end
 	end
 	return out
+end
+
+-- A siege ends or an assault carries the walls: `by` occupies the province (or liberates it for
+-- its side) and the generals there count a fortress taken.
+local function takeProvince(s: State, provinceId: string, by: string, stormed: boolean)
+	local ps = s.provinces[provinceId]
+	local p = State.province(provinceId)
+	local c = State.controller(s, provinceId)
+	ps.siege = nil
+	if ps.owner == by or State.friendly(s, ps.owner, by) then
+		ps.occupiedBy = nil -- liberated
+	else
+		ps.occupiedBy = by
+	end
+	ps.occupiedTurns = 0
+	local fort = State.fortLevel(s, provinceId)
+	if fort > 0 then
+		for _, a in State.armiesIn(s, provinceId, by) do
+			if a.general then
+				a.general.sieges = (a.general.sieges or 0) + 1
+			end
+		end
+	end
+	Diplomacy.addScore(s, by, c, if p.isCapital then Diplomacy.SCORE.capital else Diplomacy.SCORE.province)
+	if ps.owner ~= c and ps.occupiedBy == nil then
+		State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
+	else
+		State.log(s, string.format("%s %s %s.", State.nationName(by), if stormed then "storms the fortress of" elseif fort > 0 then "takes the fortress of" else "occupies", p.name))
+	end
 end
 
 -- The army whose general commands a side's HQ on the field: the best-rated general there.
@@ -356,6 +407,9 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 			Diplomacy.addScore(s, w, l, Diplomacy.SCORE.battle + (if destroyedArmy then Diplomacy.SCORE.destroyed else 0))
 		end
 	end
+	if b.assault and winnerSide == "attackers" then
+		takeProvince(s, b.provinceId, b.attacker, true)
+	end
 	for _, a in Battles.armies(s, b, loserSide) do
 		local dest = Movement.retreatTarget(s, a)
 		if dest then
@@ -443,6 +497,13 @@ function Battles.retreat(s: State, battleId: string, nation: string): (boolean, 
 	if not side then
 		return false, "notInBattle"
 	end
+	if b.assault then
+		-- the storming parties stand down; the siege goes on
+		table.remove(s.pendingBattles, index)
+		s.appliedBattles[#s.appliedBattles + 1] = { battleId = battleId, winner = b.defender, turn = b.turn }
+		State.log(s, string.format("%s calls off the assault on %s.", State.nationName(nation), State.province(b.provinceId).name))
+		return true, nil
+	end
 	local mine = State.armiesIn(s, b.provinceId, nation)
 	local dests = {}
 	for i, a in mine do
@@ -476,6 +537,41 @@ function Battles.retreat(s: State, battleId: string, nation: string): (boolean, 
 end
 
 -- Sieges and occupation for provinces without a battle pending.
+-- Storm a fortress `nation` besieges instead of waiting the siege out: a pending battle against
+-- its garrison, fought by the besiegers that can still march this turn (none march after it).
+function Battles.assault(s: State, nation: string, provinceId: string): (Battle?, string?)
+	local ps = s.provinces[provinceId]
+	if not ps or not ps.siege or ps.siege.by ~= nation then
+		return nil, "notBesieging"
+	end
+	local mine = State.armiesIn(s, provinceId, nation)
+	local ready = false
+	for _, a in mine do
+		ready = ready or a.movesLeft > 0
+	end
+	if not ready then
+		return nil, "noArmyReady"
+	end
+	for _, a in mine do
+		a.movesLeft = 0
+	end
+	local c = State.controller(s, provinceId)
+	local b: Battle = {
+		battleId = string.format("%s-t%d-%s-assault", s.campaignId, s.turn, provinceId),
+		provinceId = provinceId,
+		turn = s.turn,
+		attacker = nation,
+		defender = c,
+		attackers = { nation },
+		defenders = { c },
+		player = nation == s.playerNation,
+		assault = true,
+	}
+	s.pendingBattles[#s.pendingBattles + 1] = b
+	State.log(s, string.format("%s storms the walls of %s.", State.nationName(nation), State.province(provinceId).name))
+	return b, nil
+end
+
 function Battles.sieges(s: State)
 	local contested: { [string]: boolean } = {}
 	for _, b in s.pendingBattles do
@@ -515,27 +611,7 @@ function Battles.sieges(s: State)
 		local siege = ps.siege :: State.Siege
 		siege.turnsLeft -= 1
 		if siege.turnsLeft <= 0 then
-			ps.siege = nil
-			local wasOwner = ps.owner
-			if ps.owner == by or State.friendly(s, ps.owner, by) then
-				ps.occupiedBy = nil -- liberated
-			else
-				ps.occupiedBy = by
-			end
-			ps.occupiedTurns = 0
-			if State.fortLevel(s, p.id) > 0 then
-				for _, a in here do
-					if a.nation == by and a.general then
-						a.general.sieges = (a.general.sieges or 0) + 1
-					end
-				end
-			end
-			Diplomacy.addScore(s, by, c, if p.isCapital then Diplomacy.SCORE.capital else Diplomacy.SCORE.province)
-			if wasOwner ~= c and ps.occupiedBy == nil then
-				State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
-			else
-				State.log(s, string.format("%s %s %s.", State.nationName(by), if State.fortLevel(s, p.id) > 0 then "takes the fortress of" else "occupies", p.name))
-			end
+			takeProvince(s, pid, by, false)
 		end
 	end
 end
@@ -750,7 +826,11 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 		local heading = math.atan2(dz, dx)
 		local px, pz = -dz, dx
 		local all: { Placed } = {}
-		for _, a in Battles.armies(s, battle, side) do
+		local present = Battles.armies(s, battle, side)
+		if battle.assault and side == "defenders" then
+			present[#present + 1] = Battles.garrison(s, battle.provinceId)
+		end
+		for _, a in present do
 			for _, u in a.units do
 				all[#all + 1] = { u = u, a = a }
 			end
@@ -847,9 +927,13 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 	local enemySide = if ps == "attackers" then "defenders" else "attackers"
 	return {
 		id = battle.battleId,
-		name = "Battle of " .. p.name,
+		name = (if battle.assault then "Storming of " else "Battle of ") .. p.name,
 		map = mapId,
-		briefing = string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
+		briefing = if battle.assault
+			then string.format("%s. %s storms the fortress of %s. Its garrison holds the villages: take them or break it.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), p.name)
+			else string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
+		-- an assault has roles: the garrison holds (the battle AI defends and occupies buildings)
+		attacker = if battle.assault then zk.attackers else nil,
 		factions = { player = zk[ps], enemy = zk[enemySide] },
 		factionNames = names,
 		units = units,
