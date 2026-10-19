@@ -537,6 +537,32 @@ function Battles.retreat(s: State, battleId: string, nation: string): (boolean, 
 end
 
 -- Sieges and occupation for provinces without a battle pending.
+-- A spy inside a fortress its nation besieges opens a gate: one turn off the siege (never below
+-- one). Its deed for the turn; it is taken with chance SPY_CAUGHT.
+function Battles.sabotage(s: State, ag: State.Agent): (boolean, string?)
+	local ps = s.provinces[ag.provinceId]
+	local siege = ps.siege
+	if not siege or siege.by ~= ag.nation then
+		return false, "notBesieging"
+	end
+	if ag.movesLeft <= 0 then
+		return false, "spyResting"
+	end
+	if siege.turnsLeft <= 1 then
+		return false, "nothingToSabotage"
+	end
+	siege.turnsLeft -= 1
+	ag.movesLeft = 0
+	local name = State.province(ag.provinceId).name
+	if s.rng:float() < State.SPY_CAUGHT then
+		table.remove(s.agents, table.find(s.agents, ag) :: number)
+		State.log(s, "Our spy opens a postern at " .. name .. " but is taken.")
+	else
+		State.log(s, "Our spy opens a postern at " .. name .. ": the siege ends a turn sooner.")
+	end
+	return true, nil
+end
+
 -- Storm a fortress `nation` besieges instead of waiting the siege out: a pending battle against
 -- its garrison, fought by the besiegers that can still march this turn (none march after it).
 function Battles.assault(s: State, nation: string, provinceId: string): (Battle?, string?)

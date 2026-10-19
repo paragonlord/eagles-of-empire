@@ -14,6 +14,8 @@ export type General = { name: string, rating: number, wins: number?, losses: num
 -- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
 export type Siege = { by: string, turnsLeft: number }
+-- A spy: moves SPY_MOVES provinces a turn over any border, sees armies within SPY_SIGHT marches
+export type Agent = { id: string, nation: string, provinceId: string, movesLeft: number }
 export type Construction = { chain: string, turnsLeft: number }
 -- buildings: chain -> level (EuropeData.Buildings); construction: the one under way; unrestTurns:
 -- turns in a row at the top of the unrest scale; revolt: in open revolt (Economy)
@@ -47,6 +49,7 @@ export type State = {
 	alliances: { [string]: boolean },
 	trades: { [string]: boolean }, -- pair -> a trade agreement
 	access: { [string]: boolean }, -- "a>b" -> a's armies may march through b's land
+	agents: { Agent },
 	truces: { [string]: number }, -- pair -> last turn of the truce
 	peaces: { [string]: Peace }, -- pair -> last peace
 	armies: { Army }, -- ascending creation order
@@ -71,6 +74,11 @@ State.LOG_MAX = 80
 State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
 State.APPOINT_COST = 500 -- a new general for an army that has none
+State.SPY_COST = 300
+State.SPY_MAX = 3 -- spies a nation keeps at once
+State.SPY_MOVES = 2
+State.SPY_SIGHT = 2 -- marches within which a spy sees armies and their units
+State.SPY_CAUGHT = 0.25 -- chance a saboteur is taken
 State.MAX_ARMIES = 16 -- per nation
 State.MAX_QUEUE = { major = 6, minor = 2 }
 State.MAX_HONOURS = 5 -- battle honours per unit; the oldest gives way
@@ -158,6 +166,15 @@ end
 
 function State.allied(s: State, a: string, b: string): boolean
 	return a ~= b and s.alliances[State.pair(a, b)] == true
+end
+
+function State.agentById(s: State, id: string): Agent?
+	for _, a in s.agents do
+		if a.id == id then
+			return a
+		end
+	end
+	return nil
 end
 
 function State.trading(s: State, a: string, b: string): boolean
@@ -431,6 +448,7 @@ function State.new(seed: number, playerNation: string?): State
 		alliances = {},
 		trades = {},
 		access = {},
+		agents = {},
 		truces = {},
 		peaces = {},
 		armies = {},

@@ -13,7 +13,7 @@ local Serialize = {}
 
 Serialize.VERSION = 1
 
-local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
+local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "agents", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
 
 function Serialize.serialize(s: State): { [string]: any }
 	local p: { [string]: any } = {
@@ -144,8 +144,17 @@ function Serialize.deserialize(p: any): State?
 	-- saves from before trade agreements and military access
 	p.trades = if p.trades == nil then {} else p.trades
 	p.access = if p.access == nil then {} else p.access
+	p.agents = if p.agents == nil then {} else p.agents
 	for _, f in FIELDS do
 		if type(p[f]) ~= "table" then
+			return nil
+		end
+	end
+	if #p.agents > State.SPY_MAX * #EuropeData.NationOrder then
+		return nil
+	end
+	for _, ag in p.agents do
+		if type(ag) ~= "table" or not isStr(ag.id) or not nationOk(ag.nation) or not provinceOk(ag.provinceId) or not isNum(ag.movesLeft) then
 			return nil
 		end
 	end

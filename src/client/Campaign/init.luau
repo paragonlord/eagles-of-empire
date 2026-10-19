@@ -27,6 +27,7 @@ local sessionOnly = false
 local ours: { [string]: boolean } = {}
 local conns: { RBXScriptConnection } = {}
 local selArmy: any = nil
+local selSpy: any = nil
 local selProv: string? = nil
 local hoverProv: string? = nil
 local lastTurn: number? = nil
@@ -48,6 +49,15 @@ end
 
 local function armyById(id: any): any
 	return Logic.army(view, id)
+end
+
+local function spyById(id: any): any
+	for _, ag in (view and view.agents) or {} do
+		if ag.id == id then
+			return ag
+		end
+	end
+	return nil
 end
 
 local function canAct(): (boolean, string)
@@ -78,8 +88,12 @@ local function render()
 		end
 	end
 	local ok, why = canAct()
-	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, province = selProv, others = others, canAct = ok, actReason = why })
-	Board.setSelection(selArmy, selProv, if own and ok then Logic.reachable(view, a) else nil)
+	local spy = spyById(selSpy)
+	if not spy then
+		selSpy = nil
+	end
+	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, province = selProv, others = others, canAct = ok, actReason = why })
+	Board.setSelection(selArmy or selSpy, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
 	if own and ok then
 		path = if hoverProv then route(a, hoverProv) else nil
@@ -94,7 +108,7 @@ local function render()
 end
 
 local function select(armyId: any, provId: string?)
-	selArmy, selProv, hoverProv = armyId, provId, nil
+	selArmy, selSpy, selProv, hoverProv = armyId, nil, provId, nil
 	render()
 end
 
@@ -112,7 +126,7 @@ local function onInput(input: InputObject, gp: boolean)
 			end
 		elseif input.KeyCode == Enum.KeyCode.Escape then
 			if not UI.escape() then
-				selArmy, selProv = nil, nil
+				selArmy, selSpy, selProv = nil, nil, nil
 			end
 			render()
 		end
@@ -121,6 +135,11 @@ local function onInput(input: InputObject, gp: boolean)
 		if kind == "army" then
 			local a = armyById(id)
 			select(id, if a then a.provinceId else nil)
+		elseif kind == "spy" then
+			local ag = spyById(id)
+			select(nil, if ag then ag.provinceId else nil)
+			selSpy = id
+			render()
 		elseif kind == "province" then
 			select(nil, id)
 		else
@@ -129,6 +148,15 @@ local function onInput(input: InputObject, gp: boolean)
 	elseif t == Enum.UserInputType.MouseButton2 then
 		local a = armyById(selArmy)
 		local kind, id = Board.pick()
+		local spy = spyById(selSpy)
+		if spy and canAct() then
+			-- a spy goes where it is sent, over any border, within its marches
+			local target = if kind == "province" then id elseif kind == "army" then (armyById(id) or {}).provinceId else nil
+			if target and target ~= spy.provinceId then
+				send("moveSpy", { agentId = spy.id, provinceId = target })
+			end
+			return
+		end
 		if kind == "army" then
 			local target = armyById(id)
 			id = if target then target.provinceId else nil
@@ -278,7 +306,7 @@ function Grand.close()
 	CampaignCamera.stop()
 	UI.destroy()
 	Board.destroy()
-	selArmy, selProv, hoverProv = nil, nil, nil
+	selArmy, selSpy, selProv, hoverProv = nil, nil, nil, nil
 end
 
 return Grand

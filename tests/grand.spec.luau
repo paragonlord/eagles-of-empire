@@ -758,6 +758,72 @@ test("Grand diplomacy: trade pays both sides, access opens a border, gifts buy g
 	assertTrue(offered, "Italy (90) offers trade")
 end)
 
+test("Grand spies: recruited at a government, cross any border, reveal armies, sabotage a siege", function()
+	local s = empty(22, "france")
+	s.provinces.paris.buildings.government = 1
+	local ok, why = GrandCampaign.command(s, { kind = "recruitSpy", provinceId = "normandy" })
+	assertTrue(not ok and why == "needs:government:1", tostring(why))
+	local gold = s.nations.france.treasury
+	assertTrue(GrandCampaign.command(s, { kind = "recruitSpy", provinceId = "paris" }))
+	assertEq(s.nations.france.treasury, gold - State.SPY_COST)
+	local spy = s.agents[1]
+	assertTrue(spy.nation == "france" and spy.provinceId == "paris" and spy.movesLeft == State.SPY_MOVES)
+	ok, why = GrandCampaign.command(s, { kind = "recruitSpy", provinceId = "paris" })
+	assertTrue(not ok and why == "spyHere", "one spy a province")
+	-- two marches a turn, through neutral land too
+	ok, why = GrandCampaign.command(s, { kind = "moveSpy", agentId = spy.id, provinceId = "westphalia" })
+	assertTrue(not ok and why == "tooFar")
+	assertTrue(GrandCampaign.command(s, { kind = "moveSpy", agentId = spy.id, provinceId = "rhineland" }))
+	assertEq(spy.movesLeft, 0)
+	ok, why = GrandCampaign.command(s, { kind = "moveSpy", agentId = spy.id, provinceId = "westphalia" })
+	assertTrue(not ok and why == "tooFar", "no marches left")
+	-- it sees armies within two marches, unit lists and all
+	local pr = army(s, "prussia", "brandenburg", { line = 2, cavalry = 1 })
+	local far = army(s, "russia", "moscow", { line = 2 })
+	local v = GrandCampaign.view(s)
+	assertEq(#v.agents, 1)
+	assertEq(v.agents[1].provinceId, "rhineland")
+	assertTrue(v.armies[pr.id] ~= nil and type(v.armies[pr.id].units) == "table" and #v.armies[pr.id].units == 3, "Brandenburg is two marches from the Rhineland")
+	assertEq(v.armies[far.id], nil, "Moscow is not")
+	-- moves come back each turn
+	assertTrue(GrandCampaign.endTurn(s))
+	assertEq(spy.movesLeft, State.SPY_MOVES)
+	-- sabotage: only where the player besieges; a turn off the siege, the spy may be caught
+	ok, why = GrandCampaign.command(s, { kind = "sabotage", agentId = spy.id })
+	assertTrue(not ok and why == "notBesieging")
+	Diplomacy.declareWar(s, "france", "prussia")
+	for _, a in table.clone(s.armies) do
+		if a.provinceId == "eastprussia" or a.nation == "prussia" then
+			State.removeArmy(s, a.id)
+		end
+	end
+	army(s, "france", "eastprussia", { line = 4 })
+	Battles.sieges(s)
+	spy.provinceId = "eastprussia"
+	local left = s.provinces.eastprussia.siege.turnsLeft
+	assertEq(left, 2)
+	assertTrue(GrandCampaign.command(s, { kind = "sabotage", agentId = spy.id }))
+	assertEq(s.provinces.eastprussia.siege.turnsLeft, left - 1)
+	local caught = State.agentById(s, spy.id) == nil
+	if not caught then
+		assertEq(spy.movesLeft, 0, "one deed a turn")
+	end
+	-- the limit, and old saves without agents still load
+	local saved = ProfileStore.clone(GrandCampaign.serialize(s))
+	saved.agents = nil
+	assertTrue(GrandCampaign.deserialize(saved) ~= nil)
+	for _, id in { "champagne", "provence", "aquitaine", "belgium" } do
+		s.provinces[id].buildings.government = 1
+		s.nations.france.treasury = 5000
+		GrandCampaign.command(s, { kind = "recruitSpy", provinceId = id })
+	end
+	local mine = 0
+	for _, a in s.agents do
+		mine += if a.nation == "france" then 1 else 0
+	end
+	assertEq(mine, State.SPY_MAX)
+end)
+
 test("Grand events: fire on their date when conditions hold, once, with the chooser's default", function()
 	local s = State.new(8, "france")
 	s.turn = T(5, 1805)

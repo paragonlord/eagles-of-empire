@@ -274,6 +274,19 @@ besiegers cannot move or assault again that turn.
 - Gifts (`action = "gift", amount`): gold to the other treasury, relations +1 per 50.
 - War between two nations ends their trade agreement and access both ways.
 
+## Spies
+
+- `recruitSpy {provinceId}`: 300 gold at an owned, unoccupied province with a government
+  building; one of the nation's spies a province, three in all. Only the player's nation uses
+  them.
+- `moveSpy {agentId, provinceId}`: two marches a turn by land or sea, over any border (no war or
+  access needed); moves come back each turn.
+- Every army within two marches of a spy is visible on the board with its regiments (the view
+  sends its `units`).
+- `sabotage {agentId}`: inside a fortress its nation besieges, with marches left and at least two
+  siege turns to go, the spy takes a turn off the siege; that is its deed for the turn, and it is
+  taken (removed) with chance 0.25.
+
 ## AI
 
 Per nation, in turn order: diplomacy (above; under autoplay the player's nation answers offers like

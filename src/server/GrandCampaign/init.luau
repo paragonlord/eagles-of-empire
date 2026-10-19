@@ -147,6 +147,9 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 		a.movesLeft = if a.forced then 0 else State.maxMoves(a)
 		a.forced = nil
 	end
+	for _, ag in s.agents do
+		ag.movesLeft = State.SPY_MOVES
+	end
 	-- an army still facing a pending battle cannot march away from it
 	for _, b in s.pendingBattles do
 		for _, a in Battles.armies(s, b) do
@@ -331,6 +334,35 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		end
 		s.phase = "battle"
 		return true, nil
+	elseif kind == "recruitSpy" then
+		local pid = str(cmd.provinceId)
+		if not pid or not EuropeData.province(pid) then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.recruitSpy(s, player, pid)
+		if ok then
+			State.log(s, "A spy is recruited at " .. State.province(pid).name .. ".")
+		end
+		return ok, why
+	elseif kind == "moveSpy" or kind == "sabotage" then
+		local ag = if str(cmd.agentId) then State.agentById(s, cmd.agentId) else nil
+		if not ag or ag.nation ~= player then
+			return false, "notYourSpy"
+		end
+		if kind == "sabotage" then
+			return Battles.sabotage(s, ag)
+		end
+		local to = str(cmd.provinceId)
+		local hops = if to then Movement.hops[ag.provinceId][to] else nil
+		if not hops or hops == 0 then
+			return false, "badArgs"
+		end
+		if hops > ag.movesLeft then
+			return false, "tooFar"
+		end
+		ag.provinceId = to :: string
+		ag.movesLeft -= hops
+		return true, nil
 	elseif kind == "appoint" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -428,6 +460,21 @@ end
 
 -- View --------------------------------------------------------------------------------------------------
 
+-- Provinces within SPY_SIGHT marches of the player's spies: armies there show their units.
+local function spiedProvinces(s: State): { [string]: boolean }
+	local out: { [string]: boolean } = {}
+	for _, ag in s.agents do
+		if ag.nation == s.playerNation then
+			for id, d in Movement.hops[ag.provinceId] do
+				if d <= State.SPY_SIGHT then
+					out[id] = true
+				end
+			end
+		end
+	end
+	return out
+end
+
 local function visibleProvinces(s: State): { [string]: boolean }
 	local seen: { [string]: boolean } = {}
 	local player = s.playerNation
@@ -446,6 +493,9 @@ local function visibleProvinces(s: State): { [string]: boolean }
 		if State.friendly(s, player, a.nation) then
 			mark(a.provinceId)
 		end
+	end
+	for id in spiedProvinces(s) do
+		seen[id] = true
 	end
 	return seen
 end
@@ -483,6 +533,7 @@ end
 function GrandCampaign.view(s: State): { [string]: any }
 	local player = s.playerNation
 	local seen = visibleProvinces(s)
+	local spied = spiedProvinces(s)
 	local nations = {}
 	for _, id in EuropeData.NationOrder do
 		local n = EuropeData.Nations[id]
@@ -563,7 +614,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 				strength = math.floor(State.armyStrength(a)),
 				men = State.men(a),
 				unitCount = #a.units,
-				units = if own then State.copy(a.units) else nil,
+				units = if own or spied[a.provinceId] then State.copy(a.units) else nil,
 				movesLeft = if own then a.movesLeft else nil,
 				movesMax = if own then State.maxMoves(a) else nil,
 				path = if own and a.path then table.clone(a.path) else nil,
@@ -637,6 +688,12 @@ function GrandCampaign.view(s: State): { [string]: any }
 			odds = Battles.odds(s, b, player),
 		}
 	end
+	local agents = {}
+	for _, ag in s.agents do
+		if ag.nation == player then
+			agents[#agents + 1] = { id = ag.id, provinceId = ag.provinceId, movesLeft = ag.movesLeft, movesMax = State.SPY_MOVES }
+		end
+	end
 	local events = {}
 	for _, e in s.inbox do
 		events[#events + 1] = { id = e.id, title = e.title, text = e.text, choices = State.copy(e.choices) }
@@ -657,6 +714,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		diplomacy = { offers = offers },
 		events = events,
 		pendingBattle = pending,
+		agents = agents,
 		log = table.clone(s.log),
 		victory = State.copy(s.victory),
 		objectives = objectives(s),

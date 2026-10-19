@@ -21,6 +21,7 @@ export type Ctx = {
 	player: string,
 	sessionOnly: boolean,
 	army: any?, -- selected army
+	spy: any?, -- selected spy (view.agents)
 	province: string?, -- selected province
 	others: { any }, -- the player's other armies in the selected army's province
 	canAct: boolean,
@@ -368,6 +369,29 @@ local function recruitOptions(view: any, provinceId: string): { any }
 	return if type(opts) == "table" and type(opts[provinceId]) == "table" then opts[provinceId] else {}
 end
 
+local function spyPanel(parent: Instance, ctx: Ctx, order: number)
+	local ag = ctx.spy
+	if not ag then
+		return
+	end
+	local view = ctx.view or {}
+	local p = panel(parent, order)
+	local head = row(p, 1, 30)
+	flag(head, ctx.player, 30, 20, UDim2.fromOffset(0, 2))
+	Kit.title(head, "Spy", { size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 22, caps = false })
+	local prov = Data.byId[ag.provinceId]
+	text(p, string.format("%s · %s/%s marches", tostring(if prov then prov.name else ag.provinceId), tostring(ag.movesLeft), tostring(ag.movesMax)), 2, { colour = Kit.MUTED })
+	text(p, "Sees every army within two marches, regiments and all. Right-click a province to send the spy, over any border.", 3, { textSize = 13, wrap = true })
+	local ps = view.provinces and view.provinces[ag.provinceId]
+	local siege = ps and ps.siege
+	local ours = type(siege) == "table" and siege.by == ctx.player
+	local sb = Kit.button(buttonRow(p, 4), "Sabotage", function()
+		send("sabotage", { agentId = ag.id })
+	end, { size = UDim2.new(1, 0, 1, 0), tooltip = "Open a postern: the siege ends a turn sooner; a quarter of saboteurs are taken" })
+	local why: string? = if not ctx.canAct then ctx.actReason elseif not ours then "Only inside a fortress you besiege" elseif (tonumber(ag.movesLeft) or 0) <= 0 then "The spy has done enough this turn" elseif (tonumber(siege.turnsLeft) or 0) <= 1 then "It falls next turn anyway" else nil
+	Kit.setEnabled(sb, why == nil, why)
+end
+
 local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	local id = ctx.province
 	local p = if id then Data.byId[id] else nil
@@ -423,6 +447,11 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 			end
 		end
 		text(panelF, if #have > 0 then table.concat(have, " · ") else "No buildings", 7, { textSize = 13, colour = Kit.MUTED, wrap = true })
+		local spyB = Kit.button(buttonRow(panelF, 9, 26), "Recruit spy · 300", function()
+			send("recruitSpy", { provinceId = id })
+		end, { size = UDim2.new(1, 0, 1, 0), textSize = 12, caps = false, tooltip = "A spy sees armies within two marches and can sabotage a siege" })
+		local hasGov = (tonumber(ps.buildings.government) or 0) >= 1
+		Kit.setEnabled(spyB, ctx.canAct and hasGov, if not ctx.canAct then ctx.actReason else Logic.reason("needs:government:1"))
 		local c = ps.construction
 		if type(c) == "table" then
 			local def = Data.Europe.Buildings[c.chain]
@@ -827,6 +856,7 @@ function UI.render(ctx: Ctx)
 	left.Parent = sg
 	Kit.list(left, 10)
 	armyPanel(left, ctx, 1)
+	spyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	left.Active = #left:GetChildren() > 1
 	if (diplomacyOpen or objectivesOpen or researchOpen) and view then

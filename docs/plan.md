@@ -71,7 +71,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 
 ## Phase 9: diplomacy and agents
 - [x] Trade agreements, military access, gifts
-- [ ] Spies
+- [x] Spies
 
 ## Phase 10: navy (auto-resolved)
 - [ ] Fleets, escorts, blockade, naval auto-resolve, Trafalgar

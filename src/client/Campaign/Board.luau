@@ -518,6 +518,25 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	return m
 end
 
+-- The player's spy: a cloaked figure on a small plinth (picked as "spy").
+local function spyFigure(parent: Instance, ag: any, pos: Vector3): Model
+	local m = Instance.new("Model") :: Model
+	m.Name = "Spy"
+	m:SetAttribute("spy", ag.id)
+	local plinth = cylinder(m, pos + Vector3.new(0, 0.5, 0), 1, 4, Kit.WALNUT, Enum.Material.Wood)
+	plinth.CanQuery = true
+	local cloak = cylinder(m, pos + Vector3.new(0, 2.6, 0), 3.2, 1.6, INK)
+	cloak.CanQuery = true
+	local head = part(m, Vector3.new(0.9, 0.9, 0.9), CFrame.new(pos + Vector3.new(0, 4.7, 0)), Color3.fromRGB(226, 190, 160))
+	head.Shape = Enum.PartType.Ball
+	head.CanQuery = true
+	cylinder(m, pos + Vector3.new(0, 5.2, 0), 0.3, 1.8, INK)
+	m.WorldPivot = CFrame.new(pos)
+	m:ScaleTo(FIG)
+	m.Parent = parent
+	return m
+end
+
 -- Recolours provinces, redraws borders, hatching and armies from a view (nil: the 1805 map).
 function Board.setView(view: any?)
 	local d = dyn
@@ -570,6 +589,13 @@ function Board.setView(view: any?)
 				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
 				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
 			end
+		end
+	end
+	for _, ag in view.agents or {} do
+		local p = Data.byId[ag.provinceId]
+		if p then
+			-- south-east of the centre, clear of the armies' ring
+			armyModels[ag.id] = spyFigure(d, ag, Board.toWorld(p.centre.x, p.centre.z) + Vector3.new(9, 0, 9) * FIG)
 		end
 	end
 end
@@ -671,6 +697,10 @@ function Board.pick(): (string?, any)
 		local a = inst:GetAttribute("army")
 		if a ~= nil then
 			return "army", a
+		end
+		local sp = inst:GetAttribute("spy")
+		if sp ~= nil then
+			return "spy", sp
 		end
 		local p = inst:GetAttribute("prov")
 		if p ~= nil then

@@ -296,6 +296,35 @@ local function deliver(s: State, q: State.Recruit)
 end
 
 -- Restores strength up to maxStrength in an owned or allied province: treasury and one manpower per man.
+-- A spy at an owned, unoccupied province with a government building; one a province, SPY_MAX in all.
+function Economy.recruitSpy(s: State, nation: string, provinceId: string): (boolean, string?)
+	local ps = s.provinces[provinceId]
+	if ps.owner ~= nation or ps.occupiedBy ~= nil then
+		return false, "notYourProvince"
+	end
+	if (ps.buildings.government or 0) < 1 then
+		return false, "needs:government:1"
+	end
+	local mine = 0
+	for _, ag in s.agents do
+		if ag.nation == nation then
+			mine += 1
+			if ag.provinceId == provinceId then
+				return false, "spyHere"
+			end
+		end
+	end
+	if mine >= State.SPY_MAX then
+		return false, "tooManySpies"
+	end
+	if s.nations[nation].treasury < State.SPY_COST then
+		return false, "insufficientFunds"
+	end
+	s.nations[nation].treasury -= State.SPY_COST
+	s.agents[#s.agents + 1] = { id = State.newId(s, "s"), nation = nation, provinceId = provinceId, movesLeft = State.SPY_MOVES }
+	return true, nil
+end
+
 -- A new general (rating 2) from the nation's pool for an army that has none.
 function Economy.appoint(s: State, a: Army): (boolean, string?)
 	if a.general then

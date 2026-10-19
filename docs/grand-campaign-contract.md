@@ -103,4 +103,8 @@ Errors come back as `{ kind = "error", requestId, reason }`.
 21. Diplomacy actions `trade`, `access`, `gift` (with `amount`); offers may be of kind `trade`.
     Nations carry `trade` (an agreement with the player) and `access` (the player's armies may
     cross its land). Refusals: `alreadyTrading`, `alreadyAllowed`, `refused`, `insufficientFunds`.
+22. Spies: `recruitSpy {provinceId}`, `moveSpy {agentId, provinceId}`, `sabotage {agentId}`.
+    `view.agents = { {id, provinceId, movesLeft, movesMax} }` (the player's); armies within two
+    marches of one carry `units`. Refusals: `needs:government:1`, `spyHere`, `tooManySpies`,
+    `notYourSpy`, `tooFar`, `notBesieging`, `spyResting`, `nothingToSabotage`.
 
