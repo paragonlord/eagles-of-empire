@@ -413,6 +413,19 @@ test("Grand technology: 1805 knowledge, research by points, unlocks and effects,
 	assertEq(GrandCampaign.deserialize(ProfileStore.clone(old)), nil, "an unknown tech is refused")
 end)
 
+test("Grand national rosters: each great power raises its own, nobody else's", function()
+	local s = empty(10)
+	s.nations.france.treasury, s.nations.prussia.treasury, s.nations.russia.treasury = 5000, 5000, 5000
+	assertTrue(Economy.canRecruit(s, "prussia", "brandenburg", "landwehr"), "Landwehr at a drill ground")
+	local ok, why = Economy.canRecruit(s, "france", "paris", "landwehr")
+	assertTrue(not ok and why == "notInRoster")
+	assertTrue(Economy.canRecruit(s, "france", "paris", "oldguard"), "the Old Guard at Paris")
+	assertTrue(Economy.canRecruit(s, "russia", "stpetersburg", "cossacks"))
+	local u = State.newUnit(s, "prussia", "landwehr", nil)
+	assertTrue(string.find(u.name, "Landwehr") ~= nil, u.name)
+	assertEq(EuropeData.UnitClasses.landwehr.sim, "militia")
+end)
+
 -- Movement --------------------------------------------------------------------------------------------
 
 test("Grand movement: paths, movement points, stops in enemy land, zone of control, no neutral access", function()
@@ -931,12 +944,18 @@ test("Grand view: contract fields, fog of war, player-only treasury, recruitment
 		end
 	end
 	assertTrue(seenEnemy, "the Channel army sees England")
+	local roster = 0
+	for _, t in EuropeData.UnitTypeOrder do
+		if EuropeData.inRoster(t, "france") then
+			roster += 1
+		end
+	end
 	local opts = v.recruitment.options.paris
-	assertTrue(opts and #opts == #EuropeData.UnitTypeOrder, "every type, the locked ones with their reason")
+	assertTrue(opts and #opts == roster, "France's whole roster, the locked ones with their reason")
 	for _, o in opts do
 		assertTrue(o.unitType and o.name and o.cost and o.turns and type(o.available) == "boolean")
 	end
-	assertEq(#v.recruitment.options.normandy, #EuropeData.UnitTypeOrder)
+	assertEq(#v.recruitment.options.normandy, roster)
 	assertTrue(#v.objectives >= 5)
 	assertEq(v.pendingBattle, nil)
 end)

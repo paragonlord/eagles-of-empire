@@ -60,7 +60,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 
 ## Phase 7: technology and national rosters
 - [x] Research tree (unlocks units, battle passives, economy)
-- [ ] National rosters
+- [x] National rosters
 
 ## Phase 8: campaign armies and battles
 - [ ] Per-province battle maps

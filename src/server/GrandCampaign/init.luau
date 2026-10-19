@@ -532,7 +532,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			for _, t in EuropeData.UnitTypeOrder do
 				local c = EuropeData.UnitClasses[t]
 				local ok, why = Economy.canRecruit(s, player, pid, t)
-				if why ~= "majorsOnly" then
+				if why ~= "majorsOnly" and why ~= "notInRoster" then
 					list[#list + 1] = { unitType = t, name = c.name, class = c.class, cost = c.cost, manpower = c.manpower, turns = c.turns, upkeep = c.upkeep, available = ok, reason = why }
 				end
 			end

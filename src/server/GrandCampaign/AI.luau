@@ -95,6 +95,13 @@ function AI.strategicTarget(s: State, nation: string, near: { [string]: number }
 end
 
 local RECRUIT_CYCLE = { "line", "line", "cavalry", "line", "artillery", "light", "line", "heavy" }
+-- national stand-ins for slots of the cycle (EuropeData national units)
+local NATIONAL: { [string]: { [string]: string } } = {
+	france = { light = "voltigeurs" },
+	austria = { light = "grenzer" },
+	prussia = { light = "jager" },
+	russia = { cavalry = "cossacks" },
+}
 
 -- Research: the first subject in this order the nation can take up.
 local RESEARCH_ORDER = { "drill", "canister", "rotation", "enlightenment", "squares", "conscription", "lancers", "horseArtillery", "banking", "rifles", "civilcode", "howitzers", "ironworks", "corps", "nationalism" }
@@ -292,7 +299,7 @@ local function recruit(s: State, nation: string)
 	local income = Economy.income(s, nation)
 	for _ = 1, 4 do
 		local k = (s.counters["ai." .. nation] or 0) % #RECRUIT_CYCLE + 1
-		local t = RECRUIT_CYCLE[k]
+		local t = NATIONAL[nation] and NATIONAL[nation][RECRUIT_CYCLE[k]] or RECRUIT_CYCLE[k]
 		local c = EuropeData.UnitClasses[t]
 		if ns.treasury - c.cost < reserve or income - Economy.upkeep(s, nation) - c.upkeep < 0 then
 			return

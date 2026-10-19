@@ -207,6 +207,9 @@ function Economy.canRecruit(s: State, nation: string, provinceId: string, unitTy
 	if c.needs == "capital" and EuropeData.Nations[nation].capital ~= provinceId then
 		return false, "needsCapital"
 	end
+	if not EuropeData.inRoster(unitType, nation) then
+		return false, "notInRoster"
+	end
 	if c.tech and not State.hasTech(s, nation, c.tech) then
 		return false, "needsTech:" .. c.tech
 	end

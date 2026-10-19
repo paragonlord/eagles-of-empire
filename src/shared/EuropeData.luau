@@ -56,6 +56,7 @@ export type UnitClass = {
 	needs: "any" | "capital",
 	building: { chain: string, level: number }, -- the province must have it (EuropeData.Buildings)
 	tech: string?, -- the nation must have researched it (EuropeData.Techs)
+	nations: { string }?, -- a national unit: only these nations raise it
 	majorOnly: boolean,
 	experience: number, -- experience on recruitment
 }
@@ -404,9 +405,24 @@ EuropeData.UnitClasses = {
 	lancers = { name = "Lancers", sim = "lancer", class = "cavalry", strength = 400, cost = 500, manpower = 400, turns = 2, upkeep = 20, power = 1.45, needs = "any", building = { chain = "stables", level = 2 }, tech = "lancers", majorOnly = false, experience = 0 },
 	horseart = { name = "Horse artillery", sim = "horseArt", class = "artillery", strength = 120, cost = 500, manpower = 120, turns = 2, upkeep = 24, power = 3.0, needs = "any", building = { chain = "foundry", level = 2 }, tech = "horseArtillery", majorOnly = false, experience = 0 },
 	howitzer = { name = "Howitzers", sim = "howitzer", class = "artillery", strength = 120, cost = 550, manpower = 120, turns = 3, upkeep = 24, power = 3.2, needs = "any", building = { chain = "foundry", level = 3 }, tech = "howitzers", majorOnly = false, experience = 0 },
+	-- national units (docs/campaign.md "National rosters")
+	oldguard = { name = "Old Guard", sim = "guard", class = "infantry", strength = 700, cost = 950, manpower = 700, turns = 4, upkeep = 30, power = 1.75, needs = "capital", building = { chain = "barracks", level = 3 }, nations = { "france" }, majorOnly = true, experience = 3 },
+	voltigeurs = { name = "Voltigeurs", sim = "light", class = "infantry", strength = 600, cost = 380, manpower = 600, turns = 1, upkeep = 14, power = 1.15, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "france" }, majorOnly = false, experience = 2 },
+	highlanders = { name = "Highlanders", sim = "grenadier", class = "infantry", strength = 600, cost = 400, manpower = 600, turns = 2, upkeep = 15, power = 1.2, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "britain" }, majorOnly = false, experience = 1 },
+	landwehr = { name = "Landwehr", sim = "militia", class = "infantry", strength = 600, cost = 150, manpower = 600, turns = 1, upkeep = 6, power = 0.75, needs = "any", building = { chain = "barracks", level = 1 }, nations = { "prussia" }, majorOnly = false, experience = 0 },
+	jager = { name = "Jäger", sim = "rifle", class = "infantry", strength = 600, cost = 420, manpower = 600, turns = 2, upkeep = 15, power = 1.2, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "prussia", "austria" }, majorOnly = false, experience = 1 },
+	grenzer = { name = "Grenzer", sim = "light", class = "infantry", strength = 600, cost = 280, manpower = 600, turns = 1, upkeep = 11, power = 1.05, needs = "any", building = { chain = "barracks", level = 1 }, nations = { "austria" }, majorOnly = false, experience = 1 },
+	grenadiers = { name = "Grenadiers", sim = "grenadier", class = "infantry", strength = 600, cost = 420, manpower = 600, turns = 2, upkeep = 16, power = 1.25, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "austria", "russia", "prussia" }, majorOnly = false, experience = 1 },
+	cossacks = { name = "Cossacks", sim = "lightCav", class = "cavalry", strength = 400, cost = 250, manpower = 400, turns = 1, upkeep = 8, power = 1.0, needs = "any", building = { chain = "stables", level = 1 }, nations = { "russia" }, majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
-EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery", "rifles", "lancers", "horseart", "howitzer" }
+EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery", "rifles", "lancers", "horseart", "howitzer", "oldguard", "voltigeurs", "highlanders", "landwehr", "jager", "grenzer", "grenadiers", "cossacks" }
+
+-- Is `unitType` in `nation`'s roster (national units only for their nations)?
+function EuropeData.inRoster(unitType: string, nation: string): boolean
+	local c = EuropeData.UnitClasses[unitType]
+	return c ~= nil and (c.nations == nil or table.find(c.nations, nation) ~= nil)
+end
 
 -- Technology (docs/campaign.md "Technology"). One research at a time; points a turn come from the
 -- nation (20 a great power, 10 a minor) and its schools (15 a level), +50 % with Enlightenment.
@@ -495,11 +511,11 @@ end
 -- Per-nation unit names: "%s" takes the regiment ordinal ("1er", "3rd", "4.", by nation).
 -- Other nations: "<adjective> <class name> <n>".
 EuropeData.UnitNames = {
-	france = { line = "%s de Ligne", light = "%s Légère", guard = "%s Régiment de la Garde", cavalry = "%s Chasseurs à cheval", heavy = "%s Cuirassiers", artillery = "%s Artillerie à pied", lancers = "%s Chevau-légers lanciers", horseart = "%s Artillerie à cheval", howitzer = "%s Obusiers" },
-	britain = { line = "%s Foot", light = "%s Light Infantry", guard = "%s Foot Guards", cavalry = "%s Light Dragoons", heavy = "%s Dragoon Guards", artillery = "%s Battery RA", rifles = "%s Rifles", horseart = "%s Troop RHA" },
-	austria = { line = "%s Linien-Infanterie", light = "%s Grenz-Regiment", guard = "%s Grenadier-Bataillon", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie" },
-	prussia = { line = "%s Musketier-Regiment", light = "%s Füsilier-Bataillon", guard = "%s Garde-Regiment", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie" },
-	russia = { line = "%s Musketeers", light = "%s Jägers", guard = "%s Leib-Guard", cavalry = "%s Cossacks", heavy = "%s Cuirassiers", artillery = "%s Artillery Brigade", lancers = "%s Uhlans" },
+	france = { line = "%s de Ligne", light = "%s Légère", guard = "%s Régiment de la Garde", cavalry = "%s Chasseurs à cheval", heavy = "%s Cuirassiers", artillery = "%s Artillerie à pied", lancers = "%s Chevau-légers lanciers", horseart = "%s Artillerie à cheval", howitzer = "%s Obusiers", oldguard = "%s Grenadiers à pied de la Garde", voltigeurs = "%s Voltigeurs" },
+	britain = { line = "%s Foot", light = "%s Light Infantry", guard = "%s Foot Guards", cavalry = "%s Light Dragoons", heavy = "%s Dragoon Guards", artillery = "%s Battery RA", rifles = "%s Rifles", horseart = "%s Troop RHA", highlanders = "%s Highlanders" },
+	austria = { line = "%s Linien-Infanterie", light = "%s Leichte Infanterie", guard = "%s Grenadier-Bataillon", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie", grenzer = "%s Grenz-Regiment", jager = "%s Jäger-Bataillon", grenadiers = "%s Grenadier-Bataillon" },
+	prussia = { line = "%s Musketier-Regiment", light = "%s Füsilier-Bataillon", guard = "%s Garde-Regiment", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie", landwehr = "%s Landwehr-Regiment", jager = "%s Jäger-Bataillon", grenadiers = "%s Grenadier-Bataillon" },
+	russia = { line = "%s Musketeers", light = "%s Jägers", guard = "%s Leib-Guard", cavalry = "%s Hussars", heavy = "%s Cuirassiers", artillery = "%s Artillery Brigade", lancers = "%s Uhlans", cossacks = "%s Don Cossacks", grenadiers = "%s Grenadiers" },
 } :: { [string]: { [string]: string } }
 
 -- Generals and starting armies (January 1805) -------------------------------------------------------

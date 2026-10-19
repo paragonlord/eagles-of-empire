@@ -144,6 +144,24 @@ is already in its quality 1.15); Britain Platoon fire, Rifles, Canister and Hors
 Prussia Platoon fire; Austria Canister; Russia Lancers. Saves from before technology load with
 this. The AI researches in a fixed order (drill, canister, rotation, enlightenment, …).
 
+## National rosters
+
+Besides the common types, each great power raises units of its own (`nations` on the unit class):
+
+| Unit | Nations | Battle type | Cost | Needs |
+|---|---|---|---|---|
+| Old Guard | France | guard | 950 | capital, barracks 3 |
+| Voltigeurs | France | light (exp 2) | 380 | barracks 2 |
+| Highlanders | Britain | grenadiers | 400 | barracks 2 |
+| Landwehr | Prussia | militia (cheap) | 150 | barracks 1 |
+| Jäger | Prussia, Austria | rifles | 420 | barracks 2 |
+| Grenzer | Austria | light | 280 | barracks 1 |
+| Grenadiers | Austria, Russia, Prussia | grenadiers | 420 | barracks 2 |
+| Cossacks | Russia | light cavalry (cheap) | 250 | stables 1 |
+
+The AI's recruitment cycle takes them for its light infantry (France voltigeurs, Austria Grenzer,
+Prussia Jäger) and Russia's cavalry (Cossacks).
+
 ## Armies and movement
 
 - An army has a general (`rating` 1–5) or none. Movement: 2 provinces a turn, 3 under a general
