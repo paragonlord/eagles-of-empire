@@ -846,6 +846,14 @@ errors.
   CLI rerun the 1er Légère charges at 60 s and breaks against the Guards at 120 s, as on the day.
 - Not seen in Studio yet: fords as shallow water, a French garrison's corner sentries.
 
+**2026-10-19 round 33 (Phase 6: campaign buildings, taxes, order).** No EoE errors.
+- Pass: the province panel (Champagne & Lorraine) lists "Drill ground · Cavalry school · Foundry ·
+  Fortress", the recruit list and a two-column Build grid with the next level of every chain and its
+  price (`r33-province-buildings.jpg`).
+- Pass: Farms · 150 starts work ("Building the farms: 1 turn", treasury 1,500 → 1,350); clicking the
+  per-turn figure raises taxes to High (+223 → +445 a turn) (`r33-building-farms-tax-high.jpg`).
+- To see by hand: a revolting province's panel text; the generals' escorts (120 sabres) charging.
+
 ## Known failures
 
 None recorded yet.

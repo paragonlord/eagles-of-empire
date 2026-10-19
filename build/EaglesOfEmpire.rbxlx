@@ -693,7 +693,8 @@ export type UnitClass = {
 	turns: number,
 	upkeep: number,
 	power: number, -- auto-resolve weight per man
-	needs: "any" | "fort" | "capital",
+	needs: "any" | "capital",
+	building: { chain: string, level: number }, -- the province must have it (EuropeData.Buildings)
 	majorOnly: boolean,
 	experience: number, -- experience on recruitment
 }
@@ -1031,15 +1032,65 @@ end
 -- Campaign unit types, mapped onto the tactical sim classes. Strength in tactical men (the sim's
 -- scale); cost in treasury, manpower in men, turns to raise, upkeep per turn.
 EuropeData.UnitClasses = {
-	line = { name = "Line infantry", sim = "line", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", majorOnly = false, experience = 0 },
-	light = { name = "Light infantry", sim = "light", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", majorOnly = false, experience = 1 },
-	guard = { name = "Guard infantry", sim = "guard", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", majorOnly = true, experience = 3 },
-	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", majorOnly = false, experience = 0 },
-	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "fort", majorOnly = false, experience = 1 },
-	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "fort", majorOnly = false, experience = 0 },
+	line = { name = "Line infantry", sim = "line", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", building = { chain = "barracks", level = 1 }, majorOnly = false, experience = 0 },
+	light = { name = "Light infantry", sim = "light", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", building = { chain = "barracks", level = 1 }, majorOnly = false, experience = 1 },
+	guard = { name = "Guard infantry", sim = "guard", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", building = { chain = "barracks", level = 3 }, majorOnly = true, experience = 3 },
+	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", building = { chain = "stables", level = 1 }, majorOnly = false, experience = 0 },
+	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "any", building = { chain = "stables", level = 2 }, majorOnly = false, experience = 1 },
+	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "any", building = { chain = "foundry", level = 1 }, majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
 EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }
+
+-- Lands where a winter campaign costs men (Economy: winter attrition, Nov–Feb).
+EuropeData.HarshWinter = { stpetersburg = true, lithuania = true, smolensk = true, moscow = true, ukraine = true, eastprussia = true, warsaw = true, galicia = true, stockholm = true, tyrol = true } :: { [string]: boolean }
+
+-- Is this turn (two months) a winter turn: Nov–Dec or Jan–Feb?
+function EuropeData.isWinter(turn: number): boolean
+	local m = ((turn - 1) * 2) % 12
+	return m == 0 or m == 10
+end
+
+-- Buildings (docs/campaign.md "Buildings"). Each province raises chains of three levels, one
+-- construction at a time; cost and turns are per level. Effects live in Economy: farms +5 % and
+-- trade +10 % of the province's income per level, government -1 unrest per level, fort = the
+-- province's fortress level (siege turns), school = research; barracks, stables and foundry
+-- unlock recruits (UnitClasses.building).
+export type BuildingChain = { name: string, levels: { string }, cost: { number }, turns: { number } }
+EuropeData.Buildings = {
+	government = { name = "Government", levels = { "Prefecture", "Ministry", "Palace" }, cost = { 250, 500, 1000 }, turns = { 2, 3, 4 } },
+	barracks = { name = "Barracks", levels = { "Drill ground", "Barracks", "Military school" }, cost = { 200, 450, 900 }, turns = { 1, 2, 3 } },
+	stables = { name = "Stables", levels = { "Stables", "Cavalry school", "Stud" }, cost = { 250, 500, 900 }, turns = { 2, 2, 3 } },
+	foundry = { name = "Foundry", levels = { "Foundry", "Cannon works", "Arsenal" }, cost = { 300, 600, 1000 }, turns = { 2, 3, 3 } },
+	farms = { name = "Farms", levels = { "Farms", "Enclosures", "Estates" }, cost = { 150, 350, 700 }, turns = { 1, 2, 3 } },
+	trade = { name = "Trade", levels = { "Market", "Trade hall", "Exchange" }, cost = { 250, 550, 1100 }, turns = { 2, 3, 4 } },
+	fort = { name = "Fortifications", levels = { "Earthworks", "Fortress", "Citadel" }, cost = { 300, 700, 1400 }, turns = { 2, 3, 4 } },
+	school = { name = "School", levels = { "School", "College", "University" }, cost = { 250, 500, 1000 }, turns = { 2, 3, 4 } },
+} :: { [string]: BuildingChain }
+EuropeData.BuildingOrder = { "government", "barracks", "stables", "foundry", "farms", "trade", "fort", "school" }
+EuropeData.BuildingMax = 3
+
+-- January 1805: every province has a drill ground, stables and its fortress; fortresses and
+-- capitals a cavalry school and a foundry; capitals a government, a school and better barracks (a great power's
+-- capital trains its guard). Farms and trade start at nothing, so 1805 incomes are as they were.
+function EuropeData.startBuildings(p: Province): { [string]: number }
+	local b: { [string]: number } = { barracks = 1, stables = 1 }
+	if p.fort > 0 then
+		b.fort = p.fort
+	end
+	if p.fort > 0 or p.isCapital then
+		b.stables = 2 -- heavy cavalry was raised in the fortress towns
+		b.foundry = 1
+	end
+	if p.isCapital then
+		local owner = EuropeData.Nations[p.owner1805]
+		b.government = 1
+		b.school = 1
+		b.stables = 2
+		b.barracks = if owner and owner.major then 3 else 2
+	end
+	return b
+end
 
 -- Per-nation unit names: "%s" takes the regiment ordinal ("1er", "3rd", "4.", by nation).
 -- Other nations: "<adjective> <class name> <n>".
@@ -10650,6 +10701,27 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			State.log(s, string.format("%s ordered at %s.", EuropeData.UnitClasses[t].name, State.province(pid).name))
 		end
 		return ok, why
+	elseif kind == "tax" then
+		local level = tonumber(cmd.level)
+		if not level then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.setTax(s, player, level)
+		if ok then
+			State.log(s, "Taxes set to " .. string.lower(Economy.TAX[level].name) .. ".")
+		end
+		return ok, why
+	elseif kind == "build" then
+		local pid, chain = str(cmd.provinceId), str(cmd.chain)
+		if not pid or not chain then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.build(s, player, pid, chain)
+		if ok then
+			local level = (s.provinces[pid].buildings[chain] or 0) + 1
+			State.log(s, string.format("Work begins on the %s at %s.", string.lower(EuropeData.Buildings[chain].levels[level]), State.province(pid).name))
+		end
+		return ok, why
 	elseif kind == "replenish" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -10816,6 +10888,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			entry.manpower = ns.manpower
 			entry.income = income
 			entry.manpowerIncome = manpower
+			entry.tax = s.nations[id].tax or 2
 			entry.upkeep = Economy.upkeep(s, id)
 		end
 		nations[id] = entry
@@ -10834,6 +10907,10 @@ function GrandCampaign.view(s: State): { [string]: any }
 			occupiedBy = ps.occupiedBy,
 			siege = if ps.siege then { by = ps.siege.by, turnsLeft = ps.siege.turnsLeft } else nil,
 			unrest = Economy.unrest(s, id),
+			buildings = if ps.owner == player then State.copy(ps.buildings) else nil,
+			construction = if ps.owner == player and ps.construction then State.copy(ps.construction) else nil,
+			fort = State.fortLevel(s, id),
+			revolt = ps.revolt,
 			visibleArmies = vis,
 		}
 	end
@@ -10859,6 +10936,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		end
 	end
 	local options = {}
+	local buildOptions = {}
 	for _, pid in State.provincesOwned(s, player) do
 		if s.provinces[pid].occupiedBy == nil then
 			local list = {}
@@ -10870,6 +10948,15 @@ function GrandCampaign.view(s: State): { [string]: any }
 				end
 			end
 			options[pid] = list
+			local blist = {}
+			for _, chain in EuropeData.BuildingOrder do
+				local def = EuropeData.Buildings[chain]
+				local ok, why, nextLevel = Economy.canBuild(s, player, pid, chain)
+				if nextLevel <= EuropeData.BuildingMax then
+					blist[#blist + 1] = { chain = chain, name = def.levels[nextLevel], level = nextLevel, cost = def.cost[nextLevel], turns = def.turns[nextLevel], available = ok, reason = why }
+				end
+			end
+			buildOptions[pid] = blist
 		end
 	end
 	local queue = {}
@@ -10926,6 +11013,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		provinces = provinces,
 		armies = armies,
 		recruitment = { options = options, queue = queue },
+		buildings = { options = buildOptions },
 		diplomacy = { offers = offers },
 		events = events,
 		pendingBattle = pending,
@@ -11097,6 +11185,29 @@ function AI.strategicTarget(s: State, nation: string, near: { [string]: number }
 end
 
 local RECRUIT_CYCLE = { "line", "line", "cavalry", "line", "artillery", "light", "line", "heavy" }
+
+-- One construction a turn, in the richest province with none under way, economy before army.
+local BUILD_PRIORITY = { "trade", "farms", "foundry", "stables", "government", "fort", "school", "barracks" }
+local function build(s: State, nation: string)
+	local n = EuropeData.Nations[nation]
+	-- at war the army comes first: build only from a full treasury
+	local atWar = #State.enemiesOf(s, nation) > 0
+	local reserve = if atWar then (if n.major then 3000 else 1000) else (if n.major then 600 else 300)
+	local where = State.provincesOwned(s, nation)
+	table.sort(where, function(a: string, b: string): boolean
+		local ia, ib = State.province(a).income, State.province(b).income
+		return if ia ~= ib then ia > ib else a < b
+	end)
+	for _, pid in where do
+		for _, chain in BUILD_PRIORITY do
+			local ok, _, nextLevel = Economy.canBuild(s, nation, pid, chain)
+			if ok and s.nations[nation].treasury - EuropeData.Buildings[chain].cost[nextLevel] >= reserve then
+				Economy.build(s, nation, pid, chain)
+				return
+			end
+		end
+	end
+end
 
 local function threatAt(s: State, nation: string, pid: string): number
 	local t = State.hostileStrengthIn(s, pid, nation)
@@ -11352,7 +11463,10 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 			moveArmy(s, nation, a, guard, rally, near, target, main)
 		end
 	end
+	-- taxes: high while a war drains a thin treasury, normal otherwise
+	ns.tax = if #State.enemiesOf(s, nation) > 0 and ns.treasury < 1000 then 3 else 2
 	recruit(s, nation)
+	build(s, nation)
 end
 
 return AI
@@ -11463,7 +11577,7 @@ local function sideStrength(s: State, b: Battle, side: string): number
 		t += State.armyStrength(a)
 	end
 	if side == "defenders" and table.find(b.defenders, State.controller(s, b.provinceId)) then
-		t *= 1.15 + 0.1 * State.province(b.provinceId).fort
+		t *= 1.15 + 0.1 * State.fortLevel(s, b.provinceId)
 	end
 	return t
 end
@@ -11769,7 +11883,7 @@ function Battles.sieges(s: State)
 		end
 		local by = besieger :: string
 		if not ps.siege or ps.siege.by ~= by then
-			ps.siege = { by = by, turnsLeft = p.fort + 1 }
+			ps.siege = { by = by, turnsLeft = State.fortLevel(s, p.id) + 1 }
 		end
 		local siege = ps.siege :: State.Siege
 		siege.turnsLeft -= 1
@@ -11786,7 +11900,7 @@ function Battles.sieges(s: State)
 			if wasOwner ~= c and ps.occupiedBy == nil then
 				State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
 			else
-				State.log(s, string.format("%s %s %s.", State.nationName(by), if p.fort > 0 then "takes the fortress of" else "occupies", p.name))
+				State.log(s, string.format("%s %s %s.", State.nationName(by), if State.fortLevel(s, p.id) > 0 then "takes the fortress of" else "occupies", p.name))
 			end
 		end
 	end
@@ -12483,15 +12597,38 @@ Economy.REPLENISH_COST_PER_MAN = 0.5
 Economy.SUBSIDY = 60 -- British treasury per turn to each major fighting France
 Economy.CONTINENTAL = { britain = 0.8, blockaded = 0.95 }
 
+-- Tax levels: income multiplier and the unrest it breeds in the nation's own provinces.
+Economy.TAX = {
+	{ name = "Low", income = 0.75, unrest = -1 },
+	{ name = "Normal", income = 1.0, unrest = 0 },
+	{ name = "High", income = 1.2, unrest = 1 },
+	{ name = "Very high", income = 1.4, unrest = 2 },
+}
+Economy.UNREST_PENALTY = 0.75 -- income of a province at unrest 3 or more
+Economy.REVOLT_TURNS = 2 -- turns at unrest 5 before the province rises
+Economy.REVOLT_ATTRITION = 0.05 -- the owner's troops in a revolted province, a turn
+Economy.REFILL = 0.1 -- share of a unit's full strength regained a turn at rest in friendly land
+Economy.WINTER_ATTRITION = { allied = 0.02, hostile = 0.04 } -- harsh lands, Nov–Feb (own land: none)
+Economy.FARMS_INCOME = 0.05 -- per level of the farms chain
+Economy.TRADE_INCOME = 0.1 -- per level of the trade chain
+
+-- A province's income with its farms and trade.
+function Economy.provinceIncome(s: State, provinceId: string): number
+	local b = s.provinces[provinceId].buildings
+	return State.province(provinceId).income * (1 + Economy.FARMS_INCOME * (b.farms or 0) + Economy.TRADE_INCOME * (b.trade or 0))
+end
+
 function Economy.income(s: State, nation: string): (number, number)
 	local income, manpower = 0, 0
+	local tax = Economy.TAX[s.nations[nation].tax or 2]
 	for _, p in EuropeData.Provinces do
 		local ps = s.provinces[p.id]
-		if ps.occupiedBy == nil and ps.owner == nation then
-			income += p.income
+		if ps.occupiedBy == nil and ps.owner == nation and not ps.revolt then
+			local order = if Economy.unrest(s, p.id) >= 3 then Economy.UNREST_PENALTY else 1
+			income += Economy.provinceIncome(s, p.id) * tax.income * order
 			manpower += p.manpower
 		elseif ps.occupiedBy == nation then
-			income += p.income * Economy.OCCUPIER_SHARE
+			income += Economy.provinceIncome(s, p.id) * Economy.OCCUPIER_SHARE
 		end
 	end
 	if s.flags.continentalSystem then
@@ -12571,8 +12708,8 @@ function Economy.canRecruit(s: State, nation: string, provinceId: string, unitTy
 	if c.needs == "capital" and EuropeData.Nations[nation].capital ~= provinceId then
 		return false, "needsCapital"
 	end
-	if c.needs == "fort" and p.fort == 0 and not p.isCapital then
-		return false, "needsFortress"
+	if (ps.buildings[c.building.chain] or 0) < c.building.level then
+		return false, "needs:" .. c.building.chain .. ":" .. c.building.level
 	end
 	if Economy.queueCount(s, nation, provinceId) >= 2 then
 		return false, "provinceBusy"
@@ -12659,6 +12796,164 @@ function Economy.replenish(s: State, a: Army): number
 end
 
 -- One nation's end-of-turn economy.
+-- Can `nation` start the next level of `chain` in `provinceId`? Returns ok, reason, next level.
+function Economy.canBuild(s: State, nation: string, provinceId: string, chain: string): (boolean, string?, number)
+	local def = EuropeData.Buildings[chain]
+	local ps = s.provinces[provinceId]
+	if not def or not ps then
+		return false, "badArgs", 0
+	end
+	local nextLevel = (ps.buildings[chain] or 0) + 1
+	if ps.owner ~= nation or ps.occupiedBy ~= nil then
+		return false, "notYourProvince", nextLevel
+	end
+	if nextLevel > EuropeData.BuildingMax then
+		return false, "fullyBuilt", nextLevel
+	end
+	if ps.construction then
+		return false, "building", nextLevel
+	end
+	if ps.siege ~= nil or State.hostileArmyIn(s, provinceId, nation) then
+		return false, "underSiege", nextLevel
+	end
+	if s.nations[nation].treasury < def.cost[nextLevel] then
+		return false, "insufficientFunds", nextLevel
+	end
+	return true, nil, nextLevel
+end
+
+function Economy.build(s: State, nation: string, provinceId: string, chain: string): (boolean, string?)
+	local ok, why, nextLevel = Economy.canBuild(s, nation, provinceId, chain)
+	if not ok then
+		return false, why
+	end
+	local def = EuropeData.Buildings[chain]
+	s.nations[nation].treasury -= def.cost[nextLevel]
+	s.provinces[provinceId].construction = { chain = chain, turnsLeft = def.turns[nextLevel] }
+	return true, nil
+end
+
+-- Constructions in the nation's own, unoccupied provinces advance a turn; the rest wait.
+local function construct(s: State, nation: string)
+	for _, id in EuropeData.ProvinceIds do
+		local ps = s.provinces[id]
+		local c = ps.construction
+		if c and ps.owner == nation and ps.occupiedBy == nil then
+			c.turnsLeft -= 1
+			if c.turnsLeft <= 0 then
+				ps.construction = nil
+				local level = (ps.buildings[c.chain] or 0) + 1
+				ps.buildings[c.chain] = level
+				if nation == s.playerNation then
+					State.log(s, string.format("%s: the %s is finished.", State.province(id).name, string.lower(EuropeData.Buildings[c.chain].levels[level])))
+				end
+			end
+		end
+	end
+end
+
+-- Unrest 0..5: occupation breeds it (a turn a level), the guerrilla adds 2; in the owner's own
+-- hands the tax adds its share and foreign rule (not its 1805 owner) 3; every level of government
+-- and every 1000 of the owner's men standing there (at most 2) take one away.
+Economy.FOREIGN_UNREST = 3
+function Economy.unrest(s: State, provinceId: string): number
+	local ps = s.provinces[provinceId]
+	if ps.occupiedBy ~= nil then
+		local u = math.min(5, ps.occupiedTurns)
+		if s.flags.guerrilla and (ps.owner == "spain" or ps.owner == "portugal") then
+			u += 2
+		end
+		return math.min(5, u)
+	end
+	local tax = Economy.TAX[s.nations[ps.owner].tax or 2]
+	local foreign = if State.province(provinceId).owner1805 ~= ps.owner then Economy.FOREIGN_UNREST else 0
+	local men = 0
+	for _, a in State.armiesIn(s, provinceId, ps.owner) do
+		men += State.men(a)
+	end
+	local garrison = math.min(2, math.floor(men / 1000))
+	return math.clamp(tax.unrest + foreign - (ps.buildings.government or 0) - garrison, 0, 5)
+end
+
+-- Public order in the nation's own provinces: two turns at unrest 5 and the province rises (no
+-- income or manpower, its garrison bleeds); it settles once unrest is below 3.
+local function publicOrder(s: State, nation: string)
+	for _, id in EuropeData.ProvinceIds do
+		local ps = s.provinces[id]
+		if ps.owner == nation and ps.occupiedBy == nil then
+			local u = Economy.unrest(s, id)
+			ps.unrestTurns = if u >= 5 then (ps.unrestTurns or 0) + 1 else 0
+			if not ps.revolt and (ps.unrestTurns or 0) >= Economy.REVOLT_TURNS then
+				ps.revolt = true
+				State.log(s, string.format("%s rises against %s!", State.province(id).name, State.nationName(nation)))
+			elseif ps.revolt and u < 3 then
+				ps.revolt = nil
+				State.log(s, string.format("Order is restored in %s.", State.province(id).name))
+			end
+			if ps.revolt then
+				for _, a in State.armiesIn(s, id, nation) do
+					attrit(s, a, Economy.REVOLT_ATTRITION)
+				end
+			end
+		else
+			ps.unrestTurns, ps.revolt = nil, nil
+		end
+	end
+end
+
+function Economy.setTax(s: State, nation: string, level: number): (boolean, string?)
+	if level ~= math.floor(level) or Economy.TAX[level] == nil then
+		return false, "badArgs"
+	end
+	s.nations[nation].tax = level
+	return true, nil
+end
+
+-- At rest by a depot (own, unoccupied province with barracks 2+, not in revolt) with no hostile army
+-- in or next to the province, units refill a tenth of their full strength a turn (treasury and manpower as for
+-- Replenish, while they last).
+local function refill(s: State, nation: string)
+	local ns = s.nations[nation]
+	for _, a in State.armiesOf(s, nation) do
+		local here = a.provinceId
+		local ps = s.provinces[here]
+		local quiet = ps.owner == nation and ps.occupiedBy == nil and not ps.revolt and (ps.buildings.barracks or 0) >= 2 and not State.hostileArmyIn(s, here, nation)
+		if quiet then
+			for _, n in State.province(here).neighbours do
+				if not EuropeData.isSeaLane(here, n) and State.hostileArmyIn(s, n, nation) then
+					quiet = false
+				end
+			end
+		end
+		if quiet then
+			for _, u in a.units do
+				local n = math.min(u.maxStrength - u.strength, math.ceil(u.maxStrength * Economy.REFILL), math.floor(ns.treasury / Economy.REPLENISH_COST_PER_MAN), ns.manpower)
+				if n > 0 then
+					u.strength += n
+					ns.treasury -= n * Economy.REPLENISH_COST_PER_MAN
+					ns.manpower -= n
+				end
+			end
+		end
+	end
+	ns.treasury = math.floor(ns.treasury)
+end
+
+-- Winter in the harsh lands: men fall out of the ranks away from their own country's depots.
+local function winter(s: State, nation: string)
+	if not EuropeData.isWinter(s.turn) then
+		return
+	end
+	for _, a in State.armiesOf(s, nation) do
+		if EuropeData.HarshWinter[a.provinceId] then
+			local c = State.controller(s, a.provinceId)
+			if c ~= nation then
+				attrit(s, a, if State.friendly(s, nation, c) then Economy.WINTER_ATTRITION.allied else Economy.WINTER_ATTRITION.hostile)
+			end
+		end
+	end
+end
+
 function Economy.run(s: State, nation: string)
 	local ns = s.nations[nation]
 	local income, manpower = Economy.income(s, nation)
@@ -12692,6 +12987,10 @@ function Economy.run(s: State, nation: string)
 			end
 		end
 	end
+	construct(s, nation)
+	publicOrder(s, nation)
+	refill(s, nation)
+	winter(s, nation)
 	for i = #s.recruitment, 1, -1 do
 		local q = s.recruitment[i]
 		if q.nation == nation then
@@ -12706,18 +13005,6 @@ function Economy.run(s: State, nation: string)
 end
 
 -- Unrest 0..5: turns under occupation (+2 under the guerrilla).
-function Economy.unrest(s: State, provinceId: string): number
-	local ps = s.provinces[provinceId]
-	if ps.occupiedBy == nil then
-		return 0
-	end
-	local u = math.min(5, ps.occupiedTurns)
-	if s.flags.guerrilla and (ps.owner == "spain" or ps.owner == "portugal") then
-		u = math.min(5, u + 2)
-	end
-	return u
-end
-
 return Economy
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scripted events (EuropeData.Events): each fires once, at the first turn of its window whose
@@ -13298,10 +13585,31 @@ function Serialize.deserialize(p: any): State?
 		if ps.siege ~= nil and (type(ps.siege) ~= "table" or not nationOk(ps.siege.by) or not isNum(ps.siege.turnsLeft)) then
 			return nil
 		end
+		if ps.buildings == nil then
+			ps.buildings = EuropeData.startBuildings(State.province(id)) -- a save from before buildings
+		elseif type(ps.buildings) ~= "table" then
+			return nil
+		else
+			for chain, level in ps.buildings do
+				if EuropeData.Buildings[chain] == nil or not isNum(level) or level < 0 or level > EuropeData.BuildingMax then
+					return nil
+				end
+			end
+		end
+		local c = ps.construction
+		if c ~= nil and (type(c) ~= "table" or EuropeData.Buildings[c.chain] == nil or not isNum(c.turnsLeft)) then
+			return nil
+		end
+		if (ps.unrestTurns ~= nil and not isNum(ps.unrestTurns)) or (ps.revolt ~= nil and type(ps.revolt) ~= "boolean") then
+			return nil
+		end
 	end
 	for _, id in EuropeData.NationOrder do
 		local ns = p.nations[id]
 		if type(ns) ~= "table" or not isNum(ns.treasury) or not isNum(ns.manpower) then
+			return nil
+		end
+		if ns.tax ~= nil and (not isNum(ns.tax) or ns.tax < 1 or ns.tax > 4 or ns.tax ~= math.floor(ns.tax)) then
 			return nil
 		end
 	end
@@ -13403,8 +13711,12 @@ export type General = { name: string, rating: number }
 -- path: the rest of a player's march order beyond this turn's reach; it marches on each new turn
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }? }
 export type Siege = { by: string, turnsLeft: number }
-export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number }
-export type NationState = { treasury: number, manpower: number }
+export type Construction = { chain: string, turnsLeft: number }
+-- buildings: chain -> level (EuropeData.Buildings); construction: the one under way; unrestTurns:
+-- turns in a row at the top of the unrest scale; revolt: in open revolt (Economy)
+export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number, buildings: { [string]: number }, construction: Construction?, unrestTurns: number?, revolt: boolean? }
+-- tax: 1 low, 2 normal, 3 high, 4 very high (Economy.TAX)
+export type NationState = { treasury: number, manpower: number, tax: number? }
 export type War = { a: string, b: string, score: number, since: number } -- score > 0 favours a
 export type Peace = { winner: string, dictated: boolean, turn: number } -- winner "" = white peace
 export type Recruit = { nation: string, provinceId: string, unitType: string, turnsLeft: number }
@@ -13484,6 +13796,11 @@ function State.sortedKeys(t: { [string]: any }): { string }
 	end
 	table.sort(out)
 	return out
+end
+
+-- Fortress level 0..3: what its fortifications have reached (sieges, auto-resolve).
+function State.fortLevel(s: State, provinceId: string): number
+	return s.provinces[provinceId].buildings.fort or 0
 end
 
 function State.province(id: string): EuropeData.Province
@@ -13773,7 +14090,7 @@ function State.new(seed: number, playerNation: string?): State
 		victory = nil,
 	}
 	for _, p in EuropeData.Provinces do
-		s.provinces[p.id] = { owner = p.owner1805, occupiedBy = p.occupied1805, siege = nil, occupiedTurns = 0 }
+		s.provinces[p.id] = { owner = p.owner1805, occupiedBy = p.occupied1805, siege = nil, occupiedTurns = 0, buildings = EuropeData.startBuildings(p) }
 	end
 	for _, id in EuropeData.NationOrder do
 		local n = EuropeData.Nations[id]
@@ -21980,11 +22297,25 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	Kit.label(men, "MANPOWER", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
 	Kit.label(men, fmt(me.manpower), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond })
 	local flow = item(5, 150)
-	Kit.label(flow, "PER TURN", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
+	local TAX_NAMES = { "Low", "Normal", "High", "Very high" }
+	local taxLevel = math.clamp(tonumber(me.tax) or 2, 1, 4)
+	Kit.label(flow, "PER TURN · TAX " .. string.upper(TAX_NAMES[taxLevel]), { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
+	-- click: the next tax level (more gold, more unrest)
+	local cycle = Instance.new("TextButton") :: TextButton
+	cycle.BackgroundTransparency = 1
+	cycle.Text = ""
+	cycle.Size = UDim2.fromScale(1, 1)
+	cycle.ZIndex = 5
+	cycle.Parent = flow
+	cycle.Activated:Connect(function()
+		if ctx.canAct then
+			send("tax", { level = taxLevel % 4 + 1 })
+		end
+	end)
 	local net = (tonumber(me.income) or 0) - (tonumber(me.upkeep) or 0)
 	Kit.label(flow, string.format("%s%s", if net >= 0 then "+" else "", fmt(net)), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond, colour = if net < 0 then Kit.HOSTILE else Kit.IVORY })
 	Kit.hoverTip(flow, function(): string
-		return string.format("Income %s, upkeep %s, recruits +%s men", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome))
+		return string.format("Income %s, upkeep %s, recruits +%s men\nTaxes %s: click for the next level (Low, Normal, High, Very high): more gold, more unrest", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome), string.lower(TAX_NAMES[taxLevel]))
 	end)
 	if ctx.sessionOnly then
 		local warn = item(6, 200)
@@ -22168,15 +22499,18 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		text(panelF, "Occupied by " .. Data.name(ps.occupiedBy), 3, { colour = Kit.HOSTILE })
 	end
 	local facts = { string.format("Income %s", fmt(p.income)), string.format("Manpower %s", fmt(p.manpower)) }
-	if (p.fort or 0) > 0 then
-		table.insert(facts, "Fortress " .. string.rep("I", p.fort))
+	local fort = tonumber(ps.fort) or p.fort or 0
+	if fort > 0 then
+		table.insert(facts, "Fortress " .. string.rep("I", fort))
 	end
 	if p.isPort then
 		table.insert(facts, "Port")
 	end
 	text(panelF, table.concat(facts, " · "), 4)
-	if ps.unrest and ps.unrest > 0 then
-		text(panelF, string.format("Unrest %s", tostring(ps.unrest)), 5, { colour = Kit.HOSTILE })
+	if ps.revolt then
+		text(panelF, "In revolt: no income or manpower, the garrison bleeds. Lower taxes, build a government or march troops in.", 5, { colour = Kit.HOSTILE, wrap = true })
+	elseif ps.unrest and ps.unrest > 0 then
+		text(panelF, string.format("Unrest %s%s", tostring(ps.unrest), if ps.unrest >= 3 then " · income cut by a quarter" else ""), 5, { colour = Kit.HOSTILE })
 	end
 	local siege = ps.siege
 	if type(siege) == "table" then
@@ -22184,6 +22518,45 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	end
 	if owner ~= ctx.player then
 		return
+	end
+	-- buildings: what stands, what is going up, and the next level of each chain
+	if type(ps.buildings) == "table" then
+		local have = {}
+		for _, chain in Data.Europe.BuildingOrder do
+			local level = tonumber(ps.buildings[chain]) or 0
+			local def = Data.Europe.Buildings[chain]
+			if level > 0 and def then
+				table.insert(have, def.levels[level])
+			end
+		end
+		text(panelF, if #have > 0 then table.concat(have, " · ") else "No buildings", 7, { textSize = 13, colour = Kit.MUTED, wrap = true })
+		local c = ps.construction
+		if type(c) == "table" then
+			local def = Data.Europe.Buildings[c.chain]
+			local nextLevel = (tonumber(ps.buildings[c.chain]) or 0) + 1
+			text(panelF, string.format("Building the %s: %s", if def then string.lower(def.levels[nextLevel] or def.name) else tostring(c.chain), plural(tonumber(c.turnsLeft) or 0, "turn")), 8, { textSize = 13 })
+		end
+		local bopts: { any } = view.buildings and view.buildings.options and view.buildings.options[id] or {}
+		if #bopts > 0 and type(c) ~= "table" then
+			Kit.title(panelF, "Build", { size = UDim2.new(1, 0, 0, 22), textSize = 18 }).LayoutOrder = 40
+			local grid = Instance.new("Frame") :: Frame
+			grid.BackgroundTransparency = 1
+			grid.Size = UDim2.new(1, 0, 0, math.ceil(#bopts / 2) * 29)
+			grid.LayoutOrder = 41
+			grid.Parent = panelF
+			local g = Instance.new("UIGridLayout") :: UIGridLayout
+			g.CellSize = UDim2.new(0.5, -3, 0, 26)
+			g.CellPadding = UDim2.fromOffset(6, 3)
+			g.SortOrder = Enum.SortOrder.LayoutOrder
+			g.Parent = grid
+			for i, o in bopts do
+				local b = Kit.button(grid, string.format("%s · %s", tostring(o.name), fmt(o.cost)), function()
+					send("build", { provinceId = id, chain = o.chain })
+				end, { order = i, textSize = 12, caps = false, tooltip = string.format("%s, level %s: %s gold, %s", tostring(o.name), tostring(o.level), fmt(o.cost), plural(tonumber(o.turns) or 1, "turn")) })
+				local why: string? = if not ctx.canAct then ctx.actReason elseif o.available == false then Logic.reason(o.reason) else nil
+				Kit.setEnabled(b, why == nil, why)
+			end
+		end
 	end
 	-- recruitment queue and options
 	local rec = view.recruitment or {}
@@ -22716,11 +23089,19 @@ Logic.REASONS = {
 	unknownOffer = "That offer has lapsed",
 	unknownEvent = "That dispatch has been answered",
 	badArgs = "Malformed order",
+	building = "Already building here",
+	fullyBuilt = "Fully built",
 	unknownCommand = "The server does not know that order",
 }
 
 function Logic.reason(code: any): string
 	local s = tostring(code)
+	-- "needs:<chain>:<level>": a building the province lacks
+	local chain, level = string.match(s, "^needs:(%a+):(%d+)$")
+	local def = chain and (EuropeData.Buildings :: any)[chain]
+	if def then
+		return "Needs a " .. string.lower(def.levels[tonumber(level) or 1] or def.name)
+	end
 	return Logic.REASONS[s] or s
 end
 
