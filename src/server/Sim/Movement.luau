@@ -171,7 +171,7 @@ local function orderDestination(sim: SimLike, f: Formation): Vec?
 	if not o then
 		return nil
 	end
-	if o.kind == "Move" or o.kind == "AttackMove" or o.kind == "Retreat" or (o.kind == "Charge" and o.targetId == nil) then
+	if o.kind == "Move" or o.kind == "AttackMove" or o.kind == "Retreat" or o.kind == "Garrison" or (o.kind == "Charge" and o.targetId == nil) then
 		return o.pos
 	end
 	if (o.kind == "Engage" or o.kind == "Charge") and o.targetId then
@@ -223,6 +223,10 @@ local function arrive(sim: SimLike, f: Formation)
 	if o and o.kind == "Engage" and o.targetId then
 		-- Reached the target's vicinity: stop here; combat decides the rest.
 		f.state = "idle"
+		return
+	end
+	if o and o.kind == "Garrison" then
+		f.state = "idle" -- at the door: Sim/Garrison moves it in
 		return
 	end
 	startNextQueued(sim, f)

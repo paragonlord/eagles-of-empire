@@ -131,6 +131,21 @@ either side whose footprints touch the next 140 studs of the line of fire take 0
 strike (before shape), fading to half at the far end, × their own shape's artillery factor; half the
 round shot's morale shock. Canister does not carry. Friendly troops behind the enemy are not safe.
 
+## Buildings
+
+Every village (and farm: Hougoumont, La Haye Sainte, Papelotte…) has one strongpoint at its heart
+(`MapGen` `strongpoints`), held by at most one infantry battalion (`Sim/Garrison.luau`).
+
+- **Garrison** order: the battalion marches to the building; within 24 studs, if it is free, it moves
+  in (shape `garrison`, 8 s). Held by a friend: refused. Held by the enemy: the order becomes a
+  charge on the garrison (storming).
+- Inside: footprint 16 × 16, fires all round at 0.45 of its muskets, hit ×0.4 by muskets (on top of
+  the village's cover) and ×0.5 by guns, melee ×1.4; cavalry charges do nothing and horse fight it at
+  ×0.15. It cannot move.
+- Leaving: any march, charge or shape order files it out (column, 8 s) and then carries the order
+  out; Engage, Hold and Face only choose its target from the windows. A routing garrison pours out at
+  once. The building is free as soon as its holder leaves, breaks or dies.
+
 ## Melee and charges
 
 Contact: footprints within 6 studs and the attacker's order targets the defender, or either

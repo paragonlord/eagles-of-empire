@@ -22,6 +22,8 @@ export type Bridge = { a: Vec, b: Vec, width: number }
 export type Label = { text: string, pos: Vec, size: number }
 export type Objective = { id: string, name: string, pos: Vec, radius: number }
 export type Rect = { x0: number, z0: number, x1: number, z1: number }
+-- A building one battalion can garrison (rules.md "Buildings"): the heart of every village or farm.
+export type Strongpoint = { id: string, name: string, pos: Vec }
 
 export type MapData = {
 	id: string,
@@ -38,6 +40,7 @@ export type MapData = {
 	labels: { Label },
 	objectives: { Objective },
 	deployZones: { [string]: Rect },
+	strongpoints: { Strongpoint },
 	seed: number,
 }
 
@@ -823,6 +826,10 @@ function MapGen.generate(mapId: string): MapData
 	for _, vl in def.villages do
 		labels[#labels + 1] = { text = vl.name, pos = v(vl.pos.x, vl.pos.z - vl.radius - 14), size = 1.0 }
 	end
+	local strongpoints: { Strongpoint } = {}
+	for i, vl in def.villages do
+		strongpoints[i] = { id = "sp" .. i, name = vl.name, pos = vl.pos }
+	end
 
 	return {
 		id = mapId,
@@ -839,6 +846,7 @@ function MapGen.generate(mapId: string): MapData
 		labels = labels,
 		objectives = def.objectives,
 		deployZones = def.deployZones,
+		strongpoints = strongpoints,
 		seed = seed,
 	}
 end

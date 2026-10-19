@@ -6,7 +6,7 @@ local Vec = require(script.Parent.Vec)
 export type Vec = Vec.Vec
 
 export type UnitClass = "infantry" | "cavalry" | "artillery" | "hq"
-export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff" | "skirmish"
+export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff" | "skirmish" | "garrison"
 export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited" | "offmap"
 export type MoraleBand = "steady" | "shaken" | "routing" | "shattered"
 
@@ -19,6 +19,7 @@ export type Order = {
 	issuedTick: number,
 	anchor: Vec?, -- leash anchor for Engage/AttackMove
 	run: boolean?, -- at the double: faster, far more tiring (Config.Run)
+	strongpoint: string?, -- Garrison: the building (MapGen strongpoint id)
 }
 
 export type Command = {
@@ -48,6 +49,7 @@ export type FormationView = {
 	corps: string?,
 	class: UnitClass,
 	type: string?, -- Config.UnitTypes id
+	garrison: string?, -- strongpoint id while inside a building
 	colour: string?,
 	x: number,
 	z: number,

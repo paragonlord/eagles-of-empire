@@ -35,6 +35,7 @@ export type Formation = {
 	class: Types.UnitClass,
 	type: string, -- Config.UnitTypes id
 	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
+	garrison: string?, -- the strongpoint it holds (Sim/Garrison)
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -123,6 +124,8 @@ function Formation.footprint(f: Formation): (number, number)
 	if f.shape == "square" then
 		local side = math.max(2, math.ceil(math.sqrt(figures)))
 		return side * spacing, side * rankSpacing
+	elseif f.shape == "garrison" then
+		return 16, 16 -- the building
 	end
 	local ranks = math.max(1, shapeCfg.ranks)
 	local files = math.max(1, math.ceil(figures / ranks))

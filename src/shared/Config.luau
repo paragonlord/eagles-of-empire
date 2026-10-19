@@ -114,10 +114,12 @@ Config.Shapes = {
 	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
 	-- open order (light infantry and rifles): fires on the move and all round, hard to hit, prey to cavalry
 	skirmish = { ranks = 2, fire = 0.5, melee = 0.5, speed = 1.0, shock = 2.0, artillery = 0.35, turnRate = 1.2, figureSpacing = 7, rankSpacing = 6 },
+	-- inside a building (Sim/Garrison): fires from the windows all round, cannot be charged by horse
+	garrison = { ranks = 1, fire = 0.45, melee = 1.4, speed = 0.0, shock = 0.0, artillery = 0.5, turnRate = 0.0, figureSpacing = 4, rankSpacing = 4 },
 }
 
 -- Seconds to change shape (from any shape to the key). Square from column is faster.
-Config.ReformTime = { line = 12, column = 8, square = 15, travel = 6, limbered = 25, deployed = 20, wedge = 4, staff = 2, skirmish = 6 }
+Config.ReformTime = { line = 12, column = 8, square = 15, travel = 6, limbered = 25, deployed = 20, wedge = 4, staff = 2, skirmish = 6, garrison = 8 }
 Config.SquareFromColumnTime = 10
 
 Config.Units = {
@@ -208,7 +210,7 @@ Config.Run = { speed = 1.4, fatigue = 3.0 }
 Config.Combat = {
 	RangeFalloff = 0.65, -- hit factor at max range = 1 - falloff
 	MaxHitChance = 0.30,
-	TargetShapeFactor = { line = 1.0, column = 1.5, square = 1.3, travel = 1.6, limbered = 1.2, deployed = 1.0, wedge = 1.2, staff = 1.0, skirmish = 0.45 },
+	TargetShapeFactor = { line = 1.0, column = 1.5, square = 1.3, travel = 1.6, limbered = 1.2, deployed = 1.0, wedge = 1.2, staff = 1.0, skirmish = 0.45, garrison = 0.4 },
 	FlankFireFactor = 1.35,
 	RearFireFactor = 1.6,
 	FriendlyBlocksFire = true, -- a friendly formation inside the fire lane blocks the volley
@@ -223,7 +225,7 @@ Config.Combat = {
 	BayonetBonus = 1.3,
 	BayonetBonusSeconds = 10,
 	BayonetMoraleShock = { front = 10, flank = 20 },
-	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0, skirmish = 2.0 },
+	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0, skirmish = 2.0, garrison = 0.0 },
 	ChargeRoutingFactor = 1.5,
 	SquareReturnsDamage = 2.0, -- cavalry in melee with a square takes x2
 	MinRunUpFactor = 0.3,

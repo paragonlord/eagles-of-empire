@@ -32,6 +32,7 @@ Protocol.CommandKinds = {
 	Shape = { infantry = true, cavalry = true },
 	Stance = { infantry = true, artillery = true },
 	Run = { infantry = true, cavalry = true, hq = true }, -- run or walk on the current march
+	Garrison = { infantry = true }, -- occupy a building: data.strongpoint (MapGen strongpoint id)
 	Charge = { infantry = true, cavalry = true },
 	Rally = { hq = true },
 	Ability = { hq = true }, -- the HQ general's active ability: data.abilityId (src/shared/Generals.luau)
@@ -263,6 +264,11 @@ function Protocol.validateCommand(cmd: any, ctx: ValidateContext): (boolean, str
 		return true, nil
 	elseif kind == "Run" then
 		if type(data.run) ~= "boolean" then
+			return false, Protocol.Reasons.badRequest
+		end
+		return true, nil
+	elseif kind == "Garrison" then
+		if type(data.strongpoint) ~= "string" or #data.strongpoint > 16 then
 			return false, Protocol.Reasons.badRequest
 		end
 		return true, nil

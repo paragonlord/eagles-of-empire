@@ -125,7 +125,7 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 		end
 		-- a square faces every way (its fire factor already counts one face's muskets); skirmishers
 		-- each pick their own mark
-		if f.shape ~= "square" and f.shape ~= "skirmish" and not inArc(f, target, math.rad(60)) then
+		if f.shape ~= "square" and f.shape ~= "skirmish" and f.shape ~= "garrison" and not inArc(f, target, math.rad(60)) then
 			return "Target not to the front"
 		end
 	end
@@ -298,6 +298,8 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	end
 	if att.class == "cavalry" and def.shape == "square" then
 		rate *= 0.3
+	elseif att.class == "cavalry" and def.shape == "garrison" then
+		rate *= 0.15 -- horsemen cannot get at men behind walls
 	end
 	if def.class == "cavalry" and att.shape == "square" then
 		rate *= C.SquareReturnsDamage

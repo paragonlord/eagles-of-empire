@@ -419,6 +419,71 @@ test("Fords: brooks can be waded at their fords, slowly and without firing", fun
 	assertTrue(blocked, "no volleys from the middle of the brook")
 end)
 
+test("Buildings: a battalion garrisons a village heart, is hard to shoot or charge, and gives it up to march", function()
+	local sp = MAP.strongpoints[1]
+	assertTrue(sp ~= nil and Grid.terrainAt(MAP.grid, sp.pos.x, sp.pos.z).passable, "every village has a strongpoint")
+	local sim = newSim({
+		unit("france", "infantry", "Garrison", sp.pos.x, sp.pos.z - 80, math.pi / 2),
+		unit("france", "infantry", "Latecomers", sp.pos.x + 40, sp.pos.z - 90, math.pi / 2),
+	})
+	cmd(sim, "Garrison", { 1 }, { strongpoint = sp.id })
+	run(sim, 40)
+	local g = sim.formations[1]
+	assertEq(g.garrison, sp.id, "inside")
+	assertEq(sim.strongpoints[sp.id].holder, 1)
+	run(sim, Config.ReformTime.garrison + 1)
+	assertEq(g.shape, "garrison")
+	assertEq(sim:snapshot("france").formations[1].garrison, sp.id)
+	cmd(sim, "Garrison", { 2 }, { strongpoint = sp.id })
+	run(sim, 40)
+	assertEq(sim.formations[2].garrison, nil, "one battalion to a building")
+	-- out to march: files out, the building is free again
+	cmd(sim, "Move", { 1 }, { pos = { x = sp.pos.x, z = sp.pos.z - 120 } })
+	run(sim, Config.ReformTime.column + 5)
+	assertEq(g.garrison, nil)
+	assertEq(sim.strongpoints[sp.id].holder, nil)
+	assertTrue(Vec.dist(g.pos, sp.pos) > 5, "and it is on its way")
+
+	-- the same volleys into a garrison and into a line in the open beside it
+	local function shotAt(inside)
+		local s2 = newSim({
+			unit("prussia", "infantry", "Target", sp.pos.x, sp.pos.z, 0),
+			unit("france", "infantry", "Shooters", sp.pos.x + 75, sp.pos.z, math.pi),
+		}, 5)
+		local t = s2.formations[1]
+		t.fireAtWill = false
+		if inside then
+			s2.strongpoints[sp.id].holder = t.id
+			t.garrison = sp.id
+			t.shape = "garrison"
+		else
+			t.pos = { x = sp.pos.x, z = sp.pos.z - 250 }
+			s2.formations[2].pos = { x = sp.pos.x + 75, z = sp.pos.z - 250 }
+		end
+		Formation.refreshFootprint(t)
+		run(s2, 60)
+		return t.startStrength - t.strength
+	end
+	local inside, outside = shotAt(true), shotAt(false)
+	assertTrue(inside * 2 < outside, string.format("garrison %d vs open %d", inside, outside))
+	-- horsemen cannot ride into a house
+	local s3 = newSim({
+		unit("prussia", "infantry", "Inside", sp.pos.x, sp.pos.z, 0),
+		unit("france", "cavalry", "1er Cuirassiers", sp.pos.x + 20, sp.pos.z, math.pi),
+	})
+	local t, h = s3.formations[1], s3.formations[2]
+	t.garrison, t.shape = sp.id, "garrison"
+	s3.strongpoints[sp.id].holder = t.id
+	Formation.refreshFootprint(t)
+	h.state, h.chargeReady, h.runUp = "charging", true, 200
+	h.order = { kind = "Charge", targetId = t.id } :: any
+	for _, a in Combat.gather(s3) do
+		if a.attackerId == h.id and a.kind == "charge" then
+			assertEq(a.casualties, 0, "no charge impact on a garrison")
+		end
+	end
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

@@ -22,6 +22,7 @@ local Morale = require(script.Morale)
 local Visibility = require(script.Visibility)
 local Objectives = require(script.Objectives)
 local Moments = require(script.Moments)
+local Garrison = require(script.Garrison)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -85,6 +86,7 @@ export type Sim = {
 	simLag: number,
 	weather: string, -- key into Config.Weather, may change once at weatherUntil (or by a moment)
 	momentsFired: { [string]: boolean }, -- scenario moments already fired (Sim/Moments)
+	strongpoints: { [string]: Garrison.Strongpoint }, -- buildings and who holds them (Sim/Garrison)
 	aiStep: ((Sim) -> ())?, -- per-instance AI hook (preferred over the module-level Sim.aiStep)
 	-- methods
 	deploy: (Sim, number, Vec, number) -> (boolean, string?),
@@ -145,6 +147,7 @@ function Sim.new(opts: Options): Sim
 		self.order[#self.order + 1] = i
 	end
 	table.sort(self.order)
+	Garrison.init(self)
 	return self
 end
 
@@ -370,6 +373,14 @@ local function groupSlots(self: Sim, ids: { number }, pos: Vec, heading: number?
 end
 
 local function applyOrder(self: Sim, f: Formation, order: Types.Order, queue: boolean)
+	if f.garrison and not queue then
+		if order.kind == "Engage" or order.kind == "Hold" or order.kind == "Face" then
+			-- from the windows: choose a target, never march out for it
+			f.targetId = order.targetId
+			return
+		end
+		Garrison.leave(f) -- files out, then carries out the order
+	end
 	if queue and (f.order ~= nil) then
 		if #f.queue < Config.Match.MaxQueue then
 			f.queue[#f.queue + 1] = order
@@ -451,6 +462,11 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 				end
 			elseif kind == "Stance" then
 				f.fireAtWill = data.fireAtWill == true
+			elseif kind == "Garrison" then
+				local sp = self.strongpoints[data.strongpoint]
+				if sp and f.class == "infantry" and f.garrison ~= sp.id then
+					applyOrder(self, f, { kind = "Garrison", pos = { x = sp.pos.x, z = sp.pos.z }, strongpoint = sp.id, issuedTick = self.tick, run = data.run == true or nil }, queue)
+				end
 			elseif kind == "Run" then
 				if f.order then
 					f.order.run = data.run == true or nil
@@ -608,6 +624,7 @@ function Sim.step(self: Sim)
 			Movement.update(s, f)
 		end
 	end
+	Garrison.update(s)
 	-- 5. visibility
 	if self.tick % Config.Sim.VisibilityEveryTicks == 0 then
 		Visibility.update(s)
@@ -645,6 +662,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		corps = f.corps,
 		class = f.class,
 		type = f.type,
+		garrison = f.garrison,
 		colour = f.colour,
 		x = f.pos.x,
 		z = f.pos.z,
