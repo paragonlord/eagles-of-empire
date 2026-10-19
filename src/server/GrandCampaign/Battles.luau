@@ -676,6 +676,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 			units[#units + 1] = {
 				name = pair.u.name,
 				class = c.class,
+				type = c.sim,
 				corps = pair.a.name,
 				strength = pair.u.strength,
 				experience = pair.u.experience,

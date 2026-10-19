@@ -55,7 +55,8 @@ With `endTurn(state, {autoplay = true})` the player's nation is also run by the 
 | Replenish | 0.5 treasury and 1 manpower per man, in own or allied provinces |
 | Caps | 50 000 treasury, 30 000 manpower, 20 units an army, 16 armies a nation |
 
-Unit types (mapped onto the tactical sim classes; names per nation, e.g. "3e de Ligne", "2nd Light
+Unit types (mapped onto the tactical sim classes and types: line → line, light → light, guard →
+guard, cavalry → light cavalry, heavy → heavy cavalry, artillery → foot artillery; names per nation, e.g. "3e de Ligne", "2nd Light
 Dragoons", "4. Musketier-Regiment"):
 
 | Type | Sim class | Men | Cost | Manpower | Turns | Upkeep | Where |

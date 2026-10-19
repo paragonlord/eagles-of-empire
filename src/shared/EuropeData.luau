@@ -46,6 +46,7 @@ export type Province = {
 export type UnitClass = {
 	name: string,
 	class: "infantry" | "cavalry" | "artillery", -- tactical sim class
+	sim: string, -- tactical unit type (Config.UnitTypes)
 	strength: number,
 	cost: number,
 	manpower: number,
@@ -390,12 +391,12 @@ end
 -- Campaign unit types, mapped onto the tactical sim classes. Strength in tactical men (the sim's
 -- scale); cost in treasury, manpower in men, turns to raise, upkeep per turn.
 EuropeData.UnitClasses = {
-	line = { name = "Line infantry", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", majorOnly = false, experience = 0 },
-	light = { name = "Light infantry", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", majorOnly = false, experience = 1 },
-	guard = { name = "Guard infantry", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", majorOnly = true, experience = 3 },
-	cavalry = { name = "Light cavalry", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", majorOnly = false, experience = 0 },
-	heavy = { name = "Heavy cavalry", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "fort", majorOnly = false, experience = 1 },
-	artillery = { name = "Foot artillery", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "fort", majorOnly = false, experience = 0 },
+	line = { name = "Line infantry", sim = "line", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", majorOnly = false, experience = 0 },
+	light = { name = "Light infantry", sim = "light", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", majorOnly = false, experience = 1 },
+	guard = { name = "Guard infantry", sim = "guard", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", majorOnly = true, experience = 3 },
+	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", majorOnly = false, experience = 0 },
+	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "fort", majorOnly = false, experience = 1 },
+	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "fort", majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
 EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }

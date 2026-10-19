@@ -601,6 +601,7 @@ test("Grand battles: generic scenario on the province map with keys, zones and o
 		else
 			keyed += 1
 			assertTrue(string.sub(u.key, 1, 1) == "u")
+			assertEq(u.type, if u.class == "infantry" then "line" elseif u.class == "cavalry" then "lightCav" else "footArt", u.name .. ": the campaign type maps onto the battle type")
 		end
 	end
 	assertEq(keyed, 10)
