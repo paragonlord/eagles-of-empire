@@ -4,6 +4,8 @@
 -- asset ids) burst from a small round-robin pool of emitter parts; flashes, earth spray and rout
 -- markers are short-lived pooled parts. Deaths are drawn by Figures (falling figures).
 
+local TweenService = game:GetService("TweenService") :: TweenService
+local Debris = game:GetService("Debris") :: Debris
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Settings = require(script.Parent.Settings)
 local BattleState = require(script.Parent.BattleState)
@@ -231,6 +233,47 @@ local function spawn(x: number, y: number, z: number, color: Color3, size0: numb
 	table.insert(active, { part = p, t0 = os.clock(), life = life, size0 = size0, size1 = size1, rise = rise, x = x, y = y, z = z, vx = vx or 0, vz = vz or 0, alpha0 = alpha0 })
 end
 
+-- The ball in flight: a dark iron ball skimming from point to point, each leg leaving a grey
+-- streak that fades, so the line a battery is firing on can be read from afar.
+local SHOT_SPEED = 280 -- studs a second, the same pace as the grazes
+local function roundShot(points: { Vector3 })
+	local f = folder
+	if not f then
+		return
+	end
+	local ball = Instance.new("Part") :: Part
+	ball.Shape = Enum.PartType.Ball
+	ball.Size = Vector3.new(0.7, 0.7, 0.7)
+	ball.Color = Color3.fromRGB(38, 36, 34)
+	ball.Material = Enum.Material.Metal
+	ball.Anchored, ball.CanCollide, ball.CanQuery, ball.CanTouch, ball.CastShadow = true, false, false, false, false
+	ball.CFrame = CFrame.new(points[1])
+	ball.Parent = f
+	local t = 0
+	for i = 2, #points do
+		local a, b = points[i - 1], points[i]
+		local leg = (b - a).Magnitude / SHOT_SPEED
+		later(t, function()
+			if not ball.Parent then
+				return
+			end
+			TweenService:Create(ball, TweenInfo.new(leg, Enum.EasingStyle.Linear), { CFrame = CFrame.new(b) }):Play()
+			local streak = Instance.new("Part") :: Part
+			streak.Size = Vector3.new(0.18, 0.18, (b - a).Magnitude)
+			streak.CFrame = CFrame.lookAt((a + b) / 2, b)
+			streak.Color = Color3.fromRGB(150, 146, 138)
+			streak.Material = Enum.Material.SmoothPlastic
+			streak.Transparency = 0.45
+			streak.Anchored, streak.CanCollide, streak.CanQuery, streak.CanTouch, streak.CastShadow = true, false, false, false, false
+			streak.Parent = f
+			TweenService:Create(streak, TweenInfo.new(0.6), { Transparency = 1 }):Play()
+			Debris:AddItem(streak, 0.7)
+		end)
+		t += leg
+	end
+	Debris:AddItem(ball, t + 0.1)
+end
+
 -- Earth thrown up where a ball grazes or canister strikes.
 local function strike(x: number, z: number, n: number, dx: number, dz: number)
 	local y = groundY(x, z)
@@ -326,13 +369,16 @@ local function cannon(ev: any)
 			end
 		else
 			local jitter = (rng:NextNumber() - 0.5) * 4
+			local flight = { muzzle }
 			for i, frac in { 0.72, 0.88, 1.0, 1.14 } do
 				local r = dist * frac
 				local x, z = ev.x + dx * r + px * jitter, ev.z + dz * r + pz * jitter
-				later(r / 280, function()
+				table.insert(flight, Vector3.new(x, groundY(x, z) + 0.4, z))
+				later(r / SHOT_SPEED, function()
 					strike(x, z, if i == 1 then 5 else 3, dx, dz)
 				end)
 			end
+			roundShot(flight)
 		end
 	end
 	Camera.shake(1.2)
