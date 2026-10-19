@@ -13,7 +13,7 @@ time of writing and are shown for reading convenience. Formulas are the contract
 | Infantry battalion | 600 men (Guard 700); 1 figure = 25 men → 24 figures |
 | Cavalry regiment | 400 troopers → 16 figures |
 | Artillery battery | 120 crew, 1 gun per 20 crew → 6 guns, 40 rounds per gun |
-| Headquarters | 40 staff |
+| Headquarters | the general and his escort: 120 heavy horse (mounted: rides, charges and fights as cavalry; charge 0.04, melee 1.2/0.9) |
 
 Casualties are applied to strength in men; the client removes one figure per 25 men lost.
 

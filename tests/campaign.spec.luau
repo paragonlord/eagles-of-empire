@@ -198,7 +198,7 @@ test("Campaign: battle scenario carries keys; result applies once; survivors rec
 	assertEq(state.phase, "player")
 	local a1 = army(state, 1)
 	assertEq(a1.regionId, "jena")
-	assertEq(a1.units[1].strength, 40, "clamped to max strength")
+	assertEq(a1.units[1].strength, CampaignData.UnitTypes.hq.strength, "clamped to max strength")
 	assertEq(a1.units[2].strength, 500)
 	assertEq(a1.units[2].experience, 3, "capped at 3")
 	assertEq(a1.units[3].experience, 2, "+1 for the winner")
@@ -208,7 +208,7 @@ test("Campaign: battle scenario carries keys; result applies once; survivors rec
 	for _, u in a3.units do
 		assertTrue(u.key ~= destroyedKey, "destroyed unit removed")
 	end
-	assertEq(a3.units[1].strength, 40, "unit missing from survivors is unchanged (HQ)")
+	assertEq(a3.units[1].strength, CampaignData.UnitTypes.hq.strength, "unit missing from survivors is unchanged (HQ)")
 	assertEq(a3.units[2].strength, 300)
 	assertEq(a3.units[2].experience, thirdExp, "loser gains no experience")
 	local before = Campaign.serialize(state)

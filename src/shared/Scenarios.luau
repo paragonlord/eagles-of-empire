@@ -46,6 +46,7 @@ export type Scenario = {
 	moments: { Moments.Moment }?, -- historical moments (src/shared/Moments.luau)
 	mode: ("full" | "episode")?, -- listed battles: the whole field, or a quick-battle slice of it
 	parent: string?, -- episodes: id of the full battle they are cut from
+	buildings: boolean?, -- false: no garrisonable buildings (the tutorial teaches the basics first)
 }
 
 -- mode: "full" | "episode"; parent: the full battle's id for episodes (nil for full battles).
@@ -81,9 +82,9 @@ end
 local Scenarios = {}
 
 local JENA_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 40, 3, 800, 200, NORTH, { commander = true, general = "napoleon" }),
-	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 40, 3, 780, 280, NORTH, { general = "lannes" }),
-	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 40, 3, 1040, 260, NORTH, { general = "soult" }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 120, 3, 800, 200, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 120, 3, 780, 280, NORTH, { general = "lannes" }),
+	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 120, 3, 1040, 260, NORTH, { general = "soult" }),
 	-- V Corps (Lannes) — centre
 	u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 700, 320, NORTH),
 	u("france", "V Corps · Lannes", "infantry", "34e de Ligne", 600, 1, 780, 320, NORTH),
@@ -109,7 +110,7 @@ local JENA_FRENCH = {
 }
 
 local JENA_PRUSSIAN = {
-	u("prussia", "HQ", "hq", "Hohenlohe — Army HQ", 40, 2, 760, 860, SOUTH, { commander = true, general = "hohenlohe" }),
+	u("prussia", "HQ", "hq", "Hohenlohe — Army HQ", 120, 2, 760, 860, SOUTH, { commander = true, general = "hohenlohe" }),
 	-- Tauentzien's advance guard — forward, Closewitz/Cospeda
 	u("prussia", "Avantgarde · Tauentzien", "infantry", "Füsilier-Bataillon Pelet", 600, 1, 980, 580, SOUTH),
 	u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 20 Prinz Louis Ferdinand", 600, 1, 1060, 600, SOUTH),
@@ -189,7 +190,7 @@ end
 -- on the road from Kösen and enters as reinforcements.
 -- ---------------------------------------------------------------------------------------------
 local AUERSTEDT_FRENCH = {
-	u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 640, WEST, { commander = true, general = "davout" }),
+	u("france", "HQ", "hq", "Davout — III Corps HQ", 120, 3, 1300, 640, WEST, { commander = true, general = "davout" }),
 	-- Gudin's division — Hassenhausen
 	u("france", "Division Gudin", "infantry", "25e de Ligne", 600, 2, 1080, 640, WEST),
 	u("france", "Division Gudin", "infantry", "85e de Ligne", 600, 2, 1080, 760, WEST),
@@ -214,8 +215,8 @@ local AUERSTEDT_FRENCH = {
 }
 
 local AUERSTEDT_PRUSSIAN = {
-	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 300, 800, EAST, { commander = true, general = "brunswick" }),
-	u("prussia", "Kavallerie · Blücher", "hq", "Blücher — Cavalry HQ", 40, 2, 420, 1180, EAST, { general = "blucher" }),
+	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 120, 2, 300, 800, EAST, { commander = true, general = "brunswick" }),
+	u("prussia", "Kavallerie · Blücher", "hq", "Blücher — Cavalry HQ", 120, 2, 420, 1180, EAST, { general = "blucher" }),
 	-- Schmettau's division — first onto the field, centre
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 560, 760, EAST),
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 560, 660, EAST),
@@ -296,9 +297,9 @@ end
 -- army on the Pratzen. Friant's division enters from the south-west as reinforcements.
 -- ---------------------------------------------------------------------------------------------
 local AUSTERLITZ_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 40, 3, 450, 1250, EAST, { commander = true, general = "napoleon" }),
-	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 40, 3, 470, 820, EAST, { general = "soult" }),
-	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 40, 3, 400, 1400, EAST, { general = "lannes" }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 120, 3, 450, 1250, EAST, { commander = true, general = "napoleon" }),
+	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 120, 3, 470, 820, EAST, { general = "soult" }),
+	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 120, 3, 400, 1400, EAST, { general = "lannes" }),
 	-- IV Corps (Soult) — centre, the hammer against the Pratzen
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 600, 1150, EAST),
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 600, 1070, EAST),
@@ -335,9 +336,9 @@ local AUSTERLITZ_FRENCH = {
 }
 
 local AUSTERLITZ_ALLIED = {
-	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1500, 950, WEST, { commander = true, general = "kutuzov" }),
-	u("russia", "Avantgarde · Bagration", "hq", "Bagration — Advance Guard HQ", 40, 2, 1260, 1530, WEST, { general = "bagration" }),
-	u("russia", "1. Kolonne · Dokhturov", "hq", "Buxhöwden — Allied left HQ", 40, 2, 1340, 380, WEST, { general = "buxhowden" }),
+	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 120, 2, 1500, 950, WEST, { commander = true, general = "kutuzov" }),
+	u("russia", "Avantgarde · Bagration", "hq", "Bagration — Advance Guard HQ", 120, 2, 1260, 1530, WEST, { general = "bagration" }),
+	u("russia", "1. Kolonne · Dokhturov", "hq", "Buxhöwden — Allied left HQ", 120, 2, 1340, 380, WEST, { general = "buxhowden" }),
 	-- Kienmayer's Austrian advance guard — south, Telnitz
 	u("russia", "Avantgarde · Kienmayer", "cavalry", "Husaren-Regiment Hessen-Homburg", 400, 1, 1100, 260, WEST, { colour = "Austria" }),
 	u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1150, 200, WEST, { colour = "Austria" }),
@@ -434,8 +435,8 @@ end
 -- Anglo-allied army on it. Bülow's Prussians enter from the east from minute 12.
 -- ---------------------------------------------------------------------------------------------
 local WATERLOO_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 40, 3, 1260, 240, NORTH, { commander = true, general = "napoleon" }),
-	u("france", "I Corps · d'Erlon", "hq", "Ney — Wing HQ", 40, 3, 1150, 420, NORTH, { general = "ney" }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 120, 3, 1260, 240, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "I Corps · d'Erlon", "hq", "Ney — Wing HQ", 120, 3, 1150, 420, NORTH, { general = "ney" }),
 	-- Grand Battery — the ridge of La Belle Alliance
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1050, 560, NORTH),
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (6-livres)", 120, 2, 1350, 560, NORTH),
@@ -472,9 +473,9 @@ local WATERLOO_FRENCH = {
 }
 
 local WATERLOO_ALLIED = {
-	u("britain", "HQ", "hq", "Wellington — Army HQ", 40, 3, 1230, 1130, SOUTH, { commander = true, general = "wellington" }),
-	u("britain", "Cavalry · Uxbridge", "hq", "Uxbridge — Cavalry HQ", 40, 2, 1300, 1300, SOUTH, { general = "uxbridge" }),
-	u("britain", "5th Division · Picton", "hq", "Picton — 5th Division HQ", 40, 2, 1420, 1230, SOUTH, { general = "picton" }),
+	u("britain", "HQ", "hq", "Wellington — Army HQ", 120, 3, 1230, 1130, SOUTH, { commander = true, general = "wellington" }),
+	u("britain", "Cavalry · Uxbridge", "hq", "Uxbridge — Cavalry HQ", 120, 2, 1300, 1300, SOUTH, { general = "uxbridge" }),
+	u("britain", "5th Division · Picton", "hq", "Picton — 5th Division HQ", 120, 2, 1420, 1230, SOUTH, { general = "picton" }),
 	-- 3rd Division (Alten) — centre right, La Haye Sainte
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),
@@ -588,7 +589,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 240,
 	units = {
-		u("france", "HQ", "hq", "Lannes — V Corps HQ", 40, 3, 820, 170, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Lannes — V Corps HQ", 120, 3, 820, 170, NORTH, { commander = true }),
 		u("france", "V Corps · Lannes / Suchet", "infantry", "17e Légère", 600, 2, 700, 330, NORTH),
 		u("france", "V Corps · Lannes / Suchet", "infantry", "34e de Ligne", 600, 1, 800, 330, NORTH),
 		u("france", "V Corps · Lannes / Suchet", "infantry", "40e de Ligne", 600, 1, 900, 330, NORTH),
@@ -596,7 +597,7 @@ episode({
 		u("france", "V Corps · Lannes / Suchet", "infantry", "88e de Ligne", 600, 1, 1100, 300, NORTH),
 		u("france", "V Corps · Lannes / Gazan", "infantry", "21e Légère", 600, 2, 620, 300, NORTH),
 		u("france", "V Corps · Lannes", "artillery", "Batterie 5e Corps", 120, 1, 860, 250, NORTH),
-		u("prussia", "HQ", "hq", "Tauentzien — Avantgarde HQ", 40, 2, 800, 680, SOUTH, { commander = true }),
+		u("prussia", "HQ", "hq", "Tauentzien — Avantgarde HQ", 120, 2, 800, 680, SOUTH, { commander = true }),
 		u("prussia", "Avantgarde · Tauentzien", "infantry", "Füsilier-Bataillon Pelet", 600, 1, 1000, 560, SOUTH),
 		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 20 Prinz Louis Ferdinand", 600, 1, 890, 530, SOUTH),
 		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 38 Pelchrzim", 600, 1, 560, 500, SOUTH),
@@ -638,7 +639,7 @@ episode({
 	summary = "Ney's premature attack took Vierzehnheiligen and was nearly cut off until Lannes and Napoleon came to his aid. Grawert's Prussians then stood for two hours in the open before the burning village, firing volleys at skirmishers they could not see, and broke when the French reserves came up.",
 	difficultyNote = "Even: the village is the battle; whoever holds it has the cover.",
 	units = {
-		u("france", "HQ", "hq", "Ney — VI Corps HQ", 40, 3, 760, 440, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Ney — VI Corps HQ", 120, 3, 760, 440, NORTH, { commander = true }),
 		u("france", "VI Corps · Ney / Marchand", "infantry", "6e Légère", 600, 1, 700, 600, NORTH),
 		u("france", "VI Corps · Ney / Marchand", "infantry", "39e de Ligne", 600, 1, 820, 600, NORTH),
 		u("france", "VI Corps · Ney / Marchand", "infantry", "69e de Ligne", 600, 1, 760, 530, NORTH),
@@ -647,7 +648,7 @@ episode({
 		u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 580, 560, NORTH),
 		u("france", "V Corps · Lannes", "infantry", "40e de Ligne", 600, 1, 960, 600, NORTH),
 		u("france", "V Corps · Lannes", "artillery", "Batterie 5e Corps", 120, 1, 640, 480, NORTH),
-		u("prussia", "HQ", "hq", "Grawert — Division HQ", 40, 2, 900, 890, SOUTH, { commander = true }),
+		u("prussia", "HQ", "hq", "Grawert — Division HQ", 120, 2, 900, 890, SOUTH, { commander = true }),
 		u("prussia", "Division Grawert", "infantry", "IR Nr. 29 Treuenfels", 600, 2, 600, 850, SOUTH),
 		u("prussia", "Division Grawert", "infantry", "IR Nr. 49 Müffling", 600, 1, 700, 850, SOUTH),
 		u("prussia", "Division Grawert", "infantry", "Grenadier-Bataillon Hahn", 600, 2, 820, 850, SOUTH),
@@ -692,7 +693,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 180,
 	units = {
-		u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 700, WEST, { commander = true }),
+		u("france", "HQ", "hq", "Davout — III Corps HQ", 120, 3, 1300, 700, WEST, { commander = true }),
 		u("france", "Division Gudin", "infantry", "25e de Ligne", 600, 2, 1080, 640, WEST),
 		u("france", "Division Gudin", "infantry", "85e de Ligne", 600, 2, 1080, 760, WEST),
 		u("france", "Division Gudin", "infantry", "21e de Ligne", 600, 2, 1180, 600, WEST),
@@ -700,7 +701,7 @@ episode({
 		u("france", "Division Gudin", "artillery", "Batterie Gudin", 120, 2, 1230, 700, WEST),
 		u("france", "Division Friant", "infantry", "108e de Ligne", 600, 2, 1400, 900, WEST, { arrival = { seconds = 240, pos = { x = 1400, z = 900 } } }),
 		u("france", "Division Friant", "infantry", "111e de Ligne", 600, 2, 1480, 940, WEST, { arrival = { seconds = 300, pos = { x = 1480, z = 940 } } }),
-		u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 560, 760, EAST, { commander = true }),
+		u("prussia", "HQ", "hq", "Brunswick — Army HQ", 120, 2, 560, 760, EAST, { commander = true }),
 		u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 860, 760, EAST),
 		u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 860, 660, EAST),
 		u("prussia", "Division Schmettau", "infantry", "IR Nr. 22 Pirch", 600, 1, 840, 860, EAST),
@@ -748,14 +749,14 @@ episode({
 	summary = "Friant extended Davout's right through Spielberg and turned the Prussian flank while Morand did the same on the left. With Brunswick mortally wounded and the reserve under Kalckreuth never committed, the Prussian army fell back west in growing disorder.",
 	difficultyNote = "Even: a fair fight on open ground; the Prussians hold the stream.",
 	units = {
-		u("france", "HQ", "hq", "Friant — Division HQ", 40, 3, 1550, 760, WEST, { commander = true }),
+		u("france", "HQ", "hq", "Friant — Division HQ", 120, 3, 1550, 760, WEST, { commander = true }),
 		u("france", "Division Friant", "infantry", "33e de Ligne", 600, 2, 1300, 900, WEST),
 		u("france", "Division Friant", "infantry", "48e de Ligne", 600, 2, 1400, 900, WEST),
 		u("france", "Division Friant", "infantry", "108e de Ligne", 600, 2, 1500, 900, WEST),
 		u("france", "Division Friant", "infantry", "111e de Ligne", 600, 2, 1350, 820, WEST),
 		u("france", "III Corps", "artillery", "Batterie du 3e Corps", 120, 2, 1450, 820, WEST),
 		u("france", "Cavalerie · Vialannes", "cavalry", "12e Chasseurs à cheval", 400, 2, 1600, 880, WEST),
-		u("prussia", "HQ", "hq", "Prinz von Oranien — Division HQ", 40, 2, 380, 1150, EAST, { commander = true }),
+		u("prussia", "HQ", "hq", "Prinz von Oranien — Division HQ", 120, 2, 380, 1150, EAST, { commander = true }),
 		u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 580, 1000, EAST),
 		u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 580, 1100, EAST),
 		u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1200, EAST),
@@ -797,7 +798,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 150,
 	units = {
-		u("france", "HQ", "hq", "Soult — IV Corps HQ", 40, 3, 860, 840, EAST, { commander = true }),
+		u("france", "HQ", "hq", "Soult — IV Corps HQ", 120, 3, 860, 840, EAST, { commander = true }),
 		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 1060, 700, EAST),
 		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 1060, 620, EAST),
 		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "36e de Ligne", 600, 1, 980, 660, EAST),
@@ -806,7 +807,7 @@ episode({
 		u("france", "IV Corps · Soult / Vandamme", "infantry", "28e de Ligne", 600, 1, 980, 920, EAST),
 		u("france", "IV Corps · Soult / Vandamme", "infantry", "57e de Ligne", 600, 2, 980, 990, EAST),
 		u("france", "IV Corps · Soult", "artillery", "Batterie 4e Corps", 120, 2, 940, 780, EAST),
-		u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1700, 1000, WEST, { commander = true }),
+		u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 120, 2, 1700, 1000, WEST, { commander = true }),
 		u("russia", "4. Kolonne · Kolowrat", "infantry", "Novgorod Musketeers", 600, 1, 1400, 950, WEST),
 		u("russia", "4. Kolonne · Kolowrat", "infantry", "Apsheron Musketeers", 600, 1, 1400, 1050, WEST),
 		u("russia", "4. Kolonne · Kolowrat", "infantry", "IR Nr. 23 Salzburg", 600, 1, 1480, 1180, WEST, { colour = "Austria" }),
@@ -851,7 +852,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 180,
 	units = {
-		u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 560, 300, EAST, { commander = true }),
+		u("france", "HQ", "hq", "Davout — III Corps HQ", 120, 3, 560, 300, EAST, { commander = true }),
 		u("france", "IV Corps · Soult / Legrand", "infantry", "3e de Ligne", 600, 1, 930, 200, EAST),
 		u("france", "IV Corps · Soult / Legrand", "infantry", "26e Légère", 600, 2, 890, 450, EAST),
 		u("france", "IV Corps · Soult / Legrand", "infantry", "Tirailleurs du Pô", 600, 1, 900, 560, EAST),
@@ -860,7 +861,7 @@ episode({
 		u("france", "III Corps · Davout / Friant", "infantry", "48e de Ligne", 600, 2, 300, 200, EAST, { arrival = { seconds = 90, pos = { x = 300, z = 200 } } }),
 		u("france", "III Corps · Davout / Friant", "infantry", "108e de Ligne", 600, 2, 300, 280, EAST, { arrival = { seconds = 120, pos = { x = 300, z = 280 } } }),
 		u("france", "III Corps · Davout / Friant", "infantry", "15e Légère", 600, 2, 360, 240, EAST, { arrival = { seconds = 150, pos = { x = 360, z = 240 } } }),
-		u("russia", "HQ", "hq", "Buxhöwden — Allied left HQ", 40, 2, 1400, 980, WEST, { commander = true }),
+		u("russia", "HQ", "hq", "Buxhöwden — Allied left HQ", 120, 2, 1400, 980, WEST, { commander = true }),
 		u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1100, 720, WEST, { colour = "Austria" }),
 		u("russia", "1. Kolonne · Dokhturov", "infantry", "Novo-Ingermanland Musketeers", 600, 1, 1180, 720, WEST),
 		u("russia", "1. Kolonne · Dokhturov", "infantry", "Yaroslavl Musketeers", 600, 1, 1260, 720, WEST),
@@ -904,7 +905,7 @@ episode({
 	difficultyNote = "Hard: walls, a wood and mud between you and the farm.",
 	weather = "mud",
 	units = {
-		u("france", "HQ", "hq", "Reille — II Corps HQ", 40, 3, 800, 400, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Reille — II Corps HQ", 120, 3, 800, 400, NORTH, { commander = true }),
 		u("france", "II Corps · Reille / Jérôme", "infantry", "1er Légère", 600, 2, 700, 560, NORTH),
 		u("france", "II Corps · Reille / Jérôme", "infantry", "3e de Ligne", 600, 1, 780, 560, NORTH),
 		u("france", "II Corps · Reille / Jérôme", "infantry", "1er de Ligne", 600, 1, 860, 560, NORTH),
@@ -913,7 +914,7 @@ episode({
 		u("france", "II Corps · Reille / Bachelu", "infantry", "2e Légère", 600, 2, 1000, 460, NORTH),
 		u("france", "II Corps · Reille", "artillery", "Obusiers du 2e Corps", 120, 1, 880, 460, NORTH),
 		u("france", "II Corps · Reille / Piré", "cavalry", "6e Lanciers", 400, 1, 520, 480, NORTH),
-		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 40, 2, 800, 1130, SOUTH, { commander = true }),
+		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 120, 2, 800, 1130, SOUTH, { commander = true }),
 		u("britain", "1st Division · Cooke / Byng", "infantry", "2/3rd Foot Guards", 700, 2, 760, 790, SOUTH),
 		u("britain", "1st Division · Cooke / Byng", "infantry", "2/2nd Coldstream Guards", 700, 2, 820, 900, SOUTH),
 		u("britain", "1st Division · Cooke / Maitland", "infantry", "2/1st Foot Guards", 700, 2, 760, 1060, SOUTH),
@@ -955,7 +956,7 @@ episode({
 	difficultyNote = "Very hard: a fortified farm, a ridge behind it, and riflemen in the sandpit.",
 	weather = "mud",
 	units = {
-		u("france", "HQ", "hq", "Ney — Advanced HQ", 40, 3, 1200, 420, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Ney — Advanced HQ", 120, 3, 1200, 420, NORTH, { commander = true }),
 		u("france", "I Corps · d'Erlon / Donzelot", "infantry", "13e Légère", 600, 2, 1120, 600, NORTH),
 		u("france", "I Corps · d'Erlon / Donzelot", "infantry", "51e de Ligne", 600, 1, 1280, 600, NORTH),
 		u("france", "I Corps · d'Erlon / Quiot", "infantry", "54e de Ligne", 600, 1, 1040, 560, NORTH),
@@ -964,7 +965,7 @@ episode({
 		u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1080, 480, NORTH),
 		u("france", "IV Corps de cavalerie · Milhaud", "cavalry", "1er Cuirassiers", 400, 2, 960, 500, NORTH),
 		u("france", "IV Corps de cavalerie · Milhaud", "cavalry", "4e Cuirassiers", 400, 2, 1440, 480, NORTH),
-		u("britain", "HQ", "hq", "Alten — 3rd Division HQ", 40, 2, 1100, 1220, SOUTH, { commander = true }),
+		u("britain", "HQ", "hq", "Alten — 3rd Division HQ", 120, 2, 1100, 1220, SOUTH, { commander = true }),
 		u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
 		u("britain", "5th Division · Picton / Kempt", "infantry", "1/95th Rifles", 600, 2, 1270, 1000, SOUTH),
 		u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),
@@ -1012,7 +1013,7 @@ local function stress(): Scenario
 				end
 			else
 				i += 1
-				units[#units + 1] = u(faction, "HQ", "hq", base.name, 40, 2, 800, zBase + (faction == "france" and -80 or 80), heading, { commander = true })
+				units[#units + 1] = u(faction, "HQ", "hq", base.name, 120, 2, 800, zBase + (faction == "france" and -80 or 80), heading, { commander = true })
 			end
 		end
 	end
@@ -1040,10 +1041,10 @@ Scenarios.skirmish = {
 	factions = { player = "france", enemy = "prussia" },
 	factionNames = { france = "France", prussia = "Prussia" },
 	units = {
-		u("france", "HQ", "hq", "French HQ", 40, 2, 800, 200, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "French HQ", 120, 2, 800, 200, NORTH, { commander = true }),
 		u("france", "V Corps", "infantry", "34e de Ligne", 600, 1, 760, 320, NORTH),
 		u("france", "V Corps", "cavalry", "5e Hussards", 400, 1, 900, 300, NORTH),
-		u("prussia", "HQ", "hq", "Prussian HQ", 40, 2, 760, 860, SOUTH, { commander = true }),
+		u("prussia", "HQ", "hq", "Prussian HQ", 120, 2, 760, 860, SOUTH, { commander = true }),
 		u("prussia", "Grawert", "infantry", "IR Nr. 49 Müffling", 600, 1, 740, 700, SOUTH),
 		u("prussia", "Grawert", "artillery", "Batterie Grawert", 120, 1, 820, 740, SOUTH),
 	},
@@ -1060,6 +1061,7 @@ Scenarios.tutorial = {
 	briefing = "Spring 1809, on the Danube. Mon général, an Austrian brigade holds Ebersdorf beyond the Mühlbach, with outposts on our side of the stream. Your aide-de-camp will see you through the handling of the army before we take the village.",
 	factions = { player = "france", enemy = "austria" },
 	factionNames = { france = "France", austria = "Austria" },
+	buildings = false,
 	units = {
 		u("france", "HQ", "hq", "Général de brigade", 40, 2, 200, 100, NORTH, { commander = true }),
 		u("france", "Brigade", "infantry", "1er bataillon, 18e de Ligne", 600, 1, 240, 200, NORTH),

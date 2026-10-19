@@ -111,7 +111,7 @@ Config.Shapes = {
 	limbered = { ranks = 1, fire = 0.0, melee = 0.3, speed = 1.0, shock = 3.0, artillery = 1.5, turnRate = 0.8, figureSpacing = 8, rankSpacing = 10 },
 	deployed = { ranks = 1, fire = 1.0, melee = 0.3, speed = 0.0, shock = 3.0, artillery = 1.0, turnRate = 0.0, figureSpacing = 8, rankSpacing = 8 },
 	wedge = { ranks = 4, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.0, artillery = 1.6, turnRate = 1.1, figureSpacing = 5, rankSpacing = 6 },
-	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
+	staff = { ranks = 2, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.5, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
 	-- open order (light infantry and rifles): fires on the move and all round, hard to hit, prey to cavalry
 	skirmish = { ranks = 2, fire = 0.5, melee = 0.5, speed = 1.0, shock = 2.0, artillery = 0.35, turnRate = 1.2, figureSpacing = 7, rankSpacing = 6 },
 	-- inside a building (Sim/Garrison): fires from the windows all round, cannot be charged by horse
@@ -132,6 +132,7 @@ Config.Units = {
 		spot = 260,
 	},
 	cavalry = {
+		mounted = true,
 		speed = 14.0, chargeSpeed = 20.0,
 		defaultShape = "wedge", legalShapes = { wedge = true, line = true },
 		musket = nil,
@@ -155,10 +156,13 @@ Config.Units = {
 		spot = 240,
 	},
 	hq = {
-		speed = 12.0, chargeSpeed = 12.0,
+		-- the general and his escort: a squadron of heavy horse (120 sabres) that can charge
+		mounted = true,
+		speed = 12.0, chargeSpeed = 18.0,
 		defaultShape = "staff", legalShapes = { staff = true },
 		musket = nil,
-		melee = { attack = 0.3, defense = 0.5 },
+		melee = { attack = 1.2, defense = 0.9 },
+		charge = { runUp = 60, base = 0.04, recovery = 40, maxMeleeSeconds = 20, frontFactor = 1.0, flankFactor = 1.8, rearFactor = 2.5 },
 		influence = { radius = 120, moraleBonus = 10, recoveryBonus = 0.3 },
 		rally = { cooldown = 90, radius = 100, moraleRestore = 30, minRoutingSeconds = 5 },
 		lossMoralePenalty = 15, -- when an HQ is destroyed/exited: the army's to everyone, a corps general's

@@ -306,18 +306,18 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	if att.timers.bayonet > 0 then
 		rate *= C.BayonetBonus
 	end
-	if att.class == "cavalry" and def.shape == "square" then
+	if Formation.mounted(att) and def.shape == "square" then
 		rate *= 0.3
-	elseif att.class == "cavalry" and def.shape == "garrison" then
+	elseif Formation.mounted(att) and def.shape == "garrison" then
 		rate *= 0.15 -- horsemen cannot get at men behind walls
 	end
-	if def.class == "cavalry" and att.shape == "square" then
+	if Formation.mounted(def) and att.shape == "square" then
 		rate *= C.SquareReturnsDamage
 	end
-	if att.class == "cavalry" and att.inWoods then
+	if Formation.mounted(att) and att.inWoods then
 		rate *= 0.5
 	end
-	if att.class == "cavalry" and att.timers.meleeSeconds > unitA.charge.maxMeleeSeconds then
+	if Formation.mounted(att) and att.timers.meleeSeconds > unitA.charge.maxMeleeSeconds then
 		rate *= 0.5 -- blown horses: sustained melee is not cavalry's business
 	end
 	if att.moraleBand == "shaken" then
@@ -330,7 +330,7 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	rate /= unitD.melee.defense
 	local casualties = rollCasualties(sim, rate * DT)
 	local extra = 0
-	if att.class == "cavalry" and def.class == "artillery" then
+	if Formation.mounted(att) and def.class == "artillery" then
 		extra = 2 * DT
 	end
 	attacks[#attacks + 1] = { attackerId = att.id, targetId = def.id, casualties = casualties, side = side, moraleExtra = extra, kind = "melee" }
@@ -338,7 +338,7 @@ end
 
 local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attacks: { Attack })
 	local unit = Formation.unitConfig(att)
-	if att.class == "cavalry" then
+	if Formation.mounted(att) then
 		local ch = unit.charge
 		local runUpF = math.clamp(att.runUp / ch.runUp, C.MinRunUpFactor, 1)
 		local side = Vec.attackSide(def.pos, def.heading, att.pos)
@@ -402,7 +402,7 @@ function Combat.gather(sim: SimLike): { Attack }
 						target.path = nil
 					end
 					f.path = nil
-				elseif target and Formation.isActive(target) and f.class == "cavalry" and not f.chargeReady and f.timers.chargeRecover <= 0 then
+				elseif target and Formation.isActive(target) and Formation.mounted(f) and not f.chargeReady and f.timers.chargeRecover <= 0 then
 					f.chargeReady = true
 				end
 			elseif state == "charging" and f.order and f.order.pos and not f.order.targetId then

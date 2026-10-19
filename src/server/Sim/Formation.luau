@@ -108,6 +108,11 @@ function Formation.unitConfig(f: Formation)
 	return Config.TypeStats[f.type]
 end
 
+-- On horseback: cavalry and the generals' escorts ride, charge and suffer as horsemen do.
+function Formation.mounted(f: Formation): boolean
+	return Formation.unitConfig(f).mounted == true
+end
+
 function Formation.figures(f: Formation): number
 	if f.class == "artillery" then
 		return math.max(1, math.ceil(f.strength / Config.Visual.CrewPerGun))

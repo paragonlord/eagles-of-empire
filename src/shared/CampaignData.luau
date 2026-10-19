@@ -65,7 +65,7 @@ CampaignData.UnitTypes = {
 	light = { name = "Light infantry", class = "infantry", strength = 600, cost = 450, turns = 2, upkeep = 30, recruitable = true },
 	cavalry = { name = "Cavalry", class = "cavalry", strength = 400, cost = 500, turns = 3, upkeep = 40, recruitable = true },
 	artillery = { name = "Foot artillery", class = "artillery", strength = 120, cost = 450, turns = 3, upkeep = 35, recruitable = true },
-	hq = { name = "Headquarters", class = "hq", strength = 40, cost = 0, turns = 0, upkeep = 20, recruitable = false },
+	hq = { name = "Headquarters", class = "hq", strength = 120, cost = 0, turns = 0, upkeep = 20, recruitable = false },
 } :: { [string]: UnitType }
 
 CampaignData.Economy = {

@@ -501,7 +501,7 @@ local function onRightUp()
 	if armed == "Charge" then
 		local ids = {}
 		for _, f in selectedFormations() do
-			if f.class == "infantry" or f.class == "cavalry" then
+			if f.class == "infantry" or f.class == "cavalry" or f.class == "hq" then
 				table.insert(ids, f.id)
 			end
 		end

@@ -37,7 +37,7 @@ export type SimLike = {
 
 local function terrainSpeed(f: Formation, grid: Grid.Grid): number
 	local t = Grid.terrainAt(grid, f.pos.x, f.pos.z)
-	return if f.class == "cavalry" then t.cavalrySpeed else t.speed
+	return if Formation.mounted(f) then t.cavalrySpeed else t.speed
 end
 
 function Movement.currentSpeed(sim: SimLike, f: Formation, dir: Vec): number

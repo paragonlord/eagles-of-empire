@@ -694,7 +694,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 			name = if hq and hq.general then hq.general.name .. " — HQ" else State.nationName(leadNation) .. " — HQ",
 			class = "hq",
 			corps = if hq then hq.name else "HQ",
-			strength = 40,
+			strength = 120,
 			experience = if hq and hq.general then math.min(3, hq.general.rating - 1) else 1,
 			pos = { x = x, z = z },
 			heading = heading,

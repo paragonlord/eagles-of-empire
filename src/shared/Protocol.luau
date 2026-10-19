@@ -33,7 +33,7 @@ Protocol.CommandKinds = {
 	Stance = { infantry = true, artillery = true },
 	Run = { infantry = true, cavalry = true, hq = true }, -- run or walk on the current march
 	Garrison = { infantry = true }, -- occupy a building: data.strongpoint (MapGen strongpoint id)
-	Charge = { infantry = true, cavalry = true },
+	Charge = { infantry = true, cavalry = true, hq = true }, -- hq: the general's escort
 	Rally = { hq = true },
 	Ability = { hq = true }, -- the HQ general's active ability: data.abilityId (src/shared/Generals.luau)
 	Limber = { artillery = true },

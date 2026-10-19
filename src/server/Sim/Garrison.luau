@@ -19,6 +19,7 @@ type SimLike = {
 	formations: { [number]: Formation },
 	strongpoints: { [string]: Strongpoint },
 	map: any,
+	scenario: any,
 	emit: (any, any) -> (),
 }
 
@@ -29,7 +30,7 @@ local NEAR_DIST = 90 -- close enough to see who holds it: storm an enemy, give w
 
 function Garrison.init(sim: SimLike)
 	sim.strongpoints = {}
-	local list: { any } = sim.map.strongpoints or {}
+	local list: { any } = if sim.scenario.buildings == false then {} else sim.map.strongpoints or {}
 	for _, sp in list do
 		local entry: Strongpoint = { id = sp.id :: string, name = sp.name :: string, pos = sp.pos :: Vec }
 		sim.strongpoints[entry.id] = entry
