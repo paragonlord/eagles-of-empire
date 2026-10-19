@@ -140,9 +140,9 @@ round shot's morale shock. Canister does not carry. Friendly troops behind the e
 Every village (and farm: Hougoumont, La Haye Sainte, Papelotte…) has one strongpoint at its heart
 (`MapGen` `strongpoints`), held by at most one infantry battalion (`Sim/Garrison.luau`).
 
-- **Garrison** order: the battalion marches to the building; within 24 studs, if it is free, it moves
-  in (shape `garrison`, 8 s). Held by a friend: refused. Held by the enemy: the order becomes a
-  charge on the garrison (storming).
+- **Garrison** order: the battalion marches to the building; within 40 studs (or on arriving at its
+  door) it moves in if it is free (shape `garrison`, 8 s). From 90 studs it sees who holds it: a
+  friend, the order ends; the enemy, the order becomes a charge on the garrison (storming).
 - Inside: footprint 16 × 16, fires all round at 0.45 of its muskets, hit ×0.4 by muskets (on top of
   the village's cover) and ×0.5 by guns, melee ×1.4; cavalry charges do nothing and horse fight it at
   ×0.15. It cannot move.

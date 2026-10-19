@@ -833,6 +833,19 @@ errors or warnings.
 - Not exercised here (no MCP way to hold Alt or reach the window edge): Alt+right-click facing,
   edge scrolling, V follow. Bartosz: try them in a normal Play.
 
+**2026-10-19 round 32 (Phase 3: ricochet, howitzers, downhill, fords, buildings, field cover).** No EoE
+errors.
+- Pass: Hougoumont episode: Reille's battery is "Obusiers du 2e Corps"; their shells reach the
+  château and the "Hougoumont ablaze" moment fires on cue (`r32-hougoumont-ablaze-howitzers.jpg`).
+  The command panel's 16th button is Occupy; O arms it.
+- Fixed: 1er Légère ordered (O, right-click) into Hougoumont stopped in the wood, idle, 34 studs out
+  (`r32-stuck-before-storm-fix.jpg`). Reproduced in the CLI: the British AI had garrisoned the
+  château with the 2/3rd Foot Guards (the AI rule works); the storm check fired only within 24 studs
+  and contact with the garrison holds attackers at 34. Now a Garrison order sees the holder from 90
+  studs and storms (or gives way to a friend), enters a free building within 40 or on arrival. In the
+  CLI rerun the 1er Légère charges at 60 s and breaks against the Guards at 120 s, as on the day.
+- Not seen in Studio yet: fords as shallow water, a French garrison's corner sentries.
+
 ## Known failures
 
 None recorded yet.

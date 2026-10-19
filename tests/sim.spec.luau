@@ -513,6 +513,27 @@ test("Field walls and hedges shelter men behind them from musketry that has to c
 	assertTrue(sheltered < open * 0.8, string.format("wall %d vs none %d", sheltered, open))
 end)
 
+test("Buildings: ordered into a building the enemy holds, a battalion storms it", function()
+	local sp = MAP.strongpoints[1]
+	local sim = newSim({
+		unit("prussia", "infantry", "Holders", sp.pos.x, sp.pos.z, -math.pi / 2),
+		unit("france", "infantry", "Stormers", sp.pos.x, sp.pos.z - 160, math.pi / 2),
+	})
+	local h = sim.formations[1]
+	h.garrison, h.shape = sp.id, "garrison"
+	h.fireAtWill = false
+	sim.strongpoints[sp.id].holder = h.id
+	Formation.refreshFootprint(h)
+	cmd(sim, "Garrison", { 2 }, { strongpoint = sp.id })
+	local stormed = false
+	for _ = 1, math.floor(80 / Config.Sim.DT) do
+		sim:step()
+		local o = sim.formations[2].order
+		stormed = stormed or (o ~= nil and o.kind == "Charge" and o.targetId == h.id)
+	end
+	assertTrue(stormed, "the Garrison order turned into a charge on the holders")
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

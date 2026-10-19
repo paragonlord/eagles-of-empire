@@ -24,7 +24,8 @@ type SimLike = {
 
 local Garrison = {}
 
-local ENTER_DIST = 24 -- studs from the building's heart
+local ENTER_DIST = 40 -- studs from the building's heart (or on arriving at the door)
+local NEAR_DIST = 90 -- close enough to see who holds it: storm an enemy, give way to a friend
 
 function Garrison.init(sim: SimLike)
 	sim.strongpoints = {}
@@ -72,10 +73,11 @@ function Garrison.update(sim: SimLike)
 		local o = f and f.order
 		if f and o and o.kind == "Garrison" and o.strongpoint and not f.garrison and Formation.isActive(f) and f.state ~= "routing" then
 			local sp = sim.strongpoints[o.strongpoint]
+			local d = if sp then Vec.dist(f.pos, sp.pos) else math.huge
+			local holder = sp and sp.holder and sim.formations[sp.holder]
 			if not sp then
 				Formation.clearOrder(f)
-			elseif Vec.dist(f.pos, sp.pos) <= ENTER_DIST then
-				local holder = sp.holder and sim.formations[sp.holder]
+			elseif d <= ENTER_DIST or (d <= NEAR_DIST and (holder ~= nil or f.state == "idle")) then
 				if holder and holder.faction ~= f.faction then
 					-- held by the enemy: storm it
 					f.order = { kind = "Charge", targetId = holder.id, issuedTick = sim.tick, anchor = { x = f.pos.x, z = f.pos.z } }
