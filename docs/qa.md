@@ -881,6 +881,27 @@ No EoE errors or warnings on server or client.
 - Not seen yet: a general falling with his HQ, reinforcements marching onto a campaign field
   (Charles refused battle). Both are covered by `tests/grand.spec.luau`.
 
+**2026-10-19 round 35 (Phase 9: trade, access, gifts, spies), synced through the Studio MCP.** No
+EoE errors or warnings.
+- Pass: every nation in Diplomacy has a second row, Trade / Access / Gift 500, greyed for Britain
+  (at war). Trade with Prussia: per turn +223 → +273, the button reads "Trading"; Austria (−40)
+  refuses with "They refuse your proposal"; a gift to Austria takes 500 (1,500 → 1,000) and
+  lengthens its relations bar (`r35-diplomacy-trade.jpg`).
+- Pass: Champagne (no government) shows "Recruit spy · 300" greyed; Paris (Prefecture) recruits
+  one: 300 gold, a cloaked figure on a gilt-rimmed plinth beside the Paris armies. Selected, it
+  glows and the panel reads "Spy · Île-de-France · 2/2 marches" with Sabotage greyed ("Only inside
+  a fortress you besiege") (`r35-spy-panel.jpg`). A right-click on Bavaria (three marches)
+  answers "Too far for this turn"; on the Rhineland the spy goes (0/2), and the Bavarian and Saxon
+  armies come out of the fog (`r35-spy-rhineland.jpg`). The Bavarian Army's panel lists its six
+  regiments (`r35-spy-reveals-bavarians.jpg`).
+- Fixed: the campaign's left column was a full-height scrolling frame, so with any panel open it
+  swallowed clicks on the map anywhere in the left 362 px, even below the panels (the spy and
+  Piedmont could not be clicked there). It is now only as tall as its panels.
+- Fixed: the first spy token was ~9 px wide at the opening zoom; it is now larger, with a gilt
+  rim like the army plinths.
+- Harness note: Escape in Play opens Roblox's own menu, which eats clicks until a second Escape.
+- Not seen yet: sabotage inside a besieged fortress (covered by `tests/grand.spec.luau`).
+
 ## Known failures
 
 None recorded yet.

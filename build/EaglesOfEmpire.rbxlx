@@ -10767,6 +10767,9 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 		a.movesLeft = if a.forced then 0 else State.maxMoves(a)
 		a.forced = nil
 	end
+	for _, ag in s.agents do
+		ag.movesLeft = State.SPY_MOVES
+	end
 	-- an army still facing a pending battle cannot march away from it
 	for _, b in s.pendingBattles do
 		for _, a in Battles.armies(s, b) do
@@ -10951,6 +10954,35 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		end
 		s.phase = "battle"
 		return true, nil
+	elseif kind == "recruitSpy" then
+		local pid = str(cmd.provinceId)
+		if not pid or not EuropeData.province(pid) then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.recruitSpy(s, player, pid)
+		if ok then
+			State.log(s, "A spy is recruited at " .. State.province(pid).name .. ".")
+		end
+		return ok, why
+	elseif kind == "moveSpy" or kind == "sabotage" then
+		local ag = if str(cmd.agentId) then State.agentById(s, cmd.agentId) else nil
+		if not ag or ag.nation ~= player then
+			return false, "notYourSpy"
+		end
+		if kind == "sabotage" then
+			return Battles.sabotage(s, ag)
+		end
+		local to = str(cmd.provinceId)
+		local hops = if to then Movement.hops[ag.provinceId][to] else nil
+		if not hops or hops == 0 then
+			return false, "badArgs"
+		end
+		if hops > ag.movesLeft then
+			return false, "tooFar"
+		end
+		ag.provinceId = to :: string
+		ag.movesLeft -= hops
+		return true, nil
 	elseif kind == "appoint" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -11037,7 +11069,7 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		if not nation or not what then
 			return false, "badArgs"
 		end
-		local ok, why = Diplomacy.propose(s, player, nation, what)
+		local ok, why = Diplomacy.propose(s, player, nation, what, tonumber(cmd.amount))
 		checkVictory(s)
 		return ok, why
 	elseif kind == "endTurn" then
@@ -11047,6 +11079,21 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 end
 
 -- View --------------------------------------------------------------------------------------------------
+
+-- Provinces within SPY_SIGHT marches of the player's spies: armies there show their units.
+local function spiedProvinces(s: State): { [string]: boolean }
+	local out: { [string]: boolean } = {}
+	for _, ag in s.agents do
+		if ag.nation == s.playerNation then
+			for id, d in Movement.hops[ag.provinceId] do
+				if d <= State.SPY_SIGHT then
+					out[id] = true
+				end
+			end
+		end
+	end
+	return out
+end
 
 local function visibleProvinces(s: State): { [string]: boolean }
 	local seen: { [string]: boolean } = {}
@@ -11066,6 +11113,9 @@ local function visibleProvinces(s: State): { [string]: boolean }
 		if State.friendly(s, player, a.nation) then
 			mark(a.provinceId)
 		end
+	end
+	for id in spiedProvinces(s) do
+		seen[id] = true
 	end
 	return seen
 end
@@ -11103,6 +11153,7 @@ end
 function GrandCampaign.view(s: State): { [string]: any }
 	local player = s.playerNation
 	local seen = visibleProvinces(s)
+	local spied = spiedProvinces(s)
 	local nations = {}
 	for _, id in EuropeData.NationOrder do
 		local n = EuropeData.Nations[id]
@@ -11117,6 +11168,8 @@ function GrandCampaign.view(s: State): { [string]: any }
 			allies = State.alliesOf(s, id),
 			relationToPlayer = State.relation(s, id, player),
 			truceUntil = s.truces[State.pair(id, player)],
+			trade = State.trading(s, id, player),
+			access = s.access[player .. ">" .. id] == true, -- the player's armies may cross its land
 			warScore = if State.atWar(s, player, id) then Diplomacy.score(s, player, id) else nil,
 			provinces = State.provincesOwned(s, id),
 		}
@@ -11181,7 +11234,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 				strength = math.floor(State.armyStrength(a)),
 				men = State.men(a),
 				unitCount = #a.units,
-				units = if own then State.copy(a.units) else nil,
+				units = if own or spied[a.provinceId] then State.copy(a.units) else nil,
 				movesLeft = if own then a.movesLeft else nil,
 				movesMax = if own then State.maxMoves(a) else nil,
 				path = if own and a.path then table.clone(a.path) else nil,
@@ -11255,6 +11308,12 @@ function GrandCampaign.view(s: State): { [string]: any }
 			odds = Battles.odds(s, b, player),
 		}
 	end
+	local agents = {}
+	for _, ag in s.agents do
+		if ag.nation == player then
+			agents[#agents + 1] = { id = ag.id, provinceId = ag.provinceId, movesLeft = ag.movesLeft, movesMax = State.SPY_MOVES }
+		end
+	end
 	local events = {}
 	for _, e in s.inbox do
 		events[#events + 1] = { id = e.id, title = e.title, text = e.text, choices = State.copy(e.choices) }
@@ -11275,6 +11334,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		diplomacy = { offers = offers },
 		events = events,
 		pendingBattle = pending,
+		agents = agents,
 		log = table.clone(s.log),
 		victory = State.copy(s.victory),
 		objectives = objectives(s),
@@ -12296,6 +12356,32 @@ function Battles.retreat(s: State, battleId: string, nation: string): (boolean, 
 end
 
 -- Sieges and occupation for provinces without a battle pending.
+-- A spy inside a fortress its nation besieges opens a gate: one turn off the siege (never below
+-- one). Its deed for the turn; it is taken with chance SPY_CAUGHT.
+function Battles.sabotage(s: State, ag: State.Agent): (boolean, string?)
+	local ps = s.provinces[ag.provinceId]
+	local siege = ps.siege
+	if not siege or siege.by ~= ag.nation then
+		return false, "notBesieging"
+	end
+	if ag.movesLeft <= 0 then
+		return false, "spyResting"
+	end
+	if siege.turnsLeft <= 1 then
+		return false, "nothingToSabotage"
+	end
+	siege.turnsLeft -= 1
+	ag.movesLeft = 0
+	local name = State.province(ag.provinceId).name
+	if s.rng:float() < State.SPY_CAUGHT then
+		table.remove(s.agents, table.find(s.agents, ag) :: number)
+		State.log(s, "Our spy opens a postern at " .. name .. " but is taken.")
+	else
+		State.log(s, "Our spy opens a postern at " .. name .. ": the siege ends a turn sooner.")
+	end
+	return true, nil
+end
+
 -- Storm a fortress `nation` besieges instead of waiting the siege out: a pending battle against
 -- its garrison, fought by the besiegers that can still march this turn (none march after it).
 function Battles.assault(s: State, nation: string, provinceId: string): (Battle?, string?)
@@ -12714,6 +12800,10 @@ return Battles
 -- minor allies make peace with the same enemy (on their own war score).
 -- Declaring war brings the target's allies in against the aggressor (minors only when their capital
 -- is within four marches of the aggressor's).
+-- Trade agreements pay both sides (Economy.tradeIncome); military access lets one side's armies
+-- through the other's land; gifts of gold raise relations by 1 per 50. The AI trades from
+-- relations of -20 (-50 with under 500 in its treasury) and grants access from 50, or from 0 when
+-- the two share an enemy. War between the two ends both.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local EuropeData = require(Shared.EuropeData)
@@ -12729,6 +12819,11 @@ Diplomacy.PER_PROVINCE = 20
 Diplomacy.DICTATED = 50
 Diplomacy.TRUCE = 6
 Diplomacy.TRUCE_DICTATED = 10
+Diplomacy.GIFT_PER_RELATION = 50
+Diplomacy.TRADE_RELATION = -20
+Diplomacy.TRADE_RELATION_NEEDY = -50
+Diplomacy.NEEDY_TREASURY = 500
+Diplomacy.ACCESS_RELATION = 50
 
 function Diplomacy.score(s: State, a: string, b: string): number
 	local w = s.wars[State.pair(a, b)]
@@ -12757,6 +12852,9 @@ local function startWar(s: State, a: string, b: string)
 	end
 	s.alliances[k] = nil
 	s.truces[k] = nil
+	s.trades[k] = nil
+	s.access[a .. ">" .. b] = nil
+	s.access[b .. ">" .. a] = nil
 	s.wars[k] = { a = a, b = b, score = 0, since = s.turn }
 	State.addRelation(s, a, b, -40)
 	State.log(s, string.format("%s declares war on %s.", State.nationName(a), State.nationName(b)))
@@ -12970,10 +13068,82 @@ function Diplomacy.aiAcceptsAlliance(s: State, nation: string, other: string): b
 	return false
 end
 
+function Diplomacy.aiAcceptsTrade(s: State, nation: string, other: string): boolean
+	if State.atWar(s, nation, other) then
+		return false
+	end
+	local needy = s.nations[nation].treasury < Diplomacy.NEEDY_TREASURY
+	return State.relation(s, nation, other) >= (if needy then Diplomacy.TRADE_RELATION_NEEDY else Diplomacy.TRADE_RELATION)
+end
+
+function Diplomacy.aiAcceptsAccess(s: State, nation: string, other: string): boolean
+	if State.atWar(s, nation, other) then
+		return false
+	end
+	local rel = State.relation(s, nation, other)
+	if rel >= Diplomacy.ACCESS_RELATION then
+		return true
+	end
+	if rel < 0 then
+		return false
+	end
+	for _, e in State.enemiesOf(s, nation) do
+		if State.atWar(s, other, e) then
+			return true
+		end
+	end
+	return false
+end
+
+function Diplomacy.makeTrade(s: State, a: string, b: string)
+	if not State.trading(s, a, b) and not State.atWar(s, a, b) then
+		s.trades[State.pair(a, b)] = true
+		State.addRelation(s, a, b, 5)
+		State.log(s, string.format("%s and %s sign a trade agreement.", State.nationName(a), State.nationName(b)))
+	end
+end
+
 -- Player-initiated diplomacy. Returns ok, reason.
-function Diplomacy.propose(s: State, from: string, to: string, kind: string): (boolean, string?)
+function Diplomacy.propose(s: State, from: string, to: string, kind: string, amount: number?): (boolean, string?)
 	if not EuropeData.Nations[to] or to == from then
 		return false, "unknownNation"
+	end
+	if kind == "trade" or kind == "access" then
+		if State.atWar(s, from, to) then
+			return false, "alreadyAtWar"
+		end
+		if kind == "trade" then
+			if State.trading(s, from, to) then
+				return false, "alreadyTrading"
+			end
+			if not Diplomacy.aiAcceptsTrade(s, to, from) then
+				return false, "refused"
+			end
+			Diplomacy.makeTrade(s, from, to)
+			return true, nil
+		end
+		if State.allied(s, from, to) or s.access[from .. ">" .. to] then
+			return false, "alreadyAllowed"
+		end
+		if not Diplomacy.aiAcceptsAccess(s, to, from) then
+			return false, "refused"
+		end
+		s.access[from .. ">" .. to] = true
+		State.log(s, string.format("%s grants %s military access.", State.nationName(to), State.nationName(from)))
+		return true, nil
+	elseif kind == "gift" then
+		local gold = math.floor(amount or 0)
+		if gold < Diplomacy.GIFT_PER_RELATION then
+			return false, "badArgs"
+		end
+		if s.nations[from].treasury < gold then
+			return false, "insufficientFunds"
+		end
+		s.nations[from].treasury -= gold
+		s.nations[to].treasury += gold
+		State.addRelation(s, from, to, gold // Diplomacy.GIFT_PER_RELATION)
+		State.log(s, string.format("%s sends %s a gift of %d gold.", State.nationName(from), State.nationName(to), gold))
+		return true, nil
 	end
 	if kind == "war" then
 		if State.atWar(s, from, to) then
@@ -13022,6 +13192,8 @@ function Diplomacy.answer(s: State, nation: string, offerId: string, accept: boo
 				Diplomacy.makePeace(s, o.from, o.to)
 			elseif o.kind == "alliance" then
 				Diplomacy.makeAlliance(s, o.from, o.to)
+			elseif o.kind == "trade" then
+				Diplomacy.makeTrade(s, o.from, o.to)
 			end
 			return true, nil
 		end
@@ -13079,6 +13251,10 @@ function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 	if not autoplay and nation ~= player and Diplomacy.aiAcceptsAlliance(s, nation, player) and State.relation(s, nation, player) >= 50 then
 		offer(s, nation, player, "alliance")
 	end
+	-- and trade offers from friendly nations
+	if not autoplay and nation ~= player and not State.trading(s, nation, player) and not State.atWar(s, nation, player) and State.relation(s, nation, player) >= 30 then
+		offer(s, nation, player, "trade")
+	end
 end
 
 return Diplomacy
@@ -13123,6 +13299,23 @@ Economy.WINTER_ATTRITION = { allied = 0.02, hostile = 0.04 } -- harsh lands, Nov
 Economy.FARMS_INCOME = 0.05 -- per level of the farms chain (doubled by Crop rotation)
 Economy.TRADE_INCOME = 0.1 -- per level of the trade chain (0.15 with Banking)
 Economy.RESEARCH = { major = 20, minor = 10, school = 15, enlightenment = 1.5 }
+
+Economy.TRADE_PACT = 0.1 -- a trade partner pays this share of its own provinces' income a turn
+
+-- What a nation's trade agreements bring in a turn.
+function Economy.tradeIncome(s: State, nation: string): number
+	local t = 0
+	for _, other in EuropeData.NationOrder do
+		if State.trading(s, nation, other) then
+			for _, id in State.provincesOwned(s, other) do
+				if s.provinces[id].occupiedBy == nil then
+					t += State.province(id).income
+				end
+			end
+		end
+	end
+	return t * Economy.TRADE_PACT
+end
 
 -- A province's income with its farms and trade.
 function Economy.provinceIncome(s: State, provinceId: string): number
@@ -13215,6 +13408,7 @@ function Economy.income(s: State, nation: string): (number, number)
 	if State.hasTech(s, nation, "conscription") then
 		manpower *= 1.25
 	end
+	income += Economy.tradeIncome(s, nation)
 	if s.flags.continentalSystem then
 		if nation == "britain" then
 			income *= Economy.CONTINENTAL.britain
@@ -13362,6 +13556,35 @@ local function deliver(s: State, q: State.Recruit)
 end
 
 -- Restores strength up to maxStrength in an owned or allied province: treasury and one manpower per man.
+-- A spy at an owned, unoccupied province with a government building; one a province, SPY_MAX in all.
+function Economy.recruitSpy(s: State, nation: string, provinceId: string): (boolean, string?)
+	local ps = s.provinces[provinceId]
+	if ps.owner ~= nation or ps.occupiedBy ~= nil then
+		return false, "notYourProvince"
+	end
+	if (ps.buildings.government or 0) < 1 then
+		return false, "needs:government:1"
+	end
+	local mine = 0
+	for _, ag in s.agents do
+		if ag.nation == nation then
+			mine += 1
+			if ag.provinceId == provinceId then
+				return false, "spyHere"
+			end
+		end
+	end
+	if mine >= State.SPY_MAX then
+		return false, "tooManySpies"
+	end
+	if s.nations[nation].treasury < State.SPY_COST then
+		return false, "insufficientFunds"
+	end
+	s.nations[nation].treasury -= State.SPY_COST
+	s.agents[#s.agents + 1] = { id = State.newId(s, "s"), nation = nation, provinceId = provinceId, movesLeft = State.SPY_MOVES }
+	return true, nil
+end
+
 -- A new general (rating 2) from the nation's pool for an army that has none.
 function Economy.appoint(s: State, a: Army): (boolean, string?)
 	if a.general then
@@ -13879,7 +14102,7 @@ end
 
 function Movement.canEnter(s: State, nation: string, provinceId: string): boolean
 	local c = State.controller(s, provinceId)
-	return State.friendly(s, nation, c) or State.atWar(s, nation, c)
+	return State.friendly(s, nation, c) or State.atWar(s, nation, c) or s.access[nation .. ">" .. c] == true
 end
 
 function Movement.inZoc(s: State, nation: string, provinceId: string): boolean
@@ -14080,7 +14303,7 @@ local Serialize = {}
 
 Serialize.VERSION = 1
 
-local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
+local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "agents", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
 
 function Serialize.serialize(s: State): { [string]: any }
 	local p: { [string]: any } = {
@@ -14208,9 +14431,28 @@ function Serialize.deserialize(p: any): State?
 	if not nationOk(p.playerNation) or not EuropeData.Nations[p.playerNation].playable then
 		return nil
 	end
+	-- saves from before trade agreements and military access
+	p.trades = if p.trades == nil then {} else p.trades
+	p.access = if p.access == nil then {} else p.access
+	p.agents = if p.agents == nil then {} else p.agents
 	for _, f in FIELDS do
 		if type(p[f]) ~= "table" then
 			return nil
+		end
+	end
+	if #p.agents > State.SPY_MAX * #EuropeData.NationOrder then
+		return nil
+	end
+	for _, ag in p.agents do
+		if type(ag) ~= "table" or not isStr(ag.id) or not nationOk(ag.nation) or not provinceOk(ag.provinceId) or not isNum(ag.movesLeft) then
+			return nil
+		end
+	end
+	for _, m in { p.trades, p.access } do
+		for k, v in m do
+			if type(k) ~= "string" or v ~= true then
+				return nil
+			end
 		end
 	end
 	for _, id in EuropeData.ProvinceIds do
@@ -14367,6 +14609,8 @@ export type General = { name: string, rating: number, wins: number?, losses: num
 -- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
 export type Siege = { by: string, turnsLeft: number }
+-- A spy: moves SPY_MOVES provinces a turn over any border, sees armies within SPY_SIGHT marches
+export type Agent = { id: string, nation: string, provinceId: string, movesLeft: number }
 export type Construction = { chain: string, turnsLeft: number }
 -- buildings: chain -> level (EuropeData.Buildings); construction: the one under way; unrestTurns:
 -- turns in a row at the top of the unrest scale; revolt: in open revolt (Economy)
@@ -14398,6 +14642,9 @@ export type State = {
 	relations: { [string]: number },
 	wars: { [string]: War },
 	alliances: { [string]: boolean },
+	trades: { [string]: boolean }, -- pair -> a trade agreement
+	access: { [string]: boolean }, -- "a>b" -> a's armies may march through b's land
+	agents: { Agent },
 	truces: { [string]: number }, -- pair -> last turn of the truce
 	peaces: { [string]: Peace }, -- pair -> last peace
 	armies: { Army }, -- ascending creation order
@@ -14422,6 +14669,11 @@ State.LOG_MAX = 80
 State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
 State.APPOINT_COST = 500 -- a new general for an army that has none
+State.SPY_COST = 300
+State.SPY_MAX = 3 -- spies a nation keeps at once
+State.SPY_MOVES = 2
+State.SPY_SIGHT = 2 -- marches within which a spy sees armies and their units
+State.SPY_CAUGHT = 0.25 -- chance a saboteur is taken
 State.MAX_ARMIES = 16 -- per nation
 State.MAX_QUEUE = { major = 6, minor = 2 }
 State.MAX_HONOURS = 5 -- battle honours per unit; the oldest gives way
@@ -14509,6 +14761,19 @@ end
 
 function State.allied(s: State, a: string, b: string): boolean
 	return a ~= b and s.alliances[State.pair(a, b)] == true
+end
+
+function State.agentById(s: State, id: string): Agent?
+	for _, a in s.agents do
+		if a.id == id then
+			return a
+		end
+	end
+	return nil
+end
+
+function State.trading(s: State, a: string, b: string): boolean
+	return a ~= b and s.trades[State.pair(a, b)] == true
 end
 
 function State.friendly(s: State, a: string, b: string): boolean
@@ -14776,6 +15041,9 @@ function State.new(seed: number, playerNation: string?): State
 		relations = {},
 		wars = {},
 		alliances = {},
+		trades = {},
+		access = {},
+		agents = {},
 		truces = {},
 		peaces = {},
 		armies = {},
@@ -21749,6 +22017,7 @@ local sessionOnly = false
 local ours: { [string]: boolean } = {}
 local conns: { RBXScriptConnection } = {}
 local selArmy: any = nil
+local selSpy: any = nil
 local selProv: string? = nil
 local hoverProv: string? = nil
 local lastTurn: number? = nil
@@ -21770,6 +22039,15 @@ end
 
 local function armyById(id: any): any
 	return Logic.army(view, id)
+end
+
+local function spyById(id: any): any
+	for _, ag in (view and view.agents) or {} do
+		if ag.id == id then
+			return ag
+		end
+	end
+	return nil
 end
 
 local function canAct(): (boolean, string)
@@ -21800,8 +22078,12 @@ local function render()
 		end
 	end
 	local ok, why = canAct()
-	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, province = selProv, others = others, canAct = ok, actReason = why })
-	Board.setSelection(selArmy, selProv, if own and ok then Logic.reachable(view, a) else nil)
+	local spy = spyById(selSpy)
+	if not spy then
+		selSpy = nil
+	end
+	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, province = selProv, others = others, canAct = ok, actReason = why })
+	Board.setSelection(selArmy or selSpy, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
 	if own and ok then
 		path = if hoverProv then route(a, hoverProv) else nil
@@ -21816,7 +22098,7 @@ local function render()
 end
 
 local function select(armyId: any, provId: string?)
-	selArmy, selProv, hoverProv = armyId, provId, nil
+	selArmy, selSpy, selProv, hoverProv = armyId, nil, provId, nil
 	render()
 end
 
@@ -21834,7 +22116,7 @@ local function onInput(input: InputObject, gp: boolean)
 			end
 		elseif input.KeyCode == Enum.KeyCode.Escape then
 			if not UI.escape() then
-				selArmy, selProv = nil, nil
+				selArmy, selSpy, selProv = nil, nil, nil
 			end
 			render()
 		end
@@ -21843,6 +22125,11 @@ local function onInput(input: InputObject, gp: boolean)
 		if kind == "army" then
 			local a = armyById(id)
 			select(id, if a then a.provinceId else nil)
+		elseif kind == "spy" then
+			local ag = spyById(id)
+			select(nil, if ag then ag.provinceId else nil)
+			selSpy = id
+			render()
 		elseif kind == "province" then
 			select(nil, id)
 		else
@@ -21851,6 +22138,15 @@ local function onInput(input: InputObject, gp: boolean)
 	elseif t == Enum.UserInputType.MouseButton2 then
 		local a = armyById(selArmy)
 		local kind, id = Board.pick()
+		local spy = spyById(selSpy)
+		if spy and canAct() then
+			-- a spy goes where it is sent, over any border, within its marches
+			local target = if kind == "province" then id elseif kind == "army" then (armyById(id) or {}).provinceId else nil
+			if target and target ~= spy.provinceId then
+				send("moveSpy", { agentId = spy.id, provinceId = target })
+			end
+			return
+		end
 		if kind == "army" then
 			local target = armyById(id)
 			id = if target then target.provinceId else nil
@@ -22000,7 +22296,7 @@ function Grand.close()
 	CampaignCamera.stop()
 	UI.destroy()
 	Board.destroy()
-	selArmy, selProv, hoverProv = nil, nil, nil
+	selArmy, selSpy, selProv, hoverProv = nil, nil, nil, nil
 end
 
 return Grand
@@ -22524,6 +22820,27 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	return m
 end
 
+-- The player's spy: a cloaked figure on a small plinth (picked as "spy").
+local function spyFigure(parent: Instance, ag: any, pos: Vector3): Model
+	local m = Instance.new("Model") :: Model
+	m.Name = "Spy"
+	m:SetAttribute("spy", ag.id)
+	local plinth = cylinder(m, pos + Vector3.new(0, 0.5, 0), 1, 5.5, Kit.WALNUT, Enum.Material.Wood)
+	plinth.CanQuery = true
+	cylinder(m, pos + Vector3.new(0, 1.05, 0), 0.2, 5.8, Kit.GILT, Enum.Material.Foil)
+	local cloak = cylinder(m, pos + Vector3.new(0, 3.2, 0), 4.2, 2.4, INK)
+	cloak.CanQuery = true
+	local head = part(m, Vector3.new(1.2, 1.2, 1.2), CFrame.new(pos + Vector3.new(0, 5.9, 0)), Color3.fromRGB(226, 190, 160))
+	head.Shape = Enum.PartType.Ball
+	head.CanQuery = true
+	local hat = cylinder(m, pos + Vector3.new(0, 6.6, 0), 0.35, 2.6, INK)
+	hat.CanQuery = true
+	m.WorldPivot = CFrame.new(pos)
+	m:ScaleTo(FIG)
+	m.Parent = parent
+	return m
+end
+
 -- Recolours provinces, redraws borders, hatching and armies from a view (nil: the 1805 map).
 function Board.setView(view: any?)
 	local d = dyn
@@ -22576,6 +22893,13 @@ function Board.setView(view: any?)
 				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
 				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
 			end
+		end
+	end
+	for _, ag in view.agents or {} do
+		local p = Data.byId[ag.provinceId]
+		if p then
+			-- south-east of the centre, clear of the armies' ring
+			armyModels[ag.id] = spyFigure(d, ag, Board.toWorld(p.centre.x, p.centre.z) + Vector3.new(9, 0, 9) * FIG)
 		end
 	end
 end
@@ -22677,6 +23001,10 @@ function Board.pick(): (string?, any)
 		local a = inst:GetAttribute("army")
 		if a ~= nil then
 			return "army", a
+		end
+		local sp = inst:GetAttribute("spy")
+		if sp ~= nil then
+			return "spy", sp
 		end
 		local p = inst:GetAttribute("prov")
 		if p ~= nil then
@@ -22876,6 +23204,7 @@ export type Ctx = {
 	player: string,
 	sessionOnly: boolean,
 	army: any?, -- selected army
+	spy: any?, -- selected spy (view.agents)
 	province: string?, -- selected province
 	others: { any }, -- the player's other armies in the selected army's province
 	canAct: boolean,
@@ -23223,6 +23552,29 @@ local function recruitOptions(view: any, provinceId: string): { any }
 	return if type(opts) == "table" and type(opts[provinceId]) == "table" then opts[provinceId] else {}
 end
 
+local function spyPanel(parent: Instance, ctx: Ctx, order: number)
+	local ag = ctx.spy
+	if not ag then
+		return
+	end
+	local view = ctx.view or {}
+	local p = panel(parent, order)
+	local head = row(p, 1, 30)
+	flag(head, ctx.player, 30, 20, UDim2.fromOffset(0, 2))
+	Kit.title(head, "Spy", { size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 22, caps = false })
+	local prov = Data.byId[ag.provinceId]
+	text(p, string.format("%s · %s/%s marches", tostring(if prov then prov.name else ag.provinceId), tostring(ag.movesLeft), tostring(ag.movesMax)), 2, { colour = Kit.MUTED })
+	text(p, "Sees every army within two marches, regiments and all. Right-click a province to send the spy, over any border.", 3, { textSize = 13, wrap = true })
+	local ps = view.provinces and view.provinces[ag.provinceId]
+	local siege = ps and ps.siege
+	local ours = type(siege) == "table" and siege.by == ctx.player
+	local sb = Kit.button(buttonRow(p, 4), "Sabotage", function()
+		send("sabotage", { agentId = ag.id })
+	end, { size = UDim2.new(1, 0, 1, 0), tooltip = "Open a postern: the siege ends a turn sooner; a quarter of saboteurs are taken" })
+	local why: string? = if not ctx.canAct then ctx.actReason elseif not ours then "Only inside a fortress you besiege" elseif (tonumber(ag.movesLeft) or 0) <= 0 then "The spy has done enough this turn" elseif (tonumber(siege.turnsLeft) or 0) <= 1 then "It falls next turn anyway" else nil
+	Kit.setEnabled(sb, why == nil, why)
+end
+
 local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	local id = ctx.province
 	local p = if id then Data.byId[id] else nil
@@ -23278,6 +23630,11 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 			end
 		end
 		text(panelF, if #have > 0 then table.concat(have, " · ") else "No buildings", 7, { textSize = 13, colour = Kit.MUTED, wrap = true })
+		local spyB = Kit.button(buttonRow(panelF, 9, 26), "Recruit spy · 300", function()
+			send("recruitSpy", { provinceId = id })
+		end, { size = UDim2.new(1, 0, 1, 0), textSize = 12, caps = false, tooltip = "A spy sees armies within two marches and can sabotage a siege" })
+		local hasGov = (tonumber(ps.buildings.government) or 0) >= 1
+		Kit.setEnabled(spyB, ctx.canAct and hasGov, if not ctx.canAct then ctx.actReason else Logic.reason("needs:government:1"))
 		local c = ps.construction
 		if type(c) == "table" then
 			local def = Data.Europe.Buildings[c.chain]
@@ -23429,8 +23786,8 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		local war, ally = contains(me.atWarWith, id), contains(me.allies, id)
 		local alive = n.alive ~= false
 		local truce = tonumber(n.truceUntil)
-		local r = row(list, i, 58)
-		r.Size = UDim2.new(1, -8, 0, 58)
+		local r = row(list, i, 86)
+		r.Size = UDim2.new(1, -8, 0, 86)
 		flag(r, id, 28, 18, UDim2.fromOffset(0, 2))
 		local nameL = Kit.label(r, Data.name(id) .. (if n.major then "  ✦" else ""), { size = UDim2.new(1, -150, 0, 20), position = UDim2.fromOffset(38, 0), textSize = 17, font = Enum.Font.Garamond })
 		local cap = Data.byId[n.capital or ""]
@@ -23445,15 +23802,23 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		Kit.hoverTip(fill.Parent :: Frame, function(): string
 			return string.format("Relations %+d", rel)
 		end)
-		local br = Instance.new("Frame") :: Frame
-		br.Size = UDim2.new(1, -38, 0, 22)
-		br.Position = UDim2.fromOffset(38, 34)
-		br.BackgroundTransparency = 1
-		br.Parent = r
-		Kit.list(br, 6, true)
-		local function act(label: string, kind: string, ok: boolean, why: string, primary: boolean?)
+		local function buttons(y: number): Frame
+			local br = Instance.new("Frame") :: Frame
+			br.Size = UDim2.new(1, -38, 0, 22)
+			br.Position = UDim2.fromOffset(38, y)
+			br.BackgroundTransparency = 1
+			br.Parent = r
+			Kit.list(br, 6, true)
+			return br
+		end
+		local br = buttons(34)
+		local function act(label: string, kind: string, ok: boolean, why: string, primary: boolean?, extra: { [string]: any }?)
 			local b = Kit.button(br, label, function()
-				send("diplomacy", { nation = id, action = kind })
+				local d: { [string]: any } = { nation = id, action = kind }
+				for k, v in extra or {} do
+					d[k] = v
+				end
+				send("diplomacy", d)
 			end, { size = UDim2.fromOffset(96, 22), textSize = 12, primary = primary })
 			Kit.setEnabled(b, ok and ctx.canAct, if ctx.canAct then why else ctx.actReason)
 		end
@@ -23468,6 +23833,10 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 			act("Peace", "peace", war, "You are not at war")
 			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
 			act(if ally then "Break & war" else "War", "war", not war and truce == nil, if truce then Logic.REASONS.truce else "Already at war", true)
+			br = buttons(60)
+			act(if n.trade then "Trading" else "Trade", "trade", not war and not n.trade, if war then "Make peace first" else "Already trading")
+			act(if n.access or ally then "Access held" else "Access", "access", not war and not ally and not n.access, if war then "Make peace first" else "Your armies may already cross")
+			act("Gift 500", "gift", (tonumber(me.treasury) or 0) >= 500, "Not enough gold", nil, { amount = 500 })
 		end
 	end
 end
@@ -23668,10 +24037,16 @@ function UI.render(ctx: Ctx)
 	left.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	left.CanvasSize = UDim2.new()
 	left.Parent = sg
-	Kit.list(left, 10)
+	local leftList = Kit.list(left, 10)
 	armyPanel(left, ctx, 1)
+	spyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
-	left.Active = #left:GetChildren() > 1
+	-- only as tall as its panels: below them the map takes the clicks
+	local function fitLeft()
+		left.Size = UDim2.new(0, 350, 0, math.min(leftList.AbsoluteContentSize.Y, sg.AbsoluteSize.Y - 84))
+	end
+	leftList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitLeft)
+	fitLeft()
 	if (diplomacyOpen or objectivesOpen or researchOpen) and view then
 		local right = Instance.new("Frame") :: Frame
 		right.Size = UDim2.new(0, 380, 0, 0)
@@ -23889,6 +24264,14 @@ Logic.REASONS = {
 	badArgs = "Malformed order",
 	building = "Already building here",
 	alreadyForced = "Already marching hard",
+	alreadyTrading = "You already trade with them",
+	notYourSpy = "That is not your spy",
+	tooFar = "Too far for this turn",
+	spyHere = "You already have a spy here",
+	tooManySpies = "You keep three spies at most",
+	spyResting = "The spy has done enough this turn",
+	nothingToSabotage = "It falls next turn anyway",
+	alreadyAllowed = "Your armies may already cross their land",
 	alreadyMarched = "Only before the army marches this turn",
 	notBesieging = "You are not besieging that province",
 	noArmyReady = "Your besiegers have already acted this turn",
@@ -24129,6 +24512,9 @@ function Logic.offerText(o: any): string
 		end
 		local cede = if #names > 0 then " " .. nationName(t.loser) .. " cedes " .. table.concat(names, ", ") .. "." else " No provinces change hands."
 		return string.format("%s offers peace%s: %s prevails (war score %s).%s", nationName(o.from), if t.dictated then ", dictated" else "", nationName(t.winner), tostring(t.score or 0), cede)
+	end
+	if o.kind == "trade" then
+		return string.format("%s proposes a trade agreement: each side earns a tenth of the other's provincial income.", nationName(o.from))
 	end
 	return string.format("%s proposes %s.", nationName(o.from), tostring(o.kind))
 end
