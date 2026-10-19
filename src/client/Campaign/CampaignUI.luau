@@ -22,6 +22,7 @@ export type Ctx = {
 	sessionOnly: boolean,
 	army: any?, -- selected army
 	spy: any?, -- selected spy (view.agents)
+	fleet: any?, -- selected fleet (view.fleets)
 	province: string?, -- selected province
 	others: { any }, -- the player's other armies in the selected army's province
 	canAct: boolean,
@@ -392,6 +393,25 @@ local function spyPanel(parent: Instance, ctx: Ctx, order: number)
 	Kit.setEnabled(sb, why == nil, why)
 end
 
+local function fleetPanel(parent: Instance, ctx: Ctx, order: number)
+	local fl = ctx.fleet
+	if not fl then
+		return
+	end
+	local p = panel(parent, order)
+	local head = row(p, 1, 30)
+	flag(head, fl.nation, 30, 20, UDim2.fromOffset(0, 2))
+	local t = Kit.title(head, tostring(fl.name), { size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 22, caps = false })
+	t.TextTruncate = Enum.TextTruncate.AtEnd
+	local prov = Data.byId[fl.provinceId]
+	local moves = if fl.movesLeft ~= nil then string.format(" · %s/%s lanes", tostring(fl.movesLeft), tostring(fl.movesMax)) else ""
+	text(p, string.format("%s%s", tostring(if prov then prov.name else fl.provinceId), moves), 2, { colour = Kit.MUTED })
+	text(p, string.format("%s · %s", plural(tonumber(fl.line) or 0, "ship of the line"), plural(tonumber(fl.frigates) or 0, "frigate")), 3, { font = Enum.Font.SourceSansSemibold })
+	if fl.nation == ctx.player then
+		text(p, "Right-click a port to sail, three lanes a turn. Armies cross the sea only from a port where your fleet lies; an enemy port it lies in loses half its income.", 4, { textSize = 13, wrap = true })
+	end
+end
+
 local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	local id = ctx.province
 	local p = if id then Data.byId[id] else nil
@@ -423,6 +443,9 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	elseif ps.unrest and ps.unrest > 0 then
 		text(panelF, string.format("Unrest %s%s", tostring(ps.unrest), if ps.unrest >= 3 then " · income cut by a quarter" else ""), 5, { colour = Kit.HOSTILE })
 	end
+	if ps.blockaded then
+		text(panelF, "Blockaded by an enemy fleet: the port earns half its income.", 6, { colour = Kit.HOSTILE, wrap = true })
+	end
 	local siege = ps.siege
 	if type(siege) == "table" then
 		text(panelF, string.format("Besieged by %s: falls in %s unless relieved.", Data.name(siege.by), plural(tonumber(siege.turnsLeft) or 0, "turn")), 6, { colour = Kit.HOSTILE })
@@ -447,7 +470,17 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 			end
 		end
 		text(panelF, if #have > 0 then table.concat(have, " · ") else "No buildings", 7, { textSize = 13, colour = Kit.MUTED, wrap = true })
-		local spyB = Kit.button(buttonRow(panelF, 9, 26), "Recruit spy · 300", function()
+		if p.isPort then
+			local shipRow = buttonRow(panelF, 9, 26)
+			for _, ship in { "frigate", "line" } do
+				local cls = Data.Europe.ShipClasses[ship]
+				local sb = Kit.button(shipRow, string.format("%s · %s", cls.name, fmt(cls.cost)), function()
+					send("buildShip", { provinceId = id, ship = ship })
+				end, { size = UDim2.new(0.5, -3, 1, 0), textSize = 12, caps = false, tooltip = "Launch it here: it joins your fleet in this port" })
+				Kit.setEnabled(sb, ctx.canAct and not ps.blockaded, if not ctx.canAct then ctx.actReason else "The port is blockaded")
+			end
+		end
+		local spyB = Kit.button(buttonRow(panelF, 10, 26), "Recruit spy · 300", function()
 			send("recruitSpy", { provinceId = id })
 		end, { size = UDim2.new(1, 0, 1, 0), textSize = 12, caps = false, tooltip = "A spy sees armies within two marches and can sabotage a siege" })
 		local hasGov = (tonumber(ps.buildings.government) or 0) >= 1
@@ -483,7 +516,7 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	-- recruitment queue and options
 	local rec = view.recruitment or {}
 	local queued = 0
-	local q = column(panelF, 10)
+	local q = column(panelF, 11)
 	for _, e in rec.queue or {} do
 		if type(e) == "table" and e.provinceId == id then
 			queued += 1
@@ -857,6 +890,7 @@ function UI.render(ctx: Ctx)
 	local leftList = Kit.list(left, 10)
 	armyPanel(left, ctx, 1)
 	spyPanel(left, ctx, 1)
+	fleetPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	-- only as tall as its panels: below them the map takes the clicks
 	local function fitLeft()

@@ -85,3 +85,24 @@ test("Campaign reasons name the building a province lacks", function()
 	assertEq(Logic.reason("needs:palace:1"), "needs:palace:1", "an unknown chain stays as it is")
 	assertEq(Logic.reason("needsTech:rifles"), "Needs Rifled muskets")
 end)
+
+test("Grand client: a fleet's route is one the server sails", function()
+	local s = GrandCampaign.new(9, "britain")
+	local view = GrandCampaign.view(s)
+	local channel
+	for _, f in view.fleets do
+		if f.name == "Channel Fleet" then
+			channel = f
+		end
+	end
+	assertTrue(channel ~= nil and channel.movesLeft == 3)
+	assertEq(Logic.fleetRoute(channel, "paris"), nil, "no lane runs inland")
+	local r = Logic.fleetRoute(channel, "lisbon") :: any
+	assertEq(#r, 1)
+	r = Logic.fleetRoute(channel, "provence") :: any
+	assertTrue(#r > 3, "Toulon is more than a turn away")
+	local two = Logic.fleetRoute(channel, "stockholm") :: any
+	assertEq(#two, 2)
+	assertTrue(GrandCampaign.command(s, { kind = "moveFleet", fleetId = channel.id, path = two }))
+	assertEq(GrandCampaign.Navy.fleetById(s, channel.id).provinceId, "stockholm")
+end)

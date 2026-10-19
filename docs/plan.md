@@ -74,8 +74,8 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Spies
 
 ## Phase 10: navy (auto-resolved)
-- [ ] Fleets, escorts, blockade, naval auto-resolve, Trafalgar
-- [ ] Fleet tokens on the board
+- [x] Fleets, escorts, blockade, naval auto-resolve, Trafalgar (AI fleets stay in port for now)
+- [x] Fleet tokens on the board
 
 ## Phase 11: modes and presentation
 - [ ] Play either side in historical battles

@@ -22,6 +22,10 @@ Logic.REASONS = {
 	seaNeedsFullMoves = "A sea crossing needs the army's full movement",
 	navalSupremacy = "The Royal Navy holds the seas against you",
 	noEscort = "No fleet of yours lies in that port to carry the army",
+	notYourFleet = "That is not your fleet",
+	notFleetLane = "Ships cannot sail there",
+	notAPort = "Ships are built in ports",
+	blockaded = "The port is blockaded",
 	insufficientFunds = "Not enough treasury",
 	insufficientManpower = "Not enough manpower",
 	queueFull = "The recruitment queue is full",
@@ -222,6 +226,37 @@ function Logic.route(view: any, a: any, goal: string): { Step }?
 		from = id
 	end
 	return steps
+end
+
+-- Shortest sailing from a fleet's port to `goal` over the fleet lanes (ids after the start), or nil.
+function Logic.fleetRoute(fleet: any, goal: string): { string }?
+	local start = fleet.provinceId
+	local parent: { [string]: string } = {}
+	local seen: { [string]: boolean } = { [start] = true }
+	local queue = { start }
+	local head = 1
+	while head <= #queue do
+		local id = queue[head]
+		head += 1
+		for _, l in EuropeData.FleetLanes do
+			local n = if l[1] == id then l[2] elseif l[2] == id then l[1] else nil
+			if n and not seen[n] then
+				seen[n] = true
+				parent[n] = id
+				table.insert(queue, n)
+			end
+		end
+	end
+	if goal == start or not seen[goal] then
+		return nil
+	end
+	local ids: { string } = {}
+	local c: string = goal
+	while c ~= start do
+		table.insert(ids, 1, c)
+		c = parent[c]
+	end
+	return ids
 end
 
 function Logic.reachable(view: any, a: any): { [string]: boolean }

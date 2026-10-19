@@ -43,6 +43,7 @@ local baseColour: { [string]: Color3 } = {}
 type Edge = { a: { x: number, z: number }, b: { x: number, z: number }, provs: { string } }
 local edges: { [string]: Edge } = {}
 local armyModels: { [any]: Model } = {}
+local moorings: { [string]: { at: Vector3, dir: Vector3 } } = {} -- each port's pier: where its fleets lie
 local highlight: Highlight? = nil
 type Label = { part: BasePart, base: number, at: Vector3 }
 local labels: { Label } = {}
@@ -390,7 +391,9 @@ function Board.build()
 			if best then
 				local m = Board.toWorld((best.a.x + best.b.x) / 2, (best.a.z + best.b.z) / 2)
 				local out = m - Board.toWorld(p.centre.x, p.centre.z)
-				pier(statics, m, Vector3.new(out.X, 0, out.Z).Unit)
+				local dir = Vector3.new(out.X, 0, out.Z).Unit
+				pier(statics, m, dir)
+				moorings[p.id] = { at = m, dir = dir }
 			end
 		end
 	end
@@ -518,6 +521,41 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	return m
 end
 
+-- A fleet: a two-decker under sail flying its nation's colours, with a "line · frigates" plate.
+local function shipFigure(parent: Instance, fl: any, pos: Vector3, dir: Vector3): Model
+	local m = Instance.new("Model") :: Model
+	m.Name = "Fleet"
+	m:SetAttribute("fleet", fl.id)
+	local face = CFrame.lookAt(pos, pos + Vector3.new(-dir.Z, 0, dir.X)) -- broadside to the shore
+	local function piece(size: Vector3, offset: Vector3, colour: Color3, material: EnumMaterial?): Part
+		local p = part(m, size, face * CFrame.new(offset), colour, material)
+		p.CanQuery = true
+		return p
+	end
+	local hull = piece(Vector3.new(3, 1.6, 9), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+	piece(Vector3.new(3.05, 0.35, 9.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
+	piece(Vector3.new(2.4, 1.2, 2), Vector3.new(0, 1.8, 3.6), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+	for _, z in { -2.4, 1 } do
+		piece(Vector3.new(0.35, 7, 0.35), Vector3.new(0, 4.8, z), Color3.fromRGB(60, 44, 30))
+		piece(Vector3.new(0.2, 3.6, 3.4), Vector3.new(0, 5.2, z), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+	end
+	piece(Vector3.new(0.15, 1, 1.6), Vector3.new(0, 8.6, -2.4), Data.colour(fl.nation))
+	local bb = Instance.new("BillboardGui") :: BillboardGui
+	bb.Size = UDim2.new(6, 52, 1.2, 14)
+	bb.StudsOffset = Vector3.new(0, -2.4, 0)
+	bb.LightInfluence = 0
+	bb.Adornee = hull
+	bb.Parent = m
+	local plate = Kit.label(bb, string.format("%d · %d", math.floor(tonumber(fl.line) or 0), math.floor(tonumber(fl.frigates) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	plate.TextScaled = true
+	plate.BackgroundTransparency = 0.1
+	plate.BackgroundColor3 = Color3.fromRGB(36, 52, 74)
+	m.WorldPivot = CFrame.new(pos)
+	m:ScaleTo(FIG)
+	m.Parent = parent
+	return m
+end
+
 -- The player's spy: a cloaked figure on a small plinth (picked as "spy").
 local function spyFigure(parent: Instance, ag: any, pos: Vector3): Model
 	local m = Instance.new("Model") :: Model
@@ -591,6 +629,17 @@ function Board.setView(view: any?)
 				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
 				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
 			end
+		end
+	end
+	local inPort: { [string]: number } = {}
+	for _, fl in view.fleets or {} do
+		local moor = moorings[fl.provinceId]
+		if moor then
+			local n = inPort[fl.provinceId] or 0
+			inPort[fl.provinceId] = n + 1
+			local side = Vector3.new(-moor.dir.Z, 0, moor.dir.X)
+			local at = Vector3.new(moor.at.X, ORIGIN.Y + SEA_Y, moor.at.Z) + moor.dir * 16 + side * (n * 16 * FIG)
+			armyModels[fl.id] = shipFigure(d, fl, at, moor.dir)
 		end
 	end
 	for _, ag in view.agents or {} do
@@ -703,6 +752,10 @@ function Board.pick(): (string?, any)
 		local sp = inst:GetAttribute("spy")
 		if sp ~= nil then
 			return "spy", sp
+		end
+		local fl = inst:GetAttribute("fleet")
+		if fl ~= nil then
+			return "fleet", fl
 		end
 		local p = inst:GetAttribute("prov")
 		if p ~= nil then

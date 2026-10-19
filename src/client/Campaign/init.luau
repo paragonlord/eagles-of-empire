@@ -28,6 +28,7 @@ local ours: { [string]: boolean } = {}
 local conns: { RBXScriptConnection } = {}
 local selArmy: any = nil
 local selSpy: any = nil
+local selFleet: any = nil
 local selProv: string? = nil
 local hoverProv: string? = nil
 local lastTurn: number? = nil
@@ -49,6 +50,15 @@ end
 
 local function armyById(id: any): any
 	return Logic.army(view, id)
+end
+
+local function fleetById(id: any): any
+	for _, f in (view and view.fleets) or {} do
+		if f.id == id then
+			return f
+		end
+	end
+	return nil
 end
 
 local function spyById(id: any): any
@@ -92,8 +102,12 @@ local function render()
 	if not spy then
 		selSpy = nil
 	end
-	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, province = selProv, others = others, canAct = ok, actReason = why })
-	Board.setSelection(selArmy or selSpy, selProv, if own and ok then Logic.reachable(view, a) else nil)
+	local fleet = fleetById(selFleet)
+	if not fleet then
+		selFleet = nil
+	end
+	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, fleet = fleet, province = selProv, others = others, canAct = ok, actReason = why })
+	Board.setSelection(selArmy or selSpy or selFleet, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
 	if own and ok then
 		path = if hoverProv then route(a, hoverProv) else nil
@@ -108,7 +122,7 @@ local function render()
 end
 
 local function select(armyId: any, provId: string?)
-	selArmy, selSpy, selProv, hoverProv = armyId, nil, provId, nil
+	selArmy, selSpy, selFleet, selProv, hoverProv = armyId, nil, nil, provId, nil
 	render()
 end
 
@@ -126,7 +140,7 @@ local function onInput(input: InputObject, gp: boolean)
 			end
 		elseif input.KeyCode == Enum.KeyCode.Escape then
 			if not UI.escape() then
-				selArmy, selSpy, selProv = nil, nil, nil
+				selArmy, selSpy, selFleet, selProv = nil, nil, nil, nil
 			end
 			render()
 		end
@@ -140,6 +154,11 @@ local function onInput(input: InputObject, gp: boolean)
 			select(nil, if ag then ag.provinceId else nil)
 			selSpy = id
 			render()
+		elseif kind == "fleet" then
+			local fl = fleetById(id)
+			select(nil, if fl then fl.provinceId else nil)
+			selFleet = id
+			render()
 		elseif kind == "province" then
 			select(nil, id)
 		else
@@ -148,6 +167,22 @@ local function onInput(input: InputObject, gp: boolean)
 	elseif t == Enum.UserInputType.MouseButton2 then
 		local a = armyById(selArmy)
 		local kind, id = Board.pick()
+		local fleet = fleetById(selFleet)
+		if fleet and fleet.nation == player() and canAct() then
+			-- a fleet sails port to port along the fleet lanes
+			local target = if kind == "province" then id elseif kind == "fleet" then (fleetById(id) or {}).provinceId else nil
+			if target and target ~= fleet.provinceId then
+				local r = Logic.fleetRoute(fleet, target)
+				if not r then
+					UI.toast("Ships cannot sail there")
+				elseif #r > (tonumber(fleet.movesLeft) or 0) then
+					UI.toast("Too far for this turn")
+				else
+					send("moveFleet", { fleetId = fleet.id, path = r })
+				end
+			end
+			return
+		end
 		local spy = spyById(selSpy)
 		if spy and canAct() then
 			-- a spy goes where it is sent, over any border, within its marches
@@ -306,7 +341,7 @@ function Grand.close()
 	CampaignCamera.stop()
 	UI.destroy()
 	Board.destroy()
-	selArmy, selSpy, selProv, hoverProv = nil, nil, nil, nil
+	selArmy, selSpy, selFleet, selProv, hoverProv = nil, nil, nil, nil, nil
 end
 
 return Grand
