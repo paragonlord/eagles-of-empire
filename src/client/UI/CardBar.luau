@@ -39,6 +39,8 @@ type Card = {
 	count: TextLabel,
 	strength: Frame,
 	morale: Frame,
+	ammo: Frame,
+	group: TextLabel,
 	icons: { [string]: Frame },
 	reloadFill: Frame,
 	dim: Frame, -- co-op: veils an ally's card
@@ -254,13 +256,15 @@ local function newCard(f: any): Card
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 	local count = Kit.label(b, "", { size = UDim2.new(0.6, 0, 0, 10), position = UDim2.fromOffset(4, 47), textSize = 9, font = Enum.Font.GothamBold })
 	Kit.label(b, string.rep("›", math.clamp(f.experience or 0, 0, 3)), { size = UDim2.new(0.4, -4, 0, 10), position = UDim2.new(0.6, 0, 0, 47), textSize = 10, font = Enum.Font.GothamBold, colour = Kit.GOLD, align = Enum.TextXAlignment.Right })
-	local strength = Kit.bar(b, UDim2.new(1, -8, 0, 4), UDim2.fromOffset(4, 58), Factions.colour(f.faction, f.colour))
-	local morale = Kit.bar(b, UDim2.new(1, -8, 0, 4), UDim2.fromOffset(4, 64), Kit.MORALE.steady)
+	local strength = Kit.bar(b, UDim2.new(1, -8, 0, 3), UDim2.fromOffset(4, 57), Factions.colour(f.faction, f.colour))
+	local morale = Kit.bar(b, UDim2.new(1, -8, 0, 3), UDim2.fromOffset(4, 61), Kit.MORALE.steady)
+	local ammo = Kit.bar(b, UDim2.new(1, -8, 0, 3), UDim2.fromOffset(4, 65), AMBER)
+	local group = Kit.label(b, "", { size = UDim2.fromOffset(12, 12), position = UDim2.fromOffset(CARD_W - 14, 8), textSize = 11, font = Enum.Font.GothamBold, colour = Kit.GILT_BRIGHT, align = Enum.TextXAlignment.Right })
 
 	-- status icons, left to right; hidden ones take no room
 	local row = Instance.new("Frame") :: Frame
 	row.Size = UDim2.new(1, -8, 0, 10)
-	row.Position = UDim2.fromOffset(4, 69)
+	row.Position = UDim2.fromOffset(4, 70)
 	row.BackgroundTransparency = 1
 	row.Parent = b
 	Kit.list(row, 2, true)
@@ -294,6 +298,16 @@ local function newCard(f: any): Card
 	local general = iconSlot(row, "general", 6) -- gilt diamond: a general's trait or ability applies
 	rect(general, 6, 6, 5, 5, 45, Kit.GILT_BRIGHT)
 	icons.general = general
+	local tired = iconSlot(row, "tired", 7) -- a drop: amber when tired, red when exhausted
+	ring(tired, 7, 5, 6, AMBER, 3)
+	rect(tired, 3, 4, 5, 2, 45, AMBER)
+	icons.tired = tired
+	local running = iconSlot(row, "running", 8) -- two chevrons: at the double
+	rect(running, 2, 6, 3, 3, 45, Kit.IVORY)
+	rect(running, 2, 6, 3, 7, -45, Kit.IVORY)
+	rect(running, 2, 6, 7, 3, 45, Kit.IVORY)
+	rect(running, 2, 6, 7, 7, -45, Kit.IVORY)
+	icons.running = running
 	local dim = Instance.new("Frame") :: Frame
 	dim.Size = UDim2.fromScale(1, 1)
 	dim.BackgroundColor3 = Kit.INSET
@@ -310,6 +324,8 @@ local function newCard(f: any): Card
 		count = count,
 		strength = strength,
 		morale = morale,
+		ammo = ammo,
+		group = group,
 		icons = icons,
 		reloadFill = reloadFill,
 		dim = dim,
@@ -380,6 +396,26 @@ local function paint(c: Card, f: any)
 	c.icons.limbered.Visible = f.class == "artillery" and (f.limbered == true or f.shape == "limbered")
 	c.icons.holdFire.Visible = shoots and f.fireAtWill == false
 	c.icons.general.Visible = type(f.tags) == "string" and f.tags ~= ""
+	local fatigue = f.fatigue or 0
+	c.icons.tired.Visible = fatigue > 40
+	local tint = if fatigue > Config.Morale.FatigueThreshold then Kit.HOSTILE else AMBER
+	for _, d in c.icons.tired:GetDescendants() do
+		if d:IsA("Frame") then
+			(d :: Frame).BackgroundColor3 = tint
+		elseif d:IsA("UIStroke") then
+			(d :: UIStroke).Color = tint
+		end
+	end
+	c.icons.running.Visible = f.running == true
+	local stats = Config.TypeStats[f.type] or (Config.Units :: any)[f.class]
+	local full = if stats.gun then stats.gun.ammo elseif stats.musket then stats.musket.ammo else nil
+	local track = c.ammo.Parent :: Frame
+	track.Visible = full ~= nil and f.ammo ~= nil
+	if full and f.ammo then
+		Kit.setBar(c.ammo, f.ammo / full)
+	end
+	local g = Selection.groupOf(f.id)
+	c.group.Text = if g then tostring(g) else ""
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
 	c.dim.Visible = BattleState.allyOf(f.id) ~= nil

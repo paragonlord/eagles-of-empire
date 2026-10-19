@@ -96,6 +96,18 @@ end
 
 function Selection.assignGroup(n: number)
 	groups[n] = Selection.ids()
+	fire() -- cards show their group number
+end
+
+-- The lowest control group holding this formation, if any (shown on its card).
+function Selection.groupOf(id: number): number?
+	for n = 1, 9 do
+		local g = groups[n]
+		if g and table.find(g, id) then
+			return n
+		end
+	end
+	return nil
 end
 
 function Selection.recallGroup(n: number)
