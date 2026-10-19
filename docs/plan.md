@@ -56,7 +56,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Tax levels, public order effects, rebellion
 - [x] Gradual replenishment
 - [x] Winter and supply attrition
-- [ ] Settlement panel and tax control
+- [x] Settlement panel and tax control
 
 ## Phase 7: technology and national rosters
 - [ ] Research tree (unlocks units, battle passives, economy)
