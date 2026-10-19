@@ -82,6 +82,8 @@ local Scenarios = {}
 
 local JENA_FRENCH = {
 	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 40, 3, 800, 200, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 40, 3, 780, 280, NORTH, { general = "lannes" }),
+	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 40, 3, 1040, 260, NORTH, { general = "soult" }),
 	-- V Corps (Lannes) — centre
 	u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 700, 320, NORTH),
 	u("france", "V Corps · Lannes", "infantry", "34e de Ligne", 600, 1, 780, 320, NORTH),
@@ -213,6 +215,7 @@ local AUERSTEDT_FRENCH = {
 
 local AUERSTEDT_PRUSSIAN = {
 	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 300, 800, EAST, { commander = true, general = "brunswick" }),
+	u("prussia", "Kavallerie · Blücher", "hq", "Blücher — Cavalry HQ", 40, 2, 420, 1180, EAST, { general = "blucher" }),
 	-- Schmettau's division — first onto the field, centre
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 560, 760, EAST),
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 560, 660, EAST),
@@ -294,6 +297,8 @@ end
 -- ---------------------------------------------------------------------------------------------
 local AUSTERLITZ_FRENCH = {
 	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 40, 3, 450, 1250, EAST, { commander = true, general = "napoleon" }),
+	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 40, 3, 470, 820, EAST, { general = "soult" }),
+	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 40, 3, 400, 1400, EAST, { general = "lannes" }),
 	-- IV Corps (Soult) — centre, the hammer against the Pratzen
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 600, 1150, EAST),
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 600, 1070, EAST),
@@ -331,6 +336,8 @@ local AUSTERLITZ_FRENCH = {
 
 local AUSTERLITZ_ALLIED = {
 	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1500, 950, WEST, { commander = true, general = "kutuzov" }),
+	u("russia", "Avantgarde · Bagration", "hq", "Bagration — Advance Guard HQ", 40, 2, 1260, 1530, WEST, { general = "bagration" }),
+	u("russia", "1. Kolonne · Dokhturov", "hq", "Buxhöwden — Allied left HQ", 40, 2, 1340, 380, WEST, { general = "buxhowden" }),
 	-- Kienmayer's Austrian advance guard — south, Telnitz
 	u("russia", "Avantgarde · Kienmayer", "cavalry", "Husaren-Regiment Hessen-Homburg", 400, 1, 1100, 260, WEST, { colour = "Austria" }),
 	u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1150, 200, WEST, { colour = "Austria" }),
@@ -428,6 +435,7 @@ end
 -- ---------------------------------------------------------------------------------------------
 local WATERLOO_FRENCH = {
 	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 40, 3, 1260, 240, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "I Corps · d'Erlon", "hq", "Ney — Wing HQ", 40, 3, 1150, 420, NORTH, { general = "ney" }),
 	-- Grand Battery — the ridge of La Belle Alliance
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1050, 560, NORTH),
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (6-livres)", 120, 2, 1350, 560, NORTH),
@@ -465,6 +473,8 @@ local WATERLOO_FRENCH = {
 
 local WATERLOO_ALLIED = {
 	u("britain", "HQ", "hq", "Wellington — Army HQ", 40, 3, 1230, 1130, SOUTH, { commander = true, general = "wellington" }),
+	u("britain", "Cavalry · Uxbridge", "hq", "Uxbridge — Cavalry HQ", 40, 2, 1300, 1300, SOUTH, { general = "uxbridge" }),
+	u("britain", "5th Division · Picton", "hq", "Picton — 5th Division HQ", 40, 2, 1420, 1230, SOUTH, { general = "picton" }),
 	-- 3rd Division (Alten) — centre right, La Haye Sainte
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),

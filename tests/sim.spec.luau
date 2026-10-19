@@ -1136,3 +1136,33 @@ test("Infantry on attack-move in travel column keeps marching instead of halting
 	assertTrue(Vec.dist(f.pos, sim.formations[2].pos) < 85, "the enemy is in musket range")
 	assertEq(f.state, "moving", "a column in range does not stand idle")
 end)
+
+test("Generals: every HQ steadies the men near it; a corps general's fall shakes only his corps", function()
+	local function hq(faction, name, x, z, commander)
+		local u = unit(faction, "hq", name, x, z, math.pi / 2)
+		u.commander = commander
+		return u
+	end
+	local sim = newSim({
+		hq("france", "Napoléon — Imperial HQ", A.x - 400, A.z, true),
+		hq("france", "Lannes — V Corps", A.x, A.z, false),
+		unit("france", "infantry", "Near Lannes", A.x + 30, A.z, math.pi / 2),
+		unit("france", "infantry", "Far away", A.x + 30, A.z + 500, math.pi / 2),
+	})
+	local near, far = sim.formations[3], sim.formations[4]
+	near.morale, far.morale = near.baseMorale, far.baseMorale
+	run(sim, 90)
+	assertTrue(near.morale > near.baseMorale + 1, string.format("the corps general lifts the cap: %.1f vs %.1f", near.morale, near.baseMorale))
+	assertTrue(far.morale <= far.baseMorale + 0.01, "no general near, no bonus")
+	-- Lannes falls: his corps wavers, the far battalion does not
+	local n0, f0 = near.morale, far.morale
+	sim.formations[2].strength = 0
+	sim:step()
+	assertTrue(near.morale <= n0 - Config.Units.hq.lossMoralePenalty + 1, "his corps wavers")
+	assertTrue(far.morale >= f0 - 0.5, "the rest of the army does not")
+	-- the Emperor falls: everyone wavers
+	local f1 = far.morale
+	sim.formations[1].strength = 0
+	sim:step()
+	assertTrue(far.morale <= f1 - Config.Units.hq.lossMoralePenalty + 1, "the army wavers")
+end)

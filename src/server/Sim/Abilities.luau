@@ -42,7 +42,6 @@ export type SimLike = {
 	emit: (sim: any, ev: Types.Event) -> (),
 	log: (sim: any, text: string) -> (),
 	homeEdge: (sim: any, faction: string) -> { x: number, z: number },
-	hqOf: (sim: any, faction: string) -> Formation?,
 	map: any,
 }
 

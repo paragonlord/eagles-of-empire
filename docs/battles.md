@@ -282,3 +282,12 @@ the full battle).
   within 200 of the farm: 2nd Light KGL −10 — Baring's Baker-rifle ammunition never arrived); La
   Haye Sainte has fallen (Alten's division −8; it fell around 18:30 and French guns came up to
   within musket range of Wellington's centre).
+
+## Corps generals (roadmap Phase 4)
+
+Each full battle carries the corps commanders who led on the day, besides the army's commander:
+Jena — Lannes (V Corps), Soult (IV Corps); Auerstedt — Blücher (Prussian cavalry); Austerlitz —
+Soult (IV Corps), Lannes (V Corps), Bagration (allied advance guard), Buxhöwden (allied left);
+Waterloo — Ney (the wing), Uxbridge (allied cavalry), Picton (5th Division). Each brings his aura,
+traits and ability; his fall shakes only the men around him.
+

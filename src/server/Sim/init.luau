@@ -82,7 +82,6 @@ export type Sim = {
 	homeEdge: (Sim, string) -> Vec,
 	findFormation: (Sim, number) -> Formation?,
 	isVisibleTo: (Sim, string, number) -> boolean,
-	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
 	weather: string, -- key into Config.Weather, may change once at weatherUntil (or by a moment)
 	momentsFired: { [string]: boolean }, -- scenario moments already fired (Sim/Moments)
@@ -169,16 +168,6 @@ end
 
 function Sim.isVisibleTo(self: Sim, viewer: string, id: number): boolean
 	return Visibility.isVisibleTo(self :: any, viewer, id)
-end
-
-function Sim.hqOf(self: Sim, faction: string): Formation?
-	for _, id in self.order do
-		local f = self.formations[id]
-		if f and f.faction == faction and f.class == "hq" and Formation.isActive(f) then
-			return f
-		end
-	end
-	return nil
 end
 
 -- A faction's home edge is the map edge nearest its deployment zone.

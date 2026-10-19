@@ -161,7 +161,8 @@ Config.Units = {
 		melee = { attack = 0.3, defense = 0.5 },
 		influence = { radius = 120, moraleBonus = 10, recoveryBonus = 0.3 },
 		rally = { cooldown = 90, radius = 100, moraleRestore = 30, minRoutingSeconds = 5 },
-		lossMoralePenalty = 15, -- to every friendly formation when the HQ is destroyed/exited
+		lossMoralePenalty = 15, -- when an HQ is destroyed/exited: the army's to everyone, a corps general's
+		lossRadius = 300, -- to the formations within this of a fallen corps general
 		baseMorale = 80, fatigueMove = 0.3, fatigueCharge = 0.3, fatigueMelee = 2.0, rest = 2.0,
 		spot = 300,
 	},

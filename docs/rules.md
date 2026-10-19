@@ -185,9 +185,10 @@ takes ×2 damage. A new impact needs 40 s of recovery out of contact. Cavalry in
 | friend routing within 80 | − 2 every 5 s per friend, max − 6 |
 | no friend within 150 | − 1 every 5 s |
 | fatigue > 70 | − 0.2 /s |
-| HQ within 120 | + 0.3 /s extra recovery, cap base + 10 |
+| any friendly HQ within 120 (army or corps general) | + 0.3 /s extra recovery, cap base + 10 |
 | no damage for 10 s | + 0.5 /s up to base |
 | army HQ lost | − 15 once to every friendly formation |
+| corps general's HQ lost | − 15 once to friendly formations within 300 of it |
 | artillery battery destroyed | − 5 once to every friendly formation |
 
 Bands with hysteresis: steady ≥ 50; shaken when < 40 (exit at ≥ 50); routing when < 20.

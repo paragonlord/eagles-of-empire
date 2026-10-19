@@ -42,7 +42,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Walls and hedges as cover lines
 
 ## Phase 4: generals
-- [ ] One aura per HQ; corps generals in full battles; local death shock
+- [x] One aura per HQ; corps generals in full battles; local death shock
 - [ ] General's cavalry bodyguard
 - [ ] Experience earned in battle
 

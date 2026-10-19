@@ -17,7 +17,6 @@ export type SimLike = {
 	order: { number },
 	emit: (sim: any, ev: Types.Event) -> (),
 	log: (sim: any, text: string) -> (),
-	hqOf: (sim: any, faction: string) -> Formation?,
 	stats: { [string]: any },
 	homeEdge: any, -- (sim, faction) -> {x, z}; optional for test fakes
 	grid: any, -- needs width and depth
@@ -133,13 +132,15 @@ local function destroy(sim: SimLike, f: Formation)
 	sim.emit(sim, { kind = "destroyed", tick = sim.tick, id = f.id, faction = f.faction, x = f.pos.x, z = f.pos.z, text = f.name .. " is destroyed" })
 	sim.log(sim, f.name .. " was destroyed")
 	if f.class == "hq" then
+		-- the army's commander: everyone wavers; a corps general: the men around him
+		local hqCfg = Config.Units.hq
 		for _, id in sim.order do
 			local o = sim.formations[id]
-			if o and o.faction == f.faction and Formation.isActive(o) then
-				o.morale = math.max(0, o.morale - Config.Units.hq.lossMoralePenalty)
+			if o and o.faction == f.faction and Formation.isActive(o) and (f.commander or Vec.dist(o.pos, f.pos) <= hqCfg.lossRadius) then
+				o.morale = math.max(0, o.morale - hqCfg.lossMoralePenalty)
 			end
 		end
-		sim.log(sim, f.name .. " fell; the army wavers")
+		sim.log(sim, f.name .. (if f.commander then " fell; the army wavers" else " fell; his corps wavers"))
 	end
 	if f.class == "artillery" then
 		for _, id in sim.order do
@@ -205,16 +206,25 @@ function Morale.update(sim: SimLike, f: Formation)
 		f.morale -= M.FatiguePenaltyPerSecond * DT
 	end
 	-- Recovery (HQ influence raises the cap and the rate).
-	local hq = sim.hqOf(sim, f.faction)
+	-- every general steadies the men around him: the nearest HQ in range counts
+	local hq: Formation? = nil
+	local influence = Config.Units.hq.influence
+	for _, id in sim.order do
+		local o = sim.formations[id]
+		if o and o.class == "hq" and o.faction == f.faction and o.id ~= f.id and Formation.isActive(o) and Vec.dist(o.pos, f.pos) <= influence.radius then
+			hq = o
+			break
+		end
+	end
 	local cap = f.baseMorale
 	local rate = 0
 	if t.noDamage >= M.RecoveryDelay then
 		-- Routing formations recover too: that is how they come back to rally.
 		rate = M.RecoveryPerSecond
 	end
-	if hq and hq.id ~= f.id and Vec.dist(hq.pos, f.pos) <= Config.Units.hq.influence.radius then
-		cap += Config.Units.hq.influence.moraleBonus
-		rate += Config.Units.hq.influence.recoveryBonus
+	if hq then
+		cap += influence.moraleBonus
+		rate += influence.recoveryBonus
 	end
 	rate += f.mods.recovery -- generals' traits / abilities (Sim/Abilities)
 	if f.morale < cap then
