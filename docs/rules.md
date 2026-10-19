@@ -123,6 +123,10 @@ Artillery: per gun, per shot. Round shot range 60–450, hit 0.5 × rangeF, 3 ca
 18 s. Ammunition mode `auto` picks canister inside 120. A gun reports why it cannot fire:
 `Limbered`, `Reloading`, `Out of range`, `Line of fire blocked`, `No target`, `Out of ammunition`.
 
+Field borders: a hedge (+0.25 cover) or dry-stone wall (+0.4) within 6 studs of the target's centre,
+on open or steep ground, shelters it from musketry that has to cross the border (WorldGen's field
+lattice: `WorldGen.borderCover`, the same hedges and walls the props draw).
+
 Higher ground (attacker more than 3 studs above the target): charge impact ×1.25, melee ×1.1
 (`Config.Slope`), on top of the musket's ×1.1.
 

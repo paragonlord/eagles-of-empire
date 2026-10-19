@@ -39,7 +39,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Downhill charge and melee bonus
 - [x] Fords
 - [x] Garrisonable buildings (strongpoints)
-- [ ] Walls and hedges as cover lines
+- [x] Walls and hedges as cover lines
 
 ## Phase 4: generals
 - [ ] One aura per HQ; corps generals in full battles; local death shock

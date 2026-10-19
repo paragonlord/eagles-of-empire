@@ -219,6 +219,8 @@ Config.Combat = {
 	-- round shot carries on past its target: formations of either side whose footprint touches the
 	-- next `length` studs of the line of fire take `factor` of the first strike, fading to half at the end
 	Ricochet = { length = 140, factor = 0.45, maxHits = 2 },
+	-- a field hedge / stone wall the musket shot has to cross, within 6 studs of the target's centre
+	BorderCover = { [1] = 0.25, [2] = 0.4 },
 	MeleeRatePerSecond = 0.0025, -- casualties = attackerStrength * rate * factors * dt
 	MeleeDirFactor = { front = 1.0, flank = 1.6, rear = 2.2 },
 	MeleeContactDistance = 6, -- studs between footprints

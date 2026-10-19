@@ -484,6 +484,35 @@ test("Buildings: a battalion garrisons a village heart, is hard to shoot or char
 	end
 end)
 
+test("Field walls and hedges shelter men behind them from musketry that has to cross them", function()
+	local WorldGen = require(Shared.WorldGen)
+	local spot
+	for x = 200, 1400, 8 do
+		for z = 200, 900, 8 do
+			if not spot and Grid.terrainAt(MAP.grid, x, z).name == "open" and Grid.terrainAt(MAP.grid, x, z - 75).name == "open"
+				and Grid.lineOfSight(MAP.grid, { x = x, z = z - 75 }, { x = x, z = z }) and WorldGen.borderCover(MAP, x, z, x, z - 75, 6) == 2 then
+				spot = { x = x, z = z }
+			end
+		end
+	end
+	assertTrue(spot ~= nil, "a stone wall on open ground")
+	local function losses(wallCover)
+		local saved = Config.Combat.BorderCover[2]
+		Config.Combat.BorderCover[2] = wallCover
+		local s2 = newSim({
+			unit("prussia", "infantry", "Behind the wall", spot.x, spot.z, -math.pi / 2),
+			unit("france", "infantry", "Shooters", spot.x, spot.z - 75, math.pi / 2),
+		}, 9)
+		s2.formations[1].fireAtWill = false
+		run(s2, 60)
+		Config.Combat.BorderCover[2] = saved
+		local t = s2.formations[1]
+		return t.startStrength - t.strength
+	end
+	local sheltered, open = losses(Config.Combat.BorderCover[2]), losses(0)
+	assertTrue(sheltered < open * 0.8, string.format("wall %d vs none %d", sheltered, open))
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

@@ -297,7 +297,9 @@ local function fieldMaterial(x: number, z: number): EnumMaterial
 end
 
 -- Resets the field patchwork caches for a map (both the terrain model and the props read them).
+local fieldsMap: any = nil
 local function beginFields(map: any)
+	fieldsMap = map
 	season = SEASONS[WorldGen.seasonOf(map.id)]
 	fieldSeed = (map.seed or 1) + 313
 	fieldRoads = map.roads
@@ -305,6 +307,33 @@ local function beginFields(map: any)
 	table.clear(angleCache)
 	table.clear(blockInfo)
 	lastCi, lastCj = math.huge, math.huge
+end
+
+-- Gameplay cover from the field borders (Sim/Combat): the hedge (1) or stone wall (2) within `reach`
+-- studs of (x, z) that a shot from (fromX, fromZ) has to cross, else nil. Same lattice as the props.
+function WorldGen.borderCover(map: any, x: number, z: number, fromX: number, fromZ: number, reach: number): number?
+	if fieldsMap ~= map then
+		beginFields(map)
+	end
+	local i1, j1, i2, j2, edge = nearestBlocks(x, z)
+	if edge > reach then
+		return nil
+	end
+	local kind = borderKind(i1, j1, i2, j2)
+	if kind ~= 1 and kind ~= 2 then
+		return nil
+	end
+	-- a step from the target toward the shooter lands in the other block: the shot crosses it
+	local d = math.sqrt((fromX - x) ^ 2 + (fromZ - z) ^ 2)
+	if d < 1 then
+		return nil
+	end
+	local k = (reach + 4) / d
+	local a1, b1, _, _ = nearestBlocks(x + (fromX - x) * k, z + (fromZ - z) * k)
+	if a1 == i1 and b1 == j1 then
+		return nil
+	end
+	return kind
 end
 
 -------------------------------------------------------------------------------- terrain model

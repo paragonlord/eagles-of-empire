@@ -6,6 +6,7 @@
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Grid = require(Shared.Grid)
+local WorldGen = require(Shared.WorldGen)
 local Vec = require(Shared.Vec)
 local Types = require(Shared.Types)
 
@@ -25,6 +26,7 @@ export type Attack = {
 
 export type SimLike = {
 	grid: Grid.Grid,
+	map: any, -- MapGen.MapData (field borders for cover)
 	tick: number,
 	rng: any,
 	weather: string?,
@@ -194,7 +196,15 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	end
 	local dist = Vec.dist(f.pos, target.pos)
 	local rangeF = 1 - C.RangeFalloff * (dist / musket.range)
-	local cover = math.min(0.9, Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover + target.mods.cover)
+	local terrain = Grid.terrainAt(sim.grid, target.pos.x, target.pos.z)
+	local cover = terrain.cover + target.mods.cover
+	if terrain.name == "open" or terrain.name == "steep" then
+		local border = WorldGen.borderCover(sim.map, target.pos.x, target.pos.z, f.pos.x, f.pos.z, 6)
+		if border then
+			cover += C.BorderCover[border]
+		end
+	end
+	cover = math.min(0.9, cover)
 	local side = Vec.attackSide(target.pos, target.heading, f.pos)
 	local sideF = if side == "front" then 1 elseif side == "flank" then C.FlankFireFactor else C.RearFireFactor
 	local hit = musket.accuracy * rangeF * (1 - cover) * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
