@@ -10,7 +10,7 @@ local Settings = require(script.Parent.Settings)
 
 local Camera = {}
 
-local MIN_HEIGHT, MAX_HEIGHT = 55, 900 -- at the floor a soldier is ~30 px tall, so the uniforms read
+local MIN_HEIGHT, MAX_HEIGHT = 25, 900 -- at the floor a soldier fills ~60 px: down among the ranks
 local MIN_PITCH, MAX_PITCH = math.rad(35), math.rad(65)
 local DEFAULT_PITCH = math.rad(52)
 -- NTW-style: the view tilts toward the horizon as it nears the ground (full tilt at MIN_HEIGHT,
@@ -24,6 +24,7 @@ local PAN_SPEED = 1.1 -- studs per second per stud of height
 local ROTATE_SPEED = 1.6
 local ZOOM_STEP = 1.15
 local DAMP = 10
+local EDGE_PX = 6 -- edge scrolling band at the window border
 
 -- target values (inputs move these) and smoothed values (what is rendered)
 local defaultYaw = DEFAULT_YAW -- per side: faces the enemy (Camera.setDefaultYaw)
@@ -43,6 +44,8 @@ local pinch: { dist: number, ang: number, height: number }? = nil -- two-finger 
 type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
 local lastFrameHeight = DEFAULT_HEIGHT
+local follow: (() -> (number?, number?))? = nil -- the camera tracks a formation until the player pans
+local windowFocused = true
 
 local function groundY(x: number, z: number): number
 	if map then
@@ -87,7 +90,26 @@ local function readKeys(dt: number)
 	if isDown(Enum.KeyCode.A) or isDown(Enum.KeyCode.Left) then
 		side -= 1
 	end
+	-- edge scrolling (desktop only, never while the window is out of focus)
+	if Settings.get().edgeScroll and windowFocused and not Settings.touch() then
+		local cam = workspace.CurrentCamera
+		local m = UserInputService:GetMouseLocation()
+		if cam then
+			local v = cam.ViewportSize
+			if m.X <= EDGE_PX then
+				side -= 1
+			elseif m.X >= v.X - EDGE_PX then
+				side += 1
+			end
+			if m.Y <= EDGE_PX then
+				fwd += 1
+			elseif m.Y >= v.Y - EDGE_PX then
+				fwd -= 1
+			end
+		end
+	end
 	if fwd ~= 0 or side ~= 0 then
+		follow = nil -- panning takes the camera back
 		local speed = PAN_SPEED * cur.height * dt
 		-- forward on screen = look direction projected on the ground; right = +90° in sim space
 		-- is the screen-left in Roblox (Y-up, right-handed), so screen-right is yaw - 90°.
@@ -150,6 +172,16 @@ end
 local function step(dt: number)
 	if not stepIntro() then
 		readKeys(dt)
+		local track = follow
+		if track then
+			local x, z = track()
+			if x and z then
+				target.x, target.z = x, z
+				clampTarget()
+			else
+				follow = nil -- the formation is gone
+			end
+		end
 		local k = 1 - math.exp(-DAMP * dt)
 		cur.x += (target.x - cur.x) * k
 		cur.z += (target.z - cur.z) * k
@@ -203,6 +235,12 @@ function Camera.init()
 		cam.FieldOfView = 55
 	end
 	RunService:BindToRenderStep("EoECamera", Enum.RenderPriority.Camera.Value, step)
+	table.insert(connections, UserInputService.WindowFocused:Connect(function()
+		windowFocused = true
+	end))
+	table.insert(connections, UserInputService.WindowFocusReleased:Connect(function()
+		windowFocused = false
+	end))
 	-- Middle-mouse drag rotates (yaw) and tilts (pitch), Total War style.
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
 		if input.UserInputType == Enum.UserInputType.MouseButton3 and not gp and enabled then
@@ -296,6 +334,15 @@ function Camera.panPixels(dx: number, dy: number)
 	target.x += (fx * dy - rx * dx) * k
 	target.z += (fz * dy - rz * dx) * k
 	clampTarget()
+end
+
+-- Track a moving point (a formation) until the player pans, or stop with nil.
+function Camera.follow(getPos: (() -> (number?, number?))?)
+	follow = getPos
+end
+
+function Camera.following(): boolean
+	return follow ~= nil
 end
 
 function Camera.focusOn(x: number, z: number, snap: boolean?)

@@ -31,7 +31,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] TW hotkeys: speed on +/-, control groups 1–9, Ctrl+A, double-click selects type, order keys, attack-move, face
 - [x] Cards show ammo, fatigue, group number
 - [x] Unit stats panel; inspect visible enemies
-- [ ] Camera: edge scroll, follow unit, lower minimum height
+- [x] Camera: edge scroll, follow unit, lower minimum height
 
 ## Phase 3: battlefield physics and terrain
 - [ ] Round shot travels a lane and bounces through what is behind (friendly fire)

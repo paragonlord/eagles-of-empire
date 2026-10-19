@@ -653,6 +653,20 @@ local function onKey(input: InputObject)
 		Input.wheelPick:Fire(ORDER_KEYS[k])
 	elseif k == Enum.KeyCode.F then
 		focusSelection()
+	elseif k == Enum.KeyCode.V then
+		-- follow the first selected formation (again: stop)
+		local id = Selection.first()
+		if Camera.following() or not id then
+			Camera.follow(nil)
+		else
+			Camera.follow(function(): (number?, number?)
+				local f = BattleState.formations[id]
+				if f and f.state ~= "destroyed" and f.state ~= "exited" then
+					return f.x, f.z
+				end
+				return nil, nil
+			end)
+		end
 
 	elseif k == Enum.KeyCode.Home then
 		local c = BattleState.armyCentre()

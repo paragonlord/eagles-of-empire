@@ -15,6 +15,7 @@ export type Values = {
 	debugAudio: boolean, -- print every audio hook (Audio.luau) to the output
 	reducedShake: boolean,
 	reducedEffects: boolean,
+	edgeScroll: boolean, -- desktop: the mouse at the window's edge pans the camera
 	typeface: string, -- one of Settings.TYPEFACES (UI/Kit presets)
 	placeNames: string, -- one of Settings.PLACE_NAMES (World/Props label modes)
 	controls: string, -- one of Touch.CONTROLS: auto / touch / desktop (docs/mobile-contract.md)
@@ -43,6 +44,7 @@ local values: Values = {
 	debugAudio = false,
 	reducedShake = false,
 	reducedEffects = false,
+	edgeScroll = true,
 	typeface = "Garamond",
 	placeNames = "ground",
 	controls = "auto",

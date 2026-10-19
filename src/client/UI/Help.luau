@@ -15,7 +15,7 @@ local CONTROLS = {
 	{ "Alt + right click", "Turn in place to face that point" },
 	{ "Shift + order", "Queue the order after the current one (up to 4)" },
 	{ "WASD / arrows", "Pan the camera · Q / E rotate · wheel zoom · PgUp / PgDn pitch" },
-	{ "F / Home", "Focus the selection / return to the army" },
+	{ "F / Home / V", "Focus the selection / return to the army / follow the selected formation" },
 	{ "Space · + / −", "Pause or resume · faster / slower (×1 ×2 ×4)" },
 	{ "Ctrl + 1…9 / 1…9", "Assign a control group / recall it (twice: centre on it) · Ctrl + A: everyone" },
 	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
