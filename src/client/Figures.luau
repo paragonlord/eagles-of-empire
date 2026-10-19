@@ -42,6 +42,7 @@ type Marker = {
 	pxW: number, -- billboard size in screen pixels (for label deconfliction)
 	pxH: number,
 	frame: Frame, -- the ivory plate inside the billboard
+	colour: Color3, -- the unit's colour, worn by the far banner
 	texts: { TextLabel }, -- name/corps lines (hidden in banner mode)
 	curW: number, -- current on-screen plate width (px)
 	curH: number,
@@ -729,6 +730,7 @@ local function buildMarker(g: Group, f: any): Marker
 		pxW = pxW,
 		pxH = pxH,
 		frame = plate,
+		colour = g.colour,
 		texts = texts,
 		curW = pxW,
 		curH = pxH,
@@ -1118,7 +1120,7 @@ end
 
 -- Plates scale with distance between a floor and their design size (so they never cover the
 -- field at the deployment zoom). Far away, only HQs, the selection and the hovered unit keep a
--- full plate; the rest shrink to a small blank banner.
+-- full plate; the rest shrink to a small banner in the unit's colour.
 local PLATE_STUDS = 24 -- world width a plate represents before clamping
 local PLATE_MIN_W = 84
 local BANNER_W, BANNER_H = 34, 10
@@ -1131,6 +1133,9 @@ local function sizePlate(m: Marker, w: number, h: number, banner: boolean)
 	m.curW, m.curH = w, h
 	m.gui.Size = UDim2.fromOffset(w, h + 16)
 	m.frame.Size = UDim2.new(1, 0, 0, h)
+	if #m.texts > 0 then
+		m.frame.BackgroundColor3 = if banner then m.colour else IVORY
+	end
 	for _, l in m.texts do
 		l.Visible = not banner
 	end
