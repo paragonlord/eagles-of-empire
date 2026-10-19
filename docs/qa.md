@@ -923,6 +923,27 @@ warnings. Played as Britain.
 - Not seen yet: an escorted landing, a fleet built in port, Trafalgar removing the French and
   Spanish fleets (all covered by `tests/grand.spec.luau`).
 
+**2026-10-19 round 37 (Phase 11: modes and presentation), Studio MCP, scripted.** No EoE errors.
+Studio stopped rendering partway (screen captures timed out and the client sat behind its
+loading screen, as when the display sleeps), so this round checked the live game through
+remotes and the client's GUI tree instead of screenshots.
+- Pass: the loading screen showed a tip under the bar ("Fire by rank lets a halted line reload
+  faster; British infantry was famous for it.").
+- Pass: `command` = other, then Jena: deployment as Prussia (viewer `prussia`, player `prussia`,
+  enemy `france`), briefing "14 October 1806. You command Prussia. France comes to take the
+  field: hold the objectives until time runs out, or break their army." At ×4 the French AI
+  attacked and won the field.
+- Pass: own formations' snapshots carry `kills` (the top French-facing battalion reached 173).
+- Pass: `custom` {Britain against France, Belgium field, 8,000 gold, 6 line, 2 rifles, 2 light
+  cavalry, 2 batteries}: accepted, deployment of "United Kingdom against French Empire" on
+  `province:belgium`.
+- Pass (code path): a round-shot cannon event fed to the client effects creates the iron ball
+  and its streaks; the live events in the sampled minute were canister at close range.
+- Studio checklist (Bartosz, by eye): the battle picker's tab row (Quick · Full · Custom battle and
+  "Command: history's army"), the custom battle screen and its Fight, a ball skimming through its
+  grazes, firing lines loading and levelling on their own beats and bayonet thrusts in melee, the
+  results' Kills column, "Most enemy casualties" and the In history section.
+
 ## Known failures
 
 None recorded yet.
