@@ -6,6 +6,7 @@ local Vec = require(Shared.Vec)
 local MapGen = require(Shared.MapGen)
 local Scenarios = require(Shared.Scenarios)
 local Objectives = require(Server.Sim.Objectives)
+local Formation = require(Server.Sim.Formation)
 local Sim = require(Server.Sim)
 local AI = require(Server.AI)
 
@@ -342,4 +343,46 @@ test("Battle roles: the attacking AI comes on while the enemy holds anything; th
 	end
 	assertEq(postureAs("prussia"), "advance", "the attacker comes on")
 	assertEq(postureAs("france"), "defend", "the defender holds")
+end)
+
+test("AI light infantry screens in skirmish order and closes up when horse appears", function()
+	-- the open Landgrafenberg plateau (as in the sim tests)
+	local sim = newSim({
+		unit("prussia", "infantry", "Füsilier-Bataillon Pelet", 700, 250, math.pi),
+		unit("france", "infantry", "34e de Ligne", 480, 250, 0),
+		unit("france", "cavalry", "5e Hussards", 1300, 1150, 0),
+	})
+	sim.formations[2].fireAtWill = false
+	attach(sim)
+	run(sim, 16)
+	local fus = sim.formations[1]
+	assertEq(fus.type, "light")
+	assertEq(fus.shape, "skirmish", "screening")
+	-- the hussars appear beside them
+	local horse = sim.formations[3]
+	horse.pos = { x = fus.pos.x + 150, z = fus.pos.z }
+	local closed = false
+	for _ = 1, math.floor(8 / DT) do
+		sim:step()
+		closed = closed or fus.pendingShape == "line" or fus.shape == "line" or fus.pendingShape == "square" or fus.shape == "square"
+	end
+	assertTrue(closed, "closed up against cavalry (" .. fus.shape .. ")")
+end)
+
+test("AI cavalry rides into an enemy locked in melee with its infantry", function()
+	local sim = newSim({
+		unit("prussia", "infantry", "IR Nr. 29", 700, 250, math.pi),
+		unit("france", "infantry", "34e de Ligne", 672, 250, 0),
+		unit("prussia", "cavalry", "Dragoner-Regiment Königin Nr. 5", 880, 250, math.pi),
+	})
+	local st, log = attach(sim)
+	run(sim, 8)
+	local charged = false
+	for _, c in log do
+		if c.kind == "Charge" and c.data.targetId == 2 and table.find(c.ids, 3) then
+			charged = true
+		end
+	end
+	assertTrue(charged, "the dragoons charge the battalion fighting ours")
+	local _ = st
 end)

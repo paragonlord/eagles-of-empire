@@ -413,6 +413,45 @@ local function plan(state: AIState)
 			wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(state.right, 140)), Vec.add(centre, Vec.scale(state.right, 140))
 		end
 	end
+	local lineInf = 0
+	for _, f in state.mine do
+		if f.class == "infantry" and unitOf(state, f.id).role ~= "reserve" then
+			lineInf += 1
+		end
+	end
+	if (posture == "attack" or posture == "advance") and lineInf >= 6 and state.planQuality >= 1 then
+		-- pin and turn: the wing on the side the enemy has fewer men swings wide round his flank
+		local c = wing.centre
+		local dir = Vec.fromHeading(state.facing)
+		local r = Vec.right(dir)
+		local leftN, rightN = 0, 0
+		for _, k in state.known do
+			if k.age < 90 then
+				if Vec.dot(Vec.sub(k.pos, c), r) < 0 then
+					leftN += 1
+				else
+					rightN += 1
+				end
+			end
+		end
+		local side = if leftN <= rightN then -1 else 1
+		local w = if side < 0 then "left" else "right"
+		wing[w] = Vec.add(Vec.add(c, Vec.scale(r, side * 240)), Vec.scale(dir, 90))
+	elseif posture == "defend" then
+		-- reverse slope: stand just behind a crest when one is there (out of sight of the guns)
+		local grid = sim.grid
+		for _, w in WINGS do
+			local p = wing[w]
+			for _, back in { 0, 20, 40 } do
+				local cand = walkable(state, Vec.sub(p, Vec.scale(forward, back)))
+				local ahead = Vec.add(cand, Vec.scale(forward, 45))
+				if Grid.heightAt(grid, ahead.x, ahead.z) > Grid.heightAt(grid, cand.x, cand.z) + 3 then
+					wing[w] = cand
+					break
+				end
+			end
+		end
+	end
 	for _, w in WINGS do
 		wing[w] = walkable(state, wing[w])
 	end
@@ -804,6 +843,21 @@ local function infantry(state: AIState, f: Formation)
 		u.reason = "reforming"
 		return
 	end
+	-- Light troops screen in open order while no horse is about, and close up when it comes.
+	if Formation.legalShapes(f).skirmish and f.pendingShape == nil and quality(state) then
+		local horse = nearestVisible(state, f.pos, 300, isCav)
+		if not horse and f.shape ~= "skirmish" and nearestKnownDist(state, f.pos, 60) < 350 then
+			if issue(state, "Shape", { f.id }, { shape = "skirmish" }) then
+				u.reason = "screening in open order"
+				return
+			end
+		elseif horse and f.shape == "skirmish" then
+			if issue(state, "Shape", { f.id }, { shape = "line" }) then
+				u.reason = "closing up: horse about"
+				return
+			end
+		end
+	end
 	-- Broken enough: fall back on the reserve.
 	if f.moraleBand == "shaken" and f.strength < f.startStrength * 0.6 and u.goal ~= "retreat" then
 		if issue(state, "Retreat", { f.id }, { pos = state.reserve }) then
@@ -909,6 +963,8 @@ local function cavalry(state: AIState, f: Formation)
 					s = if gunsThreatenedBy(state, e) then 85 else 0
 				elseif e.class == "hq" then
 					s = 60
+				elseif e.state == "melee" and e.shape ~= "square" and e.shape ~= "garrison" then
+					s = 95 -- locked in melee with our men: ride into it (worth leaving the reserve for)
 				elseif e.shape ~= "square" and e.state ~= "reforming" then
 					local side = Vec.attackSide(e.pos, e.heading, f.pos)
 					s = if side == "rear" then 80 elseif side == "flank" then 70 else 0
