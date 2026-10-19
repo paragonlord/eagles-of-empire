@@ -94,6 +94,19 @@ local function validBattle(b: any): boolean
 	if type(b.attackers) ~= "table" or type(b.defenders) ~= "table" or (b.scenarioId ~= nil and not isStr(b.scenarioId)) then
 		return false
 	end
+	local r = b.reinforcements
+	if r ~= nil then
+		if type(r) ~= "table" or type(r.attackers) ~= "table" or type(r.defenders) ~= "table" then
+			return false
+		end
+		for _, side in { r.attackers, r.defenders } do
+			for _, id in side do
+				if not isStr(id) then
+					return false
+				end
+			end
+		end
+	end
 	for _, n in b.attackers do
 		if not nationOk(n) then
 			return false

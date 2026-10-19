@@ -196,6 +196,11 @@ Prussia Jäger) and Russia's cavalry (Cossacks).
   `EuropeData.Provinces[*].towns` (3 real towns, the first the main village), the river from
   `river`; no labels from any other battle; two deploy zones on opposite edges with any keys
   (the campaign maps its sides onto whatever two keys the map has).
+- Reinforcements: when a battle is detected, each side's two strongest armies in neighbouring land
+  provinces (not engaged themselves; an army reinforces one battle a turn) are recorded. In a battle
+  fought on the field they march in from their side's edge, a unit every 30 s from 4:00, share its
+  losses, experience and honours, and stay in their own province afterwards. Auto-resolved battles
+  are fought by the armies in the province only.
 - Contacts resolve after every nation has moved. An army that shares a province with a hostile
   army may still march off on its own turn (refusing battle); the log says so ("… withdraws from
   Tyrol before the enemy, refusing battle").

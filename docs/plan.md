@@ -64,7 +64,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 
 ## Phase 8: campaign armies and battles
 - [x] Per-province battle maps
-- [ ] Adjacent armies reinforce battles
+- [x] Adjacent armies reinforce battles
 - [ ] Forced march
 - [ ] General careers: traits, rank, death, appointment
 - [ ] Siege assault

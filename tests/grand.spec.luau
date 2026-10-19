@@ -812,6 +812,41 @@ test("Grand battles: generic scenario on the province map with keys, zones and o
 	assertEq(aus.colour, "Austria")
 end)
 
+test("Grand battles: friendly armies next door march to a battle fought on the field", function()
+	local s = empty(16)
+	Diplomacy.declareWar(s, "france", "austria")
+	local here = army(s, "france", "venetia", { line = 3 }, { name = "Masséna", rating = 4 })
+	local nextDoor = army(s, "france", "lombardy", { line = 2, cavalry = 1 })
+	local foe = army(s, "austria", "venetia", { line = 4 }, { name = "Archduke Charles", rating = 4 })
+	local foeHelp = army(s, "austria", "tyrol", { line = 2 })
+	local b = Battles.detect(s)[1]
+	assertTrue(b.reinforcements ~= nil)
+	assertTrue(table.find(b.reinforcements.attackers, nextDoor.id) ~= nil or table.find(b.reinforcements.defenders, nextDoor.id) ~= nil, "Lombardy marches")
+	local sc = GrandCampaign.battleScenario(s, b.battleId)
+	local arrivals = 0
+	for _, u in sc.units do
+		if u.arrival then
+			arrivals += 1
+			assertTrue(u.arrival.seconds >= Battles.REINFORCE_FIRST)
+		end
+	end
+	assertEq(arrivals, 3 + 2, "Lombardy's three and Tyrol's two units march up")
+	-- the battle is fought: survivors include the reinforcements
+	local survivors = {}
+	for _, u in sc.units do
+		if u.key and string.sub(u.key, 1, 1) == "u" then
+			survivors[u.key] = { strength = math.floor(u.strength * 0.8), experience = u.experience, destroyed = false, initial = u.strength }
+		end
+	end
+	local outcome = if sc.factions.player == sc.factions.player then "victory" else "defeat"
+	assertTrue(Battles.apply(s, b.battleId, results(outcome), survivors))
+	assertEq(nextDoor.provinceId, "lombardy", "they go home to their own province")
+	assertEq(nextDoor.units[1].strength, math.min(nextDoor.units[1].maxStrength, math.floor(600 * 0.8)), "and carry their losses")
+	local _ = here
+	local __ = foe
+	local ___ = foeHelp
+end)
+
 test("Grand battles: auto-resolve is deterministic, the loser retreats, war score moves", function()
 	local function setup()
 		local s = empty(16)

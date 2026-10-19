@@ -90,4 +90,6 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     province carries `revolt?` (in open revolt) next to `unrest`.
 16. Technology: `research {tech}` (`EuropeData.Techs`). The player's nation carries `techs` (ids
     known), `research?`, `progress?` and `researchPoints`. Locked recruits read `needsTech:<id>`.
+17. Reinforcements: a pending battle may carry `reinforcements = {attackers = {armyIds}, defenders =
+    {armyIds}}` (neighbouring armies); in its tactical scenario their units carry `arrival`.
 

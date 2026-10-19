@@ -60,6 +60,59 @@ function Battles.armies(s: State, b: Battle, side: string?): { Army }
 	return out
 end
 
+Battles.MAX_REINFORCING = 2 -- armies a side, from neighbouring provinces
+Battles.REINFORCE_FIRST = 240 -- seconds into a tactical battle the first of them arrives
+Battles.REINFORCE_STEP = 30 -- and every further unit
+
+-- The reinforcing armies still alive and still next door (`side` nil: both sides).
+function Battles.reinforcing(s: State, b: Battle, side: string?): { Army }
+	local out = {}
+	local r = b.reinforcements
+	if not r then
+		return out
+	end
+	for _, sd in { "attackers", "defenders" } do
+		if side == nil or side == sd then
+			for _, id in (r :: any)[sd] do
+				local a = State.armyById(s, id)
+				if a and a.provinceId ~= b.provinceId and table.find(State.province(b.provinceId).neighbours, a.provinceId) and sideOf(b, a.nation) == sd then
+					out[#out + 1] = a
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- Friendly armies next door, not fighting themselves, march to the sound of the guns (the strongest
+-- two a side; an army reinforces one battle a turn).
+local function findReinforcements(s: State, b: Battle, used: { [string]: boolean }): { attackers: { string }, defenders: { string } }?
+	local found = { attackers = {}, defenders = {} }
+	local any = false
+	for _, sd in { "attackers", "defenders" } do
+		local cands: { Army } = {}
+		for _, n in State.province(b.provinceId).neighbours do
+			if not EuropeData.isSeaLane(b.provinceId, n) then
+				for _, a in State.armiesIn(s, n) do
+					if sideOf(b, a.nation) == sd and not used[a.id] and not State.hostileArmyIn(s, n, a.nation) then
+						cands[#cands + 1] = a
+					end
+				end
+			end
+		end
+		table.sort(cands, function(x: Army, y: Army): boolean
+			local sx, sy = State.armyStrength(x), State.armyStrength(y)
+			return if sx ~= sy then sx > sy else x.id < y.id
+		end)
+		for i = 1, math.min(#cands, Battles.MAX_REINFORCING) do
+			table.insert((found :: any)[sd], cands[i].id)
+			used[cands[i].id] = true
+			any = true
+		end
+	end
+	return if any then found else nil
+end
+
 function Battles.pending(s: State, battleId: string): (Battle?, number)
 	for i, b in s.pendingBattles do
 		if b.battleId == battleId then
@@ -122,6 +175,7 @@ end
 -- Finds the contacts and records them as pending battles. Returns the new battles.
 function Battles.detect(s: State, autoplay: boolean?): { Battle }
 	local out = {}
+	local used: { [string]: boolean } = {}
 	for _, pid in EuropeData.ProvinceIds do
 		local here = State.armiesIn(s, pid)
 		if #here >= 2 then
@@ -179,6 +233,10 @@ function Battles.detect(s: State, autoplay: boolean?): { Battle }
 						scenarioId = Battles.matchSetPiece(s, pid, s.turn, attackers, defenders),
 						player = player,
 					}
+					for _, a in here do
+						used[a.id] = true
+					end
+					b.reinforcements = findReinforcements(s, b, used)
 					s.pendingBattles[#s.pendingBattles + 1] = b
 					out[#out + 1] = b
 				end
@@ -193,7 +251,18 @@ end
 local function applyOutcome(s: State, b: Battle, index: number, winnerSide: string, survivors: { [string]: Survivor }, reason: string)
 	local loserSide = if winnerSide == "attackers" then "defenders" else "attackers"
 	local unitSide: { [string]: string } = {}
-	for _, a in Battles.armies(s, b) do
+	local fought: { Army } = Battles.armies(s, b)
+	for _, a in Battles.reinforcing(s, b) do
+		-- a reinforcing army that came onto the field shares the outcome but stays in its province
+		local cameUp = false
+		for _, u in a.units do
+			cameUp = cameUp or survivors[u.key] ~= nil
+		end
+		if cameUp then
+			fought[#fought + 1] = a
+		end
+	end
+	for _, a in fought do
 		local sd = sideOf(b, a.nation) :: string
 		for _, u in a.units do
 			unitSide[u.key] = sd
@@ -217,7 +286,7 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 	end
 	local destroyedArmy = false
 	local honour = Battles.honourName(b)
-	for _, a in Battles.armies(s, b) do
+	for _, a in fought do
 		local sd = sideOf(b, a.nation) :: string
 		local honoured = 0
 		for i = #a.units, 1, -1 do
@@ -248,7 +317,7 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 		end
 	end
 	local pname = State.province(b.provinceId).name
-	for _, a in Battles.armies(s, b) do
+	for _, a in fought do
 		if #a.units == 0 then
 			destroyedArmy = destroyedArmy or sideOf(b, a.nation) == loserSide
 			State.removeArmy(s, a.id)
@@ -691,6 +760,38 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 				faction = key,
 				colour = EuropeData.Nations[pair.a.nation].colour,
 				key = pair.u.key,
+			}
+		end
+		-- reinforcements march in from the side's own edge, a unit at a time
+		local arriving: { Placed } = {}
+		for _, a in Battles.reinforcing(s, battle, side) do
+			for _, u in a.units do
+				arriving[#arriving + 1] = { u = u, a = a }
+			end
+		end
+		for i, pair in arriving do
+			if i > Battles.MAX_UNITS_PER_SIDE then
+				break
+			end
+			local c = EuropeData.UnitClasses[pair.u.type]
+			local rx, rz = clampTo(zone, cx + px * ((i % 5) - 2) * 60 - dx * 80, cz + pz * ((i % 5) - 2) * 60 - dz * 80)
+			units[#units + 1] = {
+				name = pair.u.name,
+				class = c.class,
+				type = c.sim,
+				fireByRank = if c.class == "infantry" then State.hasTech(s, pair.a.nation, "drill") and (c.sim == "line" or c.sim == "guard") else nil,
+				quickSquare = c.class == "infantry" and State.hasTech(s, pair.a.nation, "squares") or nil,
+				canisterBonus = if c.class == "artillery" and State.hasTech(s, pair.a.nation, "canister") then 1.25 else nil,
+				moraleBonus = if State.hasTech(s, pair.a.nation, "nationalism") then 5 else nil,
+				corps = pair.a.name .. " (marching up)",
+				strength = pair.u.strength,
+				experience = pair.u.experience,
+				pos = { x = rx, z = rz },
+				heading = heading,
+				faction = key,
+				colour = EuropeData.Nations[pair.a.nation].colour,
+				key = pair.u.key,
+				arrival = { seconds = Battles.REINFORCE_FIRST + (i - 1) * Battles.REINFORCE_STEP, pos = { x = rx, z = rz } },
 			}
 		end
 		local leadNation = if side == "attackers" then battle.attacker else battle.defender

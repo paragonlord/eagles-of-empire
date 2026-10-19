@@ -22,7 +22,8 @@ export type War = { a: string, b: string, score: number, since: number } -- scor
 export type Peace = { winner: string, dictated: boolean, turn: number } -- winner "" = white peace
 export type Recruit = { nation: string, provinceId: string, unitType: string, turnsLeft: number }
 export type Offer = { id: string, from: string, to: string, kind: string, terms: { [string]: any }, turn: number }
-export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean }
+-- reinforcements: army ids per side in neighbouring provinces that march to the battle
+export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean, reinforcements: { attackers: { string }, defenders: { string } }? }
 export type Applied = { battleId: string, winner: string, turn: number }
 export type InboxChoice = { id: string, label: string }
 export type Inbox = { id: string, title: string, text: string, turn: number, choices: { InboxChoice }? }
