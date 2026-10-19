@@ -259,6 +259,61 @@ test("Fire by rank: drilled infantry halted in line reloads faster; guard and Br
 	assertTrue(math.abs(reloads[2] / reloads[1] - Config.Combat.FireByRankReload) < 0.02, string.format("%.2f vs %.2f", reloads[2], reloads[1]))
 end)
 
+test("Round shot ricochets down its lane: units behind the target are hit, friend or foe; canister does not carry", function()
+	local sim = newSim({
+		unit("france", "artillery", "Guns", A.x, A.z, 0),
+		unit("prussia", "infantry", "Target", A.x + 200, A.z, math.pi),
+		unit("prussia", "infantry", "Behind", A.x + 260, A.z, math.pi),
+		unit("france", "cavalry", "Our horse behind", A.x + 320, A.z + 4, math.pi),
+		unit("prussia", "infantry", "Off the lane", A.x + 260, A.z + 120, math.pi),
+	})
+	local guns = sim.formations[1]
+	guns.shape = "deployed"
+	Formation.refreshFootprint(guns)
+	guns.targetId = 2
+	for i = 2, 5 do
+		sim.formations[i].fireAtWill = false
+	end
+	local hits: { [number]: number } = {}
+	for _ = 1, 60 do
+		guns.reload = 0
+		guns.ammo = 40
+		guns.targetId = 2
+		for _, a in Combat.gather(sim) do
+			if a.attackerId == 1 and a.kind == "cannon" then
+				hits[a.targetId] = (hits[a.targetId] or 0) + a.casualties
+			end
+		end
+	end
+	assertTrue((hits[2] or 0) > 0, "the target is hit")
+	assertTrue((hits[3] or 0) > 0, "the ball carries on into the battalion behind")
+	assertTrue((hits[4] or 0) > 0, "friendly cavalry behind the enemy is not safe")
+	assertEq(hits[5] or 0, 0, "nothing off the lane")
+	assertTrue(hits[3] < hits[2], "the bounce hits less than the first strike")
+	-- canister, at close range: no carry
+	local s2 = newSim({
+		unit("france", "artillery", "Guns", A.x, A.z, 0),
+		unit("prussia", "infantry", "Close", A.x + 80, A.z, math.pi),
+		unit("prussia", "infantry", "Behind", A.x + 150, A.z, math.pi),
+	})
+	local g2 = s2.formations[1]
+	g2.shape = "deployed"
+	Formation.refreshFootprint(g2)
+	s2.formations[2].fireAtWill = false
+	s2.formations[3].fireAtWill = false
+	local behind = 0
+	for _ = 1, 30 do
+		g2.reload = 0
+		g2.targetId = 2
+		for _, a in Combat.gather(s2) do
+			if a.targetId == 3 and a.kind == "cannon" then
+				behind += a.casualties
+			end
+		end
+	end
+	assertEq(behind, 0)
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

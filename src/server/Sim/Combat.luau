@@ -232,6 +232,31 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	local side = Vec.attackSide(target.pos, target.heading, f.pos)
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = ammo.morale, kind = "cannon" }
 	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = mode })
+	if mode == "roundShot" then
+		-- the ball bounces on through whatever stands behind, friend or foe
+		local R = C.Ricochet
+		local dir = Vec.normalize(Vec.sub(target.pos, f.pos))
+		local far = Vec.add(target.pos, Vec.scale(dir, R.length))
+		local strike = expected / shapeF -- the first strike before the target's shape
+		local inLane: { { o: Formation, t: number } } = {}
+		for _, id in sim.order do
+			local o = sim.formations[id]
+			if o and o ~= f and o ~= target and Formation.isActive(o) and Vec.distToSegment(o.pos, target.pos, far) < o.halfRadius * 0.6 then
+				local t = Vec.dot(Vec.sub(o.pos, target.pos), dir) / R.length
+				if t > 0 then
+					table.insert(inLane, { o = o, t = t })
+				end
+			end
+		end
+		table.sort(inLane, function(p: { o: Formation, t: number }, q: { o: Formation, t: number }): boolean
+			return if p.t ~= q.t then p.t < q.t else p.o.id < q.o.id
+		end)
+		for i = 1, math.min(R.maxHits, #inLane) do
+			local o, t = inLane[i].o, inLane[i].t
+			local n = rollCasualties(sim, strike * R.factor * (1 - 0.5 * t) * (Config.Shapes :: any)[o.shape].artillery)
+			attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+		end
+	end
 end
 
 -- Footprints touching: centres within the sum of half-radii plus contact distance.

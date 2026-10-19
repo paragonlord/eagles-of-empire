@@ -118,6 +118,11 @@ Artillery: per gun, per shot. Round shot range 60–450, hit 0.5 × rangeF, 3 ca
 18 s. Ammunition mode `auto` picks canister inside 120. A gun reports why it cannot fire:
 `Limbered`, `Reloading`, `Out of range`, `Line of fire blocked`, `No target`, `Out of ammunition`.
 
+Round shot carries on past its target (`Config.Combat.Ricochet`): the two nearest formations of
+either side whose footprints touch the next 140 studs of the line of fire take 0.45 of the first
+strike (before shape), fading to half at the far end, × their own shape's artillery factor; half the
+round shot's morale shock. Canister does not carry. Friendly troops behind the enemy are not safe.
+
 ## Melee and charges
 
 Contact: footprints within 6 studs and the attacker's order targets the defender, or either
