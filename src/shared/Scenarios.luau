@@ -51,6 +51,7 @@ export type Scenario = {
 	parent: string?, -- episodes: id of the full battle they are cut from
 	buildings: boolean?, -- false: no garrisonable buildings (the tutorial teaches the basics first)
 	attacker: string?, -- the side that came to take the field (the AI defender holds); nil = a meeting battle
+	historicalWinner: string?, -- listed battles: the faction that carried the day in history (results)
 }
 
 -- mode: "full" | "episode"; parent: the full battle's id for episodes (nil for full battles).
@@ -138,6 +139,7 @@ local JENA_PRUSSIAN = {
 
 Scenarios.jena = {
 	id = "jena",
+	historicalWinner = "france",
 	attacker = "france",
 	name = "Jena, 14 October 1806",
 	map = "jena",
@@ -252,6 +254,7 @@ local AUERSTEDT_PRUSSIAN = {
 
 Scenarios.auerstedt = {
 	id = "auerstedt",
+	historicalWinner = "france",
 	attacker = "prussia",
 	name = "Auerstedt, 14 October 1806",
 	map = "auerstedt",
@@ -388,6 +391,7 @@ local AUSTERLITZ_ALLIED = {
 
 Scenarios.austerlitz = {
 	id = "austerlitz",
+	historicalWinner = "france",
 	name = "Austerlitz, 2 December 1805",
 	map = "austerlitz",
 	briefing = "Dawn, 2 December 1805. The Russo-Austrian army under Kutuzov has occupied the Pratzen Heights and is wheeling south to turn your right along the Goldbach; a thick fog hides the valley and will lift in about eight minutes with the sun. Soult's corps is massed below the Pratzen, Lannes holds the Santon, the Guard and Murat stand in reserve, and Friant's division is force-marching up from the south-west to reach the field in the first few minutes. Hold Sokolnitz and the Santon, then storm the Pratzen when the allied columns have drained off the plateau. Break the allied army on its own ground.",
@@ -520,6 +524,7 @@ local WATERLOO_ALLIED = {
 
 Scenarios.waterloo = {
 	id = "waterloo",
+	historicalWinner = "britain",
 	attacker = "france",
 	name = "Waterloo, 18 June 1815",
 	map = "waterloo",
@@ -583,6 +588,7 @@ end
 
 episode({
 	id = "jena_landgrafenberg",
+	historicalWinner = "france",
 	attacker = "france",
 	parent = "jena",
 	name = "Lannes on the Landgrafenberg",
@@ -636,6 +642,7 @@ episode({
 
 episode({
 	id = "jena_vierzehnheiligen",
+	historicalWinner = "france",
 	attacker = "france",
 	parent = "jena",
 	name = "The fight for Vierzehnheiligen",
@@ -689,6 +696,7 @@ episode({
 
 episode({
 	id = "auerstedt_hassenhausen",
+	historicalWinner = "france",
 	attacker = "prussia",
 	parent = "auerstedt",
 	name = "Gudin at Hassenhausen",
@@ -748,6 +756,7 @@ episode({
 
 episode({
 	id = "auerstedt_spielberg",
+	historicalWinner = "france",
 	attacker = "france",
 	parent = "auerstedt",
 	name = "Friant at Spielberg",
@@ -796,6 +805,7 @@ episode({
 
 episode({
 	id = "austerlitz_pratzen",
+	historicalWinner = "france",
 	attacker = "france",
 	parent = "austerlitz",
 	name = "Soult on the Pratzen",
@@ -851,6 +861,7 @@ episode({
 
 episode({
 	id = "austerlitz_sokolnitz",
+	historicalWinner = "france",
 	attacker = "russia",
 	parent = "austerlitz",
 	name = "Davout at Sokolnitz",
@@ -906,6 +917,7 @@ episode({
 
 episode({
 	id = "waterloo_hougoumont",
+	historicalWinner = "britain",
 	attacker = "france",
 	parent = "waterloo",
 	name = "The struggle for Hougoumont",
@@ -958,6 +970,7 @@ episode({
 
 episode({
 	id = "waterloo_lahayesainte",
+	historicalWinner = "france",
 	attacker = "france",
 	parent = "waterloo",
 	name = "The fall of La Haye Sainte",
@@ -1179,6 +1192,22 @@ function Scenarios.forSide(sc: Scenario, side: string): Scenario
 	out.briefing = string.format("%sYou command %s. %s", if sc.date then sc.date .. ". " else "", mine, task)
 	out.difficultyNote = nil
 	return out
+end
+
+-- A line for the results: how the battle just fought compares with history (nil: no history).
+function Scenarios.historyVerdict(sc: Scenario, winner: string?): string?
+	local listed = Scenarios.get(sc.id)
+	local h = listed and listed.historicalWinner
+	if not h then
+		return nil
+	end
+	local name = sc.factionNames[h] or h
+	if winner == h then
+		return "As in history, " .. name .. " carried the day."
+	elseif winner == nil then
+		return "A draw; in history " .. name .. " carried the day."
+	end
+	return "History went otherwise: " .. name .. " carried the day."
 end
 
 function Scenarios.get(id: string): Scenario?

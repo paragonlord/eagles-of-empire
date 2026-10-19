@@ -78,6 +78,7 @@ export type FormationView = {
 	dest: Vec?,
 	destHeading: number?,
 	experience: number?,
+	kills: number?, -- own formations only: enemy casualties inflicted this battle
 	ammoMode: string?,
 	queue: { Vec }?,
 	general: string?, -- own HQ: id in src/shared/Generals.luau

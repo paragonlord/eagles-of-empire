@@ -118,6 +118,15 @@ notes = function(results: any): { string }
 	if c.ownDestroyed > 0 or c.enemyDestroyed > 0 then
 		table.insert(out, string.format("You lost %s%s; the enemy lost %d that you saw.", plural(c.ownDestroyed, "formation", "formations"), if c.gunsLost > 0 then string.format(" (guns lost: %d %s)", c.gunsLost, if c.gunsLost == 1 then "battery" else "batteries") else "", c.enemyDestroyed))
 	end
+	local best: Ledger.Record? = nil
+	for _, r in Ledger.records() do
+		if r.kills > 0 and (best == nil or r.kills > (best :: Ledger.Record).kills) then
+			best = r
+		end
+	end
+	if best then
+		table.insert(out, string.format("Most enemy casualties: %s, %d.", best.name, best.kills))
+	end
 	for _, line in results.feedback or {} do
 		table.insert(out, tostring(line))
 	end
@@ -133,7 +142,7 @@ formationTable = function(parent: Instance, order: number)
 	t.LayoutOrder = order
 	t.Parent = parent
 	Kit.list(t, 0)
-	local COLS = { { "Formation", 0.44 }, { "Start", 0.11 }, { "End", 0.11 }, { "Lost", 0.11 }, { "Status", 0.23 } }
+	local COLS = { { "Formation", 0.38 }, { "Start", 0.1 }, { "End", 0.1 }, { "Lost", 0.1 }, { "Kills", 0.1 }, { "Status", 0.22 } }
 	local function row(cells: { string }, i: number, header: boolean)
 		local r = Instance.new("Frame") :: Frame
 		r.Size = UDim2.new(1, 0, 0, 20)
@@ -145,18 +154,18 @@ formationTable = function(parent: Instance, order: number)
 		local x = 0
 		for k, col in COLS do
 			local w = col[2] :: number
-			local l = Kit.label(r, cells[k], { size = UDim2.new(w, -6, 1, 0), position = UDim2.new(x, 4, 0, 0), textSize = if header then 13 else 14, font = if header then Enum.Font.SourceSansBold else nil, align = if k > 1 and k < 5 then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left })
+			local l = Kit.label(r, cells[k], { size = UDim2.new(w, -6, 1, 0), position = UDim2.new(x, 4, 0, 0), textSize = if header then 13 else 14, font = if header then Enum.Font.SourceSansBold else nil, align = if k > 1 and k < #COLS then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left })
 			l.TextTruncate = Enum.TextTruncate.AtEnd
 			x += w
 		end
 	end
-	row({ "Formation", "Start", "End", "Lost", "Status" }, 0, true)
+	row({ "Formation", "Start", "End", "Lost", "Kills", "Status" }, 0, true)
 	local recs = Ledger.records()
 	for i, r in recs do
-		row({ r.name, tostring(r.start), tostring(r.last), tostring(math.max(0, r.start - r.last)), r.status }, i, false)
+		row({ r.name, tostring(r.start), tostring(r.last), tostring(math.max(0, r.start - r.last)), tostring(r.kills), r.status }, i, false)
 	end
 	if #recs == 0 then
-		row({ "No formations recorded", "", "", "", "" }, 1, false)
+		row({ "No formations recorded", "", "", "", "", "" }, 1, false)
 	end
 end
 
@@ -301,6 +310,22 @@ function Results.show(results: any, cb: Callbacks)
 		heading("Chronicle")
 		for _, l in chronicle do
 			para(l, Kit.MUTED)
+		end
+	end
+
+	-- the listed battles: what happened in history, and how this day compares
+	local played = BattleState.scenario
+	if sc and played and played.factions then
+		local me = if BattleState.viewerFaction ~= "" then BattleState.viewerFaction else played.factions.player
+		local other = if me == played.factions.player then played.factions.enemy else played.factions.player
+		local winner = if results.outcome == "victory" then me elseif results.outcome == "defeat" then other else nil
+		local verdict = Scenarios.historyVerdict(played, winner)
+		if verdict then
+			heading("In history")
+			if sc.summary then
+				para(sc.summary)
+			end
+			para(verdict, Kit.GILT_DARK)
 		end
 	end
 

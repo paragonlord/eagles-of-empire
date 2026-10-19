@@ -1225,3 +1225,29 @@ test("Battle techs from the campaign: quick squares, better canister, nationalis
 	assertTrue(canister(1.25) > canister(1) * 1.1, "Improved canister")
 end)
 
+
+test("Snapshot: own formations carry the enemy casualties they inflicted (results)", function()
+	local sim = newSim({
+		unit("france", "infantry", "25e de Ligne", 400, 400, math.pi / 2),
+		unit("prussia", "infantry", "IR 15", 400, 600, -math.pi / 2),
+	})
+	sim:step() -- lines of sight
+	local f
+	for _, id in sim.order do
+		if sim.formations[id].faction == "france" then
+			f = sim.formations[id]
+		end
+	end
+	f.kills = 37
+	local snap = sim:snapshot("france", true)
+	local mine, theirs
+	for _, v in snap.formations do
+		if v.faction == "france" then
+			mine = v
+		else
+			theirs = v
+		end
+	end
+	assertEq(mine.kills, 37)
+	assertTrue(theirs ~= nil and theirs.kills == nil, "not for the enemy's")
+end)

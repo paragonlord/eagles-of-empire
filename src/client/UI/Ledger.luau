@@ -17,6 +17,7 @@ export type Record = {
 	status: string,
 	shape: string,
 	squares: number,
+	kills: number, -- enemy casualties it inflicted (own formations; the server counts)
 }
 
 export type Counts = {
@@ -67,7 +68,7 @@ function Ledger.observe(forms: { any })
 		if found then
 			r = found
 		else
-			r = { id = f.id :: number, name = tostring(f.name or ("#" .. f.id)), corps = tostring(f.corps or ""), class = tostring(f.class), start = tonumber(f.startStrength) or 0, last = tonumber(f.strength) or 0, status = "", shape = tostring(f.shape), squares = 0 }
+			r = { id = f.id :: number, name = tostring(f.name or ("#" .. f.id)), corps = tostring(f.corps or ""), class = tostring(f.class), start = tonumber(f.startStrength) or 0, last = tonumber(f.strength) or 0, status = "", shape = tostring(f.shape), squares = 0, kills = 0 }
 			records[f.id] = r
 			table.insert(order, f.id)
 		end
@@ -79,6 +80,7 @@ function Ledger.observe(forms: { any })
 		end
 		r.shape = shape
 		r.last = tonumber(f.strength) or 0
+		r.kills = tonumber(f.kills) or r.kills
 		r.status = if f.moraleBand == "shattered" then "Shattered" else (STATUS[f.state] or f.state)
 	end
 	for id, r in records do

@@ -396,3 +396,16 @@ test("Either side: a listed battle can be fought from the other army, briefed fr
 	local ok = Protocol.validateControl({ requestId = "r", action = "command", value = "both" }, { matchId = "" })
 	assertTrue(not ok)
 end)
+
+test("Results in history: every listed battle names its historical winner, and the verdict reads it", function()
+	for _, e in Scenarios.list() do
+		local sc = Scenarios.get(e.id) :: any
+		assertTrue(sc.historicalWinner ~= nil and sc.factionNames[sc.historicalWinner] ~= nil, e.id .. " has a historical winner")
+	end
+	assertEq(Scenarios.waterloo.historicalWinner, "britain")
+	assertEq(Scenarios.historyVerdict(Scenarios.jena, "france"), "As in history, France carried the day.")
+	assertEq(Scenarios.historyVerdict(Scenarios.jena, "prussia"), "History went otherwise: France carried the day.")
+	assertEq(Scenarios.historyVerdict(Scenarios.jena, nil), "A draw; in history France carried the day.")
+	assertEq(Scenarios.historyVerdict(Scenarios.forSide(Scenarios.waterloo, "other"), "britain"), "As in history, Anglo-allied carried the day.")
+	assertEq(Scenarios.historyVerdict({ id = "custom", factionNames = {} } :: any, "france"), nil, "a custom battle has no history")
+end)

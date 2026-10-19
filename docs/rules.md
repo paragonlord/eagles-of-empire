@@ -177,6 +177,10 @@ takes ×2 damage. A new impact needs 40 s of recovery out of contact. Cavalry in
 Experience (0–3) is also earned in battle: every 150 enemy casualties a formation inflicts
 (`ExperienceKills`; friendly fire never counts) raise it a level, with +4 base morale; it carries
 back to both campaigns with the survivors.
+The results show each own formation's casualties inflicted (snapshot `kills`) in the order of
+battle, name the formation with the most, and for listed battles add "In history": the
+historical summary and whether this day went as history did (`Scenario.historicalWinner`,
+`Scenarios.historyVerdict`).
 
 ## Morale
 

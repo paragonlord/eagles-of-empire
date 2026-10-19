@@ -80,7 +80,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 ## Phase 11: modes and presentation
 - [x] Play either side in historical battles
 - [x] Custom battle
-- [ ] Results: kills per unit, history comparison
+- [x] Results: kills per unit, history comparison
 - [ ] Loading screen tips
 - [ ] Visible round shot
 - [ ] Reload and melee animations
