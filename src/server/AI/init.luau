@@ -1059,8 +1059,20 @@ end
 
 -- Public API -----------------------------------------------------------------------------------------
 
+-- The difficulty's morale bonus goes to the AI's side only (disclosed in settings). Idempotent, so
+-- rebuilding the AI (new difficulty, or the AI changing sides) never stacks it.
+function AI.steady(sim: SimLike, faction: string?, bonus: number)
+	for _, f in sim.formations do
+		local delta = (if f.faction == faction then bonus else 0) - f.aiMoraleBonus
+		f.baseMorale += delta
+		f.morale += delta
+		f.aiMoraleBonus += delta
+	end
+end
+
 function AI.new(sim: SimLike, faction: string, difficulty: string): AIState
 	local diff = (Config.AI.Difficulties :: any)[difficulty] or Config.AI.Difficulties.normal
+	AI.steady(sim, faction, diff.moraleBonus)
 	return {
 		sim = sim,
 		faction = faction,

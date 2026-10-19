@@ -266,3 +266,23 @@ test("Jena: ten minutes against an idle player runs clean at a bounded order rat
 		assertTrue(type(v.goal) == "string" and type(v.reason) == "string", "debug view strings")
 	end
 end)
+
+test("Hard difficulty steadies the AI's own army by its morale bonus, once", function()
+	local sim = Sim.new({ matchId = "m", scenario = scenario({ FAR_FRIEND, FAR_ENEMY }), map = MAP, seed = 3 })
+	sim:start()
+	local fr, pr = sim.formations[1], sim.formations[2]
+	local frBase, prBase = fr.baseMorale, pr.baseMorale
+	local bonus = Config.AI.Difficulties.hard.moraleBonus
+	assertTrue(bonus > 0)
+	AI.new(sim, "prussia", "hard")
+	AI.new(sim, "prussia", "hard")
+	assertEq(pr.baseMorale, prBase + bonus, "applied once even when the AI is rebuilt")
+	assertEq(fr.baseMorale, frBase, "the human side is untouched")
+	AI.new(sim, "prussia", "normal")
+	assertEq(pr.baseMorale, prBase, "a new difficulty replaces the bonus")
+	AI.new(sim, "france", "hard")
+	assertEq(pr.baseMorale, prBase)
+	assertEq(fr.baseMorale, frBase + bonus, "the bonus follows the AI's side")
+	AI.steady(sim, nil, 0)
+	assertEq(fr.baseMorale, frBase, "no AI, no bonus")
+end)

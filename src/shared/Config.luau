@@ -118,10 +118,10 @@ Config.Units = {
 	infantry = {
 		speed = 5.5, chargeSpeed = 7.5,
 		defaultShape = "line", legalShapes = { line = true, column = true, square = true, travel = true },
-		musket = { range = 90, reload = 15, accuracy = 0.07, minReadiness = 0.4 },
+		musket = { range = 90, reload = 15, accuracy = 0.07, minReadiness = 0.4, ammo = 60 },
 		melee = { attack = 1.0, defense = 1.0 },
 		baseMorale = 70, fatigueMove = 0.35, fatigueCharge = 6.0, fatigueMelee = 2.0, rest = 1.5,
-		spot = 260, halfWidthFactor = 1.0,
+		spot = 260,
 	},
 	cavalry = {
 		speed = 14.0, chargeSpeed = 20.0,
@@ -238,12 +238,10 @@ Config.Match = {
 	MaxQueue = 4,
 	LeashDistance = 160, -- engage/attack-move chase limit
 	StuckSeconds = 4,
-	AvoidanceRadius = 12,
 }
 
 Config.AI = {
 	DecisionTicks = 10,
-	PerceptionTicks = 10,
 	CommitSeconds = 20,
 	Difficulties = {
 		easy = { reaction = 2.0, planQuality = 0.6, moraleBonus = 0 },

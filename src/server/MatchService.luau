@@ -102,6 +102,7 @@ local function refreshAI(m: Match, force: boolean?)
 			AI.step(ai)
 		end
 	else
+		AI.steady(m.sim, nil, 0)
 		m.ai = nil
 		m.sim.aiStep = nil
 	end

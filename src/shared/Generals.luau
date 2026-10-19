@@ -155,7 +155,7 @@ local LIST: { General } = {
 	-- Britain
 	{ id = "wellington", name = "Wellington", nation = "britain", rank = "Field Marshal", match = { "wellington" },
 		traits = {
-			t("reverse", "Reverse slope", "local", { cover = 0.15, hideBeyond = 120 }, "Infantry halted behind a crest (ground ahead rises): +15% cover, and the enemy cannot see it beyond 120 until it fires.", INF, "crest"),
+			t("reverse", "Reverse slope", "local", { cover = 0.15, hideBeyond = Generals.HiddenRange }, "Infantry halted behind a crest (ground ahead rises): +15% cover, and the enemy cannot see it beyond 120 until it fires.", INF, "crest"),
 			t("peninsula", "Peninsula drill", "local", { accuracy = 1.05 }, "Infantry hits 5% more often.", INF),
 		},
 		ability = { id = "upguards", name = "Up, Guards, and at 'em!", kind = "upguards", cooldown = 180, radius = 250, duration = 12, text = "Infantry within 250 that is halted behind a crest rises: muskets reloaded at once, fire at will on, and +50% accuracy for 12 s. Recharges in 180 s." } },

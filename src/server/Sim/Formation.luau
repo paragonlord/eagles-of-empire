@@ -45,6 +45,7 @@ export type Formation = {
 	state: Types.State,
 	morale: number,
 	baseMorale: number,
+	aiMoraleBonus: number, -- difficulty bonus currently in baseMorale (AI.steady)
 	fatigue: number,
 	ammo: number,
 	ammoMode: string, -- artillery: auto | roundShot | canister
@@ -157,8 +158,9 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		state = "idle",
 		morale = baseMorale,
 		baseMorale = baseMorale,
+		aiMoraleBonus = 0,
 		fatigue = 0,
-		ammo = def.class == "artillery" and unit.gun.ammo or (def.class == "infantry" and 60 or 0),
+		ammo = if def.class == "artillery" then unit.gun.ammo elseif unit.musket then unit.musket.ammo else 0,
 		ammoMode = "auto",
 		reload = 0,
 		order = nil,

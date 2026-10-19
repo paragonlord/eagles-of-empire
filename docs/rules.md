@@ -42,13 +42,13 @@ Line 5/3 (a 600-man battalion: 8 files → 40 × 9 studs), column 4/3 (8 ranks),
 minimum clearance < half-width the formation adopts `travel` (half-width 8) until clearance
 allows the previous shape again (restored automatically, costs the reform time).
 
-Turning: heading moves toward the target at `shape.turnRate` rad/s; a line cannot fire until
-within 0.15 rad of its facing.
+Turning: heading moves toward the target at `shape.turnRate` rad/s. Fire arcs: infantry ±60°,
+guns ±30° from their facing; a square fires all round.
 
 Navigation: A* on the 16-stud nav grid, cost = distance / terrain.speed, nodes impassable
 when clearance < 8. Replan when the path is blocked for `StuckSeconds = 4` or a new order
-arrives. Avoidance: formations push apart when footprints overlap by more than
-`AvoidanceRadius`; the lower id yields at choke points.
+arrives. Avoidance: friendly formations whose footprints (half-radii) overlap push apart; the lower id
+yields at choke points (clearance < 24).
 
 ## Shapes and reforming
 
