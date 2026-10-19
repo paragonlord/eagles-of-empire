@@ -163,6 +163,8 @@ end
 
 -- Half-footprints (forward, right) a figure's body covers, for the four-corner lift.
 local FOOT: { [string]: { number } } = { infantry = { 0.35, 0.45 }, cavalry = { 1.6, 0.5 }, hq = { 1.6, 0.5 }, artillery = { 2.2, 1.6 } }
+local RELOAD_BEAT = 6 -- seconds a man takes to load and fire, on screen (Soldiers.partCFrame "reload")
+local THRUST_BEAT = 1.3 -- seconds between bayonet thrusts in melee
 
 local function factionColour(faction: string, colourKey: string?): Color3
 	return Factions.colour(faction, colourKey)
@@ -1424,6 +1426,11 @@ function Figures.update(dt: number)
 				g.phase += dt * (if state == "charging" or state == "routing" then 9 else 5.5)
 				g.dirty = true
 			end
+			-- foot soldiers at work: reloading in a firefight, thrusting in melee, each man on his own beat
+			local action: string? = if g.class ~= "infantry" then nil elseif state == "firing" then "reload" elseif state == "melee" then "thrust" else nil
+			if action and not g.ghost and g.lod == "near" then
+				g.dirty = true
+			end
 			-- flocking layer: near LOD only, infantry/cavalry, quality 2+
 			if flockOn and not g.ghost and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
 				local bound = if f.shape == "line" and not animating then 0.6 else 1.2
@@ -1493,7 +1500,8 @@ function Figures.update(dt: number)
 						base = slotCf[slot]
 						local a = anims[i]
 						if a ~= 0 then
-							lc = Soldiers.partCFrame(a, lc, pivots[i], if a == 6 then sway else swing[slot], armed and not routing)
+							local beat = if action then (now / (if action == "reload" then RELOAD_BEAT else THRUST_BEAT) + g.slots[slot].phase / (2 * math.pi)) % 1 else nil
+							lc = Soldiers.partCFrame(a, lc, pivots[i], if a == 6 then sway else swing[slot], armed and not routing, action, beat)
 						end
 					end
 					table.insert(moveParts, p)

@@ -195,3 +195,24 @@ test("Ready gate: caps on settling and replication", function()
 	assertEq((run(s3)), true, "frame cap")
 	assertEq((run({ hit, hit, hit, slow, slow, slow })), false, "before the frame cap")
 end)
+
+test("Figures: muskets are reloaded upright and fired levelled; bayonets thrust in melee", function()
+	local Soldiers = require(Client.World.Soldiers)
+	local origin = CFrame.new()
+	local shouldered = Soldiers.partCFrame(3, origin, 0, 0, false)
+	local levelled = Soldiers.partCFrame(3, origin, 0, 0, true)
+	-- reloading: most of the cycle the butt stands on the ground in front, the rest levelled to fire
+	local ram = Soldiers.partCFrame(3, origin, 0, 0, true, "reload", 0.2)
+	assertTrue(ram.Position.Y < 0.3 and ram.Position.X > 0.3, "butt grounded in front: " .. tostring(ram.Position))
+	assertTrue((Soldiers.partCFrame(3, origin, 0, 0, true, "reload", 0.9).Position - levelled.Position).Magnitude < 1e-6, "then levelled")
+	-- the right arm works the ramrod: it moves through the cycle
+	local a1 = Soldiers.partCFrame(13, origin, 0, 0, true, "reload", 0.1)
+	local a2 = Soldiers.partCFrame(13, origin, 0, 0, true, "reload", 0.16)
+	assertTrue((a1.LookVector - a2.LookVector).Magnitude > 0.05 or (a1.UpVector - a2.UpVector).Magnitude > 0.05, "the ramrod arm moves")
+	-- melee: the levelled musket drives forward and back
+	local out = Soldiers.partCFrame(3, origin, 0, 0, true, "thrust", 0.25)
+	local back = Soldiers.partCFrame(3, origin, 0, 0, true, "thrust", 0.75)
+	assertTrue(out.Position.X > levelled.Position.X + 0.2, "a thrust")
+	assertTrue(math.abs(back.Position.X - levelled.Position.X) < 1e-6, "and back")
+	local _ = shouldered
+end)

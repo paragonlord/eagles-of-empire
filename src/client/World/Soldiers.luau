@@ -243,6 +243,12 @@ local ARM_L_REST = CFrame.new(0.02, 2.08, -0.44) * CFrame.Angles(0, 0, math.rad(
 local ARM_R_REST = CFrame.new(0.02, 2.08, 0.44) * CFrame.Angles(0, 0, math.rad(-6))
 local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(20), math.rad(-78))
 local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-62))
+-- Reloading: the musket stands upright in front, butt on the ground, the left hand on the barrel
+-- and the right working the ramrod; the last part of the cycle it is levelled and fired.
+local RAM = CFrame.new(0.55, 0.05, 0.12) * CFrame.Angles(0, 0, math.rad(6))
+local ARM_L_RAM = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(10), math.rad(-38))
+local RAMMING = 0.75 -- share of the reload cycle spent loading
+local THRUST = 0.35 -- studs a bayonet thrust drives forward
 
 local function mk(size: Vector3, color: Color3, className: string?): BasePart
 	local p = Instance.new(className or "Part") :: BasePart
@@ -305,8 +311,25 @@ local function meshed(key: string, size: Vector3, colour: Color3): BasePart?
 	return p
 end
 
--- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets levelled.
-function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: number, armed: boolean): CFrame
+-- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets
+-- levelled. act = "reload" (firing infantry) or "thrust" (infantry in melee), at t in [0, 1) of
+-- each man's own cycle, moves the musket and arms (3, 12, 13).
+function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: number, armed: boolean, act: string?, t: number?): CFrame
+	local phase = t or 0
+	if act == "reload" and phase < RAMMING then
+		if anim == 3 then
+			return RAM * lc
+		elseif anim == 12 then
+			return ARM_L_RAM * lc
+		elseif anim == 13 then
+			local stroke = 0.5 + 0.5 * math.sin(phase * math.pi * 2 * 4) -- four strokes of the ramrod
+			return CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-115 - 40 * stroke)) * lc
+		end
+	elseif act == "thrust" and (anim == 3 or anim == 12 or anim == 13) then
+		local drive = CFrame.new(THRUST * math.max(0, math.sin(phase * math.pi * 2)), 0, 0)
+		local held = if anim == 3 then LEVEL elseif anim == 12 then ARM_L_LEVEL else ARM_R_LEVEL
+		return drive * held * lc
+	end
 	if anim == 1 or anim == 2 or anim == 4 or anim == 5 then
 		if swing == 0 then
 			return lc

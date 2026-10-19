@@ -82,8 +82,8 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Custom battle
 - [x] Results: kills per unit, history comparison
 - [x] Loading screen tips
-- [ ] Visible round shot
-- [ ] Reload and melee animations
+- [x] Visible round shot
+- [x] Reload and melee animations
 
 ## Assets (Studio)
 - [ ] Priority sounds from the Creator Store (ids listed in `docs/handoff.md` for approval)
