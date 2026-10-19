@@ -499,6 +499,11 @@ test("Grand movement: a forced march goes one province further at a cost, and th
 	assertTrue(a.units[1].strength < a.units[1].maxStrength, "men fall out")
 	local ok, why = GrandCampaign.command(s, { kind = "forcedMarch", armyId = a.id })
 	assertTrue(not ok and why == "alreadyForced")
+	-- only before the army marches: one that has moved, retreated or been halted cannot force on
+	local tired = army(s, "france", "paris", { line = 1 })
+	tired.movesLeft = 0
+	ok, why = GrandCampaign.command(s, { kind = "forcedMarch", armyId = tired.id })
+	assertTrue(not ok and why == "alreadyMarched")
 	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = a.id, path = { "paris", "champagne", "rhineland" } }))
 	assertEq(a.provinceId, "rhineland", "three provinces this turn")
 	assertTrue(GrandCampaign.endTurn(s))

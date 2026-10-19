@@ -311,6 +311,10 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		if a.forced then
 			return false, "alreadyForced"
 		end
+		-- decided before the march: an army that has moved, retreated or been halted cannot force on
+		if a.movesLeft < State.maxMoves(a) then
+			return false, "alreadyMarched"
+		end
 		a.forced = true
 		a.movesLeft += 1
 		Economy.attrit(s, a, Economy.FORCED_MARCH)

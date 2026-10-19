@@ -356,7 +356,8 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 		end, { size = UDim2.new(0.5, -4, 1, 0), tooltip = "A new general takes command: 500 gold" })
 		Kit.setEnabled(ap, ctx.canAct, ctx.actReason)
 	end
-	Kit.setEnabled(fm, ctx.canAct and not a.forced, if not ctx.canAct then ctx.actReason else "Already marching hard")
+	local fresh = a.movesLeft == nil or a.movesMax == nil or a.movesLeft >= a.movesMax
+	Kit.setEnabled(fm, ctx.canAct and not a.forced and fresh, if not ctx.canAct then ctx.actReason elseif a.forced then "Already marching hard" else "Only before the army marches this turn")
 	if ctx.canAct then
 		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 102, { colour = Kit.MUTED, textSize = 12 })
 	end

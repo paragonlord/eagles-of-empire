@@ -93,7 +93,7 @@ Errors come back as `{ kind = "error", requestId, reason }`.
 17. Reinforcements: a pending battle may carry `reinforcements = {attackers = {armyIds}, defenders =
     {armyIds}}` (neighbouring armies); in its tactical scenario their units carry `arrival`.
 18. `forcedMarch {armyId}`: +1 move now, 3 % of the men, no moves next turn; own armies carry
-    `forced` while it applies. Refusal: `alreadyForced`.
+    `forced` while it applies. Only with full moves. Refusals: `alreadyForced`, `alreadyMarched`.
 19. Generals: `appoint {armyId}` (500 gold, a pool name at rating 2). Armies with a general carry
     `wins, losses, sieges, traits` ("Victor", "Unlucky", "Siege-master"). Refusals: `hasGeneral`,
     `noGenerals`, `insufficientFunds`.

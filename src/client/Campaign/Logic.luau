@@ -49,6 +49,7 @@ Logic.REASONS = {
 	badArgs = "Malformed order",
 	building = "Already building here",
 	alreadyForced = "Already marching hard",
+	alreadyMarched = "Only before the army marches this turn",
 	notBesieging = "You are not besieging that province",
 	noArmyReady = "Your besiegers have already acted this turn",
 	hasGeneral = "That army already has a general",

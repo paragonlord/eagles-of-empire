@@ -322,6 +322,37 @@ test("AI garrisons a free building by an objective it holds", function()
 	local _ = st
 end)
 
+test("A stormed fortress: the campaign garrison holds the defender's role and occupies a village", function()
+	local GrandCampaign = require(Server.GrandCampaign)
+	local s = GrandCampaign.State.new(3, "france")
+	table.clear(s.armies)
+	GrandCampaign.Diplomacy.declareWar(s, "france", "austria")
+	local a = GrandCampaign.State.newArmy(s, "france", "Army of Italy", "venetia", { name = "Masséna", rating = 4 })
+	GrandCampaign.State.addUnits(s, a, { line = 6 }, 1)
+	GrandCampaign.Battles.sieges(s)
+	assertTrue(GrandCampaign.command(s, { kind = "assault", provinceId = "venetia" }))
+	local b = GrandCampaign.pendingPlayerBattle(s)
+	local sc = GrandCampaign.battleScenario(s, b.battleId)
+	local map = MapGen.generate(sc.map)
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = map, seed = 5 })
+	sim:start()
+	states[sim] = AI.new(sim, sc.factions.enemy, "normal")
+	local held = nil
+	for _ = 1, math.floor(240 / DT) do
+		sim:step()
+		for _, sp in sim.strongpoints do
+			local f = sp.holder and sim.formations[sp.holder]
+			if f and f.faction == sc.factions.enemy then
+				held = sp.name
+			end
+		end
+		if held then
+			break
+		end
+	end
+	assertTrue(held ~= nil, "the garrison occupies a building within four minutes")
+end)
+
 test("Battle roles: the attacking AI comes on while the enemy holds anything; the defending AI holds", function()
 	local function postureAs(attacker)
 		local units = {
