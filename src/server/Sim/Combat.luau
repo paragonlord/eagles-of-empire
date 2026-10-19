@@ -253,6 +253,9 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	if att.class == "cavalry" and def.shape == "square" then
 		rate *= 0.3
 	end
+	if def.class == "cavalry" and att.shape == "square" then
+		rate *= C.SquareReturnsDamage
+	end
 	if att.class == "cavalry" and att.inWoods then
 		rate *= 0.5
 	end

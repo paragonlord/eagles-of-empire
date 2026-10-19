@@ -163,6 +163,29 @@ test("Square blunts a cavalry charge; a line suffers; forming square takes time"
 	assertEq(sim.formations[1].shape, "square")
 end)
 
+test("Cavalry meleeing a square takes SquareReturnsDamage", function()
+	local function horseLoss(factor)
+		local saved = Config.Combat.SquareReturnsDamage
+		Config.Combat.SquareReturnsDamage = factor
+		local sim = newSim({
+			unit("prussia", "infantry", "Target", B.x, B.z, 0),
+			unit("france", "cavalry", "Horse", B.x + 160, B.z, math.pi),
+		})
+		local t = sim.formations[1]
+		t.fireAtWill = false
+		t.shape = "square"
+		Formation.refreshFootprint(t)
+		cmd(sim, "Charge", { 2 }, { targetId = 1 })
+		run(sim, 25)
+		Config.Combat.SquareReturnsDamage = saved
+		local h = sim.formations[2]
+		return h.startStrength - h.strength
+	end
+	local plain, doubled = horseLoss(1), horseLoss(2)
+	assertTrue(plain > 0, "the square fights back")
+	assertTrue(doubled > plain * 1.5, string.format("x2 %d vs x1 %d", doubled, plain))
+end)
+
 test("Charge impact applies once; recovery blocks a second impact while in contact", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0, 600),
