@@ -816,6 +816,23 @@ errors or warnings (only Roblox CorePackages `FoundationProvider` noise).
 - Balance (3 seeds a cell, `tools/balance.py --seeds 3`): same majorities as the 5-seed table; the
   extra "wins 3/3" flags are the smaller sample, not new behaviour. Use 5 seeds for comparisons.
 
+**2026-10-19 round 31 (unit types, TW orders and controls), synced through the Studio MCP.** No EoE
+errors or warnings.
+- Pass: the command panel is four rows (Line, Column, Square, Skirmish / Wedge, Fire at will, Charge,
+  Run / Attack, Hold, Halt, Retreat / Limber, Auto, Rally) and fits the 96-px bar; Légère cards wear
+  the one-musket-and-horn glyph, line cards the crossed muskets; every card has an amber ammunition
+  bar under strength and morale (`r31-command-grid-type-cards.jpg`).
+- Pass: K on the 17e Légère: the inspector reads Type "Light infantry", Shape "Skirmish"; close up
+  the battalion is two loose, staggered ranks across a footprint twice a line's width
+  (`r31-skirmish-close.jpg`).
+- Pass: Ctrl+1 then R then a right-click: the card shows "1" and the running mark, the Run button
+  lights, the status reads Marching and fatigue climbs (`r31-run-group-card.jpg`).
+- Pass: the wheel zooms in steps down to the new 25-stud floor (MCP scrolls need a pause between
+  them, a burst is dropped).
+- Fixed: the running chevrons pointed backwards («); now ».
+- Not exercised here (no MCP way to hold Alt or reach the window edge): Alt+right-click facing,
+  edge scrolling, V follow. Bartosz: try them in a normal Play.
+
 ## Known failures
 
 None recorded yet.

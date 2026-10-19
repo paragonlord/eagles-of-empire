@@ -428,10 +428,12 @@ Config.Shapes = {
 	deployed = { ranks = 1, fire = 1.0, melee = 0.3, speed = 0.0, shock = 3.0, artillery = 1.0, turnRate = 0.0, figureSpacing = 8, rankSpacing = 8 },
 	wedge = { ranks = 4, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.0, artillery = 1.6, turnRate = 1.1, figureSpacing = 5, rankSpacing = 6 },
 	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
+	-- open order (light infantry and rifles): fires on the move and all round, hard to hit, prey to cavalry
+	skirmish = { ranks = 2, fire = 0.5, melee = 0.5, speed = 1.0, shock = 2.0, artillery = 0.35, turnRate = 1.2, figureSpacing = 7, rankSpacing = 6 },
 }
 
 -- Seconds to change shape (from any shape to the key). Square from column is faster.
-Config.ReformTime = { line = 12, column = 8, square = 15, travel = 6, limbered = 25, deployed = 20, wedge = 4, staff = 2 }
+Config.ReformTime = { line = 12, column = 8, square = 15, travel = 6, limbered = 25, deployed = 20, wedge = 4, staff = 2, skirmish = 6 }
 Config.SquareFromColumnTime = 10
 
 Config.Units = {
@@ -479,21 +481,59 @@ Config.Units = {
 	},
 }
 
+-- Unit types (docs/rules.md "Unit types"). Each names its class and overrides that class's stats
+-- above; Config.TypeStats[type] is the merged table every rule reads (Formation.unitConfig).
+-- reformScale multiplies reform/limber times; pursuit multiplies a charge's impact on routing units.
+Config.UnitTypes = {
+	line = { class = "infantry", name = "Line infantry" },
+	light = { class = "infantry", name = "Light infantry", stats = { legalShapes = { skirmish = true }, speed = 6.2, chargeSpeed = 8.2, musket = { accuracy = 0.075 }, melee = { attack = 0.95, defense = 0.95 }, spot = 300 } },
+	rifle = { class = "infantry", name = "Rifles", stats = { legalShapes = { skirmish = true }, speed = 6.0, chargeSpeed = 8.0, baseMorale = 70, musket = { range = 130, reload = 21, accuracy = 0.11, ammo = 50 }, melee = { attack = 0.8, defense = 0.85 }, spot = 320 } },
+	grenadier = { class = "infantry", name = "Grenadiers", stats = { baseMorale = 72, melee = { attack = 1.1, defense = 1.05 } } },
+	guard = { class = "infantry", name = "Guard infantry", stats = { baseMorale = 76, melee = { attack = 1.15, defense = 1.1 } } },
+	militia = { class = "infantry", name = "Militia", stats = { baseMorale = 58, musket = { accuracy = 0.055 }, melee = { attack = 0.85, defense = 0.9 } } },
+	lightCav = { class = "cavalry", name = "Light cavalry", stats = { speed = 16.0, chargeSpeed = 22.0, baseMorale = 70, melee = { attack = 1.2, defense = 0.75 }, pursuit = 1.4, charge = { base = 0.05 }, fatigueMove = 0.4, spot = 380 } },
+	dragoon = { class = "cavalry", name = "Dragoons" },
+	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 13.0, chargeSpeed = 19.0, baseMorale = 74, melee = { attack = 1.35, defense = 1.0 }, charge = { base = 0.065 }, fatigueMove = 0.6 } },
+	footArt = { class = "artillery", name = "Foot artillery" },
+	horseArt = { class = "artillery", name = "Horse artillery", stats = { speed = 7.5, reformScale = 0.5, gun = { roundShot = { range = 380, casualtiesPerHit = 2.5 } } } },
+	hq = { class = "hq", name = "Headquarters" },
+}
+
+local function merged(base: any, over: any): any
+	local out = {}
+	for k, v in base do
+		out[k] = if type(v) == "table" then merged(v, {}) else v
+	end
+	for k, v in over do
+		out[k] = if type(v) == "table" and type(out[k]) == "table" then merged(out[k], v) else v
+	end
+	return out
+end
+
+Config.TypeStats = {} :: { [string]: any }
+for id, t in Config.UnitTypes :: { [string]: any } do
+	Config.TypeStats[id] = merged((Config.Units :: any)[t.class], t.stats or {})
+end
+
+-- Running (Move/AttackMove with run, or the Run order): infantry, cavalry and staff only.
+Config.Run = { speed = 1.4, fatigue = 3.0 }
+
 Config.Combat = {
 	RangeFalloff = 0.65, -- hit factor at max range = 1 - falloff
 	MaxHitChance = 0.30,
-	TargetShapeFactor = { line = 1.0, column = 1.5, square = 1.3, travel = 1.6, limbered = 1.2, deployed = 1.0, wedge = 1.2, staff = 1.0 },
+	TargetShapeFactor = { line = 1.0, column = 1.5, square = 1.3, travel = 1.6, limbered = 1.2, deployed = 1.0, wedge = 1.2, staff = 1.0, skirmish = 0.45 },
 	FlankFireFactor = 1.35,
 	RearFireFactor = 1.6,
 	FriendlyBlocksFire = true, -- a friendly formation inside the fire lane blocks the volley
 	FireLaneHalfWidth = 10,
+	FireByRankReload = 0.75, -- reload multiplier for drilled infantry halted in line
 	MeleeRatePerSecond = 0.0025, -- casualties = attackerStrength * rate * factors * dt
 	MeleeDirFactor = { front = 1.0, flank = 1.6, rear = 2.2 },
 	MeleeContactDistance = 6, -- studs between footprints
 	BayonetBonus = 1.3,
 	BayonetBonusSeconds = 10,
 	BayonetMoraleShock = { front = 10, flank = 20 },
-	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0 },
+	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0, skirmish = 2.0 },
 	ChargeRoutingFactor = 1.5,
 	SquareReturnsDamage = 2.0, -- cavalry in melee with a square takes x2
 	MinRunUpFactor = 0.3,
@@ -626,6 +666,7 @@ export type Province = {
 export type UnitClass = {
 	name: string,
 	class: "infantry" | "cavalry" | "artillery", -- tactical sim class
+	sim: string, -- tactical unit type (Config.UnitTypes)
 	strength: number,
 	cost: number,
 	manpower: number,
@@ -970,12 +1011,12 @@ end
 -- Campaign unit types, mapped onto the tactical sim classes. Strength in tactical men (the sim's
 -- scale); cost in treasury, manpower in men, turns to raise, upkeep per turn.
 EuropeData.UnitClasses = {
-	line = { name = "Line infantry", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", majorOnly = false, experience = 0 },
-	light = { name = "Light infantry", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", majorOnly = false, experience = 1 },
-	guard = { name = "Guard infantry", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", majorOnly = true, experience = 3 },
-	cavalry = { name = "Light cavalry", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", majorOnly = false, experience = 0 },
-	heavy = { name = "Heavy cavalry", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "fort", majorOnly = false, experience = 1 },
-	artillery = { name = "Foot artillery", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "fort", majorOnly = false, experience = 0 },
+	line = { name = "Line infantry", sim = "line", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", majorOnly = false, experience = 0 },
+	light = { name = "Light infantry", sim = "light", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", majorOnly = false, experience = 1 },
+	guard = { name = "Guard infantry", sim = "guard", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", majorOnly = true, experience = 3 },
+	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", majorOnly = false, experience = 0 },
+	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "fort", majorOnly = false, experience = 1 },
+	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "fort", majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
 EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }
@@ -2796,6 +2837,7 @@ Protocol.CommandKinds = {
 	Retreat = false,
 	Shape = { infantry = true, cavalry = true },
 	Stance = { infantry = true, artillery = true },
+	Run = { infantry = true, cavalry = true, hq = true }, -- run or walk on the current march
 	Charge = { infantry = true, cavalry = true },
 	Rally = { hq = true },
 	Ability = { hq = true }, -- the HQ general's active ability: data.abilityId (src/shared/Generals.luau)
@@ -2986,6 +3028,9 @@ function Protocol.validateCommand(cmd: any, ctx: ValidateContext): (boolean, str
 		if data.frontage ~= nil and (not finiteNumber(data.frontage) or data.frontage < 0 or data.frontage > ctx.mapWidth) then
 			return false, Protocol.Reasons.badRequest
 		end
+		if data.run ~= nil and type(data.run) ~= "boolean" then
+			return false, Protocol.Reasons.badRequest
+		end
 		return true, nil
 	elseif kind == "Engage" or kind == "Charge" then
 		local t = data.targetId
@@ -3019,6 +3064,11 @@ function Protocol.validateCommand(cmd: any, ctx: ValidateContext): (boolean, str
 		return true, nil
 	elseif kind == "Stance" then
 		if type(data.fireAtWill) ~= "boolean" then
+			return false, Protocol.Reasons.badRequest
+		end
+		return true, nil
+	elseif kind == "Run" then
+		if type(data.run) ~= "boolean" then
 			return false, Protocol.Reasons.badRequest
 		end
 		return true, nil
@@ -3192,6 +3242,7 @@ return RNG
 
 local Vec = require(script.Parent.Vec)
 local Moments = require(script.Parent.Moments)
+local Config = require(script.Parent.Config)
 
 type Vec = Vec.Vec
 
@@ -3209,6 +3260,8 @@ export type UnitDef = {
 	key: string?, -- campaign identity of this unit (nil for standalone battles)
 	arrival: { seconds: number, pos: Vec }?, -- off-map reinforcement: enters at pos at that sim time
 	general: string?, -- HQ only: id in src/shared/Generals.luau (else matched from the name)
+	type: string?, -- Config.UnitTypes id (else inferred from the name: Scenarios.typeOf)
+	fireByRank: boolean?, -- the drill (else: guard infantry and British foot have it)
 }
 
 export type Scenario = {
@@ -4268,6 +4321,53 @@ function Scenarios.list(): { ListEntry }
 	return out
 end
 
+-- Name fragments (lower case) that mark a type, checked in order within the unit's class.
+local TYPE_MARKS: { [string]: { { string | { string } } } } = {
+	infantry = {
+		{ "guard", { "garde", "guards", "preobrazhensky", "semenovsky" } },
+		{ "rifle", { "rifle", "95th", "jäger", "jager" } },
+		{ "militia", { "landwehr", "conscrit", "militia" } },
+		{ "light", { "légère", "legere", "light", "tirailleur", "voltigeur", "füsilier", "fusilier", "grenz", "schützen" } },
+		{ "grenadier", { "grenadier" } },
+	},
+	cavalry = {
+		{ "heavyCav", { "cuirassier", "kürassier", "carabinier", "garde du corps", "life guard", "chevalier guard", "grenadiers à cheval", "gensd'armes", "horse guards" } },
+		{ "lightCav", { "hussar", "husar", "chasseur", "lancier", "lancer", "uhlan", "ulan", "cossack", "chevauleger", "chevau-léger", "light dragoon" } },
+	},
+	artillery = {
+		{ "horseArt", { "à cheval", "reitende", " rha", "horse artillery" } },
+	},
+}
+local DEFAULT_TYPE = { infantry = "line", cavalry = "dragoon", artillery = "footArt", hq = "hq" }
+
+-- The unit's type: its own `type` when that belongs to its class, else read from its name.
+function Scenarios.typeOf(def: UnitDef): string
+	local given = def.type and (Config.UnitTypes :: any)[def.type]
+	if given and given.class == def.class then
+		return def.type :: string
+	end
+	-- ASCII-only lower case: string.lower would mangle UTF-8 letters such as ü under Latin-1 rules
+	local name = string.gsub(def.name, "[A-Z]", function(c: string): string
+		return string.char(string.byte(c) + 32)
+	end)
+	for _, rule in TYPE_MARKS[def.class] or {} do
+		for _, mark in rule[2] :: { string } do
+			if string.find(name, mark, 1, true) then
+				return rule[1] :: string
+			end
+		end
+	end
+	return DEFAULT_TYPE[def.class] or "line"
+end
+
+-- Fire by rank: a scenario's explicit choice, else every guard battalion and British foot.
+function Scenarios.firesByRank(def: UnitDef): boolean
+	if def.fireByRank ~= nil then
+		return def.fireByRank
+	end
+	return def.class == "infantry" and (Scenarios.typeOf(def) == "guard" or def.faction == "britain")
+end
+
 function Scenarios.get(id: string): Scenario?
 	local s = (Scenarios :: any)[id]
 	if type(s) == "table" and s.units then
@@ -4285,7 +4385,7 @@ local Vec = require(script.Parent.Vec)
 export type Vec = Vec.Vec
 
 export type UnitClass = "infantry" | "cavalry" | "artillery" | "hq"
-export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff"
+export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff" | "skirmish"
 export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited" | "offmap"
 export type MoraleBand = "steady" | "shaken" | "routing" | "shattered"
 
@@ -4297,6 +4397,7 @@ export type Order = {
 	frontage: number?,
 	issuedTick: number,
 	anchor: Vec?, -- leash anchor for Engage/AttackMove
+	run: boolean?, -- at the double: faster, far more tiring (Config.Run)
 }
 
 export type Command = {
@@ -4325,6 +4426,7 @@ export type FormationView = {
 	name: string?,
 	corps: string?,
 	class: UnitClass,
+	type: string?, -- Config.UnitTypes id
 	colour: string?,
 	x: number,
 	z: number,
@@ -4342,6 +4444,8 @@ export type FormationView = {
 	width: number,
 	depth: number,
 	orderKind: string?,
+	running: boolean?, -- own: marching at the double
+	fireByRank: boolean?, -- own: drilled to fire by rank
 	targetId: number?,
 	fireAtWill: boolean?,
 	limbered: boolean?,
@@ -11698,6 +11802,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 			units[#units + 1] = {
 				name = pair.u.name,
 				class = c.class,
+				type = c.sim,
 				corps = pair.a.name,
 				strength = pair.u.strength,
 				experience = pair.u.experience,
@@ -14291,7 +14396,7 @@ local function onCommand(player: Player, cmd: any)
 		end,
 		legalShapes = function(id: number): { [string]: boolean }?
 			local f = sim.formations[id]
-			return if f then (Config.Units :: any)[f.class].legalShapes else nil
+			return if f then Config.TypeStats[f.type].legalShapes else nil
 		end,
 	}
 	local ok, reason = Protocol.validateCommand(cmd, ctx)
@@ -15237,7 +15342,7 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 		for _, id in cmd.ids do
 			local f = self.formations[id]
 			if f and Formation.canTakeOrders(f) then
-				applyOrder(self, f, { kind = kind, pos = slots[id], heading = data.heading, issuedTick = self.tick, anchor = { x = f.pos.x, z = f.pos.z } }, queue)
+				applyOrder(self, f, { kind = kind, pos = slots[id], heading = data.heading, issuedTick = self.tick, anchor = { x = f.pos.x, z = f.pos.z }, run = data.run == true or nil }, queue)
 			end
 		end
 		return
@@ -15276,11 +15381,15 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 				end
 			elseif kind == "Stance" then
 				f.fireAtWill = data.fireAtWill == true
+			elseif kind == "Run" then
+				if f.order then
+					f.order.run = data.run == true or nil
+				end
 			elseif kind == "Limber" then
 				local wantLimbered = data.limbered == true
 				if Formation.isLimbered(f) ~= wantLimbered and f.pendingLimber == nil then
 					f.pendingLimber = wantLimbered
-					f.timers.limber = if wantLimbered then Config.ReformTime.limbered else Config.ReformTime.deployed
+					f.timers.limber = (if wantLimbered then Config.ReformTime.limbered else Config.ReformTime.deployed) * (Formation.unitConfig(f).reformScale or 1)
 					f.state = "reforming"
 					f.path = nil
 					if wantLimbered then
@@ -15465,6 +15574,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		name = f.name,
 		corps = f.corps,
 		class = f.class,
+		type = f.type,
 		colour = f.colour,
 		x = f.pos.x,
 		z = f.pos.z,
@@ -15487,6 +15597,8 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		v.reload = f.reload
 		v.cohesion = f.cohesion
 		v.orderKind = if f.order then f.order.kind else nil
+		v.running = if f.order and f.order.run then true else nil
+		v.fireByRank = if f.fireByRank then true else nil
 		v.targetId = f.targetId
 		v.fireAtWill = f.fireAtWill
 		v.limbered = if f.class == "artillery" then Formation.isLimbered(f) else nil
@@ -15522,7 +15634,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 end
 
 local function viewKey(v: Types.FormationView): string
-	return string.format("%.1f|%.1f|%.2f|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d", v.x, v.z, v.heading, v.shape, v.state, v.strength, v.moraleBand, tostring(v.status), tostring(v.orderKind), tostring(v.fireAtWill), tostring(v.ammo), tostring(math.floor((v.morale or 0) / 2)), math.ceil(v.reload or 0)) .. (v.tags or "") .. tostring(v.abilityReadyAt) -- reload in whole seconds so cards stay current
+	return string.format("%.1f|%.1f|%.2f|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d", v.x, v.z, v.heading, v.shape, v.state, v.strength, v.moraleBand, tostring(v.status), tostring(v.orderKind), tostring(v.fireAtWill) .. tostring(v.running), tostring(v.ammo), tostring(math.floor((v.morale or 0) / 2)), math.ceil(v.reload or 0)) .. (v.tags or "") .. tostring(v.abilityReadyAt) -- reload in whole seconds so cards stay current
 end
 
 -- Build the snapshot for one viewer faction. Pass full=true for keyframes.
@@ -16232,8 +16344,9 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 		if dist > unit.musket.range then
 			return "Out of range"
 		end
-		-- a square faces every way (its fire factor already counts one face's muskets)
-		if f.shape ~= "square" and not inArc(f, target, math.rad(60)) then
+		-- a square faces every way (its fire factor already counts one face's muskets); skirmishers
+		-- each pick their own mark
+		if f.shape ~= "square" and f.shape ~= "skirmish" and not inArc(f, target, math.rad(60)) then
 			return "Target not to the front"
 		end
 	end
@@ -16313,10 +16426,13 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	hit = math.min(C.MaxHitChance, hit)
 	local casualties = rollCasualties(sim, shooters * hit)
 	f.reload = musket.reload
+	if f.fireByRank and f.shape == "line" and f.state ~= "moving" then
+		f.reload *= C.FireByRankReload
+	end
 	f.ammo -= 1
 	f.lastShotTick = sim.tick
 	f.state = if f.state == "idle" then "firing" else f.state
-	f.timers.halt = 1.5 -- infantry halts to deliver the volley
+	f.timers.halt = if f.shape == "skirmish" then 0 else 1.5 -- a formed body halts to deliver the volley
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = 0, kind = "volley" }
 	sim.emit(sim, { kind = "volley", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties })
 end
@@ -16401,7 +16517,7 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 			dirF = 1
 		end
 		if def.state == "routing" then
-			shapeF *= C.ChargeRoutingFactor
+			shapeF *= C.ChargeRoutingFactor * (unit.pursuit or 1) -- light cavalry rides down fugitives
 		end
 		local impact = att.strength * ch.base * runUpF * dirF * shapeF * Formation.fatigueFactor(att, C.FatigueMeleePenalty) * att.mods.chargeImpact
 		if att.inWoods then
@@ -16549,8 +16665,8 @@ function Combat.gather(sim: SimLike): { Attack }
 				if f.class == "artillery" then
 					cannonade(sim, f, target, attacks)
 				elseif f.class == "infantry" then
-					if f.state == "moving" and f.order and f.order.kind == "Move" then
-						-- Moving infantry does not stop for fire-at-will unless attack-moving.
+					if f.state == "moving" and f.order and f.order.kind == "Move" and f.shape ~= "skirmish" then
+						-- Moving infantry does not stop for fire-at-will unless attack-moving (skirmishers fire on the move).
 					else
 						volley(sim, f, target, attacks)
 					end
@@ -16709,6 +16825,8 @@ export type Formation = {
 	name: string,
 	corps: string,
 	class: Types.UnitClass,
+	type: string, -- Config.UnitTypes id
+	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -16776,8 +16894,9 @@ export type Formation = {
 
 local Formation = {}
 
+-- The unit's stats: its type's table (Config.TypeStats), its class merged with the type's overrides.
 function Formation.unitConfig(f: Formation)
-	return (Config.Units :: any)[f.class]
+	return Config.TypeStats[f.type]
 end
 
 function Formation.figures(f: Formation): number
@@ -16814,7 +16933,8 @@ function Formation.neutralMods(): Mods
 end
 
 function Formation.fromDef(id: number, def: UnitDef): Formation
-	local unit = (Config.Units :: any)[def.class]
+	local unitType = Scenarios.typeOf(def)
+	local unit = Config.TypeStats[unitType]
 	local baseMorale = unit.baseMorale + Config.Combat.ExperienceMorale * def.experience
 	local f: Formation = {
 		id = id,
@@ -16822,6 +16942,8 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		name = def.name,
 		corps = def.corps,
 		class = def.class,
+		type = unitType,
+		fireByRank = Scenarios.firesByRank(def),
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,
@@ -16933,6 +17055,7 @@ function Formation.beginShape(f: Formation, shape: Types.Shape, forced: boolean?
 	if shape == "square" and f.shape == "column" then
 		t = Config.SquareFromColumnTime
 	end
+	t *= Formation.unitConfig(f).reformScale or 1
 	if forced and f.shape ~= "travel" then
 		f.prevShape = f.shape
 	end
@@ -17495,10 +17618,18 @@ function Movement.currentSpeed(sim: SimLike, f: Formation, dir: Vec): number
 	local fatigue = Formation.fatigueFactor(f, Config.Combat.FatigueSpeedPenalty)
 	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).speed
 	local speed = base * shapeFactor * terrainSpeed(f, sim.grid) * slopeFactor * fatigue * weatherF * f.mods.speed
+	if Movement.running(f) then
+		speed *= Config.Run.speed
+	end
 	if f.state == "routing" then
 		speed = base * terrainSpeed(f, sim.grid) * slopeFactor * Config.Morale.RoutSpeedFactor
 	end
 	return speed
+end
+
+-- At the double: a march order with `run`, never guns or a charge (which has its own pace).
+function Movement.running(f: Formation): boolean
+	return f.order ~= nil and f.order.run == true and f.class ~= "artillery" and (f.state == "moving" or f.state == "retreating")
 end
 
 local function turnToward(f: Formation, target: number, dt: number): boolean
@@ -17704,6 +17835,9 @@ local function followPath(sim: SimLike, f: Formation, speedScale: number)
 	local unit = Formation.unitConfig(f)
 	local terrain = Grid.terrainAt(sim.grid, f.pos.x, f.pos.z)
 	local rate = if f.state == "charging" then unit.fatigueCharge else unit.fatigueMove
+	if Movement.running(f) then
+		rate *= Config.Run.fatigue
+	end
 	f.fatigue = math.min(100, f.fatigue + rate * terrain.fatigue * DT)
 	f.cohesion = math.max(0.3, f.cohesion - terrain.cohesion * DT)
 	-- Stuck detection.
@@ -19246,6 +19380,8 @@ return Audio
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
 local Signal = require(script.Parent.Signal)
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Config = require(Shared.Config)
 
 export type Vec = { x: number, z: number }
 
@@ -19255,6 +19391,7 @@ export type Formation = {
 	name: string?,
 	corps: string?,
 	class: string,
+	type: string?, -- Config.UnitTypes id
 	colour: string?,
 	x: number,
 	z: number,
@@ -19272,6 +19409,8 @@ export type Formation = {
 	width: number,
 	depth: number,
 	orderKind: string?,
+	running: boolean?,
+	fireByRank: boolean?,
 	targetId: number?,
 	fireAtWill: boolean?,
 	limbered: boolean?,
@@ -19660,7 +19799,10 @@ function BattleState.validateContext(): any
 			if not f then
 				return nil
 			end
-			if f.class == "infantry" then
+			local stats = f.type and Config.TypeStats[f.type]
+			if stats and (f.class == "infantry" or f.class == "cavalry") then
+				return stats.legalShapes
+			elseif f.class == "infantry" then
 				return { line = true, column = true, square = true }
 			elseif f.class == "cavalry" then
 				return { wedge = true, line = true }
@@ -19683,7 +19825,7 @@ local Settings = require(script.Parent.Settings)
 
 local Camera = {}
 
-local MIN_HEIGHT, MAX_HEIGHT = 55, 900 -- at the floor a soldier is ~30 px tall, so the uniforms read
+local MIN_HEIGHT, MAX_HEIGHT = 25, 900 -- at the floor a soldier fills ~60 px: down among the ranks
 local MIN_PITCH, MAX_PITCH = math.rad(35), math.rad(65)
 local DEFAULT_PITCH = math.rad(52)
 -- NTW-style: the view tilts toward the horizon as it nears the ground (full tilt at MIN_HEIGHT,
@@ -19697,6 +19839,7 @@ local PAN_SPEED = 1.1 -- studs per second per stud of height
 local ROTATE_SPEED = 1.6
 local ZOOM_STEP = 1.15
 local DAMP = 10
+local EDGE_PX = 6 -- edge scrolling band at the window border
 
 -- target values (inputs move these) and smoothed values (what is rendered)
 local defaultYaw = DEFAULT_YAW -- per side: faces the enemy (Camera.setDefaultYaw)
@@ -19716,6 +19859,8 @@ local pinch: { dist: number, ang: number, height: number }? = nil -- two-finger 
 type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
 local lastFrameHeight = DEFAULT_HEIGHT
+local follow: (() -> (number?, number?))? = nil -- the camera tracks a formation until the player pans
+local windowFocused = true
 
 local function groundY(x: number, z: number): number
 	if map then
@@ -19760,7 +19905,26 @@ local function readKeys(dt: number)
 	if isDown(Enum.KeyCode.A) or isDown(Enum.KeyCode.Left) then
 		side -= 1
 	end
+	-- edge scrolling (desktop only, never while the window is out of focus)
+	if Settings.get().edgeScroll and windowFocused and not Settings.touch() then
+		local cam = workspace.CurrentCamera
+		local m = UserInputService:GetMouseLocation()
+		if cam then
+			local v = cam.ViewportSize
+			if m.X <= EDGE_PX then
+				side -= 1
+			elseif m.X >= v.X - EDGE_PX then
+				side += 1
+			end
+			if m.Y <= EDGE_PX then
+				fwd += 1
+			elseif m.Y >= v.Y - EDGE_PX then
+				fwd -= 1
+			end
+		end
+	end
 	if fwd ~= 0 or side ~= 0 then
+		follow = nil -- panning takes the camera back
 		local speed = PAN_SPEED * cur.height * dt
 		-- forward on screen = look direction projected on the ground; right = +90° in sim space
 		-- is the screen-left in Roblox (Y-up, right-handed), so screen-right is yaw - 90°.
@@ -19823,6 +19987,16 @@ end
 local function step(dt: number)
 	if not stepIntro() then
 		readKeys(dt)
+		local track = follow
+		if track then
+			local x, z = track()
+			if x and z then
+				target.x, target.z = x, z
+				clampTarget()
+			else
+				follow = nil -- the formation is gone
+			end
+		end
 		local k = 1 - math.exp(-DAMP * dt)
 		cur.x += (target.x - cur.x) * k
 		cur.z += (target.z - cur.z) * k
@@ -19876,6 +20050,12 @@ function Camera.init()
 		cam.FieldOfView = 55
 	end
 	RunService:BindToRenderStep("EoECamera", Enum.RenderPriority.Camera.Value, step)
+	table.insert(connections, UserInputService.WindowFocused:Connect(function()
+		windowFocused = true
+	end))
+	table.insert(connections, UserInputService.WindowFocusReleased:Connect(function()
+		windowFocused = false
+	end))
 	-- Middle-mouse drag rotates (yaw) and tilts (pitch), Total War style.
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
 		if input.UserInputType == Enum.UserInputType.MouseButton3 and not gp and enabled then
@@ -19969,6 +20149,15 @@ function Camera.panPixels(dx: number, dy: number)
 	target.x += (fx * dy - rx * dx) * k
 	target.z += (fz * dy - rz * dx) * k
 	clampTarget()
+end
+
+-- Track a moving point (a formation) until the player pans, or stop with nil.
+function Camera.follow(getPos: (() -> (number?, number?))?)
+	follow = getPos
+end
+
+function Camera.following(): boolean
+	return follow ~= nil
 end
 
 function Camera.focusOn(x: number, z: number, snap: boolean?)
@@ -23254,6 +23443,16 @@ local function denseInfantry(shape: string, width: number, depth: number, k: num
 		end
 		return out
 	end
+	if shape == "skirmish" then
+		-- open order: two loose, staggered ranks of men a few paces apart (slots add their own jitter)
+		local files = math.max(2, math.floor(width / (fw * 4)))
+		for r = 0, 1 do
+			for f = 0, files - 1 do
+				table.insert(out, { x = depth / 2 - (r + 0.5) * depth / 2, z = (f + 0.25 + r * 0.5) * width / files - width / 2, face = 0 })
+			end
+		end
+		return out
+	end
 	local shapeDef = (Config.Shapes :: any)[shape]
 	local ranks = if shapeDef and shapeDef.ranks > 0 then shapeDef.ranks else 3
 	if shape == "line" and k >= 2 then
@@ -24993,19 +25192,28 @@ local function previewLine(a: Vec, b: Vec)
 	Figures.setPreview(list)
 end
 
+-- Formations the player set to run (R or the Run button): every march they are given runs.
+local runIds: { [number]: boolean } = {}
+local lastClick: { id: number?, t: number } = { id = nil, t = -1 } -- double-click selects the type
+local lastRight = { t = -1, x = 0, z = 0 } -- a second right-click on the same spot runs
+
 local function issueLineMove(a: Vec, b: Vec, queue: boolean)
 	for _, e in linePlacement(a, b) do
 		local pos = clampToMap({ x = e.x, z = e.z })
-		sendOrder("Move", { e.f.id }, { pos = pos, heading = e.heading, frontage = e.frontage, queue = queue })
+		sendOrder("Move", { e.f.id }, { pos = pos, heading = e.heading, frontage = e.frontage, queue = queue, run = runIds[e.f.id] })
 	end
 end
 
--- Plain move keeps each formation's offset from the selection centroid.
-local function issueMove(target: Vec, queue: boolean)
+-- Plain move keeps each formation's offset from the selection centroid. AttackMove goes to the
+-- infantry and cavalry (they fight their way there); guns and staff simply march.
+local function issueMove(target: Vec, queue: boolean, kind: string?)
 	local forms = selectedFormations()
 	if #forms == 0 then
 		return
 	end
+	local now = os.clock()
+	local double = now - lastRight.t < 0.4 and math.abs(target.x - lastRight.x) + math.abs(target.z - lastRight.z) < 40
+	lastRight = { t = if double then -1 else now, x = target.x, z = target.z }
 	local cx, cz = 0, 0
 	for _, f in forms do
 		cx += f.x
@@ -25015,7 +25223,8 @@ local function issueMove(target: Vec, queue: boolean)
 	cz /= #forms
 	for _, f in forms do
 		local pos = clampToMap({ x = target.x + (f.x - cx), z = target.z + (f.z - cz) })
-		sendOrder("Move", { f.id }, { pos = pos, queue = queue })
+		local k = if kind == "AttackMove" and (f.class == "infantry" or f.class == "cavalry") then "AttackMove" else "Move"
+		sendOrder(k, { f.id }, { pos = pos, queue = queue, run = if double or runIds[f.id] then true else nil })
 	end
 end
 
@@ -25139,6 +25348,10 @@ local function ctrl(): boolean
 	return UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
 end
 
+local function alt(): boolean
+	return UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt) or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
+end
+
 local function cancelDrags()
 	left.down = false
 	left.dragging = false
@@ -25214,12 +25427,32 @@ local function onLeftUp()
 	end
 	local id, kind = pickAt(g)
 	if id and kind == "own" then
+		local now = os.clock()
+		if lastClick.id == id and now - lastClick.t < 0.4 then
+			-- double-click: every formation of ours of the same type
+			local f = BattleState.formations[id]
+			local same = {}
+			for oid, o in BattleState.formations do
+				if BattleState.canCommand(oid) and f and (o.type or o.class) == (f.type or f.class) and o.state ~= "routing" and o.state ~= "destroyed" and o.state ~= "exited" then
+					table.insert(same, oid)
+				end
+			end
+			table.sort(same)
+			Selection.set(same)
+			lastClick = { id = nil, t = -1 }
+			return
+		end
+		lastClick = { id = id, t = now }
+		Selection.inspect(nil)
 		if shift() then
 			Selection.toggle(id)
 		else
 			Selection.set({ id })
 		end
+	elseif id and kind == "enemy" then
+		Selection.inspect(id) -- read-only look at a visible enemy; our selection stays
 	elseif not shift() then
+		Selection.inspect(nil)
 		Selection.clear()
 	end
 end
@@ -25287,6 +25520,17 @@ local function onRightUp()
 		end
 		armed = nil
 		Input.action:Fire("disarm")
+	elseif armed == "AttackMove" then
+		issueMove(g, shift(), "AttackMove")
+		armed = nil
+		Input.action:Fire("disarm")
+	elseif alt() then
+		-- turn in place to face the clicked point
+		for _, f in selectedFormations() do
+			if BattleState.canCommand(f.id) then
+				sendOrder("Face", { f.id }, { heading = Vec.heading(Vec.sub(g, { x = f.x, z = f.z })), queue = shift() })
+			end
+		end
 	elseif id and (kind == "enemy" or kind == "ghost") then
 		issueEngage(id, shift())
 	elseif kind == "own" and id and Selection.count() == 1 and Selection.isSelected(id) then
@@ -25349,6 +25593,33 @@ local function focusSelection()
 	Camera.focusOn(cx / #forms, cz / #forms)
 end
 
+local GROUP_KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine }
+-- One key per command panel order (HUD runs them through Input.wheelPick, like the touch wheel).
+local ORDER_KEYS: { [EnumItem]: string } = {
+	[Enum.KeyCode.L] = "line",
+	[Enum.KeyCode.C] = "column",
+	[Enum.KeyCode.B] = "square",
+	[Enum.KeyCode.K] = "skirmish",
+	[Enum.KeyCode.Y] = "wedge",
+	[Enum.KeyCode.T] = "fire",
+	[Enum.KeyCode.Z] = "charge",
+	[Enum.KeyCode.R] = "run",
+	[Enum.KeyCode.M] = "attack",
+	[Enum.KeyCode.H] = "hold",
+	[Enum.KeyCode.Backspace] = "stop",
+	[Enum.KeyCode.X] = "retreat",
+	[Enum.KeyCode.U] = "limber",
+	[Enum.KeyCode.I] = "ammo",
+	[Enum.KeyCode.P] = "rally",
+}
+local SPEEDS = { 1, 2, 4 }
+local lastGroup = { n = 0, t = -1 }
+
+local function stepSpeed(dir: number): number
+	local i = table.find(SPEEDS, BattleState.speed) or 1
+	return SPEEDS[math.clamp(i + dir, 1, #SPEEDS)]
+end
+
 local function onKey(input: InputObject)
 	local k = input.KeyCode
 	local state = BattleState.state
@@ -25357,6 +25628,7 @@ local function onKey(input: InputObject)
 			armed = nil
 			Input.action:Fire("disarm")
 		else
+			Selection.inspect(nil)
 			Selection.clear()
 		end
 		Input.action:Fire("escape")
@@ -25370,25 +25642,53 @@ local function onKey(input: InputObject)
 		elseif state == "paused" then
 			Net.control("resume")
 		end
-	elseif k == Enum.KeyCode.One then
-		Net.control("speed", 1)
-	elseif k == Enum.KeyCode.Two then
-		Net.control("speed", 2)
-	elseif k == Enum.KeyCode.Three then
-		Net.control("speed", 4)
+	elseif k == Enum.KeyCode.Equals or k == Enum.KeyCode.Plus or k == Enum.KeyCode.KeypadPlus then
+		Net.control("speed", stepSpeed(1))
+	elseif k == Enum.KeyCode.Minus or k == Enum.KeyCode.KeypadMinus then
+		Net.control("speed", stepSpeed(-1))
+	elseif k == Enum.KeyCode.A and ctrl() then
+		local all = {}
+		for id, f in BattleState.formations do
+			if BattleState.canCommand(id) and f.state ~= "routing" and f.state ~= "destroyed" and f.state ~= "exited" then
+				table.insert(all, id)
+			end
+		end
+		table.sort(all)
+		Selection.set(all)
+	elseif ORDER_KEYS[k] and (state == "running" or state == "paused") then
+		Input.wheelPick:Fire(ORDER_KEYS[k])
 	elseif k == Enum.KeyCode.F then
 		focusSelection()
+	elseif k == Enum.KeyCode.V then
+		-- follow the first selected formation (again: stop)
+		local id = Selection.first()
+		if Camera.following() or not id then
+			Camera.follow(nil)
+		else
+			Camera.follow(function(): (number?, number?)
+				local f = BattleState.formations[id]
+				if f and f.state ~= "destroyed" and f.state ~= "exited" then
+					return f.x, f.z
+				end
+				return nil, nil
+			end)
+		end
+
 	elseif k == Enum.KeyCode.Home then
 		local c = BattleState.armyCentre()
 		Camera.focusOn(c.x, c.z)
 	else
-		local groupKeys = { Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine }
-		for i, code in groupKeys do
+		for n, code in GROUP_KEYS do
 			if k == code then
 				if ctrl() then
-					Selection.assignGroup(i + 3)
+					Selection.assignGroup(n)
 				else
-					Selection.recallGroup(i + 3)
+					local now = os.clock()
+					Selection.recallGroup(n)
+					if lastGroup.n == n and now - lastGroup.t < 0.4 then
+						focusSelection() -- a double tap centres the camera on the group
+					end
+					lastGroup = { n = n, t = now }
 				end
 			end
 		end
@@ -25701,6 +26001,27 @@ function Input.sendOrder(kind: string, ids: { number }, data: { [string]: any })
 	return sendOrder(kind, ids, data)
 end
 
+-- Run / walk for the selection: its current marches and every later one.
+function Input.toggleRun()
+	local ids, anyRunning = {}, false
+	for _, f in selectedFormations() do
+		if f.class ~= "artillery" and BattleState.canCommand(f.id) then
+			anyRunning = anyRunning or runIds[f.id] == true or f.running == true
+			table.insert(ids, f.id)
+		end
+	end
+	for _, id in ids do
+		runIds[id] = if anyRunning then nil else true
+	end
+	if #ids > 0 then
+		sendOrder("Run", ids, { run = not anyRunning })
+	end
+end
+
+function Input.isRunning(id: number): boolean
+	return runIds[id] == true
+end
+
 function Input.destroy()
 	cancelDrags()
 	mode = "off"
@@ -25716,6 +26037,7 @@ function Input.destroy()
 	end
 	OrderWheel.destroy()
 	table.clear(deployHeading)
+	table.clear(runIds)
 end
 
 return Input
@@ -26466,6 +26788,7 @@ local Selection = {}
 local selected: { [number]: boolean } = {}
 local groups: { [number]: { number } } = {}
 local hovered: number? = nil
+local inspected: number? = nil -- an enemy the player clicked: shown in the inspector, never ordered
 
 Selection.changed = Signal.new() -- fired after any selection change
 Selection.hoverChanged = Signal.new()
@@ -26553,6 +26876,18 @@ end
 
 function Selection.assignGroup(n: number)
 	groups[n] = Selection.ids()
+	fire() -- cards show their group number
+end
+
+-- The lowest control group holding this formation, if any (shown on its card).
+function Selection.groupOf(id: number): number?
+	for n = 1, 9 do
+		local g = groups[n]
+		if g and table.find(g, id) then
+			return n
+		end
+	end
+	return nil
 end
 
 function Selection.recallGroup(n: number)
@@ -26560,6 +26895,17 @@ function Selection.recallGroup(n: number)
 	if g and #g > 0 then
 		Selection.set(g)
 	end
+end
+
+function Selection.inspect(id: number?)
+	if inspected ~= id then
+		inspected = id
+		fire()
+	end
+end
+
+function Selection.inspected(): number?
+	return inspected
 end
 
 function Selection.setHovered(id: number?)
@@ -26577,6 +26923,7 @@ function Selection.reset()
 	table.clear(selected)
 	table.clear(groups)
 	hovered = nil
+	inspected = nil
 	fire()
 end
 
@@ -26598,6 +26945,7 @@ export type Values = {
 	debugAudio: boolean, -- print every audio hook (Audio.luau) to the output
 	reducedShake: boolean,
 	reducedEffects: boolean,
+	edgeScroll: boolean, -- desktop: the mouse at the window's edge pans the camera
 	typeface: string, -- one of Settings.TYPEFACES (UI/Kit presets)
 	placeNames: string, -- one of Settings.PLACE_NAMES (World/Props label modes)
 	controls: string, -- one of Touch.CONTROLS: auto / touch / desktop (docs/mobile-contract.md)
@@ -26626,6 +26974,7 @@ local values: Values = {
 	debugAudio = false,
 	reducedShake = false,
 	reducedEffects = false,
+	edgeScroll = true,
 	typeface = "Garamond",
 	placeNames = "ground",
 	controls = "auto",
@@ -28234,6 +28583,8 @@ type Card = {
 	count: TextLabel,
 	strength: Frame,
 	morale: Frame,
+	ammo: Frame,
+	group: TextLabel,
 	icons: { [string]: Frame },
 	reloadFill: Frame,
 	dim: Frame, -- co-op: veils an ally's card
@@ -28290,23 +28641,42 @@ local function box(parent: Instance, d: number, x: number, y: number, colour: Co
 	return f
 end
 
--- Class glyph centred in a CARD_W x 26 area.
-local function glyph(parent: Frame, class: string)
+-- Class glyph centred in a CARD_W x 26 area, with a small mark for the unit's type.
+local function glyph(parent: Frame, class: string, unitType: string?)
 	local cx, cy = CARD_W / 2, 13
-	local ink = Kit.IVORY
-	if class == "infantry" then -- crossed muskets
+	local ink = if unitType == "militia" then Kit.MUTED else Kit.IVORY
+	if class == "infantry" and (unitType == "light" or unitType == "rifle") then -- one musket and the light infantry's horn
+		rect(parent, 2, 26, cx + 4, cy, -35, ink)
+		rect(parent, 4, 7, cx + 10.5, cy + 9.5, -35, ink)
+		ring(parent, 11, cx - 8, cy - 2, if unitType == "rifle" then Color3.fromRGB(130, 175, 115) else ink, 2)
+	elseif class == "infantry" then -- crossed muskets
 		rect(parent, 2, 26, cx, cy, 35, ink)
 		rect(parent, 2, 26, cx, cy, -35, ink)
 		rect(parent, 4, 7, cx - 6.5, cy + 9.5, 35, ink) -- butts
 		rect(parent, 4, 7, cx + 6.5, cy + 9.5, -35, ink)
+		if unitType == "grenadier" then -- the flaming grenade
+			ring(parent, 7, cx, cy - 9, Kit.GOLD, 2)
+		elseif unitType == "guard" then -- a crown bar
+			rect(parent, 12, 3, cx, cy - 11, 0, Kit.GOLD)
+			rect(parent, 3, 4, cx - 5, cy - 13, 0, Kit.GOLD)
+			rect(parent, 3, 4, cx + 5, cy - 13, 0, Kit.GOLD)
+		end
 	elseif class == "cavalry" then -- sabre with crossguard
 		local r = math.rad(30)
+		if unitType == "heavyCav" then -- behind a cuirass
+			ring(parent, 18, cx, cy + 1, Kit.GILT_DARK, 3)
+		elseif unitType == "dragoon" then -- and a carbine
+			rect(parent, 2, 22, cx, cy, -30, ink)
+		end
 		rect(parent, 2, 24, cx, cy, 30, ink)
 		rect(parent, 11, 2, cx - math.sin(r) * 7, cy + math.cos(r) * 7, 30, ink)
 		rect(parent, 3, 5, cx - math.sin(r) * 10, cy + math.cos(r) * 10, 30, ink)
 	elseif class == "artillery" then -- barrel on a wheel
 		rect(parent, 24, 5, cx + 3, cy - 2, -15, ink)
 		ring(parent, 12, cx - 3, cy + 5, ink, 2)
+		if unitType == "horseArt" then -- a horseshoe
+			ring(parent, 8, cx + 12, cy + 7, Kit.GOLD, 2)
+		end
 	elseif class == "hq" then -- eight-point star
 		rect(parent, 14, 14, cx, cy, 0, Kit.GOLD)
 		rect(parent, 14, 14, cx, cy, 45, Kit.GOLD)
@@ -28352,19 +28722,56 @@ local function abbreviate(name: string): string
 	return s
 end
 
+-- The type's stats as TW-style ratings: accuracy (hit chance × 500), reload (300 / seconds), melee and
+-- charge (×10 and ×250 of the multipliers), base morale and march speed.
+function CardBar.statLines(f: any): { string }
+	local s = Config.TypeStats[f.type] or (Config.Units :: any)[f.class]
+	local lines = {}
+	if s.musket then
+		local reload = (s.musket.reload :: number) * (if f.fireByRank then Config.Combat.FireByRankReload else 1)
+		local accuracy = math.floor((s.musket.accuracy :: number) * 500 + 0.5)
+		local rate = math.floor(300 / reload + 0.5)
+		table.insert(lines, "Range " .. tostring(s.musket.range) .. " · accuracy " .. tostring(accuracy) .. " · reload " .. tostring(rate) .. " · " .. tostring(s.musket.ammo) .. " rounds")
+	elseif s.gun then
+		table.insert(lines, string.format("Round shot %d · canister %d · %d rounds", s.gun.roundShot.range, s.gun.canister.range, s.gun.ammo))
+	end
+	table.insert(lines, string.format("Melee %d / %d%s · morale %d · speed %.1f", math.floor(s.melee.attack * 10 + 0.5), math.floor(s.melee.defense * 10 + 0.5), if s.charge then string.format(" · charge %d", math.floor(s.charge.base * 250 + 0.5)) else "", s.baseMorale, s.speed))
+	local traits = {}
+	if s.legalShapes.skirmish then
+		table.insert(traits, "can skirmish")
+	end
+	if f.fireByRank then
+		table.insert(traits, "fires by rank")
+	end
+	if (s.pursuit or 1) > 1 then
+		table.insert(traits, "rides down fugitives")
+	end
+	if (s.reformScale or 1) < 1 then
+		table.insert(traits, "limbers fast")
+	end
+	if #traits > 0 then
+		table.insert(lines, table.concat(traits, " · "))
+	end
+	return lines
+end
+
 local function tipFor(id: number): string
 	local f = BattleState.formations[id]
 	if not f then
 		return ""
 	end
+	local kind = f.type and (Config.UnitTypes :: any)[f.type]
 	local lines = {
-		tostring(f.name or ("#" .. id)),
+		tostring(f.name or ("#" .. id)) .. (if kind then " · " .. kind.name else ""),
 		tostring(f.corps or ""),
 		string.format("%d / %d men · %s", f.strength, f.startStrength, string.upper(string.sub(f.moraleBand, 1, 1)) .. string.sub(f.moraleBand, 2)),
 		STATE_WORD[f.state] or f.state,
 	}
 	if f.status and f.status ~= "" then
 		lines[4] ..= " · " .. f.status
+	end
+	for _, l in CardBar.statLines(f) do
+		table.insert(lines, l)
 	end
 	-- generals' traits and abilities acting on it now (the gilt star on the card)
 	local tags = (f :: any).tags -- not in BattleState.Formation yet
@@ -28424,18 +28831,20 @@ local function newCard(f: any): Card
 	g.Position = UDim2.fromOffset(0, 7)
 	g.BackgroundTransparency = 1
 	g.Parent = b
-	glyph(g, f.class)
+	glyph(g, f.class, f.type)
 	local name = Kit.label(b, abbreviate(tostring(f.name or id)), { size = UDim2.new(1, -6, 0, 12), position = UDim2.fromOffset(3, 34), textSize = 10, align = Enum.TextXAlignment.Center })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 	local count = Kit.label(b, "", { size = UDim2.new(0.6, 0, 0, 10), position = UDim2.fromOffset(4, 47), textSize = 9, font = Enum.Font.GothamBold })
 	Kit.label(b, string.rep("›", math.clamp(f.experience or 0, 0, 3)), { size = UDim2.new(0.4, -4, 0, 10), position = UDim2.new(0.6, 0, 0, 47), textSize = 10, font = Enum.Font.GothamBold, colour = Kit.GOLD, align = Enum.TextXAlignment.Right })
-	local strength = Kit.bar(b, UDim2.new(1, -8, 0, 4), UDim2.fromOffset(4, 58), Factions.colour(f.faction, f.colour))
-	local morale = Kit.bar(b, UDim2.new(1, -8, 0, 4), UDim2.fromOffset(4, 64), Kit.MORALE.steady)
+	local strength = Kit.bar(b, UDim2.new(1, -8, 0, 3), UDim2.fromOffset(4, 57), Factions.colour(f.faction, f.colour))
+	local morale = Kit.bar(b, UDim2.new(1, -8, 0, 3), UDim2.fromOffset(4, 61), Kit.MORALE.steady)
+	local ammo = Kit.bar(b, UDim2.new(1, -8, 0, 3), UDim2.fromOffset(4, 65), AMBER)
+	local group = Kit.label(b, "", { size = UDim2.fromOffset(12, 12), position = UDim2.fromOffset(CARD_W - 14, 8), textSize = 11, font = Enum.Font.GothamBold, colour = Kit.GILT_BRIGHT, align = Enum.TextXAlignment.Right })
 
 	-- status icons, left to right; hidden ones take no room
 	local row = Instance.new("Frame") :: Frame
 	row.Size = UDim2.new(1, -8, 0, 10)
-	row.Position = UDim2.fromOffset(4, 69)
+	row.Position = UDim2.fromOffset(4, 70)
 	row.BackgroundTransparency = 1
 	row.Parent = b
 	Kit.list(row, 2, true)
@@ -28469,6 +28878,16 @@ local function newCard(f: any): Card
 	local general = iconSlot(row, "general", 6) -- gilt diamond: a general's trait or ability applies
 	rect(general, 6, 6, 5, 5, 45, Kit.GILT_BRIGHT)
 	icons.general = general
+	local tired = iconSlot(row, "tired", 7) -- a drop: amber when tired, red when exhausted
+	ring(tired, 7, 5, 6, AMBER, 3)
+	rect(tired, 3, 4, 5, 2, 45, AMBER)
+	icons.tired = tired
+	local running = iconSlot(row, "running", 8) -- two chevrons: at the double
+	rect(running, 2, 6, 3, 3, 45, Kit.IVORY)
+	rect(running, 2, 6, 3, 7, -45, Kit.IVORY)
+	rect(running, 2, 6, 7, 3, 45, Kit.IVORY)
+	rect(running, 2, 6, 7, 7, -45, Kit.IVORY)
+	icons.running = running
 	local dim = Instance.new("Frame") :: Frame
 	dim.Size = UDim2.fromScale(1, 1)
 	dim.BackgroundColor3 = Kit.INSET
@@ -28485,6 +28904,8 @@ local function newCard(f: any): Card
 		count = count,
 		strength = strength,
 		morale = morale,
+		ammo = ammo,
+		group = group,
 		icons = icons,
 		reloadFill = reloadFill,
 		dim = dim,
@@ -28532,11 +28953,12 @@ local function reloadLeft(c: Card, f: any): number
 end
 
 local function reloadTime(f: any): number
+	local stats = Config.TypeStats[f.type] or (Config.Units :: any)[f.class]
 	if f.class == "artillery" then
-		local gun = Config.Units.artillery.gun
+		local gun = stats.gun
 		return if f.ammoMode == "canister" then gun.canister.reload else gun.roundShot.reload
 	end
-	local m = Config.Units.infantry.musket
+	local m = stats.musket
 	return if m then m.reload else 15
 end
 
@@ -28554,6 +28976,26 @@ local function paint(c: Card, f: any)
 	c.icons.limbered.Visible = f.class == "artillery" and (f.limbered == true or f.shape == "limbered")
 	c.icons.holdFire.Visible = shoots and f.fireAtWill == false
 	c.icons.general.Visible = type(f.tags) == "string" and f.tags ~= ""
+	local fatigue = f.fatigue or 0
+	c.icons.tired.Visible = fatigue > 40
+	local tint = if fatigue > Config.Morale.FatigueThreshold then Kit.HOSTILE else AMBER
+	for _, d in c.icons.tired:GetDescendants() do
+		if d:IsA("Frame") then
+			(d :: Frame).BackgroundColor3 = tint
+		elseif d:IsA("UIStroke") then
+			(d :: UIStroke).Color = tint
+		end
+	end
+	c.icons.running.Visible = f.running == true
+	local stats = Config.TypeStats[f.type] or (Config.Units :: any)[f.class]
+	local full = if stats.gun then stats.gun.ammo elseif stats.musket then stats.musket.ammo else nil
+	local track = c.ammo.Parent :: Frame
+	track.Visible = full ~= nil and f.ammo ~= nil
+	if full and f.ammo then
+		Kit.setBar(c.ammo, f.ammo / full)
+	end
+	local g = Selection.groupOf(f.id)
+	c.group.Text = if g then tostring(g) else ""
 	c.routing = f.state == "routing" or f.moraleBand == "routing"
 	c.shattered = f.moraleBand == "shattered"
 	c.dim.Visible = BattleState.allyOf(f.id) ~= nil
@@ -29218,7 +29660,8 @@ local BOTTOM_H = CardBar.HEIGHT
 local touch = false
 local MINI_W = 110
 local TOUCH_CELL_H = 34
-local TOUCH_CMD_H = 3 * TOUCH_CELL_H + 6 + 18
+local CMD_ROWS = 4 -- COMMANDS, four to a row
+local TOUCH_CMD_H = CMD_ROWS * TOUCH_CELL_H + (CMD_ROWS - 1) * 3 + 18
 local TOUCH_ROW_H = 34
 local playersCollapsed = false
 
@@ -29693,7 +30136,7 @@ local function buildInspector(sg: ScreenGui)
 	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
 	inspectorBarFill = Kit.bar(p, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0, 30), Kit.FRANCE)
 	local y = 40
-	local names = { corps = "Corps", class = "Class", strength = "Strength", morale = "Morale", fatigue = "Fatigue", ammo = "Ammunition", shape = "Shape", status = "Status" }
+	local names = { corps = "Corps", class = "Type", strength = "Strength", morale = "Morale", fatigue = "Fatigue", ammo = "Ammunition", shape = "Shape", status = "Status" }
 	for i, key in INSPECTOR_FIELDS do
 		local col = (i - 1) % 2
 		local rowY = y + ((i - 1) // 2) * 32
@@ -29715,17 +30158,27 @@ local function updateInspector()
 		return
 	end
 	local forms = selectedFormations()
+	-- a clicked enemy, while it stays in sight, takes the inspector (read-only: estimates only)
+	local enemyId = Selection.inspected()
+	local enemy: any = if enemyId then BattleState.formations[enemyId] else nil
+	if enemy then
+		forms = { enemy }
+	elseif enemyId then
+		Selection.inspect(nil)
+	end
 	if #forms == 0 then
 		p.Visible = false
 		return
 	end
 	p.Visible = true
-	local f = forms[1]
+	local f: any = forms[1]
 	local F = inspectorFields
 	F.name.Text = if #forms > 1 then string.format("%s  (+%d)", tostring(f.name or f.id), #forms - 1) else tostring(f.name or f.id)
+	F.name.TextColor3 = if enemy then Kit.HOSTILE else Kit.GILT_BRIGHT
 	F.exp.Text = string.rep("›", math.clamp(f.experience or 0, 0, 3))
 	F.corps.Text = tostring(f.corps or "—")
-	F.class.Text = string.upper(string.sub(f.class, 1, 1)) .. string.sub(f.class, 2)
+	local kind = f.type and (Config.UnitTypes :: any)[f.type]
+	F.class.Text = if kind then kind.name else string.upper(string.sub(f.class, 1, 1)) .. string.sub(f.class, 2)
 	F.strength.Text = string.format("%d / %d", f.strength, f.startStrength)
 	if inspectorBarFill then
 		Kit.setBar(inspectorBarFill, f.strength / math.max(f.startStrength, 1))
@@ -29766,11 +30219,12 @@ end
 
 -- Inspector hover: every trait / ability modifier on the first selected formation, in full.
 inspectorTip = function(): string
-	local f = selectedFormations()[1]
+	local enemyId = Selection.inspected()
+	local f = (if enemyId then BattleState.formations[enemyId] else nil) or selectedFormations()[1]
 	if not f then
 		return ""
 	end
-	local lines = {}
+	local lines = CardBar.statLines(f)
 	local g = if f.class == "hq" and f.general then Generals.byId[f.general] else nil
 	if g then
 		for _, tr in g.traits do
@@ -29798,9 +30252,12 @@ local COMMANDS: { CommandDef } = {
 	{ key = "line", text = "Line", tip = "Three ranks: full fire, slow (infantry/cavalry)" },
 	{ key = "column", text = "Column", tip = "Deep column: fast, strong in the charge, weak to fire" },
 	{ key = "square", text = "Square", tip = "Hollow box against cavalry; artillery loves it" },
+	{ key = "skirmish", text = "Skirmish", tip = "Light infantry and rifles: open order, fire on the move, hard to hit; cavalry rides it down" },
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
 	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
 	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
+	{ key = "run", text = "Run", tip = "Run / walk (R): faster, far more tiring. A double right-click runs one march" },
+	{ key = "attack", text = "Attack", tip = "Attack-move (M): then right-click; they fight their way there" },
 	{ key = "hold", text = "Hold", tip = "Stand and hold position" },
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
 	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
@@ -29823,6 +30280,17 @@ local function runCommand(key: string)
 		if #ids > 0 then
 			Input.sendOrder("Shape", ids, { shape = "wedge" })
 		end
+	elseif key == "skirmish" then
+		local ids = {}
+		for _, id in idsOfClass(forms, { infantry = true }) do
+			local f = BattleState.formations[id]
+			if f and f.type and Config.TypeStats[f.type].legalShapes.skirmish then
+				table.insert(ids, id)
+			end
+		end
+		if #ids > 0 then
+			Input.sendOrder("Shape", ids, { shape = "skirmish" })
+		end
 	elseif key == "fire" then
 		local ids = idsOfClass(forms, { infantry = true, artillery = true })
 		if #ids > 0 then
@@ -29831,6 +30299,12 @@ local function runCommand(key: string)
 		end
 	elseif key == "charge" then
 		Input.arm(if Input.armed() == "Charge" then nil else "Charge")
+		HUD.refreshCommands()
+	elseif key == "run" then
+		Input.toggleRun()
+		HUD.refreshCommands()
+	elseif key == "attack" then
+		Input.arm(if Input.armed() == "AttackMove" then nil else "AttackMove")
 		HUD.refreshCommands()
 	elseif key == "hold" or key == "stop" or key == "retreat" then
 		local ids = idsOfClass(forms, { infantry = true, cavalry = true, artillery = true, hq = true })
@@ -29867,7 +30341,7 @@ local function buildCommandPanel(sg: ScreenGui)
 	grid.BackgroundTransparency = 1
 	grid.Parent = p
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else 24)
+	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else math.floor((BOTTOM_H - 18 - (CMD_ROWS - 1) * 3) / CMD_ROWS))
 	g.CellPadding = UDim2.fromOffset(3, 3)
 	g.FillDirectionMaxCells = 4
 	g.SortOrder = Enum.SortOrder.LayoutOrder
@@ -30026,9 +30500,12 @@ local COMMAND_CLASSES: { [string]: { string } } = {
 	line = { "infantry", "cavalry" },
 	column = { "infantry" },
 	square = { "infantry" },
+	skirmish = { "infantry" },
 	wedge = { "cavalry" },
 	fire = { "infantry", "artillery" },
 	charge = { "infantry", "cavalry" },
+	run = { "infantry", "cavalry", "hq" },
+	attack = { "infantry", "cavalry" },
 	limber = { "artillery" },
 	ammo = { "artillery" },
 	rally = { "hq" },
@@ -30054,6 +30531,16 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 		local armed = Input.armed() == "Charge"
 		Kit.setActiveLook(b, armed)
 		b.Text = if armed then "Charge…" else "Charge"
+	elseif key == "attack" then
+		local armed = Input.armed() == "AttackMove"
+		Kit.setActiveLook(b, armed)
+		b.Text = if armed then "Attack…" else "Attack"
+	elseif key == "run" then
+		local running = false
+		for _, f in forms do
+			running = running or f.running == true or Input.isRunning(f.id)
+		end
+		Kit.setActiveLook(b, running)
 	elseif key == "limber" then
 		local art = firstOfClass(forms, "artillery")
 		b.Text = if art and art.limbered == true then "Unlimber" else "Limber"
@@ -30279,14 +30766,19 @@ local Help = {}
 local gui: ScreenGui? = nil
 
 local CONTROLS = {
-	{ "Left click", "Select a formation · drag to box-select · Shift adds or removes" },
-	{ "Right click", "Move there (keeps the selection's spacing) · on an enemy: Engage" },
+	{ "Left click", "Select a formation · drag to box-select · Shift adds or removes · double-click: all of its type" },
+	{ "Right click", "Move there (keeps the selection's spacing) · on an enemy: Engage · double: run there" },
 	{ "Right drag", "Draw the line: formations spread along it and face its open side" },
+	{ "Alt + right click", "Turn in place to face that point" },
 	{ "Shift + order", "Queue the order after the current one (up to 4)" },
 	{ "WASD / arrows", "Pan the camera · Q / E rotate · wheel zoom · PgUp / PgDn pitch" },
-	{ "F / Home", "Focus the selection / return to the army" },
-	{ "Space · 1 2 3", "Pause or resume · speed ×1 ×2 ×4" },
-	{ "Ctrl + 4…9 / 4…9", "Assign a control group / recall it" },
+	{ "F / Home / V", "Focus the selection / return to the army / follow the selected formation" },
+	{ "Space · + / −", "Pause or resume · faster / slower (×1 ×2 ×4)" },
+	{ "Ctrl + 1…9 / 1…9", "Assign a control group / recall it (twice: centre on it) · Ctrl + A: everyone" },
+	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
+	{ "T Z M R", "Fire at will · charge · attack-move · run / walk" },
+	{ "H ⌫ X", "Hold · halt · retreat" },
+	{ "U I P", "Guns: limber · ammunition · HQ: rally" },
 	{ "Esc", "Clear the selection, close panels" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
 }
@@ -30295,6 +30787,8 @@ local FORMATIONS = {
 	{ "Line", "Three ranks: full musketry, slow, vulnerable to cavalry on the flanks." },
 	{ "Column", "Twelve ranks: fast on roads, strong in the bayonet charge, weak to fire and round shot." },
 	{ "Square", "Hollow box: nearly immune to cavalry, half the fire, a gift to artillery. Slow to form." },
+	{ "Run", "R or a double right-click: marches at the double, 1.4x speed for 3x the fatigue. Tired men shoot and fight worse." },
+	{ "Skirmish", "Light infantry and rifles only: open order, hard to hit, fires on the move and all round. Cavalry rides it down." },
 	{ "Travel column", "Adopted automatically at choke points; cannot fire. Reforms when clearance allows." },
 	{ "Cavalry wedge", "Charge formation: impact grows with the run-up. Never charge a formed square." },
 	{ "Limbered / deployed", "Guns move only when limbered and fire only when deployed (20–25 s to change)." },
@@ -32815,6 +33309,9 @@ function SettingsPanel.show()
 			local n = Kit.label(list, "No sound assets installed: the game is silent. Volumes are kept for when they are.", { size = UDim2.new(1, 0, 0, 32), wrap = true, colour = Kit.MUTED, textSize = 12 })
 			n.LayoutOrder = next()
 		end
+		Kit.toggle(list, "Edge scrolling (mouse at the window's edge pans)", v.edgeScroll, function(x)
+			Settings.set("edgeScroll", x)
+		end).LayoutOrder = next()
 		Kit.toggle(list, "Reduced screen shake", v.reducedShake, function(x)
 			Settings.set("reducedShake", x)
 		end).LayoutOrder = next()

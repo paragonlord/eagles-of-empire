@@ -339,10 +339,10 @@ local function newCard(f: any): Card
 	rect(tired, 3, 4, 5, 2, 45, AMBER)
 	icons.tired = tired
 	local running = iconSlot(row, "running", 8) -- two chevrons: at the double
-	rect(running, 2, 6, 3, 3, 45, Kit.IVORY)
-	rect(running, 2, 6, 3, 7, -45, Kit.IVORY)
-	rect(running, 2, 6, 7, 3, 45, Kit.IVORY)
-	rect(running, 2, 6, 7, 7, -45, Kit.IVORY)
+	rect(running, 2, 6, 3, 3, -45, Kit.IVORY)
+	rect(running, 2, 6, 3, 7, 45, Kit.IVORY)
+	rect(running, 2, 6, 7, 3, -45, Kit.IVORY)
+	rect(running, 2, 6, 7, 7, 45, Kit.IVORY)
 	icons.running = running
 	local dim = Instance.new("Frame") :: Frame
 	dim.Size = UDim2.fromScale(1, 1)
