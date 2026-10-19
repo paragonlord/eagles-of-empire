@@ -3,6 +3,8 @@
 -- Fades out rather than cutting, so the first frame of the field is never a pop.
 
 local TweenService = game:GetService("TweenService") :: TweenService
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Tips = require(Shared.Tips)
 local Kit = require(script.Parent.Kit)
 
 local Loading = {}
@@ -12,6 +14,10 @@ local back: CanvasGroup? = nil
 local fill: Frame? = nil
 local caption: TextLabel? = nil
 local fade: Tween? = nil
+local tip: TextLabel? = nil
+local tipAt = Random.new():NextInteger(1, #Tips)
+local tipRun = 0 -- the rotation thread of the current show
+local TIP_SECONDS = 9
 
 local function build()
 	if gui then
@@ -48,10 +54,12 @@ local function build()
 	f.BackgroundColor3 = Kit.GILT
 	f.BorderSizePixel = 0
 	f.Parent = track
+	local tl = Kit.label(bg, "", { size = UDim2.new(0, 640, 0, 44), position = UDim2.new(0.5, -320, 0.38, 132), align = Enum.TextXAlignment.Center, colour = Kit.MUTED, font = Enum.Font.Garamond, textSize = 18, wrap = true })
 	gui = sg
 	back = bg
 	fill = f
 	caption = c
+	tip = tl
 end
 
 local function stopFade()
@@ -71,6 +79,20 @@ function Loading.show(text: string?)
 		gui.Enabled = true
 	end
 	Loading.setProgress(0, text)
+	-- a tip, and the next one every few seconds while the overlay is up
+	tipRun += 1
+	local run = tipRun
+	task.spawn(function()
+		while run == tipRun do
+			local g, l = gui, tip
+			if not g or not l or not g.Enabled then
+				break
+			end
+			l.Text = Tips[tipAt]
+			tipAt = tipAt % #Tips + 1
+			task.wait(TIP_SECONDS)
+		end
+	end)
 end
 
 function Loading.setProgress(fraction: number, text: string?)
@@ -115,6 +137,7 @@ function Loading.destroy()
 		back = nil
 		fill = nil
 		caption = nil
+		tip = nil
 	end
 end
 

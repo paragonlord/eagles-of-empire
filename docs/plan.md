@@ -81,7 +81,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Play either side in historical battles
 - [x] Custom battle
 - [x] Results: kills per unit, history comparison
-- [ ] Loading screen tips
+- [x] Loading screen tips
 - [ ] Visible round shot
 - [ ] Reload and melee animations
 

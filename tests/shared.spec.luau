@@ -409,3 +409,14 @@ test("Results in history: every listed battle names its historical winner, and t
 	assertEq(Scenarios.historyVerdict(Scenarios.forSide(Scenarios.waterloo, "other"), "britain"), "As in history, Anglo-allied carried the day.")
 	assertEq(Scenarios.historyVerdict({ id = "custom", factionNames = {} } :: any, "france"), nil, "a custom battle has no history")
 end)
+
+test("Loading tips: a score of short, distinct lines", function()
+	local Tips = require(Shared.Tips)
+	assertTrue(#Tips >= 15)
+	local seen = {}
+	for _, tip in Tips do
+		assertTrue(#tip <= 140, "short: " .. tip)
+		assertTrue(not seen[tip], "distinct: " .. tip)
+		seen[tip] = true
+	end
+end)
