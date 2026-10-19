@@ -329,6 +329,33 @@ test("Grand public order: taxes trade income for unrest, foreign rule needs a go
 	assertTrue(back ~= nil and back.nations.france.tax == 4 and back.provinces.bavaria.revolt == true)
 end)
 
+test("Grand armies: refit at a depot a tenth a turn; winter in the harsh lands bleeds armies far from home", function()
+	local s = empty(8)
+	local home = army(s, "france", "paris", { line = 1 })
+	local away = army(s, "france", "normandy", { line = 1 })
+	home.units[1].strength, away.units[1].strength = 300, 300
+	s.nations.france.treasury, s.nations.france.manpower = 5000, 5000
+	Economy.run(s, "france")
+	assertEq(home.units[1].strength, 300 + math.ceil(home.units[1].maxStrength * Economy.REFILL), "Paris has a depot")
+	assertEq(away.units[1].strength, 300, "Normandy only a drill ground")
+	-- an enemy next door stops it
+	Diplomacy.declareWar(s, "france", "britain")
+	army(s, "britain", "normandy", { line = 1 })
+	local before = home.units[1].strength
+	Economy.run(s, "france")
+	assertEq(home.units[1].strength, before, "no refit with the enemy next door")
+	-- winter: a French army in Moscow (Russian ground, at war) loses men; the Russians do not
+	Diplomacy.declareWar(s, "france", "russia")
+	local invader = army(s, "france", "moscow", { line = 2 })
+	local native = army(s, "russia", "moscow", { line = 2 })
+	s.turn = EuropeData.turnOf(1, 1813)
+	assertTrue(EuropeData.isWinter(s.turn) and not EuropeData.isWinter(EuropeData.turnOf(5, 1813)))
+	Economy.run(s, "france")
+	Economy.run(s, "russia")
+	assertTrue(invader.units[1].strength < invader.units[1].maxStrength, "General Winter")
+	assertEq(native.units[1].strength, native.units[1].maxStrength, "at home with its depots")
+end)
+
 -- Movement --------------------------------------------------------------------------------------------
 
 test("Grand movement: paths, movement points, stops in enemy land, zone of control, no neutral access", function()

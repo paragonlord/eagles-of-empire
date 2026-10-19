@@ -402,6 +402,15 @@ EuropeData.UnitClasses = {
 
 EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }
 
+-- Lands where a winter campaign costs men (Economy: winter attrition, Nov–Feb).
+EuropeData.HarshWinter = { stpetersburg = true, lithuania = true, smolensk = true, moscow = true, ukraine = true, eastprussia = true, warsaw = true, galicia = true, stockholm = true, tyrol = true } :: { [string]: boolean }
+
+-- Is this turn (two months) a winter turn: Nov–Dec or Jan–Feb?
+function EuropeData.isWinter(turn: number): boolean
+	local m = ((turn - 1) * 2) % 12
+	return m == 0 or m == 10
+end
+
 -- Buildings (docs/campaign.md "Buildings"). Each province raises chains of three levels, one
 -- construction at a time; cost and turns are per level. Effects live in Economy: farms +5 % and
 -- trade +10 % of the province's income per level, government -1 unrest per level, fort = the

@@ -33,6 +33,8 @@ Economy.TAX = {
 Economy.UNREST_PENALTY = 0.75 -- income of a province at unrest 3 or more
 Economy.REVOLT_TURNS = 2 -- turns at unrest 5 before the province rises
 Economy.REVOLT_ATTRITION = 0.05 -- the owner's troops in a revolted province, a turn
+Economy.REFILL = 0.1 -- share of a unit's full strength regained a turn at rest in friendly land
+Economy.WINTER_ATTRITION = { allied = 0.02, hostile = 0.04 } -- harsh lands, Nov–Feb (own land: none)
 Economy.FARMS_INCOME = 0.05 -- per level of the farms chain
 Economy.TRADE_INCOME = 0.1 -- per level of the trade chain
 
@@ -333,6 +335,51 @@ function Economy.setTax(s: State, nation: string, level: number): (boolean, stri
 	return true, nil
 end
 
+-- At rest by a depot (own, unoccupied province with barracks 2+, not in revolt) with no hostile army
+-- in or next to the province, units refill a tenth of their full strength a turn (treasury and manpower as for
+-- Replenish, while they last).
+local function refill(s: State, nation: string)
+	local ns = s.nations[nation]
+	for _, a in State.armiesOf(s, nation) do
+		local here = a.provinceId
+		local ps = s.provinces[here]
+		local quiet = ps.owner == nation and ps.occupiedBy == nil and not ps.revolt and (ps.buildings.barracks or 0) >= 2 and not State.hostileArmyIn(s, here, nation)
+		if quiet then
+			for _, n in State.province(here).neighbours do
+				if not EuropeData.isSeaLane(here, n) and State.hostileArmyIn(s, n, nation) then
+					quiet = false
+				end
+			end
+		end
+		if quiet then
+			for _, u in a.units do
+				local n = math.min(u.maxStrength - u.strength, math.ceil(u.maxStrength * Economy.REFILL), math.floor(ns.treasury / Economy.REPLENISH_COST_PER_MAN), ns.manpower)
+				if n > 0 then
+					u.strength += n
+					ns.treasury -= n * Economy.REPLENISH_COST_PER_MAN
+					ns.manpower -= n
+				end
+			end
+		end
+	end
+	ns.treasury = math.floor(ns.treasury)
+end
+
+-- Winter in the harsh lands: men fall out of the ranks away from their own country's depots.
+local function winter(s: State, nation: string)
+	if not EuropeData.isWinter(s.turn) then
+		return
+	end
+	for _, a in State.armiesOf(s, nation) do
+		if EuropeData.HarshWinter[a.provinceId] then
+			local c = State.controller(s, a.provinceId)
+			if c ~= nation then
+				attrit(s, a, if State.friendly(s, nation, c) then Economy.WINTER_ATTRITION.allied else Economy.WINTER_ATTRITION.hostile)
+			end
+		end
+	end
+end
+
 function Economy.run(s: State, nation: string)
 	local ns = s.nations[nation]
 	local income, manpower = Economy.income(s, nation)
@@ -368,6 +415,8 @@ function Economy.run(s: State, nation: string)
 	end
 	construct(s, nation)
 	publicOrder(s, nation)
+	refill(s, nation)
+	winter(s, nation)
 	for i = #s.recruitment, 1, -1 do
 		local q = s.recruitment[i]
 		if q.nation == nation then

@@ -105,6 +105,16 @@ from a 600 reserve (minors 300), at war only from 3000 (1000): the army comes fi
 - Unrest 3 or more: the province pays a quarter less. Two turns in a row at 5: it rises — no
   income or manpower, the owner's troops there lose 5 % a turn — until unrest falls below 3.
 
+## Refitting and winter
+
+- Refit: an army at rest by a depot — its own, unoccupied province with barracks level 2 or more,
+  not in revolt, no hostile army in it or next to it — regains a tenth of each unit's full strength a
+  turn, paid as Replenish (0.5 treasury and 1 manpower a man) while the money lasts. The manual
+  Replenish stays.
+- Winter (Nov–Dec and Jan–Feb turns) in the harsh lands (Russia, Lithuania, Warsaw, East Prussia,
+  Galicia, Sweden, the Tyrol): armies away from their own country's depots lose 2 % a turn in an
+  ally's province and 4 % in an enemy's or neutral one. The 1812 General Winter event comes on top.
+
 ## Armies and movement
 
 - An army has a general (`rating` 1–5) or none. Movement: 2 provinces a turn, 3 under a general
