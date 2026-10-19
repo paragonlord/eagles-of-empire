@@ -33,6 +33,7 @@ export type Formation = {
 	depth: number,
 	orderKind: string?,
 	running: boolean?,
+	fireByRank: boolean?,
 	targetId: number?,
 	fireAtWill: boolean?,
 	limbered: boolean?,

@@ -206,6 +206,7 @@ Config.Combat = {
 	RearFireFactor = 1.6,
 	FriendlyBlocksFire = true, -- a friendly formation inside the fire lane blocks the volley
 	FireLaneHalfWidth = 10,
+	FireByRankReload = 0.75, -- reload multiplier for drilled infantry halted in line
 	MeleeRatePerSecond = 0.0025, -- casualties = attackerStrength * rate * factors * dt
 	MeleeDirFactor = { front = 1.0, flank = 1.6, rear = 2.2 },
 	MeleeContactDistance = 6, -- studs between footprints

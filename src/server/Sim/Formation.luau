@@ -34,6 +34,7 @@ export type Formation = {
 	corps: string,
 	class: Types.UnitClass,
 	type: string, -- Config.UnitTypes id
+	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -150,6 +151,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		corps = def.corps,
 		class = def.class,
 		type = unitType,
+		fireByRank = Scenarios.firesByRank(def),
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,

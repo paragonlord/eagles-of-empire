@@ -25,6 +25,7 @@ export type UnitDef = {
 	arrival: { seconds: number, pos: Vec }?, -- off-map reinforcement: enters at pos at that sim time
 	general: string?, -- HQ only: id in src/shared/Generals.luau (else matched from the name)
 	type: string?, -- Config.UnitTypes id (else inferred from the name: Scenarios.typeOf)
+	fireByRank: boolean?, -- the drill (else: guard infantry and British foot have it)
 }
 
 export type Scenario = {
@@ -1121,6 +1122,14 @@ function Scenarios.typeOf(def: UnitDef): string
 		end
 	end
 	return DEFAULT_TYPE[def.class] or "line"
+end
+
+-- Fire by rank: a scenario's explicit choice, else every guard battalion and British foot.
+function Scenarios.firesByRank(def: UnitDef): boolean
+	if def.fireByRank ~= nil then
+		return def.fireByRank
+	end
+	return def.class == "infantry" and (Scenarios.typeOf(def) == "guard" or def.faction == "britain")
 end
 
 function Scenarios.get(id: string): Scenario?

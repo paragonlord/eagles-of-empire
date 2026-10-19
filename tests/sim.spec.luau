@@ -232,6 +232,33 @@ test("Running: faster and far more tiring; the Run order switches pace mid-march
 	assertTrue(not f.order.run, "and back to the walk")
 end)
 
+test("Fire by rank: drilled infantry halted in line reloads faster; guard and British foot are drilled", function()
+	assertTrue(Scenarios.firesByRank({ class = "infantry", name = "28th Foot", faction = "britain" } :: any))
+	assertTrue(Scenarios.firesByRank({ class = "infantry", name = "Grenadiers à pied de la Garde", faction = "france" } :: any))
+	assertTrue(not Scenarios.firesByRank({ class = "infantry", name = "34e de Ligne", faction = "france" } :: any))
+	assertTrue(not Scenarios.firesByRank({ class = "cavalry", name = "1st Life Guards", faction = "britain" } :: any))
+	assertTrue(Scenarios.firesByRank({ class = "infantry", name = "34e de Ligne", faction = "france", fireByRank = true } :: any), "a scenario may grant it")
+	local sim = newSim({
+		unit("france", "infantry", "34e de Ligne", A.x, A.z, 0),
+		unit("france", "infantry", "Drilled", A.x, A.z + 60, 0),
+		unit("prussia", "infantry", "Target", A.x + 70, A.z + 30, math.pi),
+	})
+	sim.formations[2].fireByRank = true
+	sim.formations[3].fireAtWill = false
+	local reloads = {}
+	for _ = 1, 40 do
+		sim:step()
+		for i = 1, 2 do
+			local f = sim.formations[i]
+			if f.reload > 0 and not reloads[i] then
+				reloads[i] = f.reload
+			end
+		end
+	end
+	assertTrue(reloads[1] and reloads[2], "both fired")
+	assertTrue(math.abs(reloads[2] / reloads[1] - Config.Combat.FireByRankReload) < 0.02, string.format("%.2f vs %.2f", reloads[2], reloads[1]))
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

@@ -183,7 +183,7 @@ local function tipFor(id: number): string
 	end
 	local kind = f.type and (Config.UnitTypes :: any)[f.type]
 	local lines = {
-		tostring(f.name or ("#" .. id)) .. (if kind then " · " .. kind.name else ""),
+		tostring(f.name or ("#" .. id)) .. (if kind then " · " .. kind.name else "") .. (if f.fireByRank then " · fire by rank" else ""),
 		tostring(f.corps or ""),
 		string.format("%d / %d men · %s", f.strength, f.startStrength, string.upper(string.sub(f.moraleBand, 1, 1)) .. string.sub(f.moraleBand, 2)),
 		STATE_WORD[f.state] or f.state,

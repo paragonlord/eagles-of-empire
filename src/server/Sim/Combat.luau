@@ -202,6 +202,9 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	hit = math.min(C.MaxHitChance, hit)
 	local casualties = rollCasualties(sim, shooters * hit)
 	f.reload = musket.reload
+	if f.fireByRank and f.shape == "line" and f.state ~= "moving" then
+		f.reload *= C.FireByRankReload
+	end
 	f.ammo -= 1
 	f.lastShotTick = sim.tick
 	f.state = if f.state == "idle" then "firing" else f.state

@@ -668,6 +668,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		v.cohesion = f.cohesion
 		v.orderKind = if f.order then f.order.kind else nil
 		v.running = if f.order and f.order.run then true else nil
+		v.fireByRank = if f.fireByRank then true else nil
 		v.targetId = f.targetId
 		v.fireAtWill = f.fireAtWill
 		v.limbered = if f.class == "artillery" then Formation.isLimbered(f) else nil

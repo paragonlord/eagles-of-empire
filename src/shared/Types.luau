@@ -66,6 +66,7 @@ export type FormationView = {
 	depth: number,
 	orderKind: string?,
 	running: boolean?, -- own: marching at the double
+	fireByRank: boolean?, -- own: drilled to fire by rank
 	targetId: number?,
 	fireAtWill: boolean?,
 	limbered: boolean?,

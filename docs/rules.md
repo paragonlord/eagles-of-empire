@@ -87,6 +87,9 @@ yields at choke points (clearance < 24).
 
 Skirmishers fire on the move without halting and all round, and are hit by muskets ×0.45.
 
+Fire by rank: drilled infantry (a scenario's `fireByRank`, else every guard battalion and British
+foot; in the grand campaign a technology) reloads ×0.75 while halted in line.
+
 Reform times (seconds): line 12, column 8, square 15 (10 from column), travel 6, skirmish 6, limber 25,
 unlimber 20. While `reforming`, fire = 0, melee ×0.6, shock taken ×1.5. A square ordered after
 cavalry contact completes only after its timer; the charge already in contact resolves against
