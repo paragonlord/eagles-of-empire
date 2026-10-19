@@ -1,41 +1,90 @@
-# Plan and gate tracker
+# Plan: toward Total War: Napoleon
 
-Defaults in force (from the brief, not re-asked): PC-first commander controls; player commands
-formations; solo vs AI; real-time with pause and ×1/×2/×4; France vs Prussia, condensed
-Jena-inspired 1806 scenario; campaign after the battle gate.
+Living tracker. `[x]` done, `[ ]` to do, `[!]` blocked (reason given). One task = one commit,
+`tools/check.sh` green before each. Phases end with the balance harness (if the sim or AI
+changed), a place rebuild, a Studio QA round (`docs/qa.md`) and a push.
 
-Workflow in force: **source-only** (no Studio, no Rojo/Lune binaries reachable). Implementation
-status and verification status are tracked separately below. Nothing here counts as verified
-in-engine until `docs/qa.md` records a Studio run.
+Kept on purpose: 1 figure = 25 men (performance), naval battles are auto-resolved (no 3D sea
+battles), the campaign is single-player.
 
-| Gate | Implementation | Verification |
-| --- | --- | --- |
-| 0 — environment, reference, contracts | done (this commit) | n/a |
-| 1 — visual target + command feel | source done | blocked (Studio) |
-| 2 — real small battle | source done | blocked |
-| 3 — full tactical depth | source done | blocked |
-| 4 — quality & robustness | source: rules/net/AI/campaign tests + scripted 25-min battle | blocked (in-engine) |
-| 5 — campaign | source done (rules, persistence, service, screen) | blocked |
-| 6 — polish & delivery | docs/handoff current; place file built | blocked (screenshots, playtest) |
+The gate history of the first build (gates 0–6) is in git history and `docs/qa.md`.
 
-## Environment findings (Gate 0)
+## Phase 0: fix what is broken
+- [ ] Corrupt campaign save refused and kept, never overwritten
+- [ ] Nav never links brook banks without a bridge
+- [ ] Cavalry in melee with a square takes `SquareReturnsDamage`
+- [ ] Hard AI morale bonus applied; infantry ammo in Config; dead config removed; rules.md facing text
+- [ ] Campaign: army `path` sent; replenish and war-on-ally rules agree between UI and server
+- [ ] Far banner tabs tinted by faction
 
-- Cloud Linux container, no Roblox Studio, no Studio MCP connection.
-- `rojo`, `lune`, `luau` binaries unavailable (GitHub releases and crates.io blocked by
-  network policy). Luau CLI + analyzer **built from source** in the session; definitions from
-  `luau-lsp` `globalTypes.d.luau` for Roblox-aware strict checking.
-- Reference frames arrived later (`docs/reference/`); see `docs/visual-notes.md`.
-- Repository: github.com/paragonlord/eagles-of-empire (main).
+## Phase 1: real unit types
+- [ ] `type` on units, `Config.UnitTypes` merged over the class stats
+- [ ] Types inferred from regiment names in every scenario
+- [ ] Per-type stats (rifles, grenadiers, guard, light/heavy cavalry, dragoons, horse artillery)
+- [ ] Campaign unit types map onto sim types
+- [ ] Cards and inspector show the type
 
-## Task list (living)
+## Phase 2: TW orders and controls
+- [ ] Skirmish order for light infantry and rifles
+- [ ] Run / walk
+- [ ] Fire by rank (passive)
+- [ ] TW hotkeys: speed on +/-, control groups 1–9, Ctrl+A, double-click selects type, order keys, attack-move, face
+- [ ] Cards show ammo, fatigue, group number
+- [ ] Unit stats panel; inspect visible enemies
+- [ ] Camera: edge scroll, follow unit, lower minimum height
 
-- [x] Contracts: architecture, rules, visual notes
-- [x] Shared: Config, Vec, RNG, Grid, MapGen (Jena map), Scenarios, Protocol, Types
-- [x] Tools: test runner, analyzer wrapper, `.rbxlx` builder, `default.project.json`
-- [x] Server: Sim core (formations, nav, movement, shapes), Net (remotes, validator, replicator), MatchService
-- [x] Client: Net, World (terrain, props, labels), Figures (LOD), Camera, Input/Selection, HUD
-- [x] Gate 2 (source): combat, morale, routing, objectives, victory, results, restart
-- [x] Gate 3 (source): artillery, cavalry, squares, visibility, AI hierarchy, help panel, settings, audio fallback, effects
-- [x] Gate 4 (source): edge-case tests, stress fixture benchmark, scripted full battle; in-engine profiling blocked
-- [x] Gate 5 (source): campaign map, turns, recruitment, battle hand-off, persistence, campaign screen
-- [~] Gate 6: docs/handoff current; art/usability pass needs Studio
+## Phase 3: battlefield physics and terrain
+- [ ] Round shot travels a lane and bounces through what is behind (friendly fire)
+- [ ] Howitzer shells: indirect, area hits
+- [ ] Downhill charge and melee bonus
+- [ ] Fords
+- [ ] Garrisonable buildings (strongpoints)
+- [ ] Walls and hedges as cover lines
+
+## Phase 4: generals
+- [ ] One aura per HQ; corps generals in full battles; local death shock
+- [ ] General's cavalry bodyguard
+- [ ] Experience earned in battle
+
+## Phase 5: battle AI
+- [ ] Defence: reverse slope, garrisons, skirmish screens, counter-attacks, cavalry counter-charges
+- [ ] Attack: pin and flank; light cavalry hunts routers and guns
+- [ ] Balance flags cleared (Waterloo, Auerstedt, Spielberg, Hougoumont guns)
+
+## Phase 6: campaign economy
+- [ ] Buildings and construction; recruitment needs buildings
+- [ ] Tax levels, public order effects, rebellion
+- [ ] Gradual replenishment
+- [ ] Winter and supply attrition
+- [ ] Settlement panel and tax control
+
+## Phase 7: technology and national rosters
+- [ ] Research tree (unlocks units, battle passives, economy)
+- [ ] National rosters
+
+## Phase 8: campaign armies and battles
+- [ ] Per-province battle maps
+- [ ] Adjacent armies reinforce battles
+- [ ] Forced march
+- [ ] General careers: traits, rank, death, appointment
+- [ ] Siege assault
+
+## Phase 9: diplomacy and agents
+- [ ] Trade agreements, military access, gifts
+- [ ] Spies
+
+## Phase 10: navy (auto-resolved)
+- [ ] Fleets, escorts, blockade, naval auto-resolve, Trafalgar
+- [ ] Fleet tokens on the board
+
+## Phase 11: modes and presentation
+- [ ] Play either side in historical battles
+- [ ] Custom battle
+- [ ] Results: kills per unit, history comparison
+- [ ] Loading screen tips
+- [ ] Visible round shot
+- [ ] Reload and melee animations
+
+## Assets (Studio)
+- [ ] Priority sounds from the Creator Store (ids listed in `docs/handoff.md` for approval)
+- [ ] Soldier meshes (Bartosz picks)
