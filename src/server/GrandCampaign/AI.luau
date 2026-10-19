@@ -373,6 +373,8 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 			moveArmy(s, nation, a, guard, rally, near, target, main)
 		end
 	end
+	-- taxes: high while a war drains a thin treasury, normal otherwise
+	ns.tax = if #State.enemiesOf(s, nation) > 0 and ns.treasury < 1000 then 3 else 2
 	recruit(s, nation)
 	build(s, nation)
 end

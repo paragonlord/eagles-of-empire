@@ -270,6 +270,16 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			State.log(s, string.format("%s ordered at %s.", EuropeData.UnitClasses[t].name, State.province(pid).name))
 		end
 		return ok, why
+	elseif kind == "tax" then
+		local level = tonumber(cmd.level)
+		if not level then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.setTax(s, player, level)
+		if ok then
+			State.log(s, "Taxes set to " .. string.lower(Economy.TAX[level].name) .. ".")
+		end
+		return ok, why
 	elseif kind == "build" then
 		local pid, chain = str(cmd.provinceId), str(cmd.chain)
 		if not pid or not chain then
@@ -447,6 +457,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			entry.manpower = ns.manpower
 			entry.income = income
 			entry.manpowerIncome = manpower
+			entry.tax = s.nations[id].tax or 2
 			entry.upkeep = Economy.upkeep(s, id)
 		end
 		nations[id] = entry
@@ -468,6 +479,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			buildings = if ps.owner == player then State.copy(ps.buildings) else nil,
 			construction = if ps.owner == player and ps.construction then State.copy(ps.construction) else nil,
 			fort = State.fortLevel(s, id),
+			revolt = ps.revolt,
 			visibleArmies = vis,
 		}
 	end

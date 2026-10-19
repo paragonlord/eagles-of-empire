@@ -145,10 +145,16 @@ function Serialize.deserialize(p: any): State?
 		if c ~= nil and (type(c) ~= "table" or EuropeData.Buildings[c.chain] == nil or not isNum(c.turnsLeft)) then
 			return nil
 		end
+		if (ps.unrestTurns ~= nil and not isNum(ps.unrestTurns)) or (ps.revolt ~= nil and type(ps.revolt) ~= "boolean") then
+			return nil
+		end
 	end
 	for _, id in EuropeData.NationOrder do
 		local ns = p.nations[id]
 		if type(ns) ~= "table" or not isNum(ns.treasury) or not isNum(ns.manpower) then
+			return nil
+		end
+		if ns.tax ~= nil and (not isNum(ns.tax) or ns.tax < 1 or ns.tax > 4 or ns.tax ~= math.floor(ns.tax)) then
 			return nil
 		end
 	end

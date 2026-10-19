@@ -23,6 +23,16 @@ Economy.REPLENISH_COST_PER_MAN = 0.5
 Economy.SUBSIDY = 60 -- British treasury per turn to each major fighting France
 Economy.CONTINENTAL = { britain = 0.8, blockaded = 0.95 }
 
+-- Tax levels: income multiplier and the unrest it breeds in the nation's own provinces.
+Economy.TAX = {
+	{ name = "Low", income = 0.75, unrest = -1 },
+	{ name = "Normal", income = 1.0, unrest = 0 },
+	{ name = "High", income = 1.2, unrest = 1 },
+	{ name = "Very high", income = 1.4, unrest = 2 },
+}
+Economy.UNREST_PENALTY = 0.75 -- income of a province at unrest 3 or more
+Economy.REVOLT_TURNS = 2 -- turns at unrest 5 before the province rises
+Economy.REVOLT_ATTRITION = 0.05 -- the owner's troops in a revolted province, a turn
 Economy.FARMS_INCOME = 0.05 -- per level of the farms chain
 Economy.TRADE_INCOME = 0.1 -- per level of the trade chain
 
@@ -34,10 +44,12 @@ end
 
 function Economy.income(s: State, nation: string): (number, number)
 	local income, manpower = 0, 0
+	local tax = Economy.TAX[s.nations[nation].tax or 2]
 	for _, p in EuropeData.Provinces do
 		local ps = s.provinces[p.id]
-		if ps.occupiedBy == nil and ps.owner == nation then
-			income += Economy.provinceIncome(s, p.id)
+		if ps.occupiedBy == nil and ps.owner == nation and not ps.revolt then
+			local order = if Economy.unrest(s, p.id) >= 3 then Economy.UNREST_PENALTY else 1
+			income += Economy.provinceIncome(s, p.id) * tax.income * order
 			manpower += p.manpower
 		elseif ps.occupiedBy == nation then
 			income += Economy.provinceIncome(s, p.id) * Economy.OCCUPIER_SHARE
@@ -264,6 +276,63 @@ local function construct(s: State, nation: string)
 	end
 end
 
+-- Unrest 0..5: occupation breeds it (a turn a level), the guerrilla adds 2; in the owner's own
+-- hands the tax adds its share and foreign rule (not its 1805 owner) 3; every level of government
+-- and every 1000 of the owner's men standing there (at most 2) take one away.
+Economy.FOREIGN_UNREST = 3
+function Economy.unrest(s: State, provinceId: string): number
+	local ps = s.provinces[provinceId]
+	if ps.occupiedBy ~= nil then
+		local u = math.min(5, ps.occupiedTurns)
+		if s.flags.guerrilla and (ps.owner == "spain" or ps.owner == "portugal") then
+			u += 2
+		end
+		return math.min(5, u)
+	end
+	local tax = Economy.TAX[s.nations[ps.owner].tax or 2]
+	local foreign = if State.province(provinceId).owner1805 ~= ps.owner then Economy.FOREIGN_UNREST else 0
+	local men = 0
+	for _, a in State.armiesIn(s, provinceId, ps.owner) do
+		men += State.men(a)
+	end
+	local garrison = math.min(2, math.floor(men / 1000))
+	return math.clamp(tax.unrest + foreign - (ps.buildings.government or 0) - garrison, 0, 5)
+end
+
+-- Public order in the nation's own provinces: two turns at unrest 5 and the province rises (no
+-- income or manpower, its garrison bleeds); it settles once unrest is below 3.
+local function publicOrder(s: State, nation: string)
+	for _, id in EuropeData.ProvinceIds do
+		local ps = s.provinces[id]
+		if ps.owner == nation and ps.occupiedBy == nil then
+			local u = Economy.unrest(s, id)
+			ps.unrestTurns = if u >= 5 then (ps.unrestTurns or 0) + 1 else 0
+			if not ps.revolt and (ps.unrestTurns or 0) >= Economy.REVOLT_TURNS then
+				ps.revolt = true
+				State.log(s, string.format("%s rises against %s!", State.province(id).name, State.nationName(nation)))
+			elseif ps.revolt and u < 3 then
+				ps.revolt = nil
+				State.log(s, string.format("Order is restored in %s.", State.province(id).name))
+			end
+			if ps.revolt then
+				for _, a in State.armiesIn(s, id, nation) do
+					attrit(s, a, Economy.REVOLT_ATTRITION)
+				end
+			end
+		else
+			ps.unrestTurns, ps.revolt = nil, nil
+		end
+	end
+end
+
+function Economy.setTax(s: State, nation: string, level: number): (boolean, string?)
+	if level ~= math.floor(level) or Economy.TAX[level] == nil then
+		return false, "badArgs"
+	end
+	s.nations[nation].tax = level
+	return true, nil
+end
+
 function Economy.run(s: State, nation: string)
 	local ns = s.nations[nation]
 	local income, manpower = Economy.income(s, nation)
@@ -298,6 +367,7 @@ function Economy.run(s: State, nation: string)
 		end
 	end
 	construct(s, nation)
+	publicOrder(s, nation)
 	for i = #s.recruitment, 1, -1 do
 		local q = s.recruitment[i]
 		if q.nation == nation then
@@ -312,16 +382,4 @@ function Economy.run(s: State, nation: string)
 end
 
 -- Unrest 0..5: turns under occupation (+2 under the guerrilla).
-function Economy.unrest(s: State, provinceId: string): number
-	local ps = s.provinces[provinceId]
-	if ps.occupiedBy == nil then
-		return 0
-	end
-	local u = math.min(5, ps.occupiedTurns)
-	if s.flags.guerrilla and (ps.owner == "spain" or ps.owner == "portugal") then
-		u = math.min(5, u + 2)
-	end
-	return u
-end
-
 return Economy

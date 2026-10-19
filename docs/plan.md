@@ -53,7 +53,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 
 ## Phase 6: campaign economy
 - [x] Buildings and construction; recruitment needs buildings
-- [ ] Tax levels, public order effects, rebellion
+- [x] Tax levels, public order effects, rebellion
 - [ ] Gradual replenishment
 - [ ] Winter and supply attrition
 - [ ] Settlement panel and tax control

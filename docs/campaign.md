@@ -94,6 +94,17 @@ unchanged. Saves from before buildings load with this start. The AI builds one t
 richest province (trade, farms, foundry, stables, government, fort, school, barracks), at peace
 from a 600 reserve (minors 300), at war only from 3000 (1000): the army comes first.
 
+## Taxes and public order
+
+- Taxes, per nation (`tax {level}`; the top bar's per-turn figure cycles them): Low ×0.75 income,
+  unrest −1; Normal ×1; High ×1.2, +1; Very high ×1.4, +2. The AI taxes High while at war on a
+  treasury under 1000, Normal otherwise.
+- Unrest 0–5 in an owner's own, unoccupied province = tax + foreign rule (3 when it is not the
+  province's 1805 owner) − government level − 1 per 1000 of the owner's men there (at most 2).
+  Occupied provinces: a level a turn of occupation (+2 under the guerrilla), as before.
+- Unrest 3 or more: the province pays a quarter less. Two turns in a row at 5: it rises — no
+  income or manpower, the owner's troops there lose 5 % a turn — until unrest falls below 3.
+
 ## Armies and movement
 
 - An army has a general (`rating` 1–5) or none. Movement: 2 provinces a turn, 3 under a general

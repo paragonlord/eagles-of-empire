@@ -160,11 +160,25 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	Kit.label(men, "MANPOWER", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
 	Kit.label(men, fmt(me.manpower), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond })
 	local flow = item(5, 150)
-	Kit.label(flow, "PER TURN", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
+	local TAX_NAMES = { "Low", "Normal", "High", "Very high" }
+	local taxLevel = math.clamp(tonumber(me.tax) or 2, 1, 4)
+	Kit.label(flow, "PER TURN · TAX " .. string.upper(TAX_NAMES[taxLevel]), { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
+	-- click: the next tax level (more gold, more unrest)
+	local cycle = Instance.new("TextButton") :: TextButton
+	cycle.BackgroundTransparency = 1
+	cycle.Text = ""
+	cycle.Size = UDim2.fromScale(1, 1)
+	cycle.ZIndex = 5
+	cycle.Parent = flow
+	cycle.Activated:Connect(function()
+		if ctx.canAct then
+			send("tax", { level = taxLevel % 4 + 1 })
+		end
+	end)
 	local net = (tonumber(me.income) or 0) - (tonumber(me.upkeep) or 0)
 	Kit.label(flow, string.format("%s%s", if net >= 0 then "+" else "", fmt(net)), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond, colour = if net < 0 then Kit.HOSTILE else Kit.IVORY })
 	Kit.hoverTip(flow, function(): string
-		return string.format("Income %s, upkeep %s, recruits +%s men", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome))
+		return string.format("Income %s, upkeep %s, recruits +%s men\nTaxes %s: click for the next level (Low, Normal, High, Very high): more gold, more unrest", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome), string.lower(TAX_NAMES[taxLevel]))
 	end)
 	if ctx.sessionOnly then
 		local warn = item(6, 200)
@@ -356,8 +370,10 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		table.insert(facts, "Port")
 	end
 	text(panelF, table.concat(facts, " · "), 4)
-	if ps.unrest and ps.unrest > 0 then
-		text(panelF, string.format("Unrest %s", tostring(ps.unrest)), 5, { colour = Kit.HOSTILE })
+	if ps.revolt then
+		text(panelF, "In revolt: no income or manpower, the garrison bleeds. Lower taxes, build a government or march troops in.", 5, { colour = Kit.HOSTILE, wrap = true })
+	elseif ps.unrest and ps.unrest > 0 then
+		text(panelF, string.format("Unrest %s%s", tostring(ps.unrest), if ps.unrest >= 3 then " · income cut by a quarter" else ""), 5, { colour = Kit.HOSTILE })
 	end
 	local siege = ps.siege
 	if type(siege) == "table" then

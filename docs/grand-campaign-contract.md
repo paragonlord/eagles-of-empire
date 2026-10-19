@@ -86,4 +86,6 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     every province carries `fort` (its fortress level). `view.buildings.options[provinceId]` lists
     `{chain, name, level, cost, turns, available, reason?}` for the next level of each chain.
     Recruitment refusals for a missing building read `needs:<chain>:<level>`.
+15. Taxes and order: `tax {level}` (1 Low … 4 Very high); the player's nation carries `tax`; every
+    province carries `revolt?` (in open revolt) next to `unrest`.
 

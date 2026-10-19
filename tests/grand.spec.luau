@@ -289,6 +289,46 @@ test("Grand buildings: 1805 start, one construction a province, effects, recruit
 	assertEq(GrandCampaign.deserialize(ProfileStore.clone(old)), nil, "an unknown building is refused")
 end)
 
+test("Grand public order: taxes trade income for unrest, foreign rule needs a government, revolts rise and settle", function()
+	local s = empty(6)
+	local normal = Economy.income(s, "france")
+	assertTrue(GrandCampaign.command(s, { kind = "tax", level = 4 }))
+	assertTrue(Economy.income(s, "france") > normal, "very high taxes pay more")
+	assertEq(GrandCampaign.view(s).nations.france.tax, 4)
+	assertTrue(not GrandCampaign.command(s, { kind = "tax", level = 7 }), "no such level")
+	-- Normandy (French in 1805, no government): very high tax = unrest 2; Paris has one
+	assertEq(Economy.unrest(s, "normandy"), 2)
+	assertEq(Economy.unrest(s, "paris"), math.max(0, 2 - s.provinces.paris.buildings.government))
+	-- a conquest (Bavaria handed to France): foreign rule 3 + tax 2 = 5, and it rises in two turns
+	s.provinces.bavaria.owner = "france"
+	s.provinces.bavaria.buildings.government = nil
+	assertEq(Economy.unrest(s, "bavaria"), 5)
+	local a = army(s, "france", "bavaria", { line = 1 }) -- 600 men: too few to keep order
+	Economy.run(s, "france")
+	assertTrue(not s.provinces.bavaria.revolt, "not yet")
+	Economy.run(s, "france")
+	assertTrue(s.provinces.bavaria.revolt, "Bavaria rises")
+	assertTrue(a.units[1].strength < a.units[1].maxStrength, "the garrison bleeds")
+	local inRevolt = Economy.income(s, "france")
+	s.provinces.bavaria.revolt = nil
+	assertTrue(Economy.income(s, "france") > inRevolt, "a revolted province pays nothing")
+	s.provinces.bavaria.revolt = true
+	-- lower taxes and a prefecture settle it
+	assertTrue(GrandCampaign.command(s, { kind = "tax", level = 1 }))
+	s.provinces.bavaria.buildings.government = 1
+	Economy.run(s, "france")
+	assertTrue(not s.provinces.bavaria.revolt, "order restored")
+	-- a strong garrison keeps order too
+	assertTrue(GrandCampaign.command(s, { kind = "tax", level = 4 }))
+	s.provinces.bavaria.buildings.government = nil
+	State.addUnits(s, a, { line = 3 }, 0)
+	assertEq(Economy.unrest(s, "bavaria"), 5 - math.min(2, math.floor(State.men(a) / 1000)), "troops keep order")
+	-- saves keep taxes and revolts
+	s.provinces.bavaria.revolt = true
+	local back = GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s)))
+	assertTrue(back ~= nil and back.nations.france.tax == 4 and back.provinces.bavaria.revolt == true)
+end)
+
 -- Movement --------------------------------------------------------------------------------------------
 
 test("Grand movement: paths, movement points, stops in enemy land, zone of control, no neutral access", function()
