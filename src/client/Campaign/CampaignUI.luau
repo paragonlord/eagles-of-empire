@@ -31,6 +31,7 @@ local gui: ScreenGui? = nil
 local cb: Callbacks? = nil
 local diplomacyOpen = false
 local objectivesOpen = false
+local researchOpen = false
 local pickerReason: string? = nil -- nation choice open (with the reason it opened)
 local summary: { lines: { string }, title: string }? = nil
 local dismissed: { [any]: boolean } = {}
@@ -186,7 +187,7 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	end
 	-- right-hand group
 	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.new(0, 600, 1, 0)
+	right.Size = UDim2.new(0, 730, 1, 0)
 	right.Position = UDim2.fromScale(1, 0)
 	right.AnchorPoint = Vector2.new(1, 0)
 	right.BackgroundTransparency = 1
@@ -204,6 +205,11 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		rerender()
 	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "What wins the campaign" })
 	Kit.setActiveLook(obj, objectivesOpen)
+	local res = Kit.button(right, "Research", function()
+		researchOpen = not researchOpen
+		rerender()
+	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "Technology: what your schools are studying" })
+	Kit.setActiveLook(res, researchOpen)
 	Kit.button(right, "Main Menu", function()
 		if cb then
 			cb.menu()
@@ -214,7 +220,7 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	end, { size = UDim2.fromOffset(150, 38), primary = true, order = 3, textSize = 16, tooltip = "End the turn (E)" })
 	Kit.setEnabled(endTurn, ctx.canAct, ctx.actReason)
 	-- narrow screens: shrink the whole bar rather than let the buttons cover the figures
-	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 534 + 24
+	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 662 + 24
 	local cam = workspace.CurrentCamera
 	local avail = (if cam then cam.ViewportSize.X else 1280) / Kit.scale() - 24
 	if avail < natural then
@@ -443,6 +449,51 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		local why: string? = if not ctx.canAct then ctx.actReason elseif o.available == false then Logic.reason(o.reason) else nil
 		Kit.setEnabled(b, why == nil, why)
+	end
+end
+
+-- ------------------------------------------------------------------ right: research
+
+local BRANCH_NAMES = { military = "Military", industry = "Industry", philosophy = "Philosophy" }
+
+local function research(parent: Instance, ctx: Ctx)
+	local view = ctx.view
+	local me = if view then nationOf(view, ctx.player) else {}
+	local known: { [string]: boolean } = {}
+	for _, id in me.techs or {} do
+		known[id] = true
+	end
+	local p = panel(parent, 3)
+	Kit.title(p, "Research", { size = UDim2.new(1, 0, 0, 28), textSize = 24, rule = true }).LayoutOrder = 1
+	local current = me.research and Data.Europe.TechById[me.research]
+	if current then
+		local line = "Studying " .. current.name .. ": " .. tostring(fmt(me.progress or 0)) .. " / " .. tostring(fmt(current.cost)) .. " (+" .. tostring(fmt(me.researchPoints)) .. " a turn)"
+		text(p, line, 2, { textSize = 14, colour = Kit.GILT_BRIGHT })
+	else
+		text(p, string.format("Nothing under study (+%s a turn): choose a subject.", fmt(me.researchPoints)), 2, { textSize = 14, colour = Kit.HOSTILE })
+	end
+	local order = 3
+	for _, branch in { "military", "industry", "philosophy" } do
+		order += 1
+		text(p, string.upper(BRANCH_NAMES[branch]), order, { textSize = 12, colour = Kit.MUTED })
+		for _, t in Data.Europe.Techs do
+			if t.branch == branch then
+				order += 1
+				local missing = nil
+				for _, r in t.requires do
+					if not known[r] then
+						missing = Data.Europe.TechById[r].name
+					end
+				end
+				local label = if known[t.id] then "■  " .. t.name elseif me.research == t.id then "▸  " .. t.name else string.format("□  %s · %s", t.name, fmt(t.cost))
+				local b = Kit.button(p, label, function()
+					send("research", { tech = t.id })
+				end, { size = UDim2.new(1, 0, 0, 24), order = order, textSize = 12, caps = false, tooltip = t.text })
+				b.TextXAlignment = Enum.TextXAlignment.Left
+				local why: string? = if known[t.id] then "Known" elseif me.research == t.id then "Under study" elseif missing then "Needs " .. missing elseif not ctx.canAct then ctx.actReason else nil
+				Kit.setEnabled(b, why == nil, why)
+			end
+		end
 	end
 end
 
@@ -740,7 +791,7 @@ function UI.render(ctx: Ctx)
 	armyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	left.Active = #left:GetChildren() > 1
-	if (diplomacyOpen or objectivesOpen) and view then
+	if (diplomacyOpen or objectivesOpen or researchOpen) and view then
 		local right = Instance.new("Frame") :: Frame
 		right.Size = UDim2.new(0, 380, 0, 0)
 		right.Position = UDim2.new(1, -12, 0, 72)
@@ -758,6 +809,9 @@ function UI.render(ctx: Ctx)
 		end
 		if diplomacyOpen then
 			diplomacy(right, ctx)
+		end
+		if researchOpen then
+			research(right, ctx)
 		end
 	end
 	-- one document at a time, most pressing first
@@ -802,8 +856,8 @@ function UI.escape(): boolean
 	if summary then
 		summary = nil
 		return true
-	elseif diplomacyOpen or objectivesOpen then
-		diplomacyOpen, objectivesOpen = false, false
+	elseif diplomacyOpen or objectivesOpen or researchOpen then
+		diplomacyOpen, objectivesOpen, researchOpen = false, false, false
 		return true
 	end
 	return false
@@ -842,7 +896,7 @@ function UI.destroy()
 		gui:Destroy()
 	end
 	gui, cb, toastLabel, summary, pickerReason, splitArmy = nil, nil, nil, nil, nil, nil
-	diplomacyOpen, objectivesOpen = false, false
+	diplomacyOpen, objectivesOpen, researchOpen = false, false, false
 	table.clear(split)
 	table.clear(dismissed)
 	Kit.hideTooltip()

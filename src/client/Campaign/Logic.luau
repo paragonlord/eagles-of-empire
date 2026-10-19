@@ -54,6 +54,12 @@ Logic.REASONS = {
 
 function Logic.reason(code: any): string
 	local s = tostring(code)
+	-- "needsTech:<id>": a technology the nation lacks
+	local tech = string.match(s, "^needsTech:(%a+)$")
+	local t = tech and (EuropeData.TechById :: any)[tech]
+	if t then
+		return "Needs " .. t.name
+	end
 	-- "needs:<chain>:<level>": a building the province lacks
 	local chain, level = string.match(s, "^needs:(%a+):(%d+)$")
 	local def = chain and (EuropeData.Buildings :: any)[chain]

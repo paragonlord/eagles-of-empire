@@ -59,7 +59,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Settlement panel and tax control
 
 ## Phase 7: technology and national rosters
-- [ ] Research tree (unlocks units, battle passives, economy)
+- [x] Research tree (unlocks units, battle passives, economy)
 - [ ] National rosters
 
 ## Phase 8: campaign armies and battles
