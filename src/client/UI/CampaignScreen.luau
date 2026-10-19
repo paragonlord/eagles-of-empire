@@ -28,6 +28,7 @@ local REASONS: { [string]: string } = {
 	wrongPhase = "Not during this phase",
 	nothingToReplenish = "Nothing to replenish",
 	badArgs = "Malformed order",
+	unreadable = "Your saved campaign could not be read. It has been kept; starting a new campaign replaces it",
 	unknownCommand = "Unknown order",
 }
 

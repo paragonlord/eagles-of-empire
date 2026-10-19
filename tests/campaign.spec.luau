@@ -592,3 +592,75 @@ test("Campaign: full loop of auto-resolved turns ends in victory or defeat", fun
 	assertTrue(Campaign.deserialize(Campaign.serialize(state)) ~= nil, "final state serializable")
 	assertTrue(#Campaign.view(state).log <= 20)
 end)
+
+test("CampaignService: an unreadable save is kept; only an explicit New replaces it", function()
+	local CampaignService = require(Server.CampaignService)
+	local stores = {}
+	local function fakeDs()
+		local data = {}
+		return {
+			data = data,
+			GetAsync = function(_, k)
+				return ProfileStore.clone(data[k])
+			end,
+			UpdateAsync = function(_, k, fn)
+				local new = fn(ProfileStore.clone(data[k]))
+				if new ~= nil then
+					data[k] = ProfileStore.clone(new)
+				end
+				return ProfileStore.clone(new)
+			end,
+		}
+	end
+	local DSS = game:GetService("DataStoreService")
+	DSS.GetDataStore = function(_, name)
+		stores[name] = stores[name] or fakeDs()
+		return stores[name]
+	end
+	game:GetService("Players").PlayerRemoving = { Connect = function() end }
+	game.JobId = ""
+	local sent = {}
+	local handler
+	local remote = {
+		FireClient = function(_, _p, payload)
+			table.insert(sent, payload)
+		end,
+		OnServerEvent = { Connect = function(_, fn)
+			handler = fn
+		end },
+	}
+	CampaignService.start(remote :: any, { isCommander = function()
+		return true
+	end, startBattle = function() end })
+	DSS.GetDataStore = nil
+	local small, grand = stores["EoE/live"], stores["EoEGrand/live"]
+	small.data.u1 = { version = 1, revision = 3, campaignId = "old-small", turn = "garbage" }
+	grand.data.u1 = { version = 99, revision = 2, kind = "grand", campaignId = "old-grand" }
+	local player = { UserId = 1 }
+	local function errorFor(requestId)
+		for _, m in sent do
+			if m.kind == "error" and m.requestId == requestId then
+				return m.reason
+			end
+		end
+		return nil
+	end
+
+	handler(player, { requestId = "r1", action = "open" })
+	assertEq(errorFor("r1"), "unreadable", "opening tells the player the save could not be read")
+	handler(player, { requestId = "r2", action = "command", data = { kind = "endTurn" } })
+	assertEq(errorFor("r2"), "unreadable", "no turns are played over an unreadable save")
+	assertEq(small.data.u1.campaignId, "old-small", "the stored Thuringian campaign is untouched")
+	handler(player, { requestId = "r3", action = "grand", data = { kind = "view" } })
+	assertEq(errorFor("r3"), "unreadable")
+	assertEq(grand.data.u1.campaignId, "old-grand", "the stored grand campaign is untouched")
+
+	handler(player, { requestId = "r4", action = "grand", data = { kind = "newCampaign", nation = "france" } })
+	assertEq(errorFor("r4"), nil)
+	assertTrue(grand.data.u1.campaignId ~= "old-grand", "New Campaign replaces it on purpose")
+	handler(player, { requestId = "r5", action = "new" })
+	assertEq(errorFor("r5"), nil)
+	assertTrue(small.data.u1.campaignId ~= "old-small")
+	handler(player, { requestId = "r6", action = "command", data = { kind = "endTurn" } })
+	assertEq(errorFor("r6"), nil, "a fresh campaign plays normally")
+end)

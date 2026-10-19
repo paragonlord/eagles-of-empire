@@ -40,6 +40,9 @@ type Session = {
 	grandLoaded: boolean,
 	grand: GState?,
 	grandRevision: number,
+	-- a stored campaign that could not be read: kept untouched until the player starts a new one
+	smallUnreadable: boolean,
+	grandUnreadable: boolean,
 }
 
 export type Hooks = {
@@ -100,13 +103,14 @@ local function ensureSession(player: Player): (Session?, string?)
 	if profile then
 		state = Campaign.deserialize(profile)
 	end
+	local unreadable = state == nil and profile ~= nil and profile.campaignId ~= nil
 	if not state then
 		state = Campaign.new(os.time())
 		if profile and type(profile.revision) == "number" then
 			state.revision = profile.revision
 		end
 	end
-	local created: Session = { userId = player.UserId, sessionId = sessionId, state = state, activeBattleId = nil, activeScenario = nil, activeKind = nil, committed = {}, renewAt = os.clock() + 60, grandLoaded = false, grand = nil, grandRevision = 0 }
+	local created: Session = { userId = player.UserId, sessionId = sessionId, state = state, activeBattleId = nil, activeScenario = nil, activeKind = nil, committed = {}, renewAt = os.clock() + 60, grandLoaded = false, grand = nil, grandRevision = 0, smallUnreadable = unreadable, grandUnreadable = false }
 	session = created
 	return created, nil
 end
@@ -135,6 +139,7 @@ local function ensureGrand(s: Session): string?
 	end
 	s.grandRevision = if profile and type(profile.revision) == "number" then profile.revision else 0
 	s.grand = if profile then GrandCampaign.deserialize(profile) else nil
+	s.grandUnreadable = s.grand == nil and profile ~= nil and profile.campaignId ~= nil
 	s.grandLoaded = true
 	return nil
 end
@@ -163,7 +168,7 @@ local function onGrand(player: Player, s: Session, requestId: string, data: { [s
 		if s.grand then
 			sendGrandView(player, s)
 		else
-			sendError(player, requestId, "noCampaign")
+			sendError(player, requestId, if s.grandUnreadable then "unreadable" else "noCampaign")
 		end
 		return
 	end
@@ -181,6 +186,7 @@ local function onGrand(player: Player, s: Session, requestId: string, data: { [s
 		local fresh = GrandCampaign.new(os.time(), nation)
 		fresh.revision = if s.grand then (s.grand :: GState).revision else s.grandRevision
 		s.grand = fresh
+		s.grandUnreadable = false
 		grandCheckpoint(player, s, requestId)
 		sendGrandView(player, s)
 		return
@@ -233,6 +239,10 @@ local function onRemote(player: Player, msg: any)
 	local state = s.state :: State
 	local action = msg.action
 	local data = if type(msg.data) == "table" then msg.data else {}
+	if s.smallUnreadable and (action == "command" or action == "battle" or action == "skip") then
+		sendError(player, requestId, "unreadable")
+		return
+	end
 	if action == "grand" then
 		onGrand(player, s, requestId, data)
 	elseif action == "open" or action == "return" then
@@ -240,8 +250,12 @@ local function onRemote(player: Player, msg: any)
 			sendGrandView(player, s)
 		else
 			sendView(player, s)
+			if s.smallUnreadable then
+				sendError(player, requestId, "unreadable")
+			end
 		end
 	elseif action == "new" then
+		s.smallUnreadable = false
 		local fresh = Campaign.new(os.time())
 		fresh.revision = state.revision
 		s.state = fresh

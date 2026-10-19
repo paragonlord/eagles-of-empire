@@ -1056,7 +1056,7 @@ function Campaign.checkpoint(store: Store, userId: number, sessionId: string, st
 		if old ~= nil and (type(old.session) ~= "table" or old.session.id ~= sessionId) then
 			return nil, "notOwner"
 		end
-		if old ~= nil and old.campaignId ~= nil and old.campaignId ~= state.campaignId and old.restarts > state.restarts then
+		if old ~= nil and old.campaignId ~= nil and old.campaignId ~= state.campaignId and (tonumber(old.restarts) or 0) > state.restarts then
 			return nil, "campaignMismatch"
 		end
 		local p = Campaign.serialize(state)

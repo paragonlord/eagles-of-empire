@@ -10,7 +10,7 @@ battles), the campaign is single-player.
 The gate history of the first build (gates 0–6) is in git history and `docs/qa.md`.
 
 ## Phase 0: fix what is broken
-- [ ] Corrupt campaign save refused and kept, never overwritten
+- [x] Corrupt campaign save refused and kept, never overwritten
 - [ ] Nav never links brook banks without a bridge
 - [ ] Cavalry in melee with a square takes `SquareReturnsDamage`
 - [ ] Hard AI morale bonus applied; infantry ammo in Config; dead config removed; rules.md facing text

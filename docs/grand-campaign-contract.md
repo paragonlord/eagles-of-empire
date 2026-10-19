@@ -44,7 +44,9 @@ Errors come back as `{ kind = "error", requestId, reason }`.
 ## Additions (agreed with the client, as implemented)
 
 1. Opening: `{action = "grand", data = {kind = "view"}}` → `grandView` if a grand campaign exists,
-   otherwise `{kind = "error", reason = "noCampaign"}`; the client then sends `newCampaign {nation}`.
+   otherwise `{kind = "error", reason = "noCampaign"}`; the client then sends `newCampaign {nation}`. A stored campaign that cannot be read answers `reason = "unreadable"`: it is kept untouched
+   until the player picks a nation (`newCampaign` replaces it). The Thuringian campaign does the same:
+   `open` sends the error after the view, and turns, battles and skips are refused until `new`.
 2. `move {armyId, path}`: `path` excludes the army's current province (max 8 steps). The army goes as
    far as the rules allow; the call fails only if the first step is impossible.
 3. `movesLeft` counts provinces; armies of the player also carry `movesMax`. Army ids are strings

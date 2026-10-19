@@ -12,6 +12,7 @@ export type Step = { id: string, turn: number, stop: boolean }
 
 Logic.REASONS = {
 	noCampaign = "No grand campaign in progress",
+	unreadable = "Your saved grand campaign could not be read. It has been kept; choosing a nation starts a new one and replaces it",
 	notYourArmy = "That army is not yours",
 	notYourProvince = "You do not hold that province",
 	noMovesLeft = "That army has no movement left this turn",
