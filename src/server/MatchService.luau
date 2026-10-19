@@ -58,6 +58,7 @@ local roster = Coop.newRoster()
 local lastPing: { [number]: number } = {}
 local difficulty = "normal"
 local mode = "coop" -- host's choice for the next match: "coop" | "pvp"
+local command = "historical" -- host's choice for the next listed battle: the historical army or the other
 local mapCache: { [string]: MapGen.MapData } = {}
 local matchCounter = 0
 local heartbeat: RBXScriptConnection? = nil
@@ -565,7 +566,9 @@ local function createMatchFrom(scenario: Scenarios.Scenario, campaignBattleId: s
 end
 
 local function createMatch(scenarioId: string)
-	createMatchFrom(Scenarios.get(scenarioId) or Scenarios.jena, nil)
+	local base = Scenarios.get(scenarioId) or Scenarios.jena
+	-- only listed battles change sides; the tutorial is always fought as written
+	createMatchFrom(if base.mode then Scenarios.forSide(base, command) else base, nil)
 end
 
 local function result(player: Player, requestId: string, accepted: boolean, reason: string?, effectiveTick: number?)
@@ -623,7 +626,10 @@ local function onControl(player: Player, msg: any)
 		result(player, msg.requestId, false, Protocol.Reasons.notCommander)
 		return
 	end
-	if action == "difficulty" then
+	if action == "command" then
+		command = msg.value
+		result(player, msg.requestId, true)
+	elseif action == "difficulty" then
 		difficulty = msg.value
 		if m and m.state == "deployment" and m.tutorialStep == nil then
 			m.difficulty = difficulty

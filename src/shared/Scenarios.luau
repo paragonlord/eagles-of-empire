@@ -1161,6 +1161,26 @@ function Scenarios.firesByRank(def: UnitDef): boolean
 	return def.class == "infantry" and (Scenarios.typeOf(def) == "guard" or def.faction == "britain")
 end
 
+-- A listed battle fought from either army: "historical" as written, "other" with the sides
+-- swapped (the battle AI takes the historical player's army). Roles (`attacker`), the field and
+-- the order of battle stay; the briefing is rewritten from the chosen army's side.
+function Scenarios.forSide(sc: Scenario, side: string): Scenario
+	if side ~= "other" then
+		return sc
+	end
+	local me, them = sc.factions.enemy, sc.factions.player
+	local mine, theirs = sc.factionNames[me] or me, sc.factionNames[them] or them
+	local task = if sc.attacker == me
+		then string.format("Take the field from %s: carry the objectives or break their army.", theirs)
+		elseif sc.attacker == them then string.format("%s comes to take the field: hold the objectives until time runs out, or break their army.", theirs)
+		else string.format("Meet %s: take the objectives or break their army.", theirs)
+	local out = table.clone(sc)
+	out.factions = { player = me, enemy = them }
+	out.briefing = string.format("%sYou command %s. %s", if sc.date then sc.date .. ". " else "", mine, task)
+	out.difficultyNote = nil
+	return out
+end
+
 function Scenarios.get(id: string): Scenario?
 	local s = (Scenarios :: any)[id]
 	if type(s) == "table" and s.units then

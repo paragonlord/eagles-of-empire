@@ -78,7 +78,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Fleet tokens on the board
 
 ## Phase 11: modes and presentation
-- [ ] Play either side in historical battles
+- [x] Play either side in historical battles
 - [ ] Custom battle
 - [ ] Results: kills per unit, history comparison
 - [ ] Loading screen tips

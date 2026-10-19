@@ -376,3 +376,23 @@ test("Province maps: every province of the grand campaign has its own field, det
 	assertEq(a.grid.height[5000], b.grid.height[5000], "the same field every time")
 	print(string.format("   (%d province maps in %.1f s)", #EuropeData.Provinces, os.clock() - t0))
 end)
+
+test("Either side: a listed battle can be fought from the other army, briefed from its side", function()
+	local base = Scenarios.waterloo
+	assertEq(Scenarios.forSide(base, "historical"), base)
+	local other = Scenarios.forSide(base, "other")
+	assertEq(other.factions.player, "britain")
+	assertEq(other.factions.enemy, "france")
+	assertEq(other.attacker, "france", "roles stay with the armies")
+	assertTrue(other.units == base.units and other.map == base.map, "the same field and order of battle")
+	assertTrue(string.find(other.briefing, "You command Anglo-allied", 1, true) ~= nil, other.briefing)
+	assertTrue(string.find(other.briefing, "hold", 1, true) ~= nil, "the defender is told to hold")
+	assertEq(other.difficultyNote, nil, "the note was written for the French side")
+	assertEq(base.factions.player, "france", "the listed scenario is untouched")
+	local jena = Scenarios.forSide(Scenarios.jena, "other")
+	assertTrue(string.find(jena.briefing, "You command Prussia", 1, true) ~= nil)
+	-- the control that picks it
+	assertTrue(Protocol.validateControl({ requestId = "r", action = "command", value = "other" }, { matchId = "" }))
+	local ok = Protocol.validateControl({ requestId = "r", action = "command", value = "both" }, { matchId = "" })
+	assertTrue(not ok)
+end)

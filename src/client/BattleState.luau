@@ -117,6 +117,7 @@ BattleState.pauseNeeded = 0
 BattleState.pings = {} :: { { x: number, z: number, slot: number, kind: string, t0: number } } -- for the minimap
 BattleState.userId = 0 -- the local player's, set by Main at boot
 BattleState.difficulty = "normal"
+BattleState.command = "historical" -- listed battles: "historical" army or the "other" (host's menu choice)
 BattleState.speed = 1
 BattleState.scenario = nil :: any
 BattleState.campaignBattle = nil :: any -- {battleId, name} when the match belongs to the campaign

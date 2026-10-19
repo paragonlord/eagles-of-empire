@@ -14,6 +14,7 @@ export type Callbacks = {
 	fight: (id: string) -> (),
 	difficulty: (value: string) -> (),
 	mode: ((value: string) -> ())?, -- "coop" | "pvp"
+	command: ((value: string) -> ())?, -- "historical" | "other": which army the players command
 	back: () -> (),
 }
 
@@ -244,6 +245,19 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 			mb.Text = modeText()
 		end, { size = UDim2.fromOffset(220, 30), position = UDim2.new(1, 0, 0, 44), anchor = Vector2.new(1, 0), textSize = 15, tooltip = "PvP: players pick a side in deployment; a side without players is left to the AI" })
 		Kit.setEnabled(mb, isCommander, "Only the commander chooses the mode")
+	end
+	local setCommand = cb.command
+	if setCommand then
+		local function commandText(): string
+			return if BattleState.command == "other" then "Command: the other army" else "Command: the historical army"
+		end
+		local cmdB: TextButton
+		cmdB = Kit.button(panel, commandText(), function()
+			BattleState.command = if BattleState.command == "other" then "historical" else "other"
+			setCommand(BattleState.command)
+			cmdB.Text = commandText()
+		end, { size = UDim2.fromOffset(220, 30), position = UDim2.new(1, 0, 0, 84), anchor = Vector2.new(1, 0), textSize = 15, tooltip = "Fight from the other side: the AI takes the army history gave you" })
+		Kit.setEnabled(cmdB, isCommander, "Only the commander chooses")
 	end
 	local tabs = Instance.new("Frame") :: Frame
 	tabs.Size = UDim2.new(1, 0, 0, 32)

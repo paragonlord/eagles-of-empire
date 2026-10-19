@@ -1,7 +1,11 @@
 # Battles
 
 Four standalone battles, all condensed and historically inspired, never surveys. The player is
-France in each. Maps are authored in `src/shared/MapGen.luau` (`MAPS.<id>`), orders of battle in
+France in each as written; the battle picker's "Command: the other army" (control `command`,
+`Scenarios.forSide`) swaps the sides of any listed battle or episode, so the battle AI takes France.
+Roles (`attacker`), field and order of battle stay; the briefing is rewritten from the chosen army
+("You command Prussia. …", told to hold or to take the field by its role) and the difficulty note,
+written for France, is dropped. The tutorial is always fought as written. Maps are authored in `src/shared/MapGen.luau` (`MAPS.<id>`), orders of battle in
 `src/shared/Scenarios.luau` (`Scenarios.<id>`); `Scenarios.list()` returns them in display order
 (Jena, Auerstedt, Austerlitz, Waterloo), each followed by its quick-battle episodes (below). Strengths are balance values (infantry 600, Guards 700,
 cavalry 400, battery 120, HQ 40), not returns; one formation stands for a regiment or a large

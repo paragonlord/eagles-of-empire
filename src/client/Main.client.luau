@@ -127,6 +127,9 @@ menuCallbacks = {
 			mode = function(v: string)
 				Net.control("mode", v)
 			end,
+			command = function(v: string)
+				Net.control("command", v)
+			end,
 			back = function()
 				BattleSelect.hide()
 				Menu.show(menuCallbacks, lastMenuArgs.isCommander, lastMenuArgs.campaignAvailable)

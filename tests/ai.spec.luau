@@ -417,3 +417,25 @@ test("AI cavalry rides into an enemy locked in melee with its infantry", functio
 	assertTrue(charged, "the dragoons charge the battalion fighting ours")
 	local _ = st
 end)
+
+test("Either side: with the sides swapped the AI takes France at Jena and attacks", function()
+	local sc = Scenarios.forSide(Scenarios.jena, "other")
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+	sim:start()
+	local st = AI.new(sim, sc.factions.enemy, "normal")
+	states[sim] = st
+	assertEq(sim.playerFaction, "prussia")
+	local moves = 0
+	local orig = sim.queueCommand
+	sim.queueCommand = function(self, c, faction)
+		if faction == "france" and (c.kind == "Move" or c.kind == "AttackMove" or c.kind == "Charge") then
+			moves += 1
+		end
+		return orig(self, c, faction)
+	end
+	for _ = 1, math.floor(90 / DT) do
+		sim:step()
+	end
+	assertEq(st.posture, "advance", "France came to take the field")
+	assertTrue(moves > 0, "and marches on it")
+end)
