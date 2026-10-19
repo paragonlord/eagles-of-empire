@@ -792,6 +792,30 @@ build de3fbe0.** No errors on either side.
   and darkening the roof half of the texture would blend them.
 - `[EoE clip]` 92 of 7767, unchanged.
 
+**2026-10-19 round 30 (Phase 0 fixes), synced from source through the Studio MCP.** No EoE
+errors or warnings (only Roblox CorePackages `FoundationProvider` noise).
+- How it ran: `python3 tools/build_place.py`, a local `python3 -m http.server 8765 --bind
+  127.0.0.1`, and `tools/studio_sync.luau` executed in Studio (Edit) pulled the 16 changed scripts
+  into the open place; Play, then mouse and keys through the MCP.
+- Pass: far banners now wear the unit's colour (French blue tabs beyond 560 studs,
+  `r30-far-banners-blue.jpg`). Menu → Play Battle → Vierzehnheiligen → deployment → running ×4.
+- Pass: grand campaign picker → France opens on the 1805 map; Studio's memory store answers
+  "No grand campaign in progress" (no stored save to be unreadable).
+- Fixed: the loading screen's title and bar read black on navy (`r30-loading-title-dark.jpg`): the
+  UIGradient sat on the CanvasGroup, which tints every child. It now sits on a backdrop frame
+  (`r30-loading-title-fixed.jpg`).
+- Fixed: on a 1081-px viewport the grand campaign's buttons covered the per-turn figure and the
+  session warning (`r30-grand-topbar-overlap.jpg`); the bar now shrinks to fit
+  (`r30-grand-topbar-fits.jpg`).
+- Fixed: the ticker said "Prussia captured Vierzehnheiligen taken"; capture events carry the bare
+  objective name.
+- Not seen yet: a kept march route drawn on the board (the army panel covered the target in this
+  window); the rule is covered by `tests/grand.spec.luau`.
+- Load: each battle rebuilds the world (~36 s), even for an episode on the same ground as the menu
+  map (jena → jena_vierzehnheiligen).
+- Balance (3 seeds a cell, `tools/balance.py --seeds 3`): same majorities as the 5-seed table; the
+  extra "wins 3/3" flags are the smaller sample, not new behaviour. Use 5 seeds for comparisons.
+
 ## Known failures
 
 None recorded yet.

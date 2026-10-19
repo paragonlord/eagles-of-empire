@@ -94,7 +94,7 @@ function Objectives.update(sim: SimLike)
 				end
 				obj.capturing = nil
 				obj.progress = 0
-				sim.emit(sim, { kind = "capture", tick = sim.tick, faction = only, x = obj.def.pos.x, z = obj.def.pos.z, text = obj.def.name .. " taken" })
+				sim.emit(sim, { kind = "capture", tick = sim.tick, faction = only, x = obj.def.pos.x, z = obj.def.pos.z, text = obj.def.name })
 				local names = ((sim :: any).scenario and (sim :: any).scenario.factionNames) or {}
 				local function nameOf(fid: string): string
 					return names[fid] or (string.upper(string.sub(fid, 1, 1)) .. string.sub(fid, 2))

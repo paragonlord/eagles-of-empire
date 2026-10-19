@@ -20,11 +20,18 @@ local function build()
 	local sg = Kit.screen("EoELoading", 40, true)
 	local bg = Instance.new("CanvasGroup") :: CanvasGroup
 	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = Color3.new(1, 1, 1)
-	Kit.gradient(bg, Kit.BLUE, Kit.INSET)
+	bg.BackgroundTransparency = 1
 	bg.BorderSizePixel = 0
 	bg.Active = true
 	bg.Parent = sg
+	-- the gradient lives on its own backdrop: on the CanvasGroup it would tint the title and bar too
+	local paint = Instance.new("Frame") :: Frame
+	paint.Size = UDim2.fromScale(1, 1)
+	paint.BackgroundColor3 = Color3.new(1, 1, 1)
+	paint.BorderSizePixel = 0
+	paint.ZIndex = 0
+	Kit.gradient(paint, Kit.BLUE, Kit.INSET)
+	paint.Parent = bg
 	Kit.title(bg, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 60), position = UDim2.new(0, 0, 0.38, -10), textSize = 48, align = Enum.TextXAlignment.Center, spaced = true, colour = Kit.GILT, rule = true })
 	local c = Kit.label(bg, "Surveying the ground…", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0.38, 64), align = Enum.TextXAlignment.Center, colour = Kit.MUTED })
 	local track = Instance.new("Frame") :: Frame

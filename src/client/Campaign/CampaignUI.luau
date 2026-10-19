@@ -199,6 +199,16 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		send("endTurn")
 	end, { size = UDim2.fromOffset(150, 38), primary = true, order = 3, textSize = 16, tooltip = "End the turn (E)" })
 	Kit.setEnabled(endTurn, ctx.canAct, ctx.actReason)
+	-- narrow screens: shrink the whole bar rather than let the buttons cover the figures
+	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 534 + 24
+	local cam = workspace.CurrentCamera
+	local avail = (if cam then cam.ViewportSize.X else 1280) / Kit.scale() - 24
+	if avail < natural then
+		bar.Size = UDim2.fromOffset(natural, 54)
+		local fit = Instance.new("UIScale") :: UIScale
+		fit.Scale = avail / natural
+		fit.Parent = bar
+	end
 end
 
 -- ------------------------------------------------------------------ left: army and province
