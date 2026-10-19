@@ -37,6 +37,8 @@ export type Formation = {
 	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
 	garrison: string?, -- the strongpoint it holds (Sim/Garrison)
 	kills: number, -- enemy casualties it has inflicted this battle (experience, results)
+	quickSquare: boolean, -- forms square a third faster
+	canisterBonus: number, -- canister casualties multiplier
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -152,7 +154,7 @@ end
 function Formation.fromDef(id: number, def: UnitDef): Formation
 	local unitType = Scenarios.typeOf(def)
 	local unit = Config.TypeStats[unitType]
-	local baseMorale = unit.baseMorale + Config.Combat.ExperienceMorale * def.experience
+	local baseMorale = unit.baseMorale + Config.Combat.ExperienceMorale * def.experience + (def.moraleBonus or 0)
 	local f: Formation = {
 		id = id,
 		faction = def.faction,
@@ -162,6 +164,8 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		type = unitType,
 		fireByRank = Scenarios.firesByRank(def),
 		kills = 0,
+		quickSquare = def.quickSquare == true,
+		canisterBonus = def.canisterBonus or 1,
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,
@@ -274,6 +278,9 @@ function Formation.beginShape(f: Formation, shape: Types.Shape, forced: boolean?
 		t = Config.SquareFromColumnTime
 	end
 	t *= Formation.unitConfig(f).reformScale or 1
+	if shape == "square" and f.quickSquare then
+		t *= 0.67
+	end
 	if forced and f.shape ~= "travel" then
 		f.prevShape = f.shape
 	end

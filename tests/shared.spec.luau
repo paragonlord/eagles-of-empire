@@ -284,7 +284,7 @@ test("Unit types: every unit of every battle has a type of its own class, inferr
 		{ "cavalry", "1st Life Guards", "heavyCav" }, { "cavalry", "Grenadiers à cheval de la Garde", "heavyCav" },
 		{ "cavalry", "1er Carabiniers", "heavyCav" }, { "cavalry", "Garde du Corps Nr. 13", "heavyCav" },
 		{ "cavalry", "5e Hussards", "lightCav" }, { "cavalry", "9e Chasseurs à cheval", "lightCav" },
-		{ "cavalry", "6e Lanciers", "lightCav" }, { "cavalry", "Uhlans Grand Duke Constantine", "lightCav" },
+		{ "cavalry", "6e Lanciers", "lancer" }, { "cavalry", "Uhlans Grand Duke Constantine", "lancer" },
 		{ "cavalry", "12th Light Dragoons", "lightCav" }, { "cavalry", "Chevaulegers Nr. 3", "lightCav" },
 		{ "cavalry", "15e Dragons", "dragoon" }, { "cavalry", "Scots Greys", "dragoon" },
 		{ "artillery", "Mercer's Troop RHA", "horseArt" }, { "artillery", "Reitende Batterie Blücher", "horseArt" },
@@ -297,7 +297,7 @@ test("Unit types: every unit of every battle has a type of its own class, inferr
 	end
 	assertEq(Scenarios.typeOf({ class = "infantry", name = "34e de Ligne", type = "rifle" } :: any), "rifle", "an explicit type wins")
 	assertEq(Scenarios.typeOf({ class = "cavalry", name = "34e de Ligne", type = "rifle" } :: any), "dragoon", "a type of another class is ignored")
-	for _, t in { "line", "light", "rifle", "grenadier", "guard", "militia", "lightCav", "dragoon", "heavyCav", "footArt", "horseArt", "howitzer", "hq" } do
+	for _, t in { "line", "light", "rifle", "grenadier", "guard", "militia", "lightCav", "lancer", "dragoon", "heavyCav", "footArt", "horseArt", "howitzer", "hq" } do
 		assertTrue(seen[t], "the battles use " .. t)
 	end
 end)

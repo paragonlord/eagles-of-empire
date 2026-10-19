@@ -96,6 +96,20 @@ end
 
 local RECRUIT_CYCLE = { "line", "line", "cavalry", "line", "artillery", "light", "line", "heavy" }
 
+-- Research: the first subject in this order the nation can take up.
+local RESEARCH_ORDER = { "drill", "canister", "rotation", "enlightenment", "squares", "conscription", "lancers", "horseArtillery", "banking", "rifles", "civilcode", "howitzers", "ironworks", "corps", "nationalism" }
+local function chooseResearch(s: State, nation: string)
+	if s.nations[nation].research then
+		return
+	end
+	for _, t in RESEARCH_ORDER do
+		if Economy.canResearch(s, nation, t) then
+			Economy.setResearch(s, nation, t)
+			return
+		end
+	end
+end
+
 -- One construction a turn, in the richest province with none under way, economy before army.
 local BUILD_PRIORITY = { "trade", "farms", "foundry", "stables", "government", "fort", "school", "barracks" }
 local function build(s: State, nation: string)
@@ -377,6 +391,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 	ns.tax = if #State.enemiesOf(s, nation) > 0 and ns.treasury < 1000 then 3 else 2
 	recruit(s, nation)
 	build(s, nation)
+	chooseResearch(s, nation)
 end
 
 return AI

@@ -270,6 +270,16 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			State.log(s, string.format("%s ordered at %s.", EuropeData.UnitClasses[t].name, State.province(pid).name))
 		end
 		return ok, why
+	elseif kind == "research" then
+		local tech = str(cmd.tech)
+		if not tech then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.setResearch(s, player, tech)
+		if ok then
+			State.log(s, "Research begins: " .. EuropeData.TechById[tech].name .. ".")
+		end
+		return ok, why
 	elseif kind == "tax" then
 		local level = tonumber(cmd.level)
 		if not level then
@@ -458,6 +468,16 @@ function GrandCampaign.view(s: State): { [string]: any }
 			entry.income = income
 			entry.manpowerIncome = manpower
 			entry.tax = s.nations[id].tax or 2
+			local known = {}
+			for _, t in EuropeData.Techs do
+				if ns.techs[t.id] then
+					table.insert(known, t.id)
+				end
+			end
+			entry.techs = known
+			entry.research = ns.research
+			entry.progress = ns.progress
+			entry.researchPoints = Economy.researchPoints(s, id)
 			entry.upkeep = Economy.upkeep(s, id)
 		end
 		nations[id] = entry

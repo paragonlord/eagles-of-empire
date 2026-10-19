@@ -157,6 +157,24 @@ function Serialize.deserialize(p: any): State?
 		if ns.tax ~= nil and (not isNum(ns.tax) or ns.tax < 1 or ns.tax > 4 or ns.tax ~= math.floor(ns.tax)) then
 			return nil
 		end
+		if ns.techs == nil then
+			-- a save from before technology: what the nation knew in 1805
+			ns.techs = {}
+			for _, t in EuropeData.StartTechs[id] or {} do
+				ns.techs[t] = true
+			end
+		elseif type(ns.techs) ~= "table" then
+			return nil
+		else
+			for t, v in ns.techs do
+				if EuropeData.TechById[t] == nil or v ~= true then
+					return nil
+				end
+			end
+		end
+		if (ns.research ~= nil and EuropeData.TechById[ns.research] == nil) or (ns.progress ~= nil and not isNum(ns.progress)) then
+			return nil
+		end
 	end
 	for _, w in p.wars do
 		if type(w) ~= "table" or not nationOk(w.a) or not nationOk(w.b) or not isNum(w.score) or not isNum(w.since) then

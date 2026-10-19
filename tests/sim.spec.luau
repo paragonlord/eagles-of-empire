@@ -1189,3 +1189,39 @@ test("Experience is earned in battle: every 150 enemy casualties inflicted is a 
 	assertEq(f.experience, 3, "capped at 3")
 	assertEq(f.kills, 760)
 end)
+
+test("Battle techs from the campaign: quick squares, better canister, nationalism's morale", function()
+	local quick = unit("france", "infantry", "Quick", A.x, A.z, 0)
+	quick.quickSquare = true
+	local proud = unit("france", "infantry", "Proud", A.x, A.z + 60, 0)
+	proud.moraleBonus = 5
+	local sim = newSim({ quick, proud, unit("france", "infantry", "Plain", A.x, A.z + 120, 0) })
+	assertEq(sim.formations[2].baseMorale, sim.formations[3].baseMorale + 5, "Nationalism")
+	cmd(sim, "Shape", { 1, 3 }, { shape = "square" })
+	sim:step()
+	sim:step()
+	assertTrue(sim.formations[1].timers.reform < sim.formations[3].timers.reform * 0.7, "Squares from column")
+	-- canister: the same battery with and without the bonus
+	local function canister(bonus)
+		local s2 = newSim({
+			unit("france", "artillery", "Guns", A.x, A.z, 0),
+			unit("prussia", "infantry", "Close", A.x + 70, A.z, math.pi),
+		})
+		local g = s2.formations[1]
+		g.shape, g.canisterBonus = "deployed", bonus
+		Formation.refreshFootprint(g)
+		s2.formations[2].fireAtWill = false
+		local n = 0
+		for _ = 1, 40 do
+			g.reload = 0
+			for _, a in Combat.gather(s2) do
+				if a.attackerId == 1 then
+					n += a.casualties
+				end
+			end
+		end
+		return n
+	end
+	assertTrue(canister(1.25) > canister(1) * 1.1, "Improved canister")
+end)
+

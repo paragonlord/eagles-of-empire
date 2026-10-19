@@ -356,6 +356,63 @@ test("Grand armies: refit at a depot a tenth a turn; winter in the harsh lands b
 	assertEq(native.units[1].strength, native.units[1].maxStrength, "at home with its depots")
 end)
 
+test("Grand technology: 1805 knowledge, research by points, unlocks and effects, saves", function()
+	local s = empty(9)
+	assertTrue(State.hasTech(s, "britain", "rifles") and State.hasTech(s, "france", "drill"))
+	assertTrue(not State.hasTech(s, "austria", "drill"))
+	-- tech-locked recruits
+	local ok, why = Economy.canRecruit(s, "austria", "vienna", "rifles")
+	assertEq(why, "needsTech:rifles")
+	-- research: prerequisites, points a turn, completion
+	ok, why = Economy.setResearch(s, "austria", "squares")
+	assertTrue(not ok and why == "needsTech:drill", "Squares needs Platoon fire")
+	assertTrue(GrandCampaign.command(s, { kind = "research", tech = "rotation" }))
+	assertEq(s.nations.france.research, "rotation")
+	local pts = Economy.researchPoints(s, "france")
+	assertEq(pts, Economy.RESEARCH.major + Economy.RESEARCH.school * s.provinces.paris.buildings.school)
+	local farmsIncome = function()
+		s.provinces.normandy.buildings.farms = 2
+		return Economy.provinceIncome(s, "normandy")
+	end
+	local before = farmsIncome()
+	local turns = 0
+	while not State.hasTech(s, "france", "rotation") and turns < 40 do
+		Economy.run(s, "france")
+		turns += 1
+	end
+	assertEq(turns, math.ceil(EuropeData.TechById.rotation.cost / pts), "done when the points add up")
+	assertEq(s.nations.france.research, nil)
+	assertTrue(farmsIncome() > before, "Crop rotation doubles the farms")
+	-- other effects
+	local mp0 = select(2, Economy.income(s, "france"))
+	s.nations.france.techs.conscription = true
+	assertEq(select(2, Economy.income(s, "france")), mp0 * 1.25, "Conscription")
+	local cost = Economy.buildCost(s, "france", "trade", 1)
+	s.nations.france.techs.ironworks = true
+	assertEq(Economy.buildCost(s, "france", "trade", 1), math.floor(cost * 0.8), "Iron works")
+	local u0 = Economy.unrest(s, "normandy")
+	s.nations.france.tax = 4
+	local u1 = Economy.unrest(s, "normandy")
+	s.nations.france.techs.civilcode = true
+	assertEq(Economy.unrest(s, "normandy"), math.max(0, u1 - 1), "Civil code")
+	local _ = u0
+	-- the view and saves
+	local v = GrandCampaign.view(s)
+	assertTrue(table.find(v.nations.france.techs, "rotation") ~= nil and v.nations.france.researchPoints == pts)
+	assertTrue(GrandCampaign.command(s, { kind = "research", tech = "banking" }))
+	Economy.run(s, "france")
+	local back = GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s)))
+	assertTrue(back ~= nil and back.nations.france.techs.rotation and back.nations.france.research == "banking" and back.nations.france.progress == s.nations.france.progress)
+	local old = GrandCampaign.serialize(s)
+	for _, ns in old.nations do
+		ns.techs, ns.research, ns.progress = nil, nil, nil
+	end
+	local migrated = GrandCampaign.deserialize(ProfileStore.clone(old))
+	assertTrue(migrated ~= nil and migrated.nations.britain.techs.rifles, "an old save gets the 1805 knowledge")
+	old.nations.france.techs = { steam = true }
+	assertEq(GrandCampaign.deserialize(ProfileStore.clone(old)), nil, "an unknown tech is refused")
+end)
+
 -- Movement --------------------------------------------------------------------------------------------
 
 test("Grand movement: paths, movement points, stops in enemy land, zone of control, no neutral access", function()
@@ -721,6 +778,13 @@ test("Grand battles: generic scenario on the province map with keys, zones and o
 			keyed += 1
 			assertTrue(string.sub(u.key, 1, 1) == "u")
 			assertEq(u.type, if u.class == "infantry" then "line" elseif u.class == "cavalry" then "lightCav" else "footArt", u.name .. ": the campaign type maps onto the battle type")
+			if u.faction == sc.factions.player and u.class == "infantry" then
+				assertTrue(u.fireByRank == true and u.quickSquare == true, "France's drill and squares reach the battle")
+			elseif u.faction == sc.factions.player and u.class == "artillery" then
+				assertEq(u.canisterBonus, 1.25, "and its canister")
+			elseif u.faction == sc.factions.enemy and u.class == "infantry" then
+				assertTrue(u.fireByRank == false and u.quickSquare == nil, "Austria has neither in 1805")
+			end
 		end
 	end
 	assertEq(keyed, 10)
@@ -868,11 +932,11 @@ test("Grand view: contract fields, fog of war, player-only treasury, recruitment
 	end
 	assertTrue(seenEnemy, "the Channel army sees England")
 	local opts = v.recruitment.options.paris
-	assertTrue(opts and #opts == 6)
+	assertTrue(opts and #opts == #EuropeData.UnitTypeOrder, "every type, the locked ones with their reason")
 	for _, o in opts do
 		assertTrue(o.unitType and o.name and o.cost and o.turns and type(o.available) == "boolean")
 	end
-	assertEq(#v.recruitment.options.normandy, 6)
+	assertEq(#v.recruitment.options.normandy, #EuropeData.UnitTypeOrder)
 	assertTrue(#v.objectives >= 5)
 	assertEq(v.pendingBattle, nil)
 end)

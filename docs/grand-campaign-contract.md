@@ -88,4 +88,6 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     Recruitment refusals for a missing building read `needs:<chain>:<level>`.
 15. Taxes and order: `tax {level}` (1 Low … 4 Very high); the player's nation carries `tax`; every
     province carries `revolt?` (in open revolt) next to `unrest`.
+16. Technology: `research {tech}` (`EuropeData.Techs`). The player's nation carries `techs` (ids
+    known), `research?`, `progress?` and `researchPoints`. Locked recruits read `needsTech:<id>`.
 

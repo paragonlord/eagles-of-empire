@@ -115,6 +115,35 @@ from a 600 reserve (minors 300), at war only from 3000 (1000): the army comes fi
   Galicia, Sweden, the Tyrol): armies away from their own country's depots lose 2 % a turn in an
   ally's province and 4 % in an enemy's or neutral one. The 1812 General Winter event comes on top.
 
+## Technology
+
+One research at a time (`research {tech}`; switching subjects loses the work done). Points a turn:
+20 for a great power (10 a minor) + 15 per school level in its unoccupied provinces, ×1.5 with
+Enlightenment.
+
+| Tech | Branch | Cost | Needs | Effect |
+|---|---|---|---|---|
+| Platoon fire | military | 400 | – | line and guard fire by rank in battle |
+| Squares from column | military | 450 | Platoon fire | infantry forms square a third faster in battle |
+| Rifled muskets | military | 550 | Platoon fire | raise Rifles (barracks 2) |
+| Improved canister | military | 400 | – | canister ×1.25 in battle |
+| Horse artillery | military | 500 | Improved canister | raise horse artillery (foundry 2) |
+| Howitzers | military | 600 | Horse artillery | raise howitzers (foundry 3) |
+| Lancers | military | 450 | – | raise lancers (stables 2) |
+| Corps system | military | 800 | Squares from column | armies under a general ×1.1 in auto-resolve |
+| Crop rotation | industry | 400 | – | farms +10 % a level |
+| Banking | industry | 500 | Crop rotation | trade +15 % a level |
+| Conscription | industry | 500 | – | manpower ×1.25 |
+| Iron works | industry | 600 | Banking | buildings cost a fifth less |
+| Enlightenment | philosophy | 400 | – | research ×1.5 |
+| Civil code | philosophy | 600 | Enlightenment | unrest −1 everywhere |
+| Nationalism | philosophy | 700 | Civil code | +5 base morale for every regiment in battle |
+
+1805: France knows Platoon fire, Squares, Improved canister and Horse artillery (its Corps system
+is already in its quality 1.15); Britain Platoon fire, Rifles, Canister and Horse artillery;
+Prussia Platoon fire; Austria Canister; Russia Lancers. Saves from before technology load with
+this. The AI researches in a fixed order (drill, canister, rotation, enlightenment, …).
+
 ## Armies and movement
 
 - An army has a general (`rating` 1–5) or none. Movement: 2 provinces a turn, 3 under a general

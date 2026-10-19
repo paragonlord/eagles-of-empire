@@ -35,13 +35,83 @@ Economy.REVOLT_TURNS = 2 -- turns at unrest 5 before the province rises
 Economy.REVOLT_ATTRITION = 0.05 -- the owner's troops in a revolted province, a turn
 Economy.REFILL = 0.1 -- share of a unit's full strength regained a turn at rest in friendly land
 Economy.WINTER_ATTRITION = { allied = 0.02, hostile = 0.04 } -- harsh lands, Nov–Feb (own land: none)
-Economy.FARMS_INCOME = 0.05 -- per level of the farms chain
-Economy.TRADE_INCOME = 0.1 -- per level of the trade chain
+Economy.FARMS_INCOME = 0.05 -- per level of the farms chain (doubled by Crop rotation)
+Economy.TRADE_INCOME = 0.1 -- per level of the trade chain (0.15 with Banking)
+Economy.RESEARCH = { major = 20, minor = 10, school = 15, enlightenment = 1.5 }
 
 -- A province's income with its farms and trade.
 function Economy.provinceIncome(s: State, provinceId: string): number
-	local b = s.provinces[provinceId].buildings
-	return State.province(provinceId).income * (1 + Economy.FARMS_INCOME * (b.farms or 0) + Economy.TRADE_INCOME * (b.trade or 0))
+	local ps = s.provinces[provinceId]
+	local b = ps.buildings
+	local farms = Economy.FARMS_INCOME * (if State.hasTech(s, ps.owner, "rotation") then 2 else 1)
+	local trade = Economy.TRADE_INCOME + (if State.hasTech(s, ps.owner, "banking") then 0.05 else 0)
+	return State.province(provinceId).income * (1 + farms * (b.farms or 0) + trade * (b.trade or 0))
+end
+
+-- The cost of a building's next level for this nation (Iron works: a fifth off).
+function Economy.buildCost(s: State, nation: string, chain: string, level: number): number
+	local cost = EuropeData.Buildings[chain].cost[level]
+	return if State.hasTech(s, nation, "ironworks") then math.floor(cost * 0.8) else cost
+end
+
+-- Research points a turn: the nation's own, its schools, Enlightenment.
+function Economy.researchPoints(s: State, nation: string): number
+	local pts = if EuropeData.Nations[nation].major then Economy.RESEARCH.major else Economy.RESEARCH.minor
+	for _, id in State.provincesOwned(s, nation) do
+		local ps = s.provinces[id]
+		if ps.occupiedBy == nil then
+			pts += Economy.RESEARCH.school * (ps.buildings.school or 0)
+		end
+	end
+	if State.hasTech(s, nation, "enlightenment") then
+		pts *= Economy.RESEARCH.enlightenment
+	end
+	return math.floor(pts)
+end
+
+-- Can `nation` research `tech` now? Returns ok, reason.
+function Economy.canResearch(s: State, nation: string, tech: string): (boolean, string?)
+	local t = EuropeData.TechById[tech]
+	if not t then
+		return false, "badArgs"
+	end
+	if State.hasTech(s, nation, tech) then
+		return false, "known"
+	end
+	for _, r in t.requires do
+		if not State.hasTech(s, nation, r) then
+			return false, "needsTech:" .. r
+		end
+	end
+	return true, nil
+end
+
+function Economy.setResearch(s: State, nation: string, tech: string): (boolean, string?)
+	local ok, why = Economy.canResearch(s, nation, tech)
+	if not ok then
+		return false, why
+	end
+	local ns = s.nations[nation]
+	if ns.research ~= tech then
+		ns.research, ns.progress = tech, 0 -- switching subjects loses the work done
+	end
+	return true, nil
+end
+
+local function research(s: State, nation: string)
+	local ns = s.nations[nation]
+	local tech = ns.research and EuropeData.TechById[ns.research]
+	if not tech then
+		return
+	end
+	ns.progress = (ns.progress or 0) + Economy.researchPoints(s, nation)
+	if (ns.progress :: number) >= tech.cost then
+		ns.techs[tech.id] = true
+		ns.research, ns.progress = nil, nil
+		if nation == s.playerNation then
+			State.log(s, tech.name .. " is understood: " .. tech.text)
+		end
+	end
 end
 
 function Economy.income(s: State, nation: string): (number, number)
@@ -56,6 +126,9 @@ function Economy.income(s: State, nation: string): (number, number)
 		elseif ps.occupiedBy == nation then
 			income += Economy.provinceIncome(s, p.id) * Economy.OCCUPIER_SHARE
 		end
+	end
+	if State.hasTech(s, nation, "conscription") then
+		manpower *= 1.25
 	end
 	if s.flags.continentalSystem then
 		if nation == "britain" then
@@ -133,6 +206,9 @@ function Economy.canRecruit(s: State, nation: string, provinceId: string, unitTy
 	end
 	if c.needs == "capital" and EuropeData.Nations[nation].capital ~= provinceId then
 		return false, "needsCapital"
+	end
+	if c.tech and not State.hasTech(s, nation, c.tech) then
+		return false, "needsTech:" .. c.tech
 	end
 	if (ps.buildings[c.building.chain] or 0) < c.building.level then
 		return false, "needs:" .. c.building.chain .. ":" .. c.building.level
@@ -242,7 +318,7 @@ function Economy.canBuild(s: State, nation: string, provinceId: string, chain: s
 	if ps.siege ~= nil or State.hostileArmyIn(s, provinceId, nation) then
 		return false, "underSiege", nextLevel
 	end
-	if s.nations[nation].treasury < def.cost[nextLevel] then
+	if s.nations[nation].treasury < Economy.buildCost(s, nation, chain, nextLevel) then
 		return false, "insufficientFunds", nextLevel
 	end
 	return true, nil, nextLevel
@@ -254,7 +330,7 @@ function Economy.build(s: State, nation: string, provinceId: string, chain: stri
 		return false, why
 	end
 	local def = EuropeData.Buildings[chain]
-	s.nations[nation].treasury -= def.cost[nextLevel]
+	s.nations[nation].treasury -= Economy.buildCost(s, nation, chain, nextLevel)
 	s.provinces[provinceId].construction = { chain = chain, turnsLeft = def.turns[nextLevel] }
 	return true, nil
 end
@@ -298,7 +374,8 @@ function Economy.unrest(s: State, provinceId: string): number
 		men += State.men(a)
 	end
 	local garrison = math.min(2, math.floor(men / 1000))
-	return math.clamp(tax.unrest + foreign - (ps.buildings.government or 0) - garrison, 0, 5)
+	local code = if State.hasTech(s, ps.owner, "civilcode") then 1 else 0
+	return math.clamp(tax.unrest + foreign - (ps.buildings.government or 0) - garrison - code, 0, 5)
 end
 
 -- Public order in the nation's own provinces: two turns at unrest 5 and the province rises (no
@@ -417,6 +494,7 @@ function Economy.run(s: State, nation: string)
 	publicOrder(s, nation)
 	refill(s, nation)
 	winter(s, nation)
+	research(s, nation)
 	for i = #s.recruitment, 1, -1 do
 		local q = s.recruitment[i]
 		if q.nation == nation then

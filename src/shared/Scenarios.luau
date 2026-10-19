@@ -26,6 +26,9 @@ export type UnitDef = {
 	general: string?, -- HQ only: id in src/shared/Generals.luau (else matched from the name)
 	type: string?, -- Config.UnitTypes id (else inferred from the name: Scenarios.typeOf)
 	fireByRank: boolean?, -- the drill (else: guard infantry and British foot have it)
+	quickSquare: boolean?, -- forms square a third faster (campaign tech: Squares from column)
+	canisterBonus: number?, -- canister casualties multiplier (campaign tech: Improved canister)
+	moraleBonus: number?, -- added to base morale (campaign tech: Nationalism)
 }
 
 export type Scenario = {
@@ -1120,7 +1123,8 @@ local TYPE_MARKS: { [string]: { { string | { string } } } } = {
 	},
 	cavalry = {
 		{ "heavyCav", { "cuirassier", "kürassier", "carabinier", "garde du corps", "life guard", "chevalier guard", "grenadiers à cheval", "gensd'armes", "horse guards" } },
-		{ "lightCav", { "hussar", "husar", "chasseur", "lancier", "lancer", "uhlan", "ulan", "cossack", "chevauleger", "chevau-léger", "light dragoon" } },
+		{ "lancer", { "lancier", "lancer", "uhlan", "ulan" } },
+		{ "lightCav", { "hussar", "husar", "chasseur", "cossack", "chevauleger", "chevau-léger", "light dragoon" } },
 	},
 	artillery = {
 		{ "horseArt", { "à cheval", "reitende", " rha", "horse artillery" } },

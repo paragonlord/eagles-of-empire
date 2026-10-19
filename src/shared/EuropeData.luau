@@ -55,6 +55,7 @@ export type UnitClass = {
 	power: number, -- auto-resolve weight per man
 	needs: "any" | "capital",
 	building: { chain: string, level: number }, -- the province must have it (EuropeData.Buildings)
+	tech: string?, -- the nation must have researched it (EuropeData.Techs)
 	majorOnly: boolean,
 	experience: number, -- experience on recruitment
 }
@@ -398,9 +399,48 @@ EuropeData.UnitClasses = {
 	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", building = { chain = "stables", level = 1 }, majorOnly = false, experience = 0 },
 	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "any", building = { chain = "stables", level = 2 }, majorOnly = false, experience = 1 },
 	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "any", building = { chain = "foundry", level = 1 }, majorOnly = false, experience = 0 },
+	-- unlocked by technology (EuropeData.Techs)
+	rifles = { name = "Rifles", sim = "rifle", class = "infantry", strength = 600, cost = 450, manpower = 600, turns = 2, upkeep = 16, power = 1.2, needs = "any", building = { chain = "barracks", level = 2 }, tech = "rifles", majorOnly = false, experience = 1 },
+	lancers = { name = "Lancers", sim = "lancer", class = "cavalry", strength = 400, cost = 500, manpower = 400, turns = 2, upkeep = 20, power = 1.45, needs = "any", building = { chain = "stables", level = 2 }, tech = "lancers", majorOnly = false, experience = 0 },
+	horseart = { name = "Horse artillery", sim = "horseArt", class = "artillery", strength = 120, cost = 500, manpower = 120, turns = 2, upkeep = 24, power = 3.0, needs = "any", building = { chain = "foundry", level = 2 }, tech = "horseArtillery", majorOnly = false, experience = 0 },
+	howitzer = { name = "Howitzers", sim = "howitzer", class = "artillery", strength = 120, cost = 550, manpower = 120, turns = 3, upkeep = 24, power = 3.2, needs = "any", building = { chain = "foundry", level = 3 }, tech = "howitzers", majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
-EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }
+EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery", "rifles", "lancers", "horseart", "howitzer" }
+
+-- Technology (docs/campaign.md "Technology"). One research at a time; points a turn come from the
+-- nation (20 a great power, 10 a minor) and its schools (15 a level), +50 % with Enlightenment.
+export type Tech = { id: string, name: string, branch: string, cost: number, requires: { string }, text: string }
+EuropeData.Techs = {
+	{ id = "drill", name = "Platoon fire", branch = "military", cost = 400, requires = {}, text = "Line and guard infantry fire by rank in battle: a quarter faster reloading, halted in line." },
+	{ id = "squares", name = "Squares from column", branch = "military", cost = 450, requires = { "drill" }, text = "Infantry forms square a third faster in battle." },
+	{ id = "rifles", name = "Rifled muskets", branch = "military", cost = 550, requires = { "drill" }, text = "Raise rifle battalions (barracks 2): long range, accurate, may skirmish." },
+	{ id = "canister", name = "Improved canister", branch = "military", cost = 400, requires = {}, text = "Canister kills a quarter more in battle." },
+	{ id = "horseArtillery", name = "Horse artillery", branch = "military", cost = 500, requires = { "canister" }, text = "Raise horse artillery (foundry 2): guns that keep up with the cavalry." },
+	{ id = "howitzers", name = "Howitzers", branch = "military", cost = 600, requires = { "horseArtillery" }, text = "Raise howitzers (foundry 3): shells over crests and walls." },
+	{ id = "lancers", name = "Lancers", branch = "military", cost = 450, requires = {}, text = "Raise lancers (stables 2): light horse with a heavy charge." },
+	{ id = "corps", name = "Corps system", branch = "military", cost = 800, requires = { "squares" }, text = "Armies under a general fight a tenth better in auto-resolved battles." },
+	{ id = "rotation", name = "Crop rotation", branch = "industry", cost = 400, requires = {}, text = "Farms yield double: +10 % income a level." },
+	{ id = "banking", name = "Banking", branch = "industry", cost = 500, requires = { "rotation" }, text = "Trade yields +15 % income a level." },
+	{ id = "conscription", name = "Conscription", branch = "industry", cost = 500, requires = {}, text = "+25 % manpower." },
+	{ id = "ironworks", name = "Iron works", branch = "industry", cost = 600, requires = { "banking" }, text = "Buildings cost a fifth less." },
+	{ id = "enlightenment", name = "Enlightenment", branch = "philosophy", cost = 400, requires = {}, text = "+50 % research." },
+	{ id = "civilcode", name = "Civil code", branch = "philosophy", cost = 600, requires = { "enlightenment" }, text = "Unrest −1 in every province." },
+	{ id = "nationalism", name = "Nationalism", branch = "philosophy", cost = 700, requires = { "civilcode" }, text = "Every regiment +5 morale in battle." },
+} :: { Tech }
+EuropeData.TechById = {} :: { [string]: Tech }
+for _, t in EuropeData.Techs do
+	EuropeData.TechById[t.id] = t
+end
+-- What each nation knew in 1805 (gameplay: Wellington's line and rifles, Cossack lances). France's
+-- corps system is already in its quality (1.15), so the Corps tech is for the others to catch up.
+EuropeData.StartTechs = {
+	france = { "drill", "squares", "canister", "horseArtillery" },
+	britain = { "drill", "rifles", "canister", "horseArtillery" },
+	prussia = { "drill" },
+	austria = { "canister" },
+	russia = { "lancers" },
+} :: { [string]: { string } }
 
 -- Lands where a winter campaign costs men (Economy: winter attrition, Nov–Feb).
 EuropeData.HarshWinter = { stpetersburg = true, lithuania = true, smolensk = true, moscow = true, ukraine = true, eastprussia = true, warsaw = true, galicia = true, stockholm = true, tyrol = true } :: { [string]: boolean }
@@ -455,11 +495,11 @@ end
 -- Per-nation unit names: "%s" takes the regiment ordinal ("1er", "3rd", "4.", by nation).
 -- Other nations: "<adjective> <class name> <n>".
 EuropeData.UnitNames = {
-	france = { line = "%s de Ligne", light = "%s Légère", guard = "%s Régiment de la Garde", cavalry = "%s Chasseurs à cheval", heavy = "%s Cuirassiers", artillery = "%s Artillerie à pied" },
-	britain = { line = "%s Foot", light = "%s Rifles", guard = "%s Foot Guards", cavalry = "%s Light Dragoons", heavy = "%s Dragoon Guards", artillery = "%s Battery RA" },
+	france = { line = "%s de Ligne", light = "%s Légère", guard = "%s Régiment de la Garde", cavalry = "%s Chasseurs à cheval", heavy = "%s Cuirassiers", artillery = "%s Artillerie à pied", lancers = "%s Chevau-légers lanciers", horseart = "%s Artillerie à cheval", howitzer = "%s Obusiers" },
+	britain = { line = "%s Foot", light = "%s Light Infantry", guard = "%s Foot Guards", cavalry = "%s Light Dragoons", heavy = "%s Dragoon Guards", artillery = "%s Battery RA", rifles = "%s Rifles", horseart = "%s Troop RHA" },
 	austria = { line = "%s Linien-Infanterie", light = "%s Grenz-Regiment", guard = "%s Grenadier-Bataillon", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie" },
 	prussia = { line = "%s Musketier-Regiment", light = "%s Füsilier-Bataillon", guard = "%s Garde-Regiment", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie" },
-	russia = { line = "%s Musketeers", light = "%s Jägers", guard = "%s Leib-Guard", cavalry = "%s Cossacks", heavy = "%s Cuirassiers", artillery = "%s Artillery Brigade" },
+	russia = { line = "%s Musketeers", light = "%s Jägers", guard = "%s Leib-Guard", cavalry = "%s Cossacks", heavy = "%s Cuirassiers", artillery = "%s Artillery Brigade", lancers = "%s Uhlans" },
 } :: { [string]: { [string]: string } }
 
 -- Generals and starting armies (January 1805) -------------------------------------------------------

@@ -183,6 +183,7 @@ Config.UnitTypes = {
 	guard = { class = "infantry", name = "Guard infantry", stats = { baseMorale = 76, melee = { attack = 1.15, defense = 1.1 } } },
 	militia = { class = "infantry", name = "Militia", stats = { baseMorale = 58, musket = { accuracy = 0.055 }, melee = { attack = 0.85, defense = 0.9 } } },
 	lightCav = { class = "cavalry", name = "Light cavalry", stats = { speed = 16.0, chargeSpeed = 22.0, baseMorale = 70, melee = { attack = 1.2, defense = 0.75 }, pursuit = 1.4, charge = { base = 0.05 }, fatigueMove = 0.4, spot = 380 } },
+	lancer = { class = "cavalry", name = "Lancers", stats = { speed = 15.0, chargeSpeed = 21.0, baseMorale = 70, melee = { attack = 1.2, defense = 0.75 }, pursuit = 1.4, charge = { base = 0.065 }, fatigueMove = 0.45, spot = 340 } },
 	dragoon = { class = "cavalry", name = "Dragoons" },
 	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 13.0, chargeSpeed = 19.0, baseMorale = 74, melee = { attack = 1.35, defense = 1.0 }, charge = { base = 0.065 }, fatigueMove = 0.6 } },
 	footArt = { class = "artillery", name = "Foot artillery" },

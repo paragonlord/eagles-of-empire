@@ -102,7 +102,8 @@ end
 local function sideStrength(s: State, b: Battle, side: string): number
 	local t = 0
 	for _, a in Battles.armies(s, b, side) do
-		t += State.armyStrength(a)
+		-- the Corps system: an army under a general fights a tenth better
+		t += State.armyStrength(a) * (if a.general and State.hasTech(s, a.nation, "corps") then 1.1 else 1)
 	end
 	if side == "defenders" and table.find(b.defenders, State.controller(s, b.provinceId)) then
 		t *= 1.15 + 0.1 * State.fortLevel(s, b.provinceId)
@@ -677,6 +678,11 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 				name = pair.u.name,
 				class = c.class,
 				type = c.sim,
+				-- the nation's battle techs
+				fireByRank = if c.class == "infantry" then State.hasTech(s, pair.a.nation, "drill") and (c.sim == "line" or c.sim == "guard") else nil,
+				quickSquare = c.class == "infantry" and State.hasTech(s, pair.a.nation, "squares") or nil,
+				canisterBonus = if c.class == "artillery" and State.hasTech(s, pair.a.nation, "canister") then 1.25 else nil,
+				moraleBonus = if State.hasTech(s, pair.a.nation, "nationalism") then 5 else nil,
 				corps = pair.a.name,
 				strength = pair.u.strength,
 				experience = pair.u.experience,
