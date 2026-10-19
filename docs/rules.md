@@ -173,6 +173,10 @@ After impact the cavalry fights ordinary melee (attack 1.4, defense 0.8); agains
 takes ×2 damage. A new impact needs 40 s of recovery out of contact. Cavalry in woods: speed
 ×0.4 and charge impact ×0.5.
 
+Experience (0–3) is also earned in battle: every 150 enemy casualties a formation inflicts
+(`ExperienceKills`; friendly fire never counts) raise it a level, with +4 base morale; it carries
+back to both campaigns with the survivors.
+
 ## Morale
 
 0–100, starts at `baseMorale + 4·exp`. Per tick (scaled by dt where rates are per second):

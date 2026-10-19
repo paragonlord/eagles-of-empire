@@ -1166,3 +1166,26 @@ test("Generals: every HQ steadies the men near it; a corps general's fall shakes
 	sim:step()
 	assertTrue(far.morale <= f1 - Config.Units.hq.lossMoralePenalty + 1, "the army wavers")
 end)
+
+test("Experience is earned in battle: every 150 enemy casualties inflicted is a level (max 3); friendly fire earns nothing", function()
+	local sim = newSim({
+		unit("france", "infantry", "Shooters", A.x, A.z, 0),
+		unit("prussia", "infantry", "Victims", A.x + 70, A.z, math.pi, 900),
+		unit("france", "infantry", "Friends", A.x - 70, A.z, 0),
+	})
+	local f = sim.formations[1]
+	local exp0, morale0 = f.experience, f.baseMorale
+	local function hit(target, n)
+		Combat.apply(sim, { { attackerId = 1, targetId = target, casualties = n, side = "front", moraleExtra = 0, kind = "volley" } })
+	end
+	hit(2, 100)
+	assertEq(f.experience, exp0, "not yet")
+	hit(2, 60)
+	assertEq(f.experience, exp0 + 1, "blooded")
+	assertEq(f.baseMorale, morale0 + Config.Combat.ExperienceMorale)
+	hit(3, 400)
+	assertEq(f.experience, exp0 + 1, "friendly fire earns nothing")
+	hit(2, 600)
+	assertEq(f.experience, 3, "capped at 3")
+	assertEq(f.kills, 760)
+end)

@@ -518,6 +518,22 @@ function Combat.gather(sim: SimLike): { Attack }
 end
 
 -- Step 7: apply casualties and ammunition; morale consequences handled by Morale.
+-- Blooded: every Config.Combat.ExperienceKills enemy casualties a formation inflicts make it a
+-- level more experienced (max 3), with the morale that goes with it.
+local function credit(sim: SimLike, att: Formation?, t: Formation, lost: number)
+	if not att or att.faction == t.faction or lost <= 0 then
+		return
+	end
+	att.kills += lost
+	local earned = math.min(3, att.experience + math.floor(att.kills / C.ExperienceKills) - math.floor((att.kills - lost) / C.ExperienceKills))
+	if earned > att.experience then
+		local gain = earned - att.experience
+		att.experience = earned
+		att.baseMorale += C.ExperienceMorale * gain
+		sim.emit(sim, { kind = "message", tick = sim.tick, id = att.id, faction = att.faction, text = att.name .. " is blooded: experience " .. tostring(earned) })
+	end
+end
+
 function Combat.apply(sim: SimLike, attacks: { Attack })
 	for _, a in attacks do
 		local t = sim.formations[a.targetId]
@@ -525,6 +541,7 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 			local lost = math.min(t.strength, a.casualties)
 			t.strength -= lost
 			t.casualtiesThisTick += lost
+			credit(sim, sim.formations[a.attackerId], t, lost)
 			if lost > 0 then
 				t.timers.noDamage = 0
 			end

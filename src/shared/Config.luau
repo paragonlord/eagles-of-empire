@@ -239,6 +239,7 @@ Config.Combat = {
 	ExperienceAccuracy = 0.08, -- per experience level
 	ExperienceMelee = 0.08,
 	ExperienceMorale = 4,
+	ExperienceKills = 150, -- enemy casualties a formation inflicts per experience level gained in battle (max 3)
 	FatigueSpeedPenalty = 0.4,
 	FatigueAccuracyPenalty = 0.3,
 	FatigueMeleePenalty = 0.4,

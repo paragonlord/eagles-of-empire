@@ -36,6 +36,7 @@ export type Formation = {
 	type: string, -- Config.UnitTypes id
 	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
 	garrison: string?, -- the strongpoint it holds (Sim/Garrison)
+	kills: number, -- enemy casualties it has inflicted this battle (experience, results)
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -160,6 +161,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		class = def.class,
 		type = unitType,
 		fireByRank = Scenarios.firesByRank(def),
+		kills = 0,
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,

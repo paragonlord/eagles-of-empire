@@ -44,7 +44,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 ## Phase 4: generals
 - [x] One aura per HQ; corps generals in full battles; local death shock
 - [x] General's cavalry bodyguard
-- [ ] Experience earned in battle
+- [x] Experience earned in battle
 
 ## Phase 5: battle AI
 - [ ] Defence: reverse slope, garrisons, skirmish screens, counter-attacks, cavalry counter-charges
