@@ -269,6 +269,14 @@ local function desiredPosture(state: AIState): string
 			theirs += 1
 		end
 	end
+	-- The battle's roles (Scenario.attacker): the attacker keeps coming while the enemy holds any
+	-- objective; the defender holds its ground (and counter-attacks only when it is overwhelming).
+	local attacker = (sim.scenario :: any).attacker
+	if attacker == state.faction and theirs > 0 then
+		return "advance"
+	elseif attacker == state.enemy then
+		return "defend"
+	end
 	local deployedEnemy = sim.deployed[state.enemy] or 0
 	if theirs > 0 and (mineN < theirs or (mineN == theirs and deployed >= deployedEnemy)) then
 		return "advance"

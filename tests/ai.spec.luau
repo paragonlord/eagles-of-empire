@@ -320,3 +320,26 @@ test("AI garrisons a free building by an objective it holds", function()
 	assertTrue(held, sp.name .. " garrisoned by the defenders")
 	local _ = st
 end)
+
+test("Battle roles: the attacking AI comes on while the enemy holds anything; the defending AI holds", function()
+	local function postureAs(attacker)
+		local units = {
+			unit("prussia", "infantry", "IR Nr. 29", 760, 760, -math.pi / 2),
+			unit("prussia", "infantry", "IR Nr. 49", 840, 760, -math.pi / 2),
+			unit("france", "infantry", "34e de Ligne", 800, 300, math.pi / 2),
+			unit("france", "infantry", "40e de Ligne", 880, 300, math.pi / 2),
+		}
+		local sc = scenario(units)
+		sc.attacker = attacker
+		local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+		sim:start()
+		-- one objective each: a meeting battle would sit still
+		sim.objectives[1].owner = "france"
+		sim.objectives[2].owner = "prussia"
+		local st = attach(sim)
+		run(sim, 2)
+		return st.posture
+	end
+	assertEq(postureAs("prussia"), "advance", "the attacker comes on")
+	assertEq(postureAs("france"), "defend", "the defender holds")
+end)

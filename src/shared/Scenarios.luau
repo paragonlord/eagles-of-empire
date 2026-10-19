@@ -47,6 +47,7 @@ export type Scenario = {
 	mode: ("full" | "episode")?, -- listed battles: the whole field, or a quick-battle slice of it
 	parent: string?, -- episodes: id of the full battle they are cut from
 	buildings: boolean?, -- false: no garrisonable buildings (the tutorial teaches the basics first)
+	attacker: string?, -- the side that came to take the field (the AI defender holds); nil = a meeting battle
 }
 
 -- mode: "full" | "episode"; parent: the full battle's id for episodes (nil for full battles).
@@ -134,6 +135,7 @@ local JENA_PRUSSIAN = {
 
 Scenarios.jena = {
 	id = "jena",
+	attacker = "france",
 	name = "Jena, 14 October 1806",
 	map = "jena",
 	briefing = "Dawn, 14 October 1806. Your corps crossed the Saale in the night and stand on the Landgrafenberg above Jena in thick morning mist, which will lift within five minutes. Hohenlohe's Prussians and Saxons hold the villages to the north. Take Vierzehnheiligen, Closewitz and the Dornberg, or break the Prussian army. You have twenty-five minutes before Hohenlohe is reinforced.",
@@ -514,6 +516,7 @@ local WATERLOO_ALLIED = {
 
 Scenarios.waterloo = {
 	id = "waterloo",
+	attacker = "france",
 	name = "Waterloo, 18 June 1815",
 	map = "waterloo",
 	briefing = "Late morning, 18 June 1815. Wellington's Anglo-allied army stands along the Mont-Saint-Jean ridge behind the sunken Ohain road, with Hougoumont and La Haye Sainte held in front of it; the night's rain has left the low ground sodden, slowing every march and deadening your round shot. Reille faces Hougoumont, d'Erlon the allied left, the Guard and the cuirassiers are in reserve behind La Belle Alliance. Bülow's Prussians will begin to arrive from the east at Plancenoit from the twelfth minute. Take Hougoumont, La Haye Sainte and the crossroads on the ridge, or break Wellington's army before the Prussians weigh in.",
@@ -576,6 +579,7 @@ end
 
 episode({
 	id = "jena_landgrafenberg",
+	attacker = "france",
 	parent = "jena",
 	name = "Lannes on the Landgrafenberg",
 	map = "jena_landgrafenberg",
@@ -628,6 +632,7 @@ episode({
 
 episode({
 	id = "jena_vierzehnheiligen",
+	attacker = "france",
 	parent = "jena",
 	name = "The fight for Vierzehnheiligen",
 	map = "jena_vierzehnheiligen",
@@ -680,6 +685,7 @@ episode({
 
 episode({
 	id = "auerstedt_hassenhausen",
+	attacker = "prussia",
 	parent = "auerstedt",
 	name = "Gudin at Hassenhausen",
 	map = "auerstedt_hassenhausen",
@@ -738,6 +744,7 @@ episode({
 
 episode({
 	id = "auerstedt_spielberg",
+	attacker = "france",
 	parent = "auerstedt",
 	name = "Friant at Spielberg",
 	map = "auerstedt_spielberg",
@@ -785,6 +792,7 @@ episode({
 
 episode({
 	id = "austerlitz_pratzen",
+	attacker = "france",
 	parent = "austerlitz",
 	name = "Soult on the Pratzen",
 	map = "austerlitz_pratzen",
@@ -839,6 +847,7 @@ episode({
 
 episode({
 	id = "austerlitz_sokolnitz",
+	attacker = "russia",
 	parent = "austerlitz",
 	name = "Davout at Sokolnitz",
 	map = "austerlitz_sokolnitz",
@@ -893,6 +902,7 @@ episode({
 
 episode({
 	id = "waterloo_hougoumont",
+	attacker = "france",
 	parent = "waterloo",
 	name = "The struggle for Hougoumont",
 	map = "waterloo_hougoumont",
@@ -944,6 +954,7 @@ episode({
 
 episode({
 	id = "waterloo_lahayesainte",
+	attacker = "france",
 	parent = "waterloo",
 	name = "The fall of La Haye Sainte",
 	map = "waterloo_lahayesainte",
