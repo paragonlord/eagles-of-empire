@@ -503,6 +503,7 @@ Config.UnitTypes = {
 	guard = { class = "infantry", name = "Guard infantry", stats = { baseMorale = 76, melee = { attack = 1.15, defense = 1.1 } } },
 	militia = { class = "infantry", name = "Militia", stats = { baseMorale = 58, musket = { accuracy = 0.055 }, melee = { attack = 0.85, defense = 0.9 } } },
 	lightCav = { class = "cavalry", name = "Light cavalry", stats = { speed = 16.0, chargeSpeed = 22.0, baseMorale = 70, melee = { attack = 1.2, defense = 0.75 }, pursuit = 1.4, charge = { base = 0.05 }, fatigueMove = 0.4, spot = 380 } },
+	lancer = { class = "cavalry", name = "Lancers", stats = { speed = 15.0, chargeSpeed = 21.0, baseMorale = 70, melee = { attack = 1.2, defense = 0.75 }, pursuit = 1.4, charge = { base = 0.065 }, fatigueMove = 0.45, spot = 340 } },
 	dragoon = { class = "cavalry", name = "Dragoons" },
 	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 13.0, chargeSpeed = 19.0, baseMorale = 74, melee = { attack = 1.35, defense = 1.0 }, charge = { base = 0.065 }, fatigueMove = 0.6 } },
 	footArt = { class = "artillery", name = "Foot artillery" },
@@ -695,6 +696,8 @@ export type UnitClass = {
 	power: number, -- auto-resolve weight per man
 	needs: "any" | "capital",
 	building: { chain: string, level: number }, -- the province must have it (EuropeData.Buildings)
+	tech: string?, -- the nation must have researched it (EuropeData.Techs)
+	nations: { string }?, -- a national unit: only these nations raise it
 	majorOnly: boolean,
 	experience: number, -- experience on recruitment
 }
@@ -1038,9 +1041,63 @@ EuropeData.UnitClasses = {
 	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", building = { chain = "stables", level = 1 }, majorOnly = false, experience = 0 },
 	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "any", building = { chain = "stables", level = 2 }, majorOnly = false, experience = 1 },
 	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "any", building = { chain = "foundry", level = 1 }, majorOnly = false, experience = 0 },
+	-- unlocked by technology (EuropeData.Techs)
+	rifles = { name = "Rifles", sim = "rifle", class = "infantry", strength = 600, cost = 450, manpower = 600, turns = 2, upkeep = 16, power = 1.2, needs = "any", building = { chain = "barracks", level = 2 }, tech = "rifles", majorOnly = false, experience = 1 },
+	lancers = { name = "Lancers", sim = "lancer", class = "cavalry", strength = 400, cost = 500, manpower = 400, turns = 2, upkeep = 20, power = 1.45, needs = "any", building = { chain = "stables", level = 2 }, tech = "lancers", majorOnly = false, experience = 0 },
+	horseart = { name = "Horse artillery", sim = "horseArt", class = "artillery", strength = 120, cost = 500, manpower = 120, turns = 2, upkeep = 24, power = 3.0, needs = "any", building = { chain = "foundry", level = 2 }, tech = "horseArtillery", majorOnly = false, experience = 0 },
+	howitzer = { name = "Howitzers", sim = "howitzer", class = "artillery", strength = 120, cost = 550, manpower = 120, turns = 3, upkeep = 24, power = 3.2, needs = "any", building = { chain = "foundry", level = 3 }, tech = "howitzers", majorOnly = false, experience = 0 },
+	-- national units (docs/campaign.md "National rosters")
+	oldguard = { name = "Old Guard", sim = "guard", class = "infantry", strength = 700, cost = 950, manpower = 700, turns = 4, upkeep = 30, power = 1.75, needs = "capital", building = { chain = "barracks", level = 3 }, nations = { "france" }, majorOnly = true, experience = 3 },
+	voltigeurs = { name = "Voltigeurs", sim = "light", class = "infantry", strength = 600, cost = 380, manpower = 600, turns = 1, upkeep = 14, power = 1.15, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "france" }, majorOnly = false, experience = 2 },
+	highlanders = { name = "Highlanders", sim = "grenadier", class = "infantry", strength = 600, cost = 400, manpower = 600, turns = 2, upkeep = 15, power = 1.2, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "britain" }, majorOnly = false, experience = 1 },
+	landwehr = { name = "Landwehr", sim = "militia", class = "infantry", strength = 600, cost = 150, manpower = 600, turns = 1, upkeep = 6, power = 0.75, needs = "any", building = { chain = "barracks", level = 1 }, nations = { "prussia" }, majorOnly = false, experience = 0 },
+	jager = { name = "Jäger", sim = "rifle", class = "infantry", strength = 600, cost = 420, manpower = 600, turns = 2, upkeep = 15, power = 1.2, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "prussia", "austria" }, majorOnly = false, experience = 1 },
+	grenzer = { name = "Grenzer", sim = "light", class = "infantry", strength = 600, cost = 280, manpower = 600, turns = 1, upkeep = 11, power = 1.05, needs = "any", building = { chain = "barracks", level = 1 }, nations = { "austria" }, majorOnly = false, experience = 1 },
+	grenadiers = { name = "Grenadiers", sim = "grenadier", class = "infantry", strength = 600, cost = 420, manpower = 600, turns = 2, upkeep = 16, power = 1.25, needs = "any", building = { chain = "barracks", level = 2 }, nations = { "austria", "russia", "prussia" }, majorOnly = false, experience = 1 },
+	cossacks = { name = "Cossacks", sim = "lightCav", class = "cavalry", strength = 400, cost = 250, manpower = 400, turns = 1, upkeep = 8, power = 1.0, needs = "any", building = { chain = "stables", level = 1 }, nations = { "russia" }, majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
-EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }
+EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery", "rifles", "lancers", "horseart", "howitzer", "oldguard", "voltigeurs", "highlanders", "landwehr", "jager", "grenzer", "grenadiers", "cossacks" }
+
+-- Is `unitType` in `nation`'s roster (national units only for their nations)?
+function EuropeData.inRoster(unitType: string, nation: string): boolean
+	local c = EuropeData.UnitClasses[unitType]
+	return c ~= nil and (c.nations == nil or table.find(c.nations, nation) ~= nil)
+end
+
+-- Technology (docs/campaign.md "Technology"). One research at a time; points a turn come from the
+-- nation (20 a great power, 10 a minor) and its schools (15 a level), +50 % with Enlightenment.
+export type Tech = { id: string, name: string, branch: string, cost: number, requires: { string }, text: string }
+EuropeData.Techs = {
+	{ id = "drill", name = "Platoon fire", branch = "military", cost = 400, requires = {}, text = "Line and guard infantry fire by rank in battle: a quarter faster reloading, halted in line." },
+	{ id = "squares", name = "Squares from column", branch = "military", cost = 450, requires = { "drill" }, text = "Infantry forms square a third faster in battle." },
+	{ id = "rifles", name = "Rifled muskets", branch = "military", cost = 550, requires = { "drill" }, text = "Raise rifle battalions (barracks 2): long range, accurate, may skirmish." },
+	{ id = "canister", name = "Improved canister", branch = "military", cost = 400, requires = {}, text = "Canister kills a quarter more in battle." },
+	{ id = "horseArtillery", name = "Horse artillery", branch = "military", cost = 500, requires = { "canister" }, text = "Raise horse artillery (foundry 2): guns that keep up with the cavalry." },
+	{ id = "howitzers", name = "Howitzers", branch = "military", cost = 600, requires = { "horseArtillery" }, text = "Raise howitzers (foundry 3): shells over crests and walls." },
+	{ id = "lancers", name = "Lancers", branch = "military", cost = 450, requires = {}, text = "Raise lancers (stables 2): light horse with a heavy charge." },
+	{ id = "corps", name = "Corps system", branch = "military", cost = 800, requires = { "squares" }, text = "Armies under a general fight a tenth better in auto-resolved battles." },
+	{ id = "rotation", name = "Crop rotation", branch = "industry", cost = 400, requires = {}, text = "Farms yield double: +10 % income a level." },
+	{ id = "banking", name = "Banking", branch = "industry", cost = 500, requires = { "rotation" }, text = "Trade yields +15 % income a level." },
+	{ id = "conscription", name = "Conscription", branch = "industry", cost = 500, requires = {}, text = "+25 % manpower." },
+	{ id = "ironworks", name = "Iron works", branch = "industry", cost = 600, requires = { "banking" }, text = "Buildings cost a fifth less." },
+	{ id = "enlightenment", name = "Enlightenment", branch = "philosophy", cost = 400, requires = {}, text = "+50 % research." },
+	{ id = "civilcode", name = "Civil code", branch = "philosophy", cost = 600, requires = { "enlightenment" }, text = "Unrest −1 in every province." },
+	{ id = "nationalism", name = "Nationalism", branch = "philosophy", cost = 700, requires = { "civilcode" }, text = "Every regiment +5 morale in battle." },
+} :: { Tech }
+EuropeData.TechById = {} :: { [string]: Tech }
+for _, t in EuropeData.Techs do
+	EuropeData.TechById[t.id] = t
+end
+-- What each nation knew in 1805 (gameplay: Wellington's line and rifles, Cossack lances). France's
+-- corps system is already in its quality (1.15), so the Corps tech is for the others to catch up.
+EuropeData.StartTechs = {
+	france = { "drill", "squares", "canister", "horseArtillery" },
+	britain = { "drill", "rifles", "canister", "horseArtillery" },
+	prussia = { "drill" },
+	austria = { "canister" },
+	russia = { "lancers" },
+} :: { [string]: { string } }
 
 -- Lands where a winter campaign costs men (Economy: winter attrition, Nov–Feb).
 EuropeData.HarshWinter = { stpetersburg = true, lithuania = true, smolensk = true, moscow = true, ukraine = true, eastprussia = true, warsaw = true, galicia = true, stockholm = true, tyrol = true } :: { [string]: boolean }
@@ -1095,14 +1152,23 @@ end
 -- Per-nation unit names: "%s" takes the regiment ordinal ("1er", "3rd", "4.", by nation).
 -- Other nations: "<adjective> <class name> <n>".
 EuropeData.UnitNames = {
-	france = { line = "%s de Ligne", light = "%s Légère", guard = "%s Régiment de la Garde", cavalry = "%s Chasseurs à cheval", heavy = "%s Cuirassiers", artillery = "%s Artillerie à pied" },
-	britain = { line = "%s Foot", light = "%s Rifles", guard = "%s Foot Guards", cavalry = "%s Light Dragoons", heavy = "%s Dragoon Guards", artillery = "%s Battery RA" },
-	austria = { line = "%s Linien-Infanterie", light = "%s Grenz-Regiment", guard = "%s Grenadier-Bataillon", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie" },
-	prussia = { line = "%s Musketier-Regiment", light = "%s Füsilier-Bataillon", guard = "%s Garde-Regiment", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie" },
-	russia = { line = "%s Musketeers", light = "%s Jägers", guard = "%s Leib-Guard", cavalry = "%s Cossacks", heavy = "%s Cuirassiers", artillery = "%s Artillery Brigade" },
+	france = { line = "%s de Ligne", light = "%s Légère", guard = "%s Régiment de la Garde", cavalry = "%s Chasseurs à cheval", heavy = "%s Cuirassiers", artillery = "%s Artillerie à pied", lancers = "%s Chevau-légers lanciers", horseart = "%s Artillerie à cheval", howitzer = "%s Obusiers", oldguard = "%s Grenadiers à pied de la Garde", voltigeurs = "%s Voltigeurs" },
+	britain = { line = "%s Foot", light = "%s Light Infantry", guard = "%s Foot Guards", cavalry = "%s Light Dragoons", heavy = "%s Dragoon Guards", artillery = "%s Battery RA", rifles = "%s Rifles", horseart = "%s Troop RHA", highlanders = "%s Highlanders" },
+	austria = { line = "%s Linien-Infanterie", light = "%s Leichte Infanterie", guard = "%s Grenadier-Bataillon", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie", grenzer = "%s Grenz-Regiment", jager = "%s Jäger-Bataillon", grenadiers = "%s Grenadier-Bataillon" },
+	prussia = { line = "%s Musketier-Regiment", light = "%s Füsilier-Bataillon", guard = "%s Garde-Regiment", cavalry = "%s Husaren", heavy = "%s Kürassiere", artillery = "%s Batterie", landwehr = "%s Landwehr-Regiment", jager = "%s Jäger-Bataillon", grenadiers = "%s Grenadier-Bataillon" },
+	russia = { line = "%s Musketeers", light = "%s Jägers", guard = "%s Leib-Guard", cavalry = "%s Hussars", heavy = "%s Cuirassiers", artillery = "%s Artillery Brigade", lancers = "%s Uhlans", cossacks = "%s Don Cossacks", grenadiers = "%s Grenadiers" },
 } :: { [string]: { [string]: string } }
 
 -- Generals and starting armies (January 1805) -------------------------------------------------------
+
+-- Generals a major can appoint later (rating 2), in order; a name already in service is skipped.
+EuropeData.GeneralPool = {
+	france = { "Augereau", "Mortier", "Victor", "Bessières", "Oudinot", "Suchet", "Macdonald", "Grouchy", "Junot", "Gouvion Saint-Cyr", "Lefebvre", "Poniatowski" },
+	britain = { "Moore", "Hill", "Picton", "Beresford", "Graham", "Uxbridge", "Craufurd", "Cathcart" },
+	austria = { "Schwarzenberg", "Bellegarde", "Hiller", "Kollowrat", "Liechtenstein", "Klenau", "Archduke Ferdinand" },
+	prussia = { "Gneisenau", "Yorck", "Bülow", "Kleist", "Scharnhorst", "Tauentzien", "Rüchel" },
+	russia = { "Barclay de Tolly", "Bennigsen", "Buxhöwden", "Wittgenstein", "Tormasov", "Miloradovich", "Raevsky", "Dokhturov", "Platov" },
+} :: { [string]: { string } }
 
 local function g(name: string, rating: number): { name: string, rating: number }
 	return { name = name, rating = rating }
@@ -2500,13 +2566,132 @@ MAPS.waterloo_lahayesainte = episode("waterloo", {
 	{ id = "crossroads", name = "Mont-Saint-Jean crossroads", pos = v(1200, 1060), radius = 60 },
 }, { france = { x0 = 880, z0 = 400, x1 = 1520, z1 = 640 }, britain = { x0 = 940, z0 = 880, x1 = 1500, z1 = 1260 } })
 
+-- Province battle maps ("province:<id>", docs/campaign.md "Battles"): a field drawn from the
+-- province's terrain archetype, its three real towns as villages and objectives and its river,
+-- seeded from the province id so server and client agree. Zone keys are the authored maps' own
+-- ("france" south, "prussia" north): the campaign maps any nation onto them.
+local function provinceDef(provinceId: string): MapDef?
+	local EuropeData = require(script.Parent.EuropeData) :: any
+	local p = EuropeData.province(provinceId)
+	if not p then
+		return nil
+	end
+	local seed = 7919
+	for i = 1, #provinceId do
+		seed = (seed * 31 + string.byte(provinceId, i)) % 2147483647
+	end
+	local rng = RNG.new(seed)
+	local function j(n: number): number
+		return rng:range(-n, n)
+	end
+	local towns = p.towns or {}
+	local function town(i: number, fallback: string): string
+		return towns[i] or fallback
+	end
+	local kind = p.terrain
+	local main: Vec = v(800 + j(60), 600 + j(40))
+	local west: Vec = v(400 + j(60), 560 + j(60))
+	local east: Vec = v(1200 + j(60), 640 + j(60))
+	local hills: { Hill } = {}
+	local rivers: { River } = {}
+	local bridges: { Bridge } = {}
+	local roads: { Road } = {
+		{ points = { v(800 + j(40), 0), main, v(800 + j(40), 1200) }, width = 6 },
+		{ points = { v(0, 600 + j(40)), west, main, east, v(1600, 620 + j(40)) }, width = 5 },
+	}
+	if kind == "bridge" then
+		-- a river across the field between the armies, two bridges and the towns beside them
+		local z = 600 + j(30)
+		main = v(800 + j(40), z + 110)
+		west = v(450 + j(50), z - 110)
+		east = v(1150 + j(50), z - 110)
+		rivers[1] = { name = p.river or "River", points = { v(0, z + j(20)), v(530, z + j(15)), v(1070, z + j(15)), v(1600, z + j(20)) }, width = 30, level = 1 }
+		for _, x in { 500 + j(20), 1100 + j(20) } do
+			bridges[#bridges + 1] = { a = v(x, z - 50), b = v(x, z + 50), width = 24 }
+		end
+		roads = {
+			{ points = { v(500, 0), v(500, z - 50), v(500, z + 50), main, v(800, 1200) }, width = 6 },
+			{ points = { v(1100, 0), v(1100, z - 50), v(1100, z + 50), main }, width = 5 },
+			{ points = { v(0, z - 110), west, east, v(1600, z - 110) }, width = 5 },
+		}
+		hills = { { pos = v(800, 300), rx = 600, rz = 140, h = 12, k = 0.5 }, { pos = v(800, 950), rx = 600, rz = 160, h = 16, k = 0.5 } }
+	elseif kind == "jena" then
+		-- a plateau above a valley of villages, a ridge beyond
+		hills = { { pos = v(800 + j(100), 260), rx = 520, rz = 160, h = 24, k = 0.55 }, { pos = v(800 + j(100), 960), rx = 560, rz = 150, h = 14, k = 0.6 }, { pos = v(250 + j(60), 700), rx = 160, rz = 140, h = 12, k = 0.6 } }
+	elseif kind == "auerstedt" then
+		-- a plateau cut by a stream with a bridge and a ford
+		local x = 500 + j(40)
+		hills = { { pos = v(1050 + j(60), 620), rx = 420, rz = 300, h = 16, k = 0.5 }, { pos = v(250, 600), rx = 200, rz = 400, h = 10, k = 0.6 } }
+		rivers[1] = { name = p.river or "Brook", points = { v(x + j(10), 0), v(x + j(15), 600), v(x + j(10), 1200) }, width = 12, level = 17, fords = { v(x, 260) } }
+		bridges[1] = { a = v(x - 30, 600), b = v(x + 30, 600), width = 26 }
+		west = v(x - 150, 560 + j(60))
+	elseif kind == "austerlitz" then
+		-- heights in the middle, a brook along the low ground with bridges and a ford
+		local x = 330 + j(30)
+		hills = { { pos = v(950 + j(60), 600), rx = 380, rz = 280, h = 28, k = 0.5 } }
+		rivers[1] = { name = p.river or "Brook", points = { v(x + j(10), 0), v(x + j(20), 400), v(x + j(20), 800), v(x + j(10), 1200) }, width = 16, level = 14, fords = { v(x, 900) } }
+		bridges = { { a = v(x - 32, 560), b = v(x + 32, 560), width = 26 }, { a = v(x - 32, 300), b = v(x + 32, 300), width = 26 } }
+		west = v(x - 130, 560)
+		main = v(760 + j(40), 600 + j(40))
+	elseif kind == "waterloo" then
+		-- two parallel ridges with farms between
+		hills = { { pos = v(800, 330), rx = 900, rz = 130, h = 14, k = 0.6 }, { pos = v(800, 880), rx = 900, rz = 150, h = 20, k = 0.6 } }
+	else -- "village": open ground round a large village
+		hills = { { pos = main, rx = 260, rz = 180, h = 12, k = 0.6 }, { pos = v(300 + j(80), 900), rx = 220, rz = 160, h = 10, k = 0.6 }, { pos = v(1300 + j(80), 300), rx = 220, rz = 160, h = 10, k = 0.6 } }
+	end
+	local woods = {}
+	for _ = 1, 4 do
+		local pos = v(rng:range(180, 1420), rng:range(380, 820))
+		if Vec.dist(pos, main) > 220 and Vec.dist(pos, west) > 180 and Vec.dist(pos, east) > 180 then
+			woods[#woods + 1] = { pos = pos, rx = rng:range(70, 140), rz = rng:range(60, 110) }
+		end
+	end
+	local def: any = {
+		name = p.name,
+		seed = seed % 100000,
+		baseHeight = 24,
+		hills = hills,
+		villages = {
+			{ name = town(1, p.name), pos = main, radius = 60, count = 22 },
+			{ name = town(2, "Upper " .. p.name), pos = west, radius = 42, count = 12 },
+			{ name = town(3, "Lower " .. p.name), pos = east, radius = 42, count = 12 },
+		},
+		woods = woods,
+		roads = roads,
+		rivers = rivers,
+		bridges = bridges,
+		labels = if rivers[1] then { { text = rivers[1].name, pos = v(rivers[1].points[2].x + 60, rivers[1].points[2].z + 60), size = 1.0 } } else {},
+		objectives = {
+			{ id = "main", name = town(1, p.name), pos = main, radius = 60 },
+			{ id = "west", name = town(2, "Upper " .. p.name), pos = west, radius = 60 },
+			{ id = "east", name = town(3, "Lower " .. p.name), pos = east, radius = 60 },
+		},
+		deployZones = {
+			france = { x0 = 250, z0 = 40, x1 = 1350, z1 = 300 },
+			prussia = { x0 = 250, z0 = 900, x1 = 1350, z1 = 1160 },
+		},
+		valley = nil,
+	}
+	return def :: MapDef
+end
+
+-- Province maps exist (the grand campaign fights on them: GrandCampaign/Battles.mapId).
+MapGen.provinceMaps = true
+
 function MapGen.list(): { string }
 	return { "jena", "auerstedt", "austerlitz", "waterloo", "bridge", "village" }
 end
 
 function MapGen.generate(mapId: string): MapData
-	local def = MAPS[mapId]
-	assert(def, "unknown map " .. tostring(mapId))
+	local found = MAPS[mapId]
+	if not found and string.sub(mapId, 1, 9) == "province:" then
+		found = provinceDef(string.sub(mapId, 10))
+		if found then
+			MAPS[mapId] = found
+		end
+	end
+	assert(found, "unknown map " .. tostring(mapId))
+	local def: MapDef = found
 	local cell = Config.Map.CellSize
 	local cols = (def.width or Config.Map.Width) // cell
 	local rows = (def.depth or Config.Map.Depth) // cell
@@ -3354,6 +3539,9 @@ export type UnitDef = {
 	general: string?, -- HQ only: id in src/shared/Generals.luau (else matched from the name)
 	type: string?, -- Config.UnitTypes id (else inferred from the name: Scenarios.typeOf)
 	fireByRank: boolean?, -- the drill (else: guard infantry and British foot have it)
+	quickSquare: boolean?, -- forms square a third faster (campaign tech: Squares from column)
+	canisterBonus: number?, -- canister casualties multiplier (campaign tech: Improved canister)
+	moraleBonus: number?, -- added to base morale (campaign tech: Nationalism)
 }
 
 export type Scenario = {
@@ -4448,7 +4636,8 @@ local TYPE_MARKS: { [string]: { { string | { string } } } } = {
 	},
 	cavalry = {
 		{ "heavyCav", { "cuirassier", "kürassier", "carabinier", "garde du corps", "life guard", "chevalier guard", "grenadiers à cheval", "gensd'armes", "horse guards" } },
-		{ "lightCav", { "hussar", "husar", "chasseur", "lancier", "lancer", "uhlan", "ulan", "cossack", "chevauleger", "chevau-léger", "light dragoon" } },
+		{ "lancer", { "lancier", "lancer", "uhlan", "ulan" } },
+		{ "lightCav", { "hussar", "husar", "chasseur", "cossack", "chevauleger", "chevau-léger", "light dragoon" } },
 	},
 	artillery = {
 		{ "horseArt", { "à cheval", "reitende", " rha", "horse artillery" } },
@@ -10574,7 +10763,9 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 	end
 	s.turn += 1
 	for _, a in s.armies do
-		a.movesLeft = State.maxMoves(a)
+		-- a forced march is paid for with a turn's rest
+		a.movesLeft = if a.forced then 0 else State.maxMoves(a)
+		a.forced = nil
 	end
 	-- an army still facing a pending battle cannot march away from it
 	for _, b in s.pendingBattles do
@@ -10701,6 +10892,16 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			State.log(s, string.format("%s ordered at %s.", EuropeData.UnitClasses[t].name, State.province(pid).name))
 		end
 		return ok, why
+	elseif kind == "research" then
+		local tech = str(cmd.tech)
+		if not tech then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.setResearch(s, player, tech)
+		if ok then
+			State.log(s, "Research begins: " .. EuropeData.TechById[tech].name .. ".")
+		end
+		return ok, why
 	elseif kind == "tax" then
 		local level = tonumber(cmd.level)
 		if not level then
@@ -10720,6 +10921,44 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		if ok then
 			local level = (s.provinces[pid].buildings[chain] or 0) + 1
 			State.log(s, string.format("Work begins on the %s at %s.", string.lower(EuropeData.Buildings[chain].levels[level]), State.province(pid).name))
+		end
+		return ok, why
+	elseif kind == "forcedMarch" then
+		local a = myArmy(s, cmd.armyId)
+		if not a then
+			return false, "notYourArmy"
+		end
+		if a.forced then
+			return false, "alreadyForced"
+		end
+		-- decided before the march: an army that has moved, retreated or been halted cannot force on
+		if a.movesLeft < State.maxMoves(a) then
+			return false, "alreadyMarched"
+		end
+		a.forced = true
+		a.movesLeft += 1
+		Economy.attrit(s, a, Economy.FORCED_MARCH)
+		State.log(s, a.name .. " marches hard: one province more this turn, none the next.")
+		return true, nil
+	elseif kind == "assault" then
+		local pid = str(cmd.provinceId)
+		if not pid or not EuropeData.province(pid) then
+			return false, "badArgs"
+		end
+		local _, why = Battles.assault(s, player, pid)
+		if why then
+			return false, why
+		end
+		s.phase = "battle"
+		return true, nil
+	elseif kind == "appoint" then
+		local a = myArmy(s, cmd.armyId)
+		if not a then
+			return false, "notYourArmy"
+		end
+		local ok, why = Economy.appoint(s, a)
+		if ok then
+			State.log(s, string.format("%s takes command of %s.", (a.general :: State.General).name, a.name))
 		end
 		return ok, why
 	elseif kind == "replenish" then
@@ -10889,6 +11128,16 @@ function GrandCampaign.view(s: State): { [string]: any }
 			entry.income = income
 			entry.manpowerIncome = manpower
 			entry.tax = s.nations[id].tax or 2
+			local known = {}
+			for _, t in EuropeData.Techs do
+				if ns.techs[t.id] then
+					table.insert(known, t.id)
+				end
+			end
+			entry.techs = known
+			entry.research = ns.research
+			entry.progress = ns.progress
+			entry.researchPoints = Economy.researchPoints(s, id)
 			entry.upkeep = Economy.upkeep(s, id)
 		end
 		nations[id] = entry
@@ -10924,6 +11173,10 @@ function GrandCampaign.view(s: State): { [string]: any }
 				name = a.name,
 				general = if a.general then a.general.name else nil,
 				rating = if a.general then a.general.rating else nil,
+				wins = if a.general then a.general.wins or 0 else nil,
+				losses = if a.general then a.general.losses or 0 else nil,
+				sieges = if a.general then a.general.sieges or 0 else nil,
+				traits = if a.general then State.traits(a.general) else nil,
 				provinceId = a.provinceId,
 				strength = math.floor(State.armyStrength(a)),
 				men = State.men(a),
@@ -10932,6 +11185,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 				movesLeft = if own then a.movesLeft else nil,
 				movesMax = if own then State.maxMoves(a) else nil,
 				path = if own and a.path then table.clone(a.path) else nil,
+				forced = if own then a.forced else nil,
 			}
 		end
 	end
@@ -10943,7 +11197,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			for _, t in EuropeData.UnitTypeOrder do
 				local c = EuropeData.UnitClasses[t]
 				local ok, why = Economy.canRecruit(s, player, pid, t)
-				if why ~= "majorsOnly" then
+				if why ~= "majorsOnly" and why ~= "notInRoster" then
 					list[#list + 1] = { unitType = t, name = c.name, class = c.class, cost = c.cost, manpower = c.manpower, turns = c.turns, upkeep = c.upkeep, available = ok, reason = why }
 				end
 			end
@@ -10981,6 +11235,9 @@ function GrandCampaign.view(s: State): { [string]: any }
 			table.insert(ids[side], a.id)
 			men[side] += State.men(a)
 		end
+		if b.assault then
+			men.defenders += State.men(Battles.garrison(s, b.provinceId))
+		end
 		pending = {
 			armies = { attacker = ids.attackers, defender = ids.defenders },
 			attackerMen = men.attackers,
@@ -10994,6 +11251,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			attackers = State.copy(b.attackers),
 			defenders = State.copy(b.defenders),
 			scenarioId = b.scenarioId,
+			assault = b.assault,
 			odds = Battles.odds(s, b, player),
 		}
 	end
@@ -11099,7 +11357,8 @@ return GrandCampaign
 --   follow        50 - 6 per march: a major's field armies join its main army (strongest with a general)
 --   clear         60 (+80 next to the capital), a hostile army inside our side's land we outnumber 1.3 : 1
 --   go home       15, for armies at peace standing outside their side's territory
---   (detachments without a general and under 4 units never attack enemy land)
+--   (detachments without a general and under 4 units never attack enemy land; a major appoints a
+--   general to a field army of 6+ away from its capital when its treasury holds 2000)
 --   march on the strategic target 70 - 4 per march still to go: field armies (a general or 6+
 --                 units) step to any reachable province nearer the enemy capital chosen by
 --                 AI.strategicTarget where the stack they march with (plus ours already there) is
@@ -11185,6 +11444,27 @@ function AI.strategicTarget(s: State, nation: string, near: { [string]: number }
 end
 
 local RECRUIT_CYCLE = { "line", "line", "cavalry", "line", "artillery", "light", "line", "heavy" }
+-- national stand-ins for slots of the cycle (EuropeData national units)
+local NATIONAL: { [string]: { [string]: string } } = {
+	france = { light = "voltigeurs" },
+	austria = { light = "grenzer" },
+	prussia = { light = "jager" },
+	russia = { cavalry = "cossacks" },
+}
+
+-- Research: the first subject in this order the nation can take up.
+local RESEARCH_ORDER = { "drill", "canister", "rotation", "enlightenment", "squares", "conscription", "lancers", "horseArtillery", "banking", "rifles", "civilcode", "howitzers", "ironworks", "corps", "nationalism" }
+local function chooseResearch(s: State, nation: string)
+	if s.nations[nation].research then
+		return
+	end
+	for _, t in RESEARCH_ORDER do
+		if Economy.canResearch(s, nation, t) then
+			Economy.setResearch(s, nation, t)
+			return
+		end
+	end
+end
 
 -- One construction a turn, in the richest province with none under way, economy before army.
 local BUILD_PRIORITY = { "trade", "farms", "foundry", "stables", "government", "fort", "school", "barracks" }
@@ -11368,7 +11648,7 @@ local function recruit(s: State, nation: string)
 	local income = Economy.income(s, nation)
 	for _ = 1, 4 do
 		local k = (s.counters["ai." .. nation] or 0) % #RECRUIT_CYCLE + 1
-		local t = RECRUIT_CYCLE[k]
+		local t = NATIONAL[nation] and NATIONAL[nation][RECRUIT_CYCLE[k]] or RECRUIT_CYCLE[k]
 		local c = EuropeData.UnitClasses[t]
 		if ns.treasury - c.cost < reserve or income - Economy.upkeep(s, nation) - c.upkeep < 0 then
 			return
@@ -11423,6 +11703,12 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 			end
 		end
 	end
+	-- a field army of six or more away from the capital gets a general from a full treasury
+	for _, a in State.armiesOf(s, nation) do
+		if a.general == nil and #a.units >= 6 and a.provinceId ~= EuropeData.Nations[nation].capital and ns.treasury >= 2000 then
+			Economy.appoint(s, a)
+		end
+	end
 	-- garrisons (armies without a general) hold the capital in wartime; when a hostile army is
 	-- within two marches of the capital, armies within four rally to it until it is covered 1.2 : 1
 	local capital = EuropeData.Nations[nation].capital
@@ -11467,6 +11753,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 	ns.tax = if #State.enemiesOf(s, nation) > 0 and ns.treasury < 1000 then 3 else 2
 	recruit(s, nation)
 	build(s, nation)
+	chooseResearch(s, nation)
 end
 
 return AI
@@ -11532,6 +11819,59 @@ function Battles.armies(s: State, b: Battle, side: string?): { Army }
 	return out
 end
 
+Battles.MAX_REINFORCING = 2 -- armies a side, from neighbouring provinces
+Battles.REINFORCE_FIRST = 240 -- seconds into a tactical battle the first of them arrives
+Battles.REINFORCE_STEP = 30 -- and every further unit
+
+-- The reinforcing armies still alive and still next door (`side` nil: both sides).
+function Battles.reinforcing(s: State, b: Battle, side: string?): { Army }
+	local out = {}
+	local r = b.reinforcements
+	if not r then
+		return out
+	end
+	for _, sd in { "attackers", "defenders" } do
+		if side == nil or side == sd then
+			for _, id in (r :: any)[sd] do
+				local a = State.armyById(s, id)
+				if a and a.provinceId ~= b.provinceId and table.find(State.province(b.provinceId).neighbours, a.provinceId) and sideOf(b, a.nation) == sd then
+					out[#out + 1] = a
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- Friendly armies next door, not fighting themselves, march to the sound of the guns (the strongest
+-- two a side; an army reinforces one battle a turn).
+local function findReinforcements(s: State, b: Battle, used: { [string]: boolean }): { attackers: { string }, defenders: { string } }?
+	local found = { attackers = {}, defenders = {} }
+	local any = false
+	for _, sd in { "attackers", "defenders" } do
+		local cands: { Army } = {}
+		for _, n in State.province(b.provinceId).neighbours do
+			if not EuropeData.isSeaLane(b.provinceId, n) then
+				for _, a in State.armiesIn(s, n) do
+					if sideOf(b, a.nation) == sd and not used[a.id] and not State.hostileArmyIn(s, n, a.nation) then
+						cands[#cands + 1] = a
+					end
+				end
+			end
+		end
+		table.sort(cands, function(x: Army, y: Army): boolean
+			local sx, sy = State.armyStrength(x), State.armyStrength(y)
+			return if sx ~= sy then sx > sy else x.id < y.id
+		end)
+		for i = 1, math.min(#cands, Battles.MAX_REINFORCING) do
+			table.insert((found :: any)[sd], cands[i].id)
+			used[cands[i].id] = true
+			any = true
+		end
+	end
+	return if any then found else nil
+end
+
 function Battles.pending(s: State, battleId: string): (Battle?, number)
 	for i, b in s.pendingBattles do
 		if b.battleId == battleId then
@@ -11571,10 +11911,33 @@ function Battles.matchSetPiece(s: State, provinceId: string, turn: number, attac
 	return nil
 end
 
+Battles.GARRISON = { line = 2, artillery = 1 } :: { [string]: number } -- a stormed fortress's garrison, per fort level
+
+-- The garrison that defends a fortress against an assault: not an army on the board, made up
+-- afresh from the fort level whenever it is needed (keys "g:…" are left out of the outcome).
+function Battles.garrison(s: State, provinceId: string): Army
+	local c = State.controller(s, provinceId)
+	local p = State.province(provinceId)
+	local fort = State.fortLevel(s, provinceId)
+	local g: Army = { id = "garrison:" .. provinceId, nation = c, name = "Garrison of " .. p.name, provinceId = provinceId, units = {}, movesLeft = 0 }
+	for _, t in { "line", "artillery" } do
+		local cl = EuropeData.UnitClasses[t]
+		for i = 1, Battles.GARRISON[t] * fort do
+			local name = string.format("%s %s %d", p.name, if t == "line" then "Garrison Battalion" else "Fortress Battery", i)
+			g.units[#g.units + 1] = { key = string.format("g:%s:%d", t, i), type = t, name = name, strength = cl.strength, maxStrength = cl.strength, experience = 1 }
+		end
+	end
+	return g
+end
+
 local function sideStrength(s: State, b: Battle, side: string): number
 	local t = 0
 	for _, a in Battles.armies(s, b, side) do
-		t += State.armyStrength(a)
+		-- the Corps system: an army under a general fights a tenth better
+		t += State.armyStrength(a) * (if a.general and State.hasTech(s, a.nation, "corps") then 1.1 else 1)
+	end
+	if side == "defenders" and b.assault then
+		t += State.armyStrength(Battles.garrison(s, b.provinceId))
 	end
 	if side == "defenders" and table.find(b.defenders, State.controller(s, b.provinceId)) then
 		t *= 1.15 + 0.1 * State.fortLevel(s, b.provinceId)
@@ -11593,6 +11956,7 @@ end
 -- Finds the contacts and records them as pending battles. Returns the new battles.
 function Battles.detect(s: State, autoplay: boolean?): { Battle }
 	local out = {}
+	local used: { [string]: boolean } = {}
 	for _, pid in EuropeData.ProvinceIds do
 		local here = State.armiesIn(s, pid)
 		if #here >= 2 then
@@ -11650,6 +12014,10 @@ function Battles.detect(s: State, autoplay: boolean?): { Battle }
 						scenarioId = Battles.matchSetPiece(s, pid, s.turn, attackers, defenders),
 						player = player,
 					}
+					for _, a in here do
+						used[a.id] = true
+					end
+					b.reinforcements = findReinforcements(s, b, used)
 					s.pendingBattles[#s.pendingBattles + 1] = b
 					out[#out + 1] = b
 				end
@@ -11659,12 +12027,63 @@ function Battles.detect(s: State, autoplay: boolean?): { Battle }
 	return out
 end
 
+-- A siege ends or an assault carries the walls: `by` occupies the province (or liberates it for
+-- its side) and the generals there count a fortress taken.
+local function takeProvince(s: State, provinceId: string, by: string, stormed: boolean)
+	local ps = s.provinces[provinceId]
+	local p = State.province(provinceId)
+	local c = State.controller(s, provinceId)
+	ps.siege = nil
+	if ps.owner == by or State.friendly(s, ps.owner, by) then
+		ps.occupiedBy = nil -- liberated
+	else
+		ps.occupiedBy = by
+	end
+	ps.occupiedTurns = 0
+	local fort = State.fortLevel(s, provinceId)
+	if fort > 0 then
+		for _, a in State.armiesIn(s, provinceId, by) do
+			if a.general then
+				a.general.sieges = (a.general.sieges or 0) + 1
+			end
+		end
+	end
+	Diplomacy.addScore(s, by, c, if p.isCapital then Diplomacy.SCORE.capital else Diplomacy.SCORE.province)
+	if ps.owner ~= c and ps.occupiedBy == nil then
+		State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
+	else
+		State.log(s, string.format("%s %s %s.", State.nationName(by), if stormed then "storms the fortress of" elseif fort > 0 then "takes the fortress of" else "occupies", p.name))
+	end
+end
+
+-- The army whose general commands a side's HQ on the field: the best-rated general there.
+local function hqArmyOf(s: State, b: Battle, side: string): Army?
+	local hqArmy: Army? = nil
+	for _, a in Battles.armies(s, b, side) do
+		if a.general and (hqArmy == nil or (a.general :: State.General).rating > ((hqArmy :: Army).general :: State.General).rating) then
+			hqArmy = a
+		end
+	end
+	return hqArmy
+end
+
 -- Applies survivors (by unit key) and the winner. `survivors` entries keyed "h:<side>:<n>" (set-piece
 -- units) or units the battle did not deploy are covered by their side's overall survival fraction.
 local function applyOutcome(s: State, b: Battle, index: number, winnerSide: string, survivors: { [string]: Survivor }, reason: string)
 	local loserSide = if winnerSide == "attackers" then "defenders" else "attackers"
 	local unitSide: { [string]: string } = {}
-	for _, a in Battles.armies(s, b) do
+	local fought: { Army } = Battles.armies(s, b)
+	for _, a in Battles.reinforcing(s, b) do
+		-- a reinforcing army that came onto the field shares the outcome but stays in its province
+		local cameUp = false
+		for _, u in a.units do
+			cameUp = cameUp or survivors[u.key] ~= nil
+		end
+		if cameUp then
+			fought[#fought + 1] = a
+		end
+	end
+	for _, a in fought do
 		local sd = sideOf(b, a.nation) :: string
 		for _, u in a.units do
 			unitSide[u.key] = sd
@@ -11686,9 +12105,24 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 	for _, sd in { "attackers", "defenders" } do
 		frac[sd] = if initial[sd] > 0 then math.clamp(kept[sd] / initial[sd], 0, 1) else 1
 	end
+	local pname = State.province(b.provinceId).name
+	-- a general whose HQ is destroyed on the field falls; the others' careers record the day
+	for _, sd in { "attackers", "defenders" } do
+		local sv = survivors["hq:" .. sd]
+		local hq = if sv and sv.destroyed then hqArmyOf(s, b, sd) else nil
+		if hq and hq.general then
+			State.log(s, string.format("%s fell at %s at the head of %s.", hq.general.name, pname, hq.name))
+			hq.general = nil
+		end
+	end
+	for _, a in fought do
+		if a.general then
+			State.recordBattle(a.general, sideOf(b, a.nation) == winnerSide)
+		end
+	end
 	local destroyedArmy = false
 	local honour = Battles.honourName(b)
-	for _, a in Battles.armies(s, b) do
+	for _, a in fought do
 		local sd = sideOf(b, a.nation) :: string
 		local honoured = 0
 		for i = #a.units, 1, -1 do
@@ -11718,8 +12152,7 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 			State.log(s, string.format("%s: %d unit%s carry the battle honour \"%s\".", a.name, honoured, if honoured == 1 then "" else "s", honour))
 		end
 	end
-	local pname = State.province(b.provinceId).name
-	for _, a in Battles.armies(s, b) do
+	for _, a in fought do
 		if #a.units == 0 then
 			destroyedArmy = destroyedArmy or sideOf(b, a.nation) == loserSide
 			State.removeArmy(s, a.id)
@@ -11732,6 +12165,9 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 		for _, l in losers do
 			Diplomacy.addScore(s, w, l, Diplomacy.SCORE.battle + (if destroyedArmy then Diplomacy.SCORE.destroyed else 0))
 		end
+	end
+	if b.assault and winnerSide == "attackers" then
+		takeProvince(s, b.provinceId, b.attacker, true)
 	end
 	for _, a in Battles.armies(s, b, loserSide) do
 		local dest = Movement.retreatTarget(s, a)
@@ -11820,6 +12256,13 @@ function Battles.retreat(s: State, battleId: string, nation: string): (boolean, 
 	if not side then
 		return false, "notInBattle"
 	end
+	if b.assault then
+		-- the storming parties stand down; the siege goes on
+		table.remove(s.pendingBattles, index)
+		s.appliedBattles[#s.appliedBattles + 1] = { battleId = battleId, winner = b.defender, turn = b.turn }
+		State.log(s, string.format("%s calls off the assault on %s.", State.nationName(nation), State.province(b.provinceId).name))
+		return true, nil
+	end
 	local mine = State.armiesIn(s, b.provinceId, nation)
 	local dests = {}
 	for i, a in mine do
@@ -11853,6 +12296,41 @@ function Battles.retreat(s: State, battleId: string, nation: string): (boolean, 
 end
 
 -- Sieges and occupation for provinces without a battle pending.
+-- Storm a fortress `nation` besieges instead of waiting the siege out: a pending battle against
+-- its garrison, fought by the besiegers that can still march this turn (none march after it).
+function Battles.assault(s: State, nation: string, provinceId: string): (Battle?, string?)
+	local ps = s.provinces[provinceId]
+	if not ps or not ps.siege or ps.siege.by ~= nation then
+		return nil, "notBesieging"
+	end
+	local mine = State.armiesIn(s, provinceId, nation)
+	local ready = false
+	for _, a in mine do
+		ready = ready or a.movesLeft > 0
+	end
+	if not ready then
+		return nil, "noArmyReady"
+	end
+	for _, a in mine do
+		a.movesLeft = 0
+	end
+	local c = State.controller(s, provinceId)
+	local b: Battle = {
+		battleId = string.format("%s-t%d-%s-assault", s.campaignId, s.turn, provinceId),
+		provinceId = provinceId,
+		turn = s.turn,
+		attacker = nation,
+		defender = c,
+		attackers = { nation },
+		defenders = { c },
+		player = nation == s.playerNation,
+		assault = true,
+	}
+	s.pendingBattles[#s.pendingBattles + 1] = b
+	State.log(s, string.format("%s storms the walls of %s.", State.nationName(nation), State.province(provinceId).name))
+	return b, nil
+end
+
 function Battles.sieges(s: State)
 	local contested: { [string]: boolean } = {}
 	for _, b in s.pendingBattles do
@@ -11883,25 +12361,16 @@ function Battles.sieges(s: State)
 		end
 		local by = besieger :: string
 		if not ps.siege or ps.siege.by ~= by then
-			ps.siege = { by = by, turnsLeft = State.fortLevel(s, p.id) + 1 }
+			local master = false
+			for _, a in here do
+				master = master or (a.nation == by and a.general ~= nil and table.find(State.traits(a.general), "Siege-master") ~= nil)
+			end
+			ps.siege = { by = by, turnsLeft = math.max(1, State.fortLevel(s, p.id) + (if master then 0 else 1)) }
 		end
 		local siege = ps.siege :: State.Siege
 		siege.turnsLeft -= 1
 		if siege.turnsLeft <= 0 then
-			ps.siege = nil
-			local wasOwner = ps.owner
-			if ps.owner == by or State.friendly(s, ps.owner, by) then
-				ps.occupiedBy = nil -- liberated
-			else
-				ps.occupiedBy = by
-			end
-			ps.occupiedTurns = 0
-			Diplomacy.addScore(s, by, c, if p.isCapital then Diplomacy.SCORE.capital else Diplomacy.SCORE.province)
-			if wasOwner ~= c and ps.occupiedBy == nil then
-				State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
-			else
-				State.log(s, string.format("%s %s %s.", State.nationName(by), if State.fortLevel(s, p.id) > 0 then "takes the fortress of" else "occupies", p.name))
-			end
+			takeProvince(s, pid, by, false)
 		end
 	end
 end
@@ -12116,13 +12585,13 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 		local heading = math.atan2(dz, dx)
 		local px, pz = -dz, dx
 		local all: { Placed } = {}
-		local hqArmy: Army? = nil
-		for _, a in Battles.armies(s, battle, side) do
+		local present = Battles.armies(s, battle, side)
+		if battle.assault and side == "defenders" then
+			present[#present + 1] = Battles.garrison(s, battle.provinceId)
+		end
+		for _, a in present do
 			for _, u in a.units do
 				all[#all + 1] = { u = u, a = a }
-			end
-			if a.general and (hqArmy == nil or (hqArmy :: Army).general == nil or (a.general :: State.General).rating > ((hqArmy :: Army).general :: State.General).rating) then
-				hqArmy = a
 			end
 		end
 		table.sort(all, function(x: Placed, y: Placed): boolean
@@ -12149,6 +12618,11 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 				name = pair.u.name,
 				class = c.class,
 				type = c.sim,
+				-- the nation's battle techs
+				fireByRank = if c.class == "infantry" then State.hasTech(s, pair.a.nation, "drill") and (c.sim == "line" or c.sim == "guard") else nil,
+				quickSquare = c.class == "infantry" and State.hasTech(s, pair.a.nation, "squares") or nil,
+				canisterBonus = if c.class == "artillery" and State.hasTech(s, pair.a.nation, "canister") then 1.25 else nil,
+				moraleBonus = if State.hasTech(s, pair.a.nation, "nationalism") then 5 else nil,
 				corps = pair.a.name,
 				strength = pair.u.strength,
 				experience = pair.u.experience,
@@ -12159,8 +12633,40 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 				key = pair.u.key,
 			}
 		end
+		-- reinforcements march in from the side's own edge, a unit at a time
+		local arriving: { Placed } = {}
+		for _, a in Battles.reinforcing(s, battle, side) do
+			for _, u in a.units do
+				arriving[#arriving + 1] = { u = u, a = a }
+			end
+		end
+		for i, pair in arriving do
+			if i > Battles.MAX_UNITS_PER_SIDE then
+				break
+			end
+			local c = EuropeData.UnitClasses[pair.u.type]
+			local rx, rz = clampTo(zone, cx + px * ((i % 5) - 2) * 60 - dx * 80, cz + pz * ((i % 5) - 2) * 60 - dz * 80)
+			units[#units + 1] = {
+				name = pair.u.name,
+				class = c.class,
+				type = c.sim,
+				fireByRank = if c.class == "infantry" then State.hasTech(s, pair.a.nation, "drill") and (c.sim == "line" or c.sim == "guard") else nil,
+				quickSquare = c.class == "infantry" and State.hasTech(s, pair.a.nation, "squares") or nil,
+				canisterBonus = if c.class == "artillery" and State.hasTech(s, pair.a.nation, "canister") then 1.25 else nil,
+				moraleBonus = if State.hasTech(s, pair.a.nation, "nationalism") then 5 else nil,
+				corps = pair.a.name .. " (marching up)",
+				strength = pair.u.strength,
+				experience = pair.u.experience,
+				pos = { x = rx, z = rz },
+				heading = heading,
+				faction = key,
+				colour = EuropeData.Nations[pair.a.nation].colour,
+				key = pair.u.key,
+				arrival = { seconds = Battles.REINFORCE_FIRST + (i - 1) * Battles.REINFORCE_STEP, pos = { x = rx, z = rz } },
+			}
+		end
 		local leadNation = if side == "attackers" then battle.attacker else battle.defender
-		local hq = hqArmy
+		local hq = hqArmyOf(s, battle, side)
 		local x, z = clampTo(zone, cx - dx * (rows * 35 + 60), cz - dz * (rows * 35 + 60))
 		units[#units + 1] = {
 			name = if hq and hq.general then hq.general.name .. " — HQ" else State.nationName(leadNation) .. " — HQ",
@@ -12180,9 +12686,13 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 	local enemySide = if ps == "attackers" then "defenders" else "attackers"
 	return {
 		id = battle.battleId,
-		name = "Battle of " .. p.name,
+		name = (if battle.assault then "Storming of " else "Battle of ") .. p.name,
 		map = mapId,
-		briefing = string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
+		briefing = if battle.assault
+			then string.format("%s. %s storms the fortress of %s. Its garrison holds the villages: take them or break it.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), p.name)
+			else string.format("%s. %s attacks %s in %s. Break the enemy army or drive it from the field.", EuropeData.dateOf(s.turn), sideName(s, battle.attackers), sideName(s, battle.defenders), p.name),
+		-- an assault has roles: the garrison holds (the battle AI defends and occupies buildings)
+		attacker = if battle.assault then zk.attackers else nil,
 		factions = { player = zk[ps], enemy = zk[enemySide] },
 		factionNames = names,
 		units = units,
@@ -12607,15 +13117,86 @@ Economy.TAX = {
 Economy.UNREST_PENALTY = 0.75 -- income of a province at unrest 3 or more
 Economy.REVOLT_TURNS = 2 -- turns at unrest 5 before the province rises
 Economy.REVOLT_ATTRITION = 0.05 -- the owner's troops in a revolted province, a turn
+Economy.FORCED_MARCH = 0.03 -- the men a forced march costs
 Economy.REFILL = 0.1 -- share of a unit's full strength regained a turn at rest in friendly land
 Economy.WINTER_ATTRITION = { allied = 0.02, hostile = 0.04 } -- harsh lands, Nov–Feb (own land: none)
-Economy.FARMS_INCOME = 0.05 -- per level of the farms chain
-Economy.TRADE_INCOME = 0.1 -- per level of the trade chain
+Economy.FARMS_INCOME = 0.05 -- per level of the farms chain (doubled by Crop rotation)
+Economy.TRADE_INCOME = 0.1 -- per level of the trade chain (0.15 with Banking)
+Economy.RESEARCH = { major = 20, minor = 10, school = 15, enlightenment = 1.5 }
 
 -- A province's income with its farms and trade.
 function Economy.provinceIncome(s: State, provinceId: string): number
-	local b = s.provinces[provinceId].buildings
-	return State.province(provinceId).income * (1 + Economy.FARMS_INCOME * (b.farms or 0) + Economy.TRADE_INCOME * (b.trade or 0))
+	local ps = s.provinces[provinceId]
+	local b = ps.buildings
+	local farms = Economy.FARMS_INCOME * (if State.hasTech(s, ps.owner, "rotation") then 2 else 1)
+	local trade = Economy.TRADE_INCOME + (if State.hasTech(s, ps.owner, "banking") then 0.05 else 0)
+	return State.province(provinceId).income * (1 + farms * (b.farms or 0) + trade * (b.trade or 0))
+end
+
+-- The cost of a building's next level for this nation (Iron works: a fifth off).
+function Economy.buildCost(s: State, nation: string, chain: string, level: number): number
+	local cost = EuropeData.Buildings[chain].cost[level]
+	return if State.hasTech(s, nation, "ironworks") then math.floor(cost * 0.8) else cost
+end
+
+-- Research points a turn: the nation's own, its schools, Enlightenment.
+function Economy.researchPoints(s: State, nation: string): number
+	local pts = if EuropeData.Nations[nation].major then Economy.RESEARCH.major else Economy.RESEARCH.minor
+	for _, id in State.provincesOwned(s, nation) do
+		local ps = s.provinces[id]
+		if ps.occupiedBy == nil then
+			pts += Economy.RESEARCH.school * (ps.buildings.school or 0)
+		end
+	end
+	if State.hasTech(s, nation, "enlightenment") then
+		pts *= Economy.RESEARCH.enlightenment
+	end
+	return math.floor(pts)
+end
+
+-- Can `nation` research `tech` now? Returns ok, reason.
+function Economy.canResearch(s: State, nation: string, tech: string): (boolean, string?)
+	local t = EuropeData.TechById[tech]
+	if not t then
+		return false, "badArgs"
+	end
+	if State.hasTech(s, nation, tech) then
+		return false, "known"
+	end
+	for _, r in t.requires do
+		if not State.hasTech(s, nation, r) then
+			return false, "needsTech:" .. r
+		end
+	end
+	return true, nil
+end
+
+function Economy.setResearch(s: State, nation: string, tech: string): (boolean, string?)
+	local ok, why = Economy.canResearch(s, nation, tech)
+	if not ok then
+		return false, why
+	end
+	local ns = s.nations[nation]
+	if ns.research ~= tech then
+		ns.research, ns.progress = tech, 0 -- switching subjects loses the work done
+	end
+	return true, nil
+end
+
+local function research(s: State, nation: string)
+	local ns = s.nations[nation]
+	local tech = ns.research and EuropeData.TechById[ns.research]
+	if not tech then
+		return
+	end
+	ns.progress = (ns.progress or 0) + Economy.researchPoints(s, nation)
+	if (ns.progress :: number) >= tech.cost then
+		ns.techs[tech.id] = true
+		ns.research, ns.progress = nil, nil
+		if nation == s.playerNation then
+			State.log(s, tech.name .. " is understood: " .. tech.text)
+		end
+	end
 end
 
 function Economy.income(s: State, nation: string): (number, number)
@@ -12630,6 +13211,9 @@ function Economy.income(s: State, nation: string): (number, number)
 		elseif ps.occupiedBy == nation then
 			income += Economy.provinceIncome(s, p.id) * Economy.OCCUPIER_SHARE
 		end
+	end
+	if State.hasTech(s, nation, "conscription") then
+		manpower *= 1.25
 	end
 	if s.flags.continentalSystem then
 		if nation == "britain" then
@@ -12708,6 +13292,12 @@ function Economy.canRecruit(s: State, nation: string, provinceId: string, unitTy
 	if c.needs == "capital" and EuropeData.Nations[nation].capital ~= provinceId then
 		return false, "needsCapital"
 	end
+	if not EuropeData.inRoster(unitType, nation) then
+		return false, "notInRoster"
+	end
+	if c.tech and not State.hasTech(s, nation, c.tech) then
+		return false, "needsTech:" .. c.tech
+	end
 	if (ps.buildings[c.building.chain] or 0) < c.building.level then
 		return false, "needs:" .. c.building.chain .. ":" .. c.building.level
 	end
@@ -12772,6 +13362,26 @@ local function deliver(s: State, q: State.Recruit)
 end
 
 -- Restores strength up to maxStrength in an owned or allied province: treasury and one manpower per man.
+-- A new general (rating 2) from the nation's pool for an army that has none.
+function Economy.appoint(s: State, a: Army): (boolean, string?)
+	if a.general then
+		return false, "hasGeneral"
+	end
+	local ns = s.nations[a.nation]
+	if ns.treasury < State.APPOINT_COST then
+		return false, "insufficientFunds"
+	end
+	for _, name in EuropeData.GeneralPool[a.nation] or {} do
+		if not State.generalInService(s, name) then
+			ns.treasury -= State.APPOINT_COST
+			local g: State.General = { name = name, rating = 2 }
+			a.general = g
+			return true, nil
+		end
+	end
+	return false, "noGenerals"
+end
+
 function Economy.replenish(s: State, a: Army): number
 	local controller = State.controller(s, a.provinceId)
 	if not State.friendly(s, a.nation, controller) then
@@ -12816,7 +13426,7 @@ function Economy.canBuild(s: State, nation: string, provinceId: string, chain: s
 	if ps.siege ~= nil or State.hostileArmyIn(s, provinceId, nation) then
 		return false, "underSiege", nextLevel
 	end
-	if s.nations[nation].treasury < def.cost[nextLevel] then
+	if s.nations[nation].treasury < Economy.buildCost(s, nation, chain, nextLevel) then
 		return false, "insufficientFunds", nextLevel
 	end
 	return true, nil, nextLevel
@@ -12828,7 +13438,7 @@ function Economy.build(s: State, nation: string, provinceId: string, chain: stri
 		return false, why
 	end
 	local def = EuropeData.Buildings[chain]
-	s.nations[nation].treasury -= def.cost[nextLevel]
+	s.nations[nation].treasury -= Economy.buildCost(s, nation, chain, nextLevel)
 	s.provinces[provinceId].construction = { chain = chain, turnsLeft = def.turns[nextLevel] }
 	return true, nil
 end
@@ -12872,7 +13482,8 @@ function Economy.unrest(s: State, provinceId: string): number
 		men += State.men(a)
 	end
 	local garrison = math.min(2, math.floor(men / 1000))
-	return math.clamp(tax.unrest + foreign - (ps.buildings.government or 0) - garrison, 0, 5)
+	local code = if State.hasTech(s, ps.owner, "civilcode") then 1 else 0
+	return math.clamp(tax.unrest + foreign - (ps.buildings.government or 0) - garrison - code, 0, 5)
 end
 
 -- Public order in the nation's own provinces: two turns at unrest 5 and the province rises (no
@@ -12991,6 +13602,7 @@ function Economy.run(s: State, nation: string)
 	publicOrder(s, nation)
 	refill(s, nation)
 	winter(s, nation)
+	research(s, nation)
 	for i = #s.recruitment, 1, -1 do
 		local q = s.recruitment[i]
 		if q.nation == nation then
@@ -13506,7 +14118,18 @@ local function validArmy(a: any): boolean
 	if type(a) ~= "table" or not isStr(a.id) or not nationOk(a.nation) or not isStr(a.name) or not provinceOk(a.provinceId) or not isNum(a.movesLeft) or type(a.units) ~= "table" or #a.units > State.MAX_UNITS then
 		return false
 	end
-	if a.general ~= nil and (type(a.general) ~= "table" or not isStr(a.general.name) or not isNum(a.general.rating)) then
+	if a.general ~= nil then
+		local g = a.general
+		if type(g) ~= "table" or not isStr(g.name) or not isNum(g.rating) then
+			return false
+		end
+		for _, k in { "wins", "losses", "sieges" } do
+			if g[k] ~= nil and not isNum(g[k]) then
+				return false
+			end
+		end
+	end
+	if a.forced ~= nil and type(a.forced) ~= "boolean" then
 		return false
 	end
 	if a.path ~= nil then
@@ -13546,8 +14169,21 @@ local function validBattle(b: any): boolean
 	if type(b) ~= "table" or not isStr(b.battleId) or not provinceOk(b.provinceId) or not isNum(b.turn) or not nationOk(b.attacker) or not nationOk(b.defender) or type(b.player) ~= "boolean" then
 		return false
 	end
-	if type(b.attackers) ~= "table" or type(b.defenders) ~= "table" or (b.scenarioId ~= nil and not isStr(b.scenarioId)) then
+	if type(b.attackers) ~= "table" or type(b.defenders) ~= "table" or (b.scenarioId ~= nil and not isStr(b.scenarioId)) or (b.assault ~= nil and type(b.assault) ~= "boolean") then
 		return false
+	end
+	local r = b.reinforcements
+	if r ~= nil then
+		if type(r) ~= "table" or type(r.attackers) ~= "table" or type(r.defenders) ~= "table" then
+			return false
+		end
+		for _, side in { r.attackers, r.defenders } do
+			for _, id in side do
+				if not isStr(id) then
+					return false
+				end
+			end
+		end
 	end
 	for _, n in b.attackers do
 		if not nationOk(n) then
@@ -13610,6 +14246,24 @@ function Serialize.deserialize(p: any): State?
 			return nil
 		end
 		if ns.tax ~= nil and (not isNum(ns.tax) or ns.tax < 1 or ns.tax > 4 or ns.tax ~= math.floor(ns.tax)) then
+			return nil
+		end
+		if ns.techs == nil then
+			-- a save from before technology: what the nation knew in 1805
+			ns.techs = {}
+			for _, t in EuropeData.StartTechs[id] or {} do
+				ns.techs[t] = true
+			end
+		elseif type(ns.techs) ~= "table" then
+			return nil
+		else
+			for t, v in ns.techs do
+				if EuropeData.TechById[t] == nil or v ~= true then
+					return nil
+				end
+			end
+		end
+		if (ns.research ~= nil and EuropeData.TechById[ns.research] == nil) or (ns.progress ~= nil and not isNum(ns.progress)) then
 			return nil
 		end
 	end
@@ -13707,21 +14361,25 @@ local RNG = require(Shared.RNG)
 local EuropeData = require(Shared.EuropeData)
 
 export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number, honours: { string }? }
-export type General = { name: string, rating: number }
+-- wins, losses, sieges: the career so far (State.recordBattle); traits follow from it (State.traits)
+export type General = { name: string, rating: number, wins: number?, losses: number?, sieges: number? }
 -- path: the rest of a player's march order beyond this turn's reach; it marches on each new turn
-export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }? }
+-- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
+export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
 export type Siege = { by: string, turnsLeft: number }
 export type Construction = { chain: string, turnsLeft: number }
 -- buildings: chain -> level (EuropeData.Buildings); construction: the one under way; unrestTurns:
 -- turns in a row at the top of the unrest scale; revolt: in open revolt (Economy)
 export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number, buildings: { [string]: number }, construction: Construction?, unrestTurns: number?, revolt: boolean? }
--- tax: 1 low, 2 normal, 3 high, 4 very high (Economy.TAX)
-export type NationState = { treasury: number, manpower: number, tax: number? }
+-- tax: 1 low, 2 normal, 3 high, 4 very high (Economy.TAX); techs known; research under way
+export type NationState = { treasury: number, manpower: number, tax: number?, techs: { [string]: boolean }, research: string?, progress: number? }
 export type War = { a: string, b: string, score: number, since: number } -- score > 0 favours a
 export type Peace = { winner: string, dictated: boolean, turn: number } -- winner "" = white peace
 export type Recruit = { nation: string, provinceId: string, unitType: string, turnsLeft: number }
 export type Offer = { id: string, from: string, to: string, kind: string, terms: { [string]: any }, turn: number }
-export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean }
+-- reinforcements: army ids per side in neighbouring provinces that march to the battle
+-- assault: the besiegers storm the fortress; its garrison (Battles.garrison) defends
+export type Battle = { battleId: string, provinceId: string, turn: number, attacker: string, defender: string, attackers: { string }, defenders: { string }, scenarioId: string?, player: boolean, reinforcements: { attackers: { string }, defenders: { string } }?, assault: boolean? }
 export type Applied = { battleId: string, winner: string, turn: number }
 export type InboxChoice = { id: string, label: string }
 export type Inbox = { id: string, title: string, text: string, turn: number, choices: { InboxChoice }? }
@@ -13763,6 +14421,7 @@ local State = {}
 State.LOG_MAX = 80
 State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
+State.APPOINT_COST = 500 -- a new general for an army that has none
 State.MAX_ARMIES = 16 -- per nation
 State.MAX_QUEUE = { major = 6, minor = 2 }
 State.MAX_HONOURS = 5 -- battle honours per unit; the oldest gives way
@@ -13801,6 +14460,10 @@ end
 -- Fortress level 0..3: what its fortifications have reached (sieges, auto-resolve).
 function State.fortLevel(s: State, provinceId: string): number
 	return s.provinces[provinceId].buildings.fort or 0
+end
+
+function State.hasTech(s: State, nation: string, tech: string): boolean
+	return s.nations[nation].techs[tech] == true
 end
 
 function State.province(id: string): EuropeData.Province
@@ -13967,12 +14630,53 @@ function State.unitPower(u: Unit): number
 	return u.strength * (if c then c.power else 1) * (1 + 0.1 * u.experience)
 end
 
+-- Every third win raises a general's rating (max 5), every third loss lowers it (min 1).
+function State.recordBattle(g: General, won: boolean)
+	if won then
+		g.wins = (g.wins or 0) + 1
+		if (g.wins :: number) % 3 == 0 then
+			g.rating = math.min(5, g.rating + 1)
+		end
+	else
+		g.losses = (g.losses or 0) + 1
+		if (g.losses :: number) % 3 == 0 then
+			g.rating = math.max(1, g.rating - 1)
+		end
+	end
+end
+
+-- Victor: 3+ wins, more than losses. Unlucky: the reverse. Siege-master: 2+ fortresses taken.
+function State.traits(g: General): { string }
+	local w, l, out = g.wins or 0, g.losses or 0, {}
+	if w >= 3 and w > l then
+		out[#out + 1] = "Victor"
+	elseif l >= 3 and l > w then
+		out[#out + 1] = "Unlucky"
+	end
+	if (g.sieges or 0) >= 2 then
+		out[#out + 1] = "Siege-master"
+	end
+	return out
+end
+
+-- +5 % a rating star; Victor another +5 %, Unlucky -5 %.
+function State.generalFactor(g: General?): number
+	if not g then
+		return 1
+	end
+	local f = 1 + 0.05 * g.rating
+	for _, trait in State.traits(g) do
+		f += if trait == "Victor" then 0.05 elseif trait == "Unlucky" then -0.05 else 0
+	end
+	return f
+end
+
 function State.armyStrength(a: Army): number
 	local s = 0
 	for _, u in a.units do
 		s += State.unitPower(u)
 	end
-	return s * (1 + 0.05 * (if a.general then a.general.rating else 0)) * EuropeData.Nations[a.nation].quality
+	return s * State.generalFactor(a.general) * EuropeData.Nations[a.nation].quality
 end
 
 function State.men(a: Army): number
@@ -14024,7 +14728,7 @@ function State.newUnit(s: State, nation: string, unitType: string, experience: n
 	return { key = State.newId(s, "u"), type = unitType, name = name, strength = c.strength, maxStrength = c.strength, experience = experience or c.experience }
 end
 
-function State.newArmy(s: State, nation: string, name: string, provinceId: string, general: General?): Army
+function State.newArmy(s: State, nation: string, name: string, provinceId: string, general: { name: string, rating: number }?): Army
 	local a: Army = { id = State.newId(s, "a"), nation = nation, name = name, general = if general then { name = general.name, rating = general.rating } else nil, provinceId = provinceId, units = {}, movesLeft = 0 }
 	a.movesLeft = State.maxMoves(a)
 	s.armies[#s.armies + 1] = a
@@ -14094,7 +14798,11 @@ function State.new(seed: number, playerNation: string?): State
 	end
 	for _, id in EuropeData.NationOrder do
 		local n = EuropeData.Nations[id]
-		s.nations[id] = { treasury = n.treasury, manpower = n.manpower }
+		local techs: { [string]: boolean } = {}
+		for _, t in EuropeData.StartTechs[id] or {} do
+			techs[t] = true
+		end
+		s.nations[id] = { treasury = n.treasury, manpower = n.manpower, techs = techs }
 	end
 	for _, r: any in EuropeData.StartRelations do
 		s.relations[State.pair(r[1], r[2])] = r[3]
@@ -17018,6 +17726,9 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	local cover = math.min(0.9, Grid.terrainAt(sim.grid, target.pos.x, target.pos.z).cover + target.mods.cover)
 	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).cannon
 	local expected = guns * ammo.hit * weatherF * rangeF * (1 - cover * 0.5) * ammo.casualtiesPerHit * shapeF * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience) * f.mods.accuracy
+	if mode == "canister" then
+		expected *= f.canisterBonus
+	end
 	local casualties = rollCasualties(sim, expected)
 	f.reload = ammo.reload
 	f.ammo -= 1
@@ -17462,6 +18173,8 @@ export type Formation = {
 	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
 	garrison: string?, -- the strongpoint it holds (Sim/Garrison)
 	kills: number, -- enemy casualties it has inflicted this battle (experience, results)
+	quickSquare: boolean, -- forms square a third faster
+	canisterBonus: number, -- canister casualties multiplier
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -17577,7 +18290,7 @@ end
 function Formation.fromDef(id: number, def: UnitDef): Formation
 	local unitType = Scenarios.typeOf(def)
 	local unit = Config.TypeStats[unitType]
-	local baseMorale = unit.baseMorale + Config.Combat.ExperienceMorale * def.experience
+	local baseMorale = unit.baseMorale + Config.Combat.ExperienceMorale * def.experience + (def.moraleBonus or 0)
 	local f: Formation = {
 		id = id,
 		faction = def.faction,
@@ -17587,6 +18300,8 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		type = unitType,
 		fireByRank = Scenarios.firesByRank(def),
 		kills = 0,
+		quickSquare = def.quickSquare == true,
+		canisterBonus = def.canisterBonus or 1,
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,
@@ -17699,6 +18414,9 @@ function Formation.beginShape(f: Formation, shape: Types.Shape, forced: boolean?
 		t = Config.SquareFromColumnTime
 	end
 	t *= Formation.unitConfig(f).reformScale or 1
+	if shape == "square" and f.quickSquare then
+		t *= 0.67
+	end
 	if forced and f.shape ~= "travel" then
 		f.prevShape = f.shape
 	end
@@ -22168,6 +22886,7 @@ local gui: ScreenGui? = nil
 local cb: Callbacks? = nil
 local diplomacyOpen = false
 local objectivesOpen = false
+local researchOpen = false
 local pickerReason: string? = nil -- nation choice open (with the reason it opened)
 local summary: { lines: { string }, title: string }? = nil
 local dismissed: { [any]: boolean } = {}
@@ -22323,7 +23042,7 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	end
 	-- right-hand group
 	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.new(0, 600, 1, 0)
+	right.Size = UDim2.new(0, 730, 1, 0)
 	right.Position = UDim2.fromScale(1, 0)
 	right.AnchorPoint = Vector2.new(1, 0)
 	right.BackgroundTransparency = 1
@@ -22341,6 +23060,11 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		rerender()
 	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "What wins the campaign" })
 	Kit.setActiveLook(obj, objectivesOpen)
+	local res = Kit.button(right, "Research", function()
+		researchOpen = not researchOpen
+		rerender()
+	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "Technology: what your schools are studying" })
+	Kit.setActiveLook(res, researchOpen)
 	Kit.button(right, "Main Menu", function()
 		if cb then
 			cb.menu()
@@ -22351,7 +23075,7 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	end, { size = UDim2.fromOffset(150, 38), primary = true, order = 3, textSize = 16, tooltip = "End the turn (E)" })
 	Kit.setEnabled(endTurn, ctx.canAct, ctx.actReason)
 	-- narrow screens: shrink the whole bar rather than let the buttons cover the figures
-	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 534 + 24
+	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 662 + 24
 	local cam = workspace.CurrentCamera
 	local avail = (if cam then cam.ViewportSize.X else 1280) / Kit.scale() - 24
 	if avail < natural then
@@ -22386,7 +23110,13 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	t.TextTruncate = Enum.TextTruncate.AtEnd
 	local prov = Data.byId[a.provinceId]
 	local stars = if a.rating then "  " .. string.rep("★", math.clamp(math.floor(tonumber(a.rating) or 0), 0, 5)) else ""
-	text(p, string.format("%s%s · %s", if a.general then "General " .. tostring(a.general) else "No general", stars, tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
+	-- the general's career: battles won and lost, fortresses taken, traits
+	local career = ""
+	if a.general and a.wins then
+		local traits = if type(a.traits) == "table" and #a.traits > 0 then " · " .. table.concat(a.traits, ", ") else ""
+		career = string.format("\n%s won, %s lost, %s fortresses taken%s", tostring(a.wins), tostring(a.losses or 0), tostring(a.sieges or 0), traits)
+	end
+	text(p, string.format("%s%s · %s%s", if a.general then "General " .. tostring(a.general) else "No general", stars, tostring(if prov then prov.name else a.provinceId), career), 2, { colour = Kit.MUTED })
 	local moves = if a.movesLeft ~= nil then string.format(" · %d/%d moves", a.movesLeft, a.movesMax or a.movesLeft) else ""
 	text(p, string.format("%s men · %s · strength %s%s", fmt(a.men or a.strength), plural(tonumber(a.unitCount) or 0, "unit"), fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
 	local units: any = a.units
@@ -22471,8 +23201,20 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 		send("replenish", { armyId = a.id })
 	end, { size = UDim2.new(1 / 3, -4, 1, 0), tooltip = "Draw replacements from treasury and manpower" })
 	Kit.setEnabled(rep, ctx.canAct and losses and home == true, if not ctx.canAct then ctx.actReason elseif not losses then "At full strength" else "Replacements only reach armies in your own or allied provinces")
+	local fr = buttonRow(p, 101)
+	local fm = Kit.button(fr, if a.forced then "Marching hard" else "Forced march", function()
+		send("forcedMarch", { armyId = a.id })
+	end, { size = UDim2.new(if a.general then 1 else 0.5, -4, 1, 0), tooltip = "One province more this turn for 3% of the men; the army rests next turn" })
+	if not a.general then
+		local ap = Kit.button(fr, "Appoint general", function()
+			send("appoint", { armyId = a.id })
+		end, { size = UDim2.new(0.5, -4, 1, 0), tooltip = "A new general takes command: 500 gold" })
+		Kit.setEnabled(ap, ctx.canAct, ctx.actReason)
+	end
+	local fresh = a.movesLeft == nil or a.movesMax == nil or a.movesLeft >= a.movesMax
+	Kit.setEnabled(fm, ctx.canAct and not a.forced and fresh, if not ctx.canAct then ctx.actReason elseif a.forced then "Already marching hard" else "Only before the army marches this turn")
 	if ctx.canAct then
-		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 101, { colour = Kit.MUTED, textSize = 12 })
+		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 102, { colour = Kit.MUTED, textSize = 12 })
 	end
 end
 
@@ -22515,6 +23257,12 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	local siege = ps.siege
 	if type(siege) == "table" then
 		text(panelF, string.format("Besieged by %s: falls in %s unless relieved.", Data.name(siege.by), plural(tonumber(siege.turnsLeft) or 0, "turn")), 6, { colour = Kit.HOSTILE })
+		if siege.by == ctx.player then
+			local ab = Kit.button(buttonRow(panelF, 7), "Assault", function()
+				send("assault", { provinceId = id })
+			end, { size = UDim2.new(1, 0, 1, 0), tooltip = "Storm the walls now instead of waiting: a battle against the garrison" })
+			Kit.setEnabled(ab, ctx.canAct, ctx.actReason)
+		end
 	end
 	if owner ~= ctx.player then
 		return
@@ -22580,6 +23328,51 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		local why: string? = if not ctx.canAct then ctx.actReason elseif o.available == false then Logic.reason(o.reason) else nil
 		Kit.setEnabled(b, why == nil, why)
+	end
+end
+
+-- ------------------------------------------------------------------ right: research
+
+local BRANCH_NAMES = { military = "Military", industry = "Industry", philosophy = "Philosophy" }
+
+local function research(parent: Instance, ctx: Ctx)
+	local view = ctx.view
+	local me = if view then nationOf(view, ctx.player) else {}
+	local known: { [string]: boolean } = {}
+	for _, id in me.techs or {} do
+		known[id] = true
+	end
+	local p = panel(parent, 3)
+	Kit.title(p, "Research", { size = UDim2.new(1, 0, 0, 28), textSize = 24, rule = true }).LayoutOrder = 1
+	local current = me.research and Data.Europe.TechById[me.research]
+	if current then
+		local line = "Studying " .. current.name .. ": " .. tostring(fmt(me.progress or 0)) .. " / " .. tostring(fmt(current.cost)) .. " (+" .. tostring(fmt(me.researchPoints)) .. " a turn)"
+		text(p, line, 2, { textSize = 14, colour = Kit.GILT_BRIGHT })
+	else
+		text(p, string.format("Nothing under study (+%s a turn): choose a subject.", fmt(me.researchPoints)), 2, { textSize = 14, colour = Kit.HOSTILE })
+	end
+	local order = 3
+	for _, branch in { "military", "industry", "philosophy" } do
+		order += 1
+		text(p, string.upper(BRANCH_NAMES[branch]), order, { textSize = 12, colour = Kit.MUTED })
+		for _, t in Data.Europe.Techs do
+			if t.branch == branch then
+				order += 1
+				local missing = nil
+				for _, r in t.requires do
+					if not known[r] then
+						missing = Data.Europe.TechById[r].name
+					end
+				end
+				local label = if known[t.id] then "■  " .. t.name elseif me.research == t.id then "▸  " .. t.name else string.format("□  %s · %s", t.name, fmt(t.cost))
+				local b = Kit.button(p, label, function()
+					send("research", { tech = t.id })
+				end, { size = UDim2.new(1, 0, 0, 24), order = order, textSize = 12, caps = false, tooltip = t.text })
+				b.TextXAlignment = Enum.TextXAlignment.Left
+				local why: string? = if known[t.id] then "Known" elseif me.research == t.id then "Under study" elseif missing then "Needs " .. missing elseif not ctx.canAct then ctx.actReason else nil
+				Kit.setEnabled(b, why == nil, why)
+			end
+		end
 	end
 end
 
@@ -22729,7 +23522,7 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	local view = ctx.view or {}
 	local p = modal(sg, 520)
 	local prov = Data.byId[pb.provinceId]
-	Kit.title(p, "Battle at " .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
+	Kit.title(p, (if pb.assault then "Storming of " else "Battle at ") .. (if prov then prov.name else tostring(pb.provinceId)), { size = UDim2.new(1, 0, 0, 32), textSize = 28, align = Enum.TextXAlignment.Center, caps = false, rule = true }).LayoutOrder = 1
 	local att, def, odds = Logic.battleSides(view, pb)
 	local sides = row(p, 2, 0)
 	sides.AutomaticSize = Enum.AutomaticSize.Y
@@ -22754,6 +23547,8 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	text(p, "The odds are " .. odds .. ".", 3, { align = Enum.TextXAlignment.Center, textSize = 16, colour = if odds == "favourable" then Kit.MORALE.steady elseif odds == "poor" then Kit.HOSTILE else Kit.IVORY })
 	if pb.scenarioId then
 		text(p, "This is the field of a famous battle: the historical engagement will be fought.", 4, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
+	elseif pb.assault then
+		text(p, "The fortress garrison holds the villages and fights behind its walls.", 4, { align = Enum.TextXAlignment.Center, textSize = 13, colour = Kit.MUTED })
 	end
 	local br = buttonRow(p, 5, 38)
 	Kit.button(br, "Fight", function()
@@ -22762,9 +23557,9 @@ local function battleDoc(sg: ScreenGui, ctx: Ctx, pb: any)
 	Kit.button(br, "Auto-resolve", function()
 		send("autoResolve")
 	end, { size = UDim2.new(1 / 3, -4, 1, 0), textSize = 15, tooltip = "The staff decides from strength, ground and experience" })
-	Kit.button(br, "Retreat", function()
+	Kit.button(br, if pb.assault then "Call off" else "Retreat", function()
 		send("retreat")
-	end, { size = UDim2.new(1 / 3, -4, 1, 0), textSize = 15, tooltip = "Withdraw to a neighbouring province, losing some stragglers" })
+	end, { size = UDim2.new(1 / 3, -4, 1, 0), textSize = 15, tooltip = if pb.assault then "Stand the storming parties down; the siege goes on" else "Withdraw to a neighbouring province, losing some stragglers" })
 end
 
 local function summaryDoc(sg: ScreenGui, s: { lines: { string }, title: string })
@@ -22877,7 +23672,7 @@ function UI.render(ctx: Ctx)
 	armyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	left.Active = #left:GetChildren() > 1
-	if (diplomacyOpen or objectivesOpen) and view then
+	if (diplomacyOpen or objectivesOpen or researchOpen) and view then
 		local right = Instance.new("Frame") :: Frame
 		right.Size = UDim2.new(0, 380, 0, 0)
 		right.Position = UDim2.new(1, -12, 0, 72)
@@ -22895,6 +23690,9 @@ function UI.render(ctx: Ctx)
 		end
 		if diplomacyOpen then
 			diplomacy(right, ctx)
+		end
+		if researchOpen then
+			research(right, ctx)
 		end
 	end
 	-- one document at a time, most pressing first
@@ -22939,8 +23737,8 @@ function UI.escape(): boolean
 	if summary then
 		summary = nil
 		return true
-	elseif diplomacyOpen or objectivesOpen then
-		diplomacyOpen, objectivesOpen = false, false
+	elseif diplomacyOpen or objectivesOpen or researchOpen then
+		diplomacyOpen, objectivesOpen, researchOpen = false, false, false
 		return true
 	end
 	return false
@@ -22979,7 +23777,7 @@ function UI.destroy()
 		gui:Destroy()
 	end
 	gui, cb, toastLabel, summary, pickerReason, splitArmy = nil, nil, nil, nil, nil, nil
-	diplomacyOpen, objectivesOpen = false, false
+	diplomacyOpen, objectivesOpen, researchOpen = false, false, false
 	table.clear(split)
 	table.clear(dismissed)
 	Kit.hideTooltip()
@@ -23090,12 +23888,24 @@ Logic.REASONS = {
 	unknownEvent = "That dispatch has been answered",
 	badArgs = "Malformed order",
 	building = "Already building here",
+	alreadyForced = "Already marching hard",
+	alreadyMarched = "Only before the army marches this turn",
+	notBesieging = "You are not besieging that province",
+	noArmyReady = "Your besiegers have already acted this turn",
+	hasGeneral = "That army already has a general",
+	noGenerals = "No general is free to take command",
 	fullyBuilt = "Fully built",
 	unknownCommand = "The server does not know that order",
 }
 
 function Logic.reason(code: any): string
 	local s = tostring(code)
+	-- "needsTech:<id>": a technology the nation lacks
+	local tech = string.match(s, "^needsTech:(%a+)$")
+	local t = tech and (EuropeData.TechById :: any)[tech]
+	if t then
+		return "Needs " .. t.name
+	end
 	-- "needs:<chain>:<level>": a building the province lacks
 	local chain, level = string.match(s, "^needs:(%a+):(%d+)$")
 	local def = chain and (EuropeData.Buildings :: any)[chain]
@@ -23297,7 +24107,8 @@ function Logic.battleSides(view: any, pb: any): (Side, Side, string)
 	local mineIsDefender = att.nation ~= player and (def.nation == player or table.find(pb.defenders or {}, player) ~= nil)
 	local mine, theirs = if mineIsDefender then def.men else att.men, if mineIsDefender then att.men else def.men
 	local odds = tostring(pb.odds or "even")
-	if mine > 0 and theirs > 0 then
+	-- a garrison behind walls is worth more than its men: keep the server's odds for an assault
+	if mine > 0 and theirs > 0 and not pb.assault then
 		local r = mine / theirs
 		odds = if r >= 1.25 then "favourable" elseif r <= 0.8 then "poor" else "even"
 	end

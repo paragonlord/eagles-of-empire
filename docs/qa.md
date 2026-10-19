@@ -854,6 +854,33 @@ errors.
   per-turn figure raises taxes to High (+223 → +445 a turn) (`r33-building-farms-tax-high.jpg`).
 - To see by hand: a revolting province's panel text; the generals' escorts (120 sabres) charging.
 
+**2026-10-19 round 34 (Phases 7–8: research, generals, siege assault), synced through the Studio MCP.**
+No EoE errors or warnings on server or client.
+- Pass: the army panel's general line carries his record, "General Masséna ★★★★ · Lombardy / 0 won,
+  0 lost, 0 fortresses taken", over a full-width Forced March button (`r34-army-career.jpg`).
+- Pass: war on Austria, Masséna into Venetia; Archduke Charles withdrew, and at the turn's end
+  Venetia read "Besieged by French Empire: falls in 1 turn unless relieved" with an Assault button
+  (`r34-siege-assault-button.jpg`). Assault opens "Storming of Venetia": 3,520 against the
+  garrison's 1,320 (2 battalions and a battery for Fortress I), odds favourable, and Fight /
+  Auto-resolve / Call off (`r34-storming-prompt.jpg`).
+- Pass: the tactical battle is on Venetia's own field (Caldiero, Verona, Vicenza) with the storming
+  orders (`r34-storming-deploy.jpg`). The garrison took Caldiero at 03:28; the 7e Légère, first to
+  reach a held village, broke against it (`r34-storming-legere-breaks.jpg`); time ran out with the
+  enemy holding more objectives: defeat, 74 against 104 casualties (`r34-storming-defeat.jpg`).
+  Back on the map Masséna had fallen back to Lombardy, his record "0 won, 1 lost", the Légère at
+  526/600 (`r34-career-after-loss.jpg`). The fog hid the garrison inside the villages, so a
+  headless check now proves it (`tests/ai.spec.luau`: the garrison occupies a village).
+- Pass: split one battery off: "Army of Italy (detachment) · No general" shows Forced March and
+  Appoint General; appointing gives "General Augereau ★★", treasury 1,723 → 1,223, strength
+  455 → 500 (`r34-appointed-augereau.jpg`).
+- Pass: Research lists Military / Industry / Philosophy with known, open (gold, with price) and
+  locked subjects; Lancers → "Studying Lancers: 0 / 450 (+35 a turn)" (`r34-research-lancers.jpg`).
+- Fixed: Forced March stayed clickable on an army that had just retreated with 0 moves, which let
+  a beaten army march again. A forced march is now decided before the army moves (full moves
+  only, `alreadyMarched`), in the server and the button.
+- Not seen yet: a general falling with his HQ, reinforcements marching onto a campaign field
+  (Charles refused battle). Both are covered by `tests/grand.spec.luau`.
+
 ## Known failures
 
 None recorded yet.

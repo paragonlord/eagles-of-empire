@@ -4,10 +4,11 @@ Resume from here; do not recap. Updated 2026-10-19.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 91 files, 186 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 91 files, 204 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
-- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–3 done).
+- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–8 done, next
+  Phase 9: diplomacy and agents).
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
@@ -17,9 +18,12 @@ Resume from here; do not recap. Updated 2026-10-19.
   cavalry, dragoons, foot/horse artillery, howitzers), skirmish order, run/walk, fire by rank,
   TW hotkeys and control groups, card ammo/fatigue/group marks, stats ratings and enemy
   inspection, edge scroll and follow camera, ricochet and friendly fire, howitzer shells, downhill
-  bonus, fords, garrisonable buildings (with AI), hedge and wall cover; campaign: kept march routes,
-  unreadable saves kept.
-- Studio QA log: `docs/qa.md` (rounds 1–32). Balance table: `docs/balance.md`.
+  bonus, fords, garrisonable buildings (with AI), hedge and wall cover; corps generals with their
+  own auras and 120-sabre escorts, battle experience; a defending and manoeuvring battle AI;
+  campaign: kept march routes, unreadable saves kept, buildings, taxes and revolts, gradual
+  refill and winter attrition, a research tree, national rosters, a battle map per province,
+  reinforcing armies, forced march, general careers and appointments, siege assaults.
+- Studio QA log: `docs/qa.md` (rounds 1–34). Balance table: `docs/balance.md`.
 
 ## Workflow
 
@@ -74,8 +78,9 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.
 2. Sound check once ids land: Settings → debug audio, every event fires, volleys from many
    battalions do not stack into a wall.
-3. Defending AI: Wellington's line at Waterloo is static and falls in ~15 min to an AI attack
-   (`docs/balance.md`). Spielberg draws 1–1; Hougoumont's guns have no line of sight.
+3. Balance: 13–14 flags remain in `docs/balance.md` (Waterloo still falls to France, Auerstedt
+   and Hassenhausen lean Prussian, Spielberg draws, La Haye Sainte flips). Deferred to the
+   whole-game pass after Phase 11.
 4. Real phone: pinch/twist direction and pan speed knobs in `src/client/Camera.luau`.
 5. A human playthrough of the grand campaign to a peace.
 6. Willow, hedge, wall, fence, cart and reed meshes have no slots yet; add when assets exist.
