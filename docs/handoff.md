@@ -4,15 +4,22 @@ Resume from here; do not recap. Updated 2026-10-19.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 90 files, 168 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 91 files, 186 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
+- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–3 done).
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
   place-name modes, server-built world with a readiness-gated loading screen, no-clip placement
   of every figure and object, AI-vs-AI balance harness.
-- Studio QA log: `docs/qa.md` (rounds 1–29). Balance table: `docs/balance.md`.
+- Added on the roadmap: unit types (light, rifles, grenadiers, guard, militia, light/heavy
+  cavalry, dragoons, foot/horse artillery, howitzers), skirmish order, run/walk, fire by rank,
+  TW hotkeys and control groups, card ammo/fatigue/group marks, stats ratings and enemy
+  inspection, edge scroll and follow camera, ricochet and friendly fire, howitzer shells, downhill
+  bonus, fords, garrisonable buildings (with AI), hedge and wall cover; campaign: kept march routes,
+  unreadable saves kept.
+- Studio QA log: `docs/qa.md` (rounds 1–32). Balance table: `docs/balance.md`.
 
 ## Workflow
 
