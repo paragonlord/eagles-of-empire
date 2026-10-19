@@ -9,6 +9,7 @@ local Selection = {}
 local selected: { [number]: boolean } = {}
 local groups: { [number]: { number } } = {}
 local hovered: number? = nil
+local inspected: number? = nil -- an enemy the player clicked: shown in the inspector, never ordered
 
 Selection.changed = Signal.new() -- fired after any selection change
 Selection.hoverChanged = Signal.new()
@@ -117,6 +118,17 @@ function Selection.recallGroup(n: number)
 	end
 end
 
+function Selection.inspect(id: number?)
+	if inspected ~= id then
+		inspected = id
+		fire()
+	end
+end
+
+function Selection.inspected(): number?
+	return inspected
+end
+
 function Selection.setHovered(id: number?)
 	if hovered ~= id then
 		hovered = id
@@ -132,6 +144,7 @@ function Selection.reset()
 	table.clear(selected)
 	table.clear(groups)
 	hovered = nil
+	inspected = nil
 	fire()
 end
 

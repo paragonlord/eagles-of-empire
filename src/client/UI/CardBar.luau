@@ -178,6 +178,39 @@ local function abbreviate(name: string): string
 	return s
 end
 
+-- The type's stats as TW-style ratings: accuracy (hit chance × 500), reload (300 / seconds), melee and
+-- charge (×10 and ×250 of the multipliers), base morale and march speed.
+function CardBar.statLines(f: any): { string }
+	local s = Config.TypeStats[f.type] or (Config.Units :: any)[f.class]
+	local lines = {}
+	if s.musket then
+		local reload = (s.musket.reload :: number) * (if f.fireByRank then Config.Combat.FireByRankReload else 1)
+		local accuracy = math.floor((s.musket.accuracy :: number) * 500 + 0.5)
+		local rate = math.floor(300 / reload + 0.5)
+		table.insert(lines, "Range " .. tostring(s.musket.range) .. " · accuracy " .. tostring(accuracy) .. " · reload " .. tostring(rate) .. " · " .. tostring(s.musket.ammo) .. " rounds")
+	elseif s.gun then
+		table.insert(lines, string.format("Round shot %d · canister %d · %d rounds", s.gun.roundShot.range, s.gun.canister.range, s.gun.ammo))
+	end
+	table.insert(lines, string.format("Melee %d / %d%s · morale %d · speed %.1f", math.floor(s.melee.attack * 10 + 0.5), math.floor(s.melee.defense * 10 + 0.5), if s.charge then string.format(" · charge %d", math.floor(s.charge.base * 250 + 0.5)) else "", s.baseMorale, s.speed))
+	local traits = {}
+	if s.legalShapes.skirmish then
+		table.insert(traits, "can skirmish")
+	end
+	if f.fireByRank then
+		table.insert(traits, "fires by rank")
+	end
+	if (s.pursuit or 1) > 1 then
+		table.insert(traits, "rides down fugitives")
+	end
+	if (s.reformScale or 1) < 1 then
+		table.insert(traits, "limbers fast")
+	end
+	if #traits > 0 then
+		table.insert(lines, table.concat(traits, " · "))
+	end
+	return lines
+end
+
 local function tipFor(id: number): string
 	local f = BattleState.formations[id]
 	if not f then
@@ -185,13 +218,16 @@ local function tipFor(id: number): string
 	end
 	local kind = f.type and (Config.UnitTypes :: any)[f.type]
 	local lines = {
-		tostring(f.name or ("#" .. id)) .. (if kind then " · " .. kind.name else "") .. (if f.fireByRank then " · fire by rank" else ""),
+		tostring(f.name or ("#" .. id)) .. (if kind then " · " .. kind.name else ""),
 		tostring(f.corps or ""),
 		string.format("%d / %d men · %s", f.strength, f.startStrength, string.upper(string.sub(f.moraleBand, 1, 1)) .. string.sub(f.moraleBand, 2)),
 		STATE_WORD[f.state] or f.state,
 	}
 	if f.status and f.status ~= "" then
 		lines[4] ..= " · " .. f.status
+	end
+	for _, l in CardBar.statLines(f) do
+		table.insert(lines, l)
 	end
 	-- generals' traits and abilities acting on it now (the gilt star on the card)
 	local tags = (f :: any).tags -- not in BattleState.Formation yet

@@ -437,12 +437,16 @@ local function onLeftUp()
 			return
 		end
 		lastClick = { id = id, t = now }
+		Selection.inspect(nil)
 		if shift() then
 			Selection.toggle(id)
 		else
 			Selection.set({ id })
 		end
+	elseif id and kind == "enemy" then
+		Selection.inspect(id) -- read-only look at a visible enemy; our selection stays
 	elseif not shift() then
+		Selection.inspect(nil)
 		Selection.clear()
 	end
 end
@@ -618,6 +622,7 @@ local function onKey(input: InputObject)
 			armed = nil
 			Input.action:Fire("disarm")
 		else
+			Selection.inspect(nil)
 			Selection.clear()
 		end
 		Input.action:Fire("escape")

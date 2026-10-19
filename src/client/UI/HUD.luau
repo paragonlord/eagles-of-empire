@@ -527,14 +527,23 @@ local function updateInspector()
 		return
 	end
 	local forms = selectedFormations()
+	-- a clicked enemy, while it stays in sight, takes the inspector (read-only: estimates only)
+	local enemyId = Selection.inspected()
+	local enemy: any = if enemyId then BattleState.formations[enemyId] else nil
+	if enemy then
+		forms = { enemy }
+	elseif enemyId then
+		Selection.inspect(nil)
+	end
 	if #forms == 0 then
 		p.Visible = false
 		return
 	end
 	p.Visible = true
-	local f = forms[1]
+	local f: any = forms[1]
 	local F = inspectorFields
 	F.name.Text = if #forms > 1 then string.format("%s  (+%d)", tostring(f.name or f.id), #forms - 1) else tostring(f.name or f.id)
+	F.name.TextColor3 = if enemy then Kit.HOSTILE else Kit.GILT_BRIGHT
 	F.exp.Text = string.rep("›", math.clamp(f.experience or 0, 0, 3))
 	F.corps.Text = tostring(f.corps or "—")
 	local kind = f.type and (Config.UnitTypes :: any)[f.type]
@@ -579,11 +588,12 @@ end
 
 -- Inspector hover: every trait / ability modifier on the first selected formation, in full.
 inspectorTip = function(): string
-	local f = selectedFormations()[1]
+	local enemyId = Selection.inspected()
+	local f = (if enemyId then BattleState.formations[enemyId] else nil) or selectedFormations()[1]
 	if not f then
 		return ""
 	end
-	local lines = {}
+	local lines = CardBar.statLines(f)
 	local g = if f.class == "hq" and f.general then Generals.byId[f.general] else nil
 	if g then
 		for _, tr in g.traits do
