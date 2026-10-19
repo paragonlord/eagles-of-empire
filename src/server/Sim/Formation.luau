@@ -33,6 +33,7 @@ export type Formation = {
 	name: string,
 	corps: string,
 	class: Types.UnitClass,
+	type: string, -- Config.UnitTypes id
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -100,8 +101,9 @@ export type Formation = {
 
 local Formation = {}
 
+-- The unit's stats: its type's table (Config.TypeStats), its class merged with the type's overrides.
 function Formation.unitConfig(f: Formation)
-	return (Config.Units :: any)[f.class]
+	return Config.TypeStats[f.type]
 end
 
 function Formation.figures(f: Formation): number
@@ -138,7 +140,8 @@ function Formation.neutralMods(): Mods
 end
 
 function Formation.fromDef(id: number, def: UnitDef): Formation
-	local unit = (Config.Units :: any)[def.class]
+	local unitType = Scenarios.typeOf(def)
+	local unit = Config.TypeStats[unitType]
 	local baseMorale = unit.baseMorale + Config.Combat.ExperienceMorale * def.experience
 	local f: Formation = {
 		id = id,
@@ -146,6 +149,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		name = def.name,
 		corps = def.corps,
 		class = def.class,
+		type = unitType,
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,
@@ -257,6 +261,7 @@ function Formation.beginShape(f: Formation, shape: Types.Shape, forced: boolean?
 	if shape == "square" and f.shape == "column" then
 		t = Config.SquareFromColumnTime
 	end
+	t *= Formation.unitConfig(f).reformScale or 1
 	if forced and f.shape ~= "travel" then
 		f.prevShape = f.shape
 	end

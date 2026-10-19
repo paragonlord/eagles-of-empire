@@ -248,3 +248,89 @@ test("Protocol.validateCommand rejects bad input and accepts good", function()
 	assertEq(select(2, Protocol.validateCommand(cmd("Move", { 1 }, { pos = { x = 1, z = 1 } }), ctx)), Protocol.Reasons.badState)
 	assertTrue(Protocol.validateCommand(cmd("Deploy", { 1 }, { pos = { x = 1, z = 1 }, heading = 0 }), ctx))
 end)
+
+test("Unit types: every unit of every battle has a type of its own class, inferred from its name", function()
+	local Config = require(Shared.Config)
+	local ids = { "tutorial", "skirmish", "stress" }
+	for _, e in Scenarios.list() do
+		table.insert(ids, e.id)
+	end
+	local seen = {}
+	for _, id in ids do
+		for _, u in Scenarios.get(id).units do
+			local t = Scenarios.typeOf(u)
+			assertTrue(Config.UnitTypes[t] ~= nil, id .. ": " .. u.name .. " has no type")
+			assertEq(Config.UnitTypes[t].class, u.class, id .. ": " .. u.name .. " is a " .. t)
+			seen[t] = true
+		end
+	end
+	local function typeOf(class, name)
+		return Scenarios.typeOf({ class = class, name = name } :: any)
+	end
+	local cases = {
+		{ "infantry", "17e Légère", "light" }, { "infantry", "1er Tirailleurs", "light" },
+		{ "infantry", "Füsilier-Bataillon Pelet", "light" }, { "infantry", "Grenz-Infanterie Nr. 1", "light" },
+		{ "infantry", "1/95th Rifles", "rifle" }, { "infantry", "5th Jägers", "rifle" },
+		{ "infantry", "Grenadier-Bataillon Hahn", "grenadier" }, { "infantry", "Kiev Grenadiers", "grenadier" },
+		{ "infantry", "Grenadiers à pied de la Garde", "guard" }, { "infantry", "2/2nd Coldstream Guards", "guard" },
+		{ "infantry", "Preobrazhensky Guards", "guard" }, { "infantry", "IR Nr. 15 Garde", "guard" },
+		{ "infantry", "Schlesisches Landwehr-Regiment", "militia" }, { "infantry", "Conscrits de 1809", "militia" },
+		{ "infantry", "34e de Ligne", "line" }, { "infantry", "92nd Gordon Highlanders", "line" },
+		{ "cavalry", "1er Cuirassiers", "heavyCav" }, { "cavalry", "Kürassier-Regiment Henckel", "heavyCav" },
+		{ "cavalry", "1st Life Guards", "heavyCav" }, { "cavalry", "Grenadiers à cheval de la Garde", "heavyCav" },
+		{ "cavalry", "1er Carabiniers", "heavyCav" }, { "cavalry", "Garde du Corps Nr. 13", "heavyCav" },
+		{ "cavalry", "5e Hussards", "lightCav" }, { "cavalry", "9e Chasseurs à cheval", "lightCav" },
+		{ "cavalry", "6e Lanciers", "lightCav" }, { "cavalry", "Uhlans Grand Duke Constantine", "lightCav" },
+		{ "cavalry", "12th Light Dragoons", "lightCav" }, { "cavalry", "Chevaulegers Nr. 3", "lightCav" },
+		{ "cavalry", "15e Dragons", "dragoon" }, { "cavalry", "Scots Greys", "dragoon" },
+		{ "artillery", "Mercer's Troop RHA", "horseArt" }, { "artillery", "Reitende Batterie Blücher", "horseArt" },
+		{ "artillery", "Batterie à cheval Bijleveld", "horseArt" }, { "artillery", "Batterie Grawert", "footArt" },
+		{ "hq", "Napoléon — Imperial HQ", "hq" },
+	}
+	for _, c in cases do
+		assertEq(typeOf(c[1], c[2]), c[3], c[2])
+	end
+	assertEq(Scenarios.typeOf({ class = "infantry", name = "34e de Ligne", type = "rifle" } :: any), "rifle", "an explicit type wins")
+	assertEq(Scenarios.typeOf({ class = "cavalry", name = "34e de Ligne", type = "rifle" } :: any), "dragoon", "a type of another class is ignored")
+	for _, t in { "line", "light", "rifle", "grenadier", "guard", "militia", "lightCav", "dragoon", "heavyCav", "footArt", "horseArt", "hq" } do
+		assertTrue(seen[t], "the battles use " .. t)
+	end
+end)
+
+test("Unit types: stats merge over the class and differ where they should", function()
+	local Config = require(Shared.Config)
+	local S = Config.TypeStats
+	local function same(a, b): boolean
+		if type(a) ~= "table" or type(b) ~= "table" then
+			return a == b
+		end
+		for k, v in a do
+			if not same(v, b[k]) then
+				return false
+			end
+		end
+		for k in b do
+			if a[k] == nil then
+				return false
+			end
+		end
+		return true
+	end
+	local function assertDeepEq(a, b, msg)
+		assertTrue(same(a, b), msg)
+	end
+	for id, t in Config.UnitTypes do
+		assertTrue(S[id] ~= nil and S[id].baseMorale ~= nil, id)
+		assertDeepEq(S[id].legalShapes, Config.Units[t.class].legalShapes)
+	end
+	assertDeepEq(S.line, Config.Units.infantry, "line is the plain class")
+	assertTrue(S.rifle.musket.range > S.line.musket.range and S.rifle.musket.accuracy > S.line.musket.accuracy)
+	assertEq(S.rifle.musket.minReadiness, S.line.musket.minReadiness, "untouched keys keep the class value")
+	assertTrue(S.guard.baseMorale > S.grenadier.baseMorale and S.grenadier.baseMorale > S.line.baseMorale)
+	assertTrue(S.militia.baseMorale < S.line.baseMorale)
+	assertTrue(S.light.speed > S.line.speed)
+	assertTrue(S.lightCav.speed > S.dragoon.speed and S.dragoon.speed > S.heavyCav.speed)
+	assertTrue(S.heavyCav.charge.base > S.dragoon.charge.base and S.dragoon.charge.base > S.lightCav.charge.base)
+	assertTrue(S.horseArt.speed > S.footArt.speed and S.horseArt.reformScale < 1)
+	assertTrue(Config.Units.infantry.musket.range == 90, "merging never writes into the class table")
+end)

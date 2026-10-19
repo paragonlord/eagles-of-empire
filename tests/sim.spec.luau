@@ -90,6 +90,51 @@ test("Volleys need range, facing, LOS and ammunition; artillery needs to be unli
 	assertTrue(not Grid.lineOfSight(MAP.grid, { x = 800, z = 420 }, { x = 800, z = 120 }), "from the foot of the slope the plateau top is hidden")
 end)
 
+test("Unit types change the battle: rifles outrange, horse guns limber fast, light cavalry rides down routers", function()
+	local sim = newSim({
+		unit("france", "infantry", "34e de Ligne", A.x, A.z, 0),
+		unit("france", "infantry", "1/95th Rifles", A.x, A.z + 50, 0),
+		unit("prussia", "infantry", "Target", A.x + 115, A.z + 25, math.pi),
+		unit("france", "artillery", "Batterie Grawert", A.x - 40, A.z - 60, 0),
+		unit("france", "artillery", "Reitende Batterie Blücher", A.x - 40, A.z + 110, 0),
+	})
+	sim:step()
+	local line, rifles, target = sim.formations[1], sim.formations[2], sim.formations[3]
+	assertEq(line.type, "line")
+	assertEq(rifles.type, "rifle")
+	assertEq(Combat.fireBlockReason(sim, line, target), "Out of range")
+	assertTrue(Combat.fireBlockReason(sim, rifles, target) ~= "Out of range", "115 studs is inside a rifle's reach")
+	assertTrue(rifles.ammo <= Config.TypeStats.rifle.musket.ammo and rifles.ammo >= Config.TypeStats.rifle.musket.ammo - 1, "rifles carry their own ammunition")
+	cmd(sim, "Limber", { 4, 5 }, { limbered = false })
+	sim:step()
+	sim:step()
+	local foot, horse = sim.formations[4], sim.formations[5]
+	assertTrue(math.abs(horse.timers.limber - foot.timers.limber * Config.TypeStats.horseArt.reformScale) < 0.2, "horse guns unlimber in half the time")
+	assertEq(sim:snapshot("france").formations[2].type, "rifle", "the snapshot carries the type")
+
+	-- the same full-tilt charge into a routing battalion: hussars cut down more than cuirassiers
+	local function chase(name)
+		local s2 = newSim({
+			unit("prussia", "infantry", "Fugitives", B.x, B.z, 0),
+			unit("france", "cavalry", name, B.x + 20, B.z, math.pi),
+		})
+		local t, h = s2.formations[1], s2.formations[2]
+		t.state = "routing"
+		h.state = "charging"
+		h.order = { kind = "Charge", targetId = t.id } :: any
+		h.chargeReady = true
+		h.runUp = 200
+		for _, a in Combat.gather(s2) do
+			if a.attackerId == h.id and a.kind == "charge" then
+				return a.casualties
+			end
+		end
+		return 0
+	end
+	local hussars, cuirassiers = chase("5e Hussards"), chase("1er Cuirassiers")
+	assertTrue(hussars > cuirassiers and cuirassiers > 0, string.format("hussars %d vs cuirassiers %d", hussars, cuirassiers))
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

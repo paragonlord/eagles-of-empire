@@ -337,11 +337,12 @@ local function reloadLeft(c: Card, f: any): number
 end
 
 local function reloadTime(f: any): number
+	local stats = Config.TypeStats[f.type] or (Config.Units :: any)[f.class]
 	if f.class == "artillery" then
-		local gun = Config.Units.artillery.gun
+		local gun = stats.gun
 		return if f.ammoMode == "canister" then gun.canister.reload else gun.roundShot.reload
 	end
-	local m = Config.Units.infantry.musket
+	local m = stats.musket
 	return if m then m.reload else 15
 end
 

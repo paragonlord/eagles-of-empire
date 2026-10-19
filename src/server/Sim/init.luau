@@ -455,7 +455,7 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 				local wantLimbered = data.limbered == true
 				if Formation.isLimbered(f) ~= wantLimbered and f.pendingLimber == nil then
 					f.pendingLimber = wantLimbered
-					f.timers.limber = if wantLimbered then Config.ReformTime.limbered else Config.ReformTime.deployed
+					f.timers.limber = (if wantLimbered then Config.ReformTime.limbered else Config.ReformTime.deployed) * (Formation.unitConfig(f).reformScale or 1)
 					f.state = "reforming"
 					f.path = nil
 					if wantLimbered then
@@ -640,6 +640,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		name = f.name,
 		corps = f.corps,
 		class = f.class,
+		type = f.type,
 		colour = f.colour,
 		x = f.pos.x,
 		z = f.pos.z,

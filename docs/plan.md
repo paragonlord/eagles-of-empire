@@ -18,9 +18,9 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Far banner tabs tinted by faction
 
 ## Phase 1: real unit types
-- [ ] `type` on units, `Config.UnitTypes` merged over the class stats
-- [ ] Types inferred from regiment names in every scenario
-- [ ] Per-type stats (rifles, grenadiers, guard, light/heavy cavalry, dragoons, horse artillery)
+- [x] `type` on units, `Config.UnitTypes` merged over the class stats
+- [x] Types inferred from regiment names in every scenario
+- [x] Per-type stats (rifles, grenadiers, guard, light/heavy cavalry, dragoons, horse artillery)
 - [ ] Campaign unit types map onto sim types
 - [ ] Cards and inspector show the type
 

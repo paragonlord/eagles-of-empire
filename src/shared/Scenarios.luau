@@ -6,6 +6,7 @@
 
 local Vec = require(script.Parent.Vec)
 local Moments = require(script.Parent.Moments)
+local Config = require(script.Parent.Config)
 
 type Vec = Vec.Vec
 
@@ -23,6 +24,7 @@ export type UnitDef = {
 	key: string?, -- campaign identity of this unit (nil for standalone battles)
 	arrival: { seconds: number, pos: Vec }?, -- off-map reinforcement: enters at pos at that sim time
 	general: string?, -- HQ only: id in src/shared/Generals.luau (else matched from the name)
+	type: string?, -- Config.UnitTypes id (else inferred from the name: Scenarios.typeOf)
 }
 
 export type Scenario = {
@@ -1080,6 +1082,45 @@ function Scenarios.list(): { ListEntry }
 		out[#out + 1] = { id = s.id, name = s.name, date = s.date, map = s.map, factionNames = s.factionNames, summary = s.summary, difficultyNote = s.difficultyNote, mode = s.mode or "full", parent = s.parent, timeLimit = s.timeLimit }
 	end
 	return out
+end
+
+-- Name fragments (lower case) that mark a type, checked in order within the unit's class.
+local TYPE_MARKS: { [string]: { { string | { string } } } } = {
+	infantry = {
+		{ "guard", { "garde", "guards", "preobrazhensky", "semenovsky" } },
+		{ "rifle", { "rifle", "95th", "jäger", "jager" } },
+		{ "militia", { "landwehr", "conscrit", "militia" } },
+		{ "light", { "légère", "legere", "light", "tirailleur", "voltigeur", "füsilier", "fusilier", "grenz", "schützen" } },
+		{ "grenadier", { "grenadier" } },
+	},
+	cavalry = {
+		{ "heavyCav", { "cuirassier", "kürassier", "carabinier", "garde du corps", "life guard", "chevalier guard", "grenadiers à cheval", "gensd'armes", "horse guards" } },
+		{ "lightCav", { "hussar", "husar", "chasseur", "lancier", "lancer", "uhlan", "ulan", "cossack", "chevauleger", "chevau-léger", "light dragoon" } },
+	},
+	artillery = {
+		{ "horseArt", { "à cheval", "reitende", " rha", "horse artillery" } },
+	},
+}
+local DEFAULT_TYPE = { infantry = "line", cavalry = "dragoon", artillery = "footArt", hq = "hq" }
+
+-- The unit's type: its own `type` when that belongs to its class, else read from its name.
+function Scenarios.typeOf(def: UnitDef): string
+	local given = def.type and (Config.UnitTypes :: any)[def.type]
+	if given and given.class == def.class then
+		return def.type :: string
+	end
+	-- ASCII-only lower case: string.lower would mangle UTF-8 letters such as ü under Latin-1 rules
+	local name = string.gsub(def.name, "[A-Z]", function(c: string): string
+		return string.char(string.byte(c) + 32)
+	end)
+	for _, rule in TYPE_MARKS[def.class] or {} do
+		for _, mark in rule[2] :: { string } do
+			if string.find(name, mark, 1, true) then
+				return rule[1] :: string
+			end
+		end
+	end
+	return DEFAULT_TYPE[def.class] or "line"
 end
 
 function Scenarios.get(id: string): Scenario?

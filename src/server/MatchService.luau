@@ -826,7 +826,7 @@ local function onCommand(player: Player, cmd: any)
 		end,
 		legalShapes = function(id: number): { [string]: boolean }?
 			local f = sim.formations[id]
-			return if f then (Config.Units :: any)[f.class].legalShapes else nil
+			return if f then Config.TypeStats[f.type].legalShapes else nil
 		end,
 	}
 	local ok, reason = Protocol.validateCommand(cmd, ctx)

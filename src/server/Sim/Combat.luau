@@ -289,7 +289,7 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 			dirF = 1
 		end
 		if def.state == "routing" then
-			shapeF *= C.ChargeRoutingFactor
+			shapeF *= C.ChargeRoutingFactor * (unit.pursuit or 1) -- light cavalry rides down fugitives
 		end
 		local impact = att.strength * ch.base * runUpF * dirF * shapeF * Formation.fatigueFactor(att, C.FatigueMeleePenalty) * att.mods.chargeImpact
 		if att.inWoods then

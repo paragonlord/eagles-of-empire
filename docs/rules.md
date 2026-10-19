@@ -17,6 +17,28 @@ time of writing and are shown for reading convenience. Formulas are the contract
 
 Casualties are applied to strength in men; the client removes one figure per 25 men lost.
 
+## Unit types
+
+Every unit has a type (`Config.UnitTypes`) inside its class. A scenario may set `type`; otherwise
+`Scenarios.typeOf` reads it from the regiment's name (Légère/Tirailleurs/Füsiliere/Grenzer →
+light, Rifles/Jäger → rifles, Garde/Guards → guard, Grenadiers → grenadiers, Landwehr/Conscrits
+→ militia; Cuirassiers/Carabiniers/Life Guards → heavy, Hussars/Chasseurs/Lancers/Uhlans/Light
+Dragoons → light cavalry, other horse → dragoons; Reitende/à cheval/RHA → horse artillery). The
+type's overrides merge over the class values below (`Config.TypeStats`); untouched keys keep the
+class value.
+
+| Type | Changes from its class |
+| --- | --- |
+| line, dragoons, foot artillery | none (the class values) |
+| light | speed 6.2, accuracy 0.08, morale 68, melee 0.9/0.9, spots 300 |
+| rifles | speed 6.0, range 130, reload 21 s, accuracy 0.11, 50 rounds, morale 70, melee 0.8/0.85 |
+| grenadiers | morale 76, melee 1.2/1.15 |
+| guard | morale 84, accuracy 0.08, melee 1.3/1.25 |
+| militia | morale 58, accuracy 0.055, melee 0.85/0.9 |
+| light cavalry | speed 16 (charge 22), morale 68, melee 1.2/0.7, charge 0.05, ×1.8 charge impact on routing units, spots 380 |
+| heavy cavalry | speed 12.5 (charge 19), morale 78, melee 1.7/1.1, charge 0.08, more fatigue on the move |
+| horse artillery | speed 7.5, limber/unlimber and reform in half the time, round shot 380 and 2.5 per hit |
+
 ## Movement
 
 ```

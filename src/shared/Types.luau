@@ -46,6 +46,7 @@ export type FormationView = {
 	name: string?,
 	corps: string?,
 	class: UnitClass,
+	type: string?, -- Config.UnitTypes id
 	colour: string?,
 	x: number,
 	z: number,
