@@ -203,6 +203,10 @@ local function denseInfantry(shape: string, width: number, depth: number, k: num
 		end
 		return out
 	end
+	if shape == "garrison" then
+		-- inside the building: a sentry at each corner, the rest at the windows
+		return { { x = 6, z = -6, face = 0 }, { x = 6, z = 6, face = 0 }, { x = -6, z = -6, face = math.pi }, { x = -6, z = 6, face = math.pi } }
+	end
 	if shape == "skirmish" then
 		-- open order: two loose, staggered ranks of men a few paces apart (slots add their own jitter)
 		local files = math.max(2, math.floor(width / (fw * 4)))

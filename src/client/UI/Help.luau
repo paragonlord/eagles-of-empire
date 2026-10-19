@@ -21,7 +21,7 @@ local CONTROLS = {
 	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
 	{ "T Z M R", "Fire at will · charge · attack-move · run / walk" },
 	{ "H ⌫ X", "Hold · halt · retreat" },
-	{ "U I P", "Guns: limber · ammunition · HQ: rally" },
+	{ "U I P O", "Guns: limber · ammunition · HQ: rally · Occupy a village or farm (then right-click it)" },
 	{ "Esc", "Clear the selection, close panels" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
 }

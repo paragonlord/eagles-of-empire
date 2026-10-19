@@ -518,6 +518,27 @@ local function onRightUp()
 		issueMove(g, shift(), "AttackMove")
 		armed = nil
 		Input.action:Fire("disarm")
+	elseif armed == "Garrison" then
+		-- the village or farm nearest the click; the first selected battalion goes in
+		local best, bestD = nil, 80
+		local map = BattleState.map
+		for _, sp in (if map then map.strongpoints else nil) or {} do
+			local d = Vec.dist(g, sp.pos)
+			if d < bestD then
+				best, bestD = sp, d
+			end
+		end
+		local f: any = nil
+		for _, o in selectedFormations() do
+			if not f and o.class == "infantry" and not o.garrison and BattleState.canCommand(o.id) then
+				f = o
+			end
+		end
+		if best and f then
+			sendOrder("Garrison", { f.id }, { strongpoint = best.id, queue = shift(), run = runIds[f.id] })
+		end
+		armed = nil
+		Input.action:Fire("disarm")
 	elseif alt() then
 		-- turn in place to face the clicked point
 		for _, f in selectedFormations() do
@@ -605,6 +626,7 @@ local ORDER_KEYS: { [EnumItem]: string } = {
 	[Enum.KeyCode.U] = "limber",
 	[Enum.KeyCode.I] = "ammo",
 	[Enum.KeyCode.P] = "rally",
+	[Enum.KeyCode.O] = "occupy",
 }
 local SPEEDS = { 1, 2, 4 }
 local lastGroup = { n = 0, t = -1 }

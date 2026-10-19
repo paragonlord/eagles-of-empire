@@ -15,6 +15,7 @@ export type Formation = {
 	corps: string?,
 	class: string,
 	type: string?, -- Config.UnitTypes id
+	garrison: string?, -- strongpoint id while inside a building
 	colour: string?,
 	x: number,
 	z: number,

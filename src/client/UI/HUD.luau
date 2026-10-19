@@ -633,6 +633,7 @@ local COMMANDS: { CommandDef } = {
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
 	{ key = "ammo", text = "Auto", tip = "Ammunition, click to cycle: auto / round shot (long) / canister (short)" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
+	{ key = "occupy", text = "Occupy", tip = "Infantry (O): then right-click a village or farm to garrison it. On a garrison: leave" },
 }
 
 local AMMO_CYCLE = { auto = "roundShot", roundShot = "canister", canister = "auto" }
@@ -674,6 +675,25 @@ local function runCommand(key: string)
 		HUD.refreshCommands()
 	elseif key == "attack" then
 		Input.arm(if Input.armed() == "AttackMove" then nil else "AttackMove")
+		HUD.refreshCommands()
+	elseif key == "occupy" then
+		local inside = {}
+		for _, f in forms do
+			if f.garrison and BattleState.canCommand(f.id) then
+				table.insert(inside, f)
+			end
+		end
+		if #inside > 0 then
+			-- file out a few paces in front of the building
+			for _, f in inside do
+				Input.sendOrder("Move", { f.id }, { pos = { x = f.x + math.cos(f.heading) * 30, z = f.z + math.sin(f.heading) * 30 } })
+			end
+		else
+			Input.arm(if Input.armed() == "Garrison" then nil else "Garrison")
+			if Input.armed() == "Garrison" then
+				HUD.toast("Right-click a village or farm to garrison it")
+			end
+		end
 		HUD.refreshCommands()
 	elseif key == "hold" or key == "stop" or key == "retreat" then
 		local ids = idsOfClass(forms, { infantry = true, cavalry = true, artillery = true, hq = true })
@@ -875,6 +895,7 @@ local COMMAND_CLASSES: { [string]: { string } } = {
 	charge = { "infantry", "cavalry" },
 	run = { "infantry", "cavalry", "hq" },
 	attack = { "infantry", "cavalry" },
+	occupy = { "infantry" },
 	limber = { "artillery" },
 	ammo = { "artillery" },
 	rally = { "hq" },
@@ -900,6 +921,14 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 		local armed = Input.armed() == "Charge"
 		Kit.setActiveLook(b, armed)
 		b.Text = if armed then "Charge…" else "Charge"
+	elseif key == "occupy" then
+		local inside = false
+		for _, f in forms do
+			inside = inside or f.garrison ~= nil
+		end
+		local armed = Input.armed() == "Garrison"
+		Kit.setActiveLook(b, armed)
+		b.Text = if inside then "Leave" elseif armed then "Occupy…" else "Occupy"
 	elseif key == "attack" then
 		local armed = Input.armed() == "AttackMove"
 		Kit.setActiveLook(b, armed)
