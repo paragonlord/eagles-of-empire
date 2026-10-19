@@ -40,6 +40,23 @@ Economy.FARMS_INCOME = 0.05 -- per level of the farms chain (doubled by Crop rot
 Economy.TRADE_INCOME = 0.1 -- per level of the trade chain (0.15 with Banking)
 Economy.RESEARCH = { major = 20, minor = 10, school = 15, enlightenment = 1.5 }
 
+Economy.TRADE_PACT = 0.1 -- a trade partner pays this share of its own provinces' income a turn
+
+-- What a nation's trade agreements bring in a turn.
+function Economy.tradeIncome(s: State, nation: string): number
+	local t = 0
+	for _, other in EuropeData.NationOrder do
+		if State.trading(s, nation, other) then
+			for _, id in State.provincesOwned(s, other) do
+				if s.provinces[id].occupiedBy == nil then
+					t += State.province(id).income
+				end
+			end
+		end
+	end
+	return t * Economy.TRADE_PACT
+end
+
 -- A province's income with its farms and trade.
 function Economy.provinceIncome(s: State, provinceId: string): number
 	local ps = s.provinces[provinceId]
@@ -131,6 +148,7 @@ function Economy.income(s: State, nation: string): (number, number)
 	if State.hasTech(s, nation, "conscription") then
 		manpower *= 1.25
 	end
+	income += Economy.tradeIncome(s, nation)
 	if s.flags.continentalSystem then
 		if nation == "britain" then
 			income *= Economy.CONTINENTAL.britain

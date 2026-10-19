@@ -13,7 +13,7 @@ local Serialize = {}
 
 Serialize.VERSION = 1
 
-local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
+local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
 
 function Serialize.serialize(s: State): { [string]: any }
 	local p: { [string]: any } = {
@@ -141,9 +141,19 @@ function Serialize.deserialize(p: any): State?
 	if not nationOk(p.playerNation) or not EuropeData.Nations[p.playerNation].playable then
 		return nil
 	end
+	-- saves from before trade agreements and military access
+	p.trades = if p.trades == nil then {} else p.trades
+	p.access = if p.access == nil then {} else p.access
 	for _, f in FIELDS do
 		if type(p[f]) ~= "table" then
 			return nil
+		end
+	end
+	for _, m in { p.trades, p.access } do
+		for k, v in m do
+			if type(k) ~= "string" or v ~= true then
+				return nil
+			end
 		end
 	end
 	for _, id in EuropeData.ProvinceIds do

@@ -574,8 +574,8 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		local war, ally = contains(me.atWarWith, id), contains(me.allies, id)
 		local alive = n.alive ~= false
 		local truce = tonumber(n.truceUntil)
-		local r = row(list, i, 58)
-		r.Size = UDim2.new(1, -8, 0, 58)
+		local r = row(list, i, 86)
+		r.Size = UDim2.new(1, -8, 0, 86)
 		flag(r, id, 28, 18, UDim2.fromOffset(0, 2))
 		local nameL = Kit.label(r, Data.name(id) .. (if n.major then "  ✦" else ""), { size = UDim2.new(1, -150, 0, 20), position = UDim2.fromOffset(38, 0), textSize = 17, font = Enum.Font.Garamond })
 		local cap = Data.byId[n.capital or ""]
@@ -590,15 +590,23 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		Kit.hoverTip(fill.Parent :: Frame, function(): string
 			return string.format("Relations %+d", rel)
 		end)
-		local br = Instance.new("Frame") :: Frame
-		br.Size = UDim2.new(1, -38, 0, 22)
-		br.Position = UDim2.fromOffset(38, 34)
-		br.BackgroundTransparency = 1
-		br.Parent = r
-		Kit.list(br, 6, true)
-		local function act(label: string, kind: string, ok: boolean, why: string, primary: boolean?)
+		local function buttons(y: number): Frame
+			local br = Instance.new("Frame") :: Frame
+			br.Size = UDim2.new(1, -38, 0, 22)
+			br.Position = UDim2.fromOffset(38, y)
+			br.BackgroundTransparency = 1
+			br.Parent = r
+			Kit.list(br, 6, true)
+			return br
+		end
+		local br = buttons(34)
+		local function act(label: string, kind: string, ok: boolean, why: string, primary: boolean?, extra: { [string]: any }?)
 			local b = Kit.button(br, label, function()
-				send("diplomacy", { nation = id, action = kind })
+				local d: { [string]: any } = { nation = id, action = kind }
+				for k, v in extra or {} do
+					d[k] = v
+				end
+				send("diplomacy", d)
 			end, { size = UDim2.fromOffset(96, 22), textSize = 12, primary = primary })
 			Kit.setEnabled(b, ok and ctx.canAct, if ctx.canAct then why else ctx.actReason)
 		end
@@ -613,6 +621,10 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 			act("Peace", "peace", war, "You are not at war")
 			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
 			act(if ally then "Break & war" else "War", "war", not war and truce == nil, if truce then Logic.REASONS.truce else "Already at war", true)
+			br = buttons(60)
+			act(if n.trade then "Trading" else "Trade", "trade", not war and not n.trade, if war then "Make peace first" else "Already trading")
+			act(if n.access or ally then "Access held" else "Access", "access", not war and not ally and not n.access, if war then "Make peace first" else "Your armies may already cross")
+			act("Gift 500", "gift", (tonumber(me.treasury) or 0) >= 500, "Not enough gold", nil, { amount = 500 })
 		end
 	end
 end

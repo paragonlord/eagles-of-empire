@@ -45,6 +45,8 @@ export type State = {
 	relations: { [string]: number },
 	wars: { [string]: War },
 	alliances: { [string]: boolean },
+	trades: { [string]: boolean }, -- pair -> a trade agreement
+	access: { [string]: boolean }, -- "a>b" -> a's armies may march through b's land
 	truces: { [string]: number }, -- pair -> last turn of the truce
 	peaces: { [string]: Peace }, -- pair -> last peace
 	armies: { Army }, -- ascending creation order
@@ -156,6 +158,10 @@ end
 
 function State.allied(s: State, a: string, b: string): boolean
 	return a ~= b and s.alliances[State.pair(a, b)] == true
+end
+
+function State.trading(s: State, a: string, b: string): boolean
+	return a ~= b and s.trades[State.pair(a, b)] == true
 end
 
 function State.friendly(s: State, a: string, b: string): boolean
@@ -423,6 +429,8 @@ function State.new(seed: number, playerNation: string?): State
 		relations = {},
 		wars = {},
 		alliances = {},
+		trades = {},
+		access = {},
 		truces = {},
 		peaces = {},
 		armies = {},

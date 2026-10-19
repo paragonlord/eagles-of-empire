@@ -9,6 +9,10 @@
 -- minor allies make peace with the same enemy (on their own war score).
 -- Declaring war brings the target's allies in against the aggressor (minors only when their capital
 -- is within four marches of the aggressor's).
+-- Trade agreements pay both sides (Economy.tradeIncome); military access lets one side's armies
+-- through the other's land; gifts of gold raise relations by 1 per 50. The AI trades from
+-- relations of -20 (-50 with under 500 in its treasury) and grants access from 50, or from 0 when
+-- the two share an enemy. War between the two ends both.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local EuropeData = require(Shared.EuropeData)
@@ -24,6 +28,11 @@ Diplomacy.PER_PROVINCE = 20
 Diplomacy.DICTATED = 50
 Diplomacy.TRUCE = 6
 Diplomacy.TRUCE_DICTATED = 10
+Diplomacy.GIFT_PER_RELATION = 50
+Diplomacy.TRADE_RELATION = -20
+Diplomacy.TRADE_RELATION_NEEDY = -50
+Diplomacy.NEEDY_TREASURY = 500
+Diplomacy.ACCESS_RELATION = 50
 
 function Diplomacy.score(s: State, a: string, b: string): number
 	local w = s.wars[State.pair(a, b)]
@@ -52,6 +61,9 @@ local function startWar(s: State, a: string, b: string)
 	end
 	s.alliances[k] = nil
 	s.truces[k] = nil
+	s.trades[k] = nil
+	s.access[a .. ">" .. b] = nil
+	s.access[b .. ">" .. a] = nil
 	s.wars[k] = { a = a, b = b, score = 0, since = s.turn }
 	State.addRelation(s, a, b, -40)
 	State.log(s, string.format("%s declares war on %s.", State.nationName(a), State.nationName(b)))
@@ -265,10 +277,82 @@ function Diplomacy.aiAcceptsAlliance(s: State, nation: string, other: string): b
 	return false
 end
 
+function Diplomacy.aiAcceptsTrade(s: State, nation: string, other: string): boolean
+	if State.atWar(s, nation, other) then
+		return false
+	end
+	local needy = s.nations[nation].treasury < Diplomacy.NEEDY_TREASURY
+	return State.relation(s, nation, other) >= (if needy then Diplomacy.TRADE_RELATION_NEEDY else Diplomacy.TRADE_RELATION)
+end
+
+function Diplomacy.aiAcceptsAccess(s: State, nation: string, other: string): boolean
+	if State.atWar(s, nation, other) then
+		return false
+	end
+	local rel = State.relation(s, nation, other)
+	if rel >= Diplomacy.ACCESS_RELATION then
+		return true
+	end
+	if rel < 0 then
+		return false
+	end
+	for _, e in State.enemiesOf(s, nation) do
+		if State.atWar(s, other, e) then
+			return true
+		end
+	end
+	return false
+end
+
+function Diplomacy.makeTrade(s: State, a: string, b: string)
+	if not State.trading(s, a, b) and not State.atWar(s, a, b) then
+		s.trades[State.pair(a, b)] = true
+		State.addRelation(s, a, b, 5)
+		State.log(s, string.format("%s and %s sign a trade agreement.", State.nationName(a), State.nationName(b)))
+	end
+end
+
 -- Player-initiated diplomacy. Returns ok, reason.
-function Diplomacy.propose(s: State, from: string, to: string, kind: string): (boolean, string?)
+function Diplomacy.propose(s: State, from: string, to: string, kind: string, amount: number?): (boolean, string?)
 	if not EuropeData.Nations[to] or to == from then
 		return false, "unknownNation"
+	end
+	if kind == "trade" or kind == "access" then
+		if State.atWar(s, from, to) then
+			return false, "alreadyAtWar"
+		end
+		if kind == "trade" then
+			if State.trading(s, from, to) then
+				return false, "alreadyTrading"
+			end
+			if not Diplomacy.aiAcceptsTrade(s, to, from) then
+				return false, "refused"
+			end
+			Diplomacy.makeTrade(s, from, to)
+			return true, nil
+		end
+		if State.allied(s, from, to) or s.access[from .. ">" .. to] then
+			return false, "alreadyAllowed"
+		end
+		if not Diplomacy.aiAcceptsAccess(s, to, from) then
+			return false, "refused"
+		end
+		s.access[from .. ">" .. to] = true
+		State.log(s, string.format("%s grants %s military access.", State.nationName(to), State.nationName(from)))
+		return true, nil
+	elseif kind == "gift" then
+		local gold = math.floor(amount or 0)
+		if gold < Diplomacy.GIFT_PER_RELATION then
+			return false, "badArgs"
+		end
+		if s.nations[from].treasury < gold then
+			return false, "insufficientFunds"
+		end
+		s.nations[from].treasury -= gold
+		s.nations[to].treasury += gold
+		State.addRelation(s, from, to, gold // Diplomacy.GIFT_PER_RELATION)
+		State.log(s, string.format("%s sends %s a gift of %d gold.", State.nationName(from), State.nationName(to), gold))
+		return true, nil
 	end
 	if kind == "war" then
 		if State.atWar(s, from, to) then
@@ -317,6 +401,8 @@ function Diplomacy.answer(s: State, nation: string, offerId: string, accept: boo
 				Diplomacy.makePeace(s, o.from, o.to)
 			elseif o.kind == "alliance" then
 				Diplomacy.makeAlliance(s, o.from, o.to)
+			elseif o.kind == "trade" then
+				Diplomacy.makeTrade(s, o.from, o.to)
 			end
 			return true, nil
 		end
@@ -373,6 +459,10 @@ function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 	local player = s.playerNation
 	if not autoplay and nation ~= player and Diplomacy.aiAcceptsAlliance(s, nation, player) and State.relation(s, nation, player) >= 50 then
 		offer(s, nation, player, "alliance")
+	end
+	-- and trade offers from friendly nations
+	if not autoplay and nation ~= player and not State.trading(s, nation, player) and not State.atWar(s, nation, player) and State.relation(s, nation, player) >= 30 then
+		offer(s, nation, player, "trade")
 	end
 end
 

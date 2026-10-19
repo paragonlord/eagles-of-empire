@@ -64,7 +64,7 @@ end
 
 function Movement.canEnter(s: State, nation: string, provinceId: string): boolean
 	local c = State.controller(s, provinceId)
-	return State.friendly(s, nation, c) or State.atWar(s, nation, c)
+	return State.friendly(s, nation, c) or State.atWar(s, nation, c) or s.access[nation .. ">" .. c] == true
 end
 
 function Movement.inZoc(s: State, nation: string, provinceId: string): boolean

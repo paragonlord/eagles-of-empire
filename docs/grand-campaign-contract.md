@@ -100,4 +100,7 @@ Errors come back as `{ kind = "error", requestId, reason }`.
 20. `assault {provinceId}` (player phase, a siege by the player): a pending battle with
     `assault = true` (also on `pendingBattle`, whose `defenderMen` count the garrison); `retreat`
     calls it off. Refusals: `notBesieging`, `noArmyReady`.
+21. Diplomacy actions `trade`, `access`, `gift` (with `amount`); offers may be of kind `trade`.
+    Nations carry `trade` (an agreement with the player) and `access` (the player's armies may
+    cross its land). Refusals: `alreadyTrading`, `alreadyAllowed`, `refused`, `insufficientFunds`.
 

@@ -70,7 +70,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Siege assault
 
 ## Phase 9: diplomacy and agents
-- [ ] Trade agreements, military access, gifts
+- [x] Trade agreements, military access, gifts
 - [ ] Spies
 
 ## Phase 10: navy (auto-resolved)

@@ -49,6 +49,8 @@ Logic.REASONS = {
 	badArgs = "Malformed order",
 	building = "Already building here",
 	alreadyForced = "Already marching hard",
+	alreadyTrading = "You already trade with them",
+	alreadyAllowed = "Your armies may already cross their land",
 	alreadyMarched = "Only before the army marches this turn",
 	notBesieging = "You are not besieging that province",
 	noArmyReady = "Your besiegers have already acted this turn",
@@ -289,6 +291,9 @@ function Logic.offerText(o: any): string
 		end
 		local cede = if #names > 0 then " " .. nationName(t.loser) .. " cedes " .. table.concat(names, ", ") .. "." else " No provinces change hands."
 		return string.format("%s offers peace%s: %s prevails (war score %s).%s", nationName(o.from), if t.dictated then ", dictated" else "", nationName(t.winner), tostring(t.score or 0), cede)
+	end
+	if o.kind == "trade" then
+		return string.format("%s proposes a trade agreement: each side earns a tenth of the other's provincial income.", nationName(o.from))
 	end
 	return string.format("%s proposes %s.", nationName(o.from), tostring(o.kind))
 end

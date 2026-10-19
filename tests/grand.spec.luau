@@ -691,6 +691,73 @@ end)
 
 -- Events -------------------------------------------------------------------------------------------
 
+test("Grand diplomacy: trade pays both sides, access opens a border, gifts buy goodwill, war ends pacts", function()
+	local s = empty(20, "france")
+	local function dip(nation, action, extra)
+		local cmd = { kind = "diplomacy", nation = nation, action = action }
+		for k, v in extra or {} do
+			cmd[k] = v
+		end
+		return GrandCampaign.command(s, cmd)
+	end
+	-- trade with Prussia (relations 0): accepted; each side earns a tenth of the other's provinces
+	local fBefore, pBefore = Economy.income(s, "france"), Economy.income(s, "prussia")
+	assertTrue(dip("prussia", "trade"))
+	assertTrue(State.trading(s, "france", "prussia"))
+	local base = 0
+	for _, id in State.provincesOwned(s, "prussia") do
+		base += State.province(id).income
+	end
+	assertEq(Economy.tradeIncome(s, "france"), base * Economy.TRADE_PACT)
+	assertTrue(math.abs(Economy.income(s, "france") - fBefore - base * Economy.TRADE_PACT) <= 1)
+	assertTrue(Economy.income(s, "prussia") > pBefore, "and Prussia earns from France")
+	local ok, why = dip("prussia", "trade")
+	assertTrue(not ok and why == "alreadyTrading")
+	-- Austria (-40) will not trade; two gifts of 500 bring relations to -20 and it does
+	ok, why = dip("austria", "trade")
+	assertTrue(not ok and why == "refused")
+	local gold, agold = s.nations.france.treasury, s.nations.austria.treasury
+	assertTrue(dip("austria", "gift", { amount = 500 }))
+	assertEq(State.relation(s, "france", "austria"), -30)
+	assertEq(s.nations.france.treasury, gold - 500)
+	assertEq(s.nations.austria.treasury, agold + 500)
+	assertTrue(dip("austria", "gift", { amount = 500 }))
+	assertTrue(dip("austria", "trade"))
+	s.nations.france.treasury = 50
+	ok, why = dip("austria", "gift", { amount = 500 })
+	assertTrue(not ok and why == "insufficientFunds")
+	-- access: Bavaria (40) wants 50, or a common enemy
+	assertTrue(not Movement.canEnter(s, "france", "bavaria"), "neutral land is closed")
+	ok, why = dip("bavaria", "access")
+	assertTrue(not ok and why == "refused")
+	State.addRelation(s, "france", "bavaria", 10)
+	assertTrue(dip("bavaria", "access"))
+	assertTrue(Movement.canEnter(s, "france", "bavaria"))
+	assertTrue(not Movement.canEnter(s, "bavaria", "paris"), "access runs one way")
+	ok, why = dip("spain", "access")
+	assertTrue(not ok and why == "alreadyAllowed", "allies march freely already")
+	-- the view shows the pacts; a save keeps them; an old save without them loads
+	local v = GrandCampaign.view(s)
+	assertTrue(v.nations.prussia.trade == true and v.nations.bavaria.access == true and v.nations.russia.trade == false)
+	local saved = ProfileStore.clone(GrandCampaign.serialize(s))
+	assertTrue(State.trading(GrandCampaign.deserialize(saved), "france", "austria"))
+	saved.trades, saved.access = nil, nil
+	assertTrue(GrandCampaign.deserialize(saved) ~= nil, "a save from before trade loads")
+	-- war ends trade and access between the two
+	Diplomacy.declareWar(s, "france", "prussia")
+	assertTrue(not State.trading(s, "france", "prussia"))
+	Diplomacy.declareWar(s, "bavaria", "france")
+	assertEq(s.access["france>bavaria"], nil)
+	-- friends offer trade to the player
+	local s2 = empty(21, "france")
+	Diplomacy.aiTurn(s2, "italy")
+	local offered = false
+	for _, o in s2.offers do
+		offered = offered or (o.from == "italy" and o.kind == "trade")
+	end
+	assertTrue(offered, "Italy (90) offers trade")
+end)
+
 test("Grand events: fire on their date when conditions hold, once, with the chooser's default", function()
 	local s = State.new(8, "france")
 	s.turn = T(5, 1805)

@@ -417,7 +417,7 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		if not nation or not what then
 			return false, "badArgs"
 		end
-		local ok, why = Diplomacy.propose(s, player, nation, what)
+		local ok, why = Diplomacy.propose(s, player, nation, what, tonumber(cmd.amount))
 		checkVictory(s)
 		return ok, why
 	elseif kind == "endTurn" then
@@ -497,6 +497,8 @@ function GrandCampaign.view(s: State): { [string]: any }
 			allies = State.alliesOf(s, id),
 			relationToPlayer = State.relation(s, id, player),
 			truceUntil = s.truces[State.pair(id, player)],
+			trade = State.trading(s, id, player),
+			access = s.access[player .. ">" .. id] == true, -- the player's armies may cross its land
 			warScore = if State.atWar(s, player, id) then Diplomacy.score(s, player, id) else nil,
 			provinces = State.provincesOwned(s, id),
 		}

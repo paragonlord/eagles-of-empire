@@ -264,6 +264,15 @@ besiegers cannot move or assault again that turn.
 - Dominant France: each turn a major at peace with France (no truce, relation < 20) joins the war
   with probability clamp((share − 0.4) · 0.6, 0, 0.2), share = provinces controlled by France and
   her allies / 45.
+- Trade agreements (`diplomacy {nation, action = "trade"}`): each partner earns a tenth of the
+  other's provincial base income a turn (`Economy.TRADE_PACT`, occupied provinces excluded), and
+  relations +5. The AI signs from relations −20 (−50 with under 500 gold) and offers trade to the
+  player from 30.
+- Military access (`action = "access"`): the player's armies may march through that nation's land
+  (one way). The AI grants it from relations 50, or from 0 when the two share an enemy. Allies
+  need none.
+- Gifts (`action = "gift", amount`): gold to the other treasury, relations +1 per 50.
+- War between two nations ends their trade agreement and access both ways.
 
 ## AI
 
