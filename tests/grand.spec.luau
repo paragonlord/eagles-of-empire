@@ -778,7 +778,7 @@ test("Grand battles: generic scenario on the province map with keys, zones and o
 	local b = Battles.detect(s)[1]
 	assertEq(b.scenarioId, nil)
 	local sc = GrandCampaign.battleScenario(s, b.battleId)
-	assertEq(sc.map, EuropeData.province("venetia").terrain)
+	assertEq(sc.map, "province:venetia", "fought on Venetia's own field")
 	local map = MapGen.generate(sc.map)
 	assertTrue(map.deployZones[sc.factions.player] and map.deployZones[sc.factions.enemy])
 	assertEq(sc.factions.player, "france")

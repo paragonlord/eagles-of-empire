@@ -545,13 +545,132 @@ MAPS.waterloo_lahayesainte = episode("waterloo", {
 	{ id = "crossroads", name = "Mont-Saint-Jean crossroads", pos = v(1200, 1060), radius = 60 },
 }, { france = { x0 = 880, z0 = 400, x1 = 1520, z1 = 640 }, britain = { x0 = 940, z0 = 880, x1 = 1500, z1 = 1260 } })
 
+-- Province battle maps ("province:<id>", docs/campaign.md "Battles"): a field drawn from the
+-- province's terrain archetype, its three real towns as villages and objectives and its river,
+-- seeded from the province id so server and client agree. Zone keys are the authored maps' own
+-- ("france" south, "prussia" north): the campaign maps any nation onto them.
+local function provinceDef(provinceId: string): MapDef?
+	local EuropeData = require(script.Parent.EuropeData) :: any
+	local p = EuropeData.province(provinceId)
+	if not p then
+		return nil
+	end
+	local seed = 7919
+	for i = 1, #provinceId do
+		seed = (seed * 31 + string.byte(provinceId, i)) % 2147483647
+	end
+	local rng = RNG.new(seed)
+	local function j(n: number): number
+		return rng:range(-n, n)
+	end
+	local towns = p.towns or {}
+	local function town(i: number, fallback: string): string
+		return towns[i] or fallback
+	end
+	local kind = p.terrain
+	local main: Vec = v(800 + j(60), 600 + j(40))
+	local west: Vec = v(400 + j(60), 560 + j(60))
+	local east: Vec = v(1200 + j(60), 640 + j(60))
+	local hills: { Hill } = {}
+	local rivers: { River } = {}
+	local bridges: { Bridge } = {}
+	local roads: { Road } = {
+		{ points = { v(800 + j(40), 0), main, v(800 + j(40), 1200) }, width = 6 },
+		{ points = { v(0, 600 + j(40)), west, main, east, v(1600, 620 + j(40)) }, width = 5 },
+	}
+	if kind == "bridge" then
+		-- a river across the field between the armies, two bridges and the towns beside them
+		local z = 600 + j(30)
+		main = v(800 + j(40), z + 110)
+		west = v(450 + j(50), z - 110)
+		east = v(1150 + j(50), z - 110)
+		rivers[1] = { name = p.river or "River", points = { v(0, z + j(20)), v(530, z + j(15)), v(1070, z + j(15)), v(1600, z + j(20)) }, width = 30, level = 1 }
+		for _, x in { 500 + j(20), 1100 + j(20) } do
+			bridges[#bridges + 1] = { a = v(x, z - 50), b = v(x, z + 50), width = 24 }
+		end
+		roads = {
+			{ points = { v(500, 0), v(500, z - 50), v(500, z + 50), main, v(800, 1200) }, width = 6 },
+			{ points = { v(1100, 0), v(1100, z - 50), v(1100, z + 50), main }, width = 5 },
+			{ points = { v(0, z - 110), west, east, v(1600, z - 110) }, width = 5 },
+		}
+		hills = { { pos = v(800, 300), rx = 600, rz = 140, h = 12, k = 0.5 }, { pos = v(800, 950), rx = 600, rz = 160, h = 16, k = 0.5 } }
+	elseif kind == "jena" then
+		-- a plateau above a valley of villages, a ridge beyond
+		hills = { { pos = v(800 + j(100), 260), rx = 520, rz = 160, h = 24, k = 0.55 }, { pos = v(800 + j(100), 960), rx = 560, rz = 150, h = 14, k = 0.6 }, { pos = v(250 + j(60), 700), rx = 160, rz = 140, h = 12, k = 0.6 } }
+	elseif kind == "auerstedt" then
+		-- a plateau cut by a stream with a bridge and a ford
+		local x = 500 + j(40)
+		hills = { { pos = v(1050 + j(60), 620), rx = 420, rz = 300, h = 16, k = 0.5 }, { pos = v(250, 600), rx = 200, rz = 400, h = 10, k = 0.6 } }
+		rivers[1] = { name = p.river or "Brook", points = { v(x + j(10), 0), v(x + j(15), 600), v(x + j(10), 1200) }, width = 12, level = 17, fords = { v(x, 260) } }
+		bridges[1] = { a = v(x - 30, 600), b = v(x + 30, 600), width = 26 }
+		west = v(x - 150, 560 + j(60))
+	elseif kind == "austerlitz" then
+		-- heights in the middle, a brook along the low ground with bridges and a ford
+		local x = 330 + j(30)
+		hills = { { pos = v(950 + j(60), 600), rx = 380, rz = 280, h = 28, k = 0.5 } }
+		rivers[1] = { name = p.river or "Brook", points = { v(x + j(10), 0), v(x + j(20), 400), v(x + j(20), 800), v(x + j(10), 1200) }, width = 16, level = 14, fords = { v(x, 900) } }
+		bridges = { { a = v(x - 32, 560), b = v(x + 32, 560), width = 26 }, { a = v(x - 32, 300), b = v(x + 32, 300), width = 26 } }
+		west = v(x - 130, 560)
+		main = v(760 + j(40), 600 + j(40))
+	elseif kind == "waterloo" then
+		-- two parallel ridges with farms between
+		hills = { { pos = v(800, 330), rx = 900, rz = 130, h = 14, k = 0.6 }, { pos = v(800, 880), rx = 900, rz = 150, h = 20, k = 0.6 } }
+	else -- "village": open ground round a large village
+		hills = { { pos = main, rx = 260, rz = 180, h = 12, k = 0.6 }, { pos = v(300 + j(80), 900), rx = 220, rz = 160, h = 10, k = 0.6 }, { pos = v(1300 + j(80), 300), rx = 220, rz = 160, h = 10, k = 0.6 } }
+	end
+	local woods = {}
+	for _ = 1, 4 do
+		local pos = v(rng:range(180, 1420), rng:range(380, 820))
+		if Vec.dist(pos, main) > 220 and Vec.dist(pos, west) > 180 and Vec.dist(pos, east) > 180 then
+			woods[#woods + 1] = { pos = pos, rx = rng:range(70, 140), rz = rng:range(60, 110) }
+		end
+	end
+	local def: any = {
+		name = p.name,
+		seed = seed % 100000,
+		baseHeight = 24,
+		hills = hills,
+		villages = {
+			{ name = town(1, p.name), pos = main, radius = 60, count = 22 },
+			{ name = town(2, "Upper " .. p.name), pos = west, radius = 42, count = 12 },
+			{ name = town(3, "Lower " .. p.name), pos = east, radius = 42, count = 12 },
+		},
+		woods = woods,
+		roads = roads,
+		rivers = rivers,
+		bridges = bridges,
+		labels = if rivers[1] then { { text = rivers[1].name, pos = v(rivers[1].points[2].x + 60, rivers[1].points[2].z + 60), size = 1.0 } } else {},
+		objectives = {
+			{ id = "main", name = town(1, p.name), pos = main, radius = 60 },
+			{ id = "west", name = town(2, "Upper " .. p.name), pos = west, radius = 60 },
+			{ id = "east", name = town(3, "Lower " .. p.name), pos = east, radius = 60 },
+		},
+		deployZones = {
+			france = { x0 = 250, z0 = 40, x1 = 1350, z1 = 300 },
+			prussia = { x0 = 250, z0 = 900, x1 = 1350, z1 = 1160 },
+		},
+		valley = nil,
+	}
+	return def :: MapDef
+end
+
+-- Province maps exist (the grand campaign fights on them: GrandCampaign/Battles.mapId).
+MapGen.provinceMaps = true
+
 function MapGen.list(): { string }
 	return { "jena", "auerstedt", "austerlitz", "waterloo", "bridge", "village" }
 end
 
 function MapGen.generate(mapId: string): MapData
-	local def = MAPS[mapId]
-	assert(def, "unknown map " .. tostring(mapId))
+	local found = MAPS[mapId]
+	if not found and string.sub(mapId, 1, 9) == "province:" then
+		found = provinceDef(string.sub(mapId, 10))
+		if found then
+			MAPS[mapId] = found
+		end
+	end
+	assert(found, "unknown map " .. tostring(mapId))
+	local def: MapDef = found
 	local cell = Config.Map.CellSize
 	local cols = (def.width or Config.Map.Width) // cell
 	local rows = (def.depth or Config.Map.Depth) // cell

@@ -188,9 +188,8 @@ Prussia Jäger) and Russia's cavalry (Cossacks).
 - Otherwise the battle uses the province's map: up to 24 strongest units a side plus one HQ for the
   best general, placed in the map's deploy zones. Briefing and date are the campaign turn the
   battle is fought in.
-- Province maps (requested from MapGen; `Battles.mapId` switches to them when `MapGen.provinceMaps`
-  is true, until then the authored map named by `terrain` is used, which carries that map's own
-  place names): `MapGen.generate("province:<id>")`, deterministic from the province id, 1600 × 1200,
+- Province maps (`MapGen.provinceMaps` is on, so every generic battle is fought on its province's
+  own field): `MapGen.generate("province:<id>")`, deterministic from the province id, 1600 × 1200,
   landscape by the province's `terrain` (bridge → a river with one or two bridges, jena → hills
   with villages, auerstedt → a plateau with a stream, austerlitz → central heights, waterloo → two
   parallel ridges, village → open plain round a large village); villages and objectives named from

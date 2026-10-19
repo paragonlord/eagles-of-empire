@@ -342,3 +342,37 @@ test("Unit types: stats merge over the class and differ where they should", func
 	assertTrue(S.horseArt.speed > S.footArt.speed and S.horseArt.reformScale < 1)
 	assertTrue(Config.Units.infantry.musket.range == 90, "merging never writes into the class table")
 end)
+
+test("Province maps: every province of the grand campaign has its own field, deterministic and passable", function()
+	local EuropeData = require(Shared.EuropeData)
+	assertTrue(MapGen.provinceMaps == true)
+	local t0 = os.clock()
+	for i, p in EuropeData.Provinces do
+		local m = MapGen.generate("province:" .. p.id)
+		assertEq(m.name, p.name)
+		assertEq(#m.objectives, 3)
+		if p.towns and p.towns[1] then
+			assertEq(m.villages[1].name, p.towns[1], p.id .. ": its own town at the centre")
+			assertEq(m.objectives[1].name, p.towns[1])
+		end
+		assertTrue(m.deployZones.france and m.deployZones.prussia)
+		for _, o in m.objectives do
+			assertTrue(Grid.terrainAt(m.grid, o.pos.x, o.pos.z).passable, p.id .. ": " .. o.name .. " stands on passable ground")
+		end
+		-- a sample of the provinces (every archetype) gets the full reachability check
+		if i % 4 == 1 then
+			local nav = Nav.build(m.grid)
+			for _, key in { "france", "prussia" } do
+				local z = m.deployZones[key]
+				local from = Nav.nearestWalkable(nav, { x = (z.x0 + z.x1) / 2, z = (z.z0 + z.z1) / 2 }, 10)
+				assertTrue(from ~= nil, p.id .. ": the " .. key .. " zone has open ground")
+				for _, o in m.objectives do
+					assertTrue(Nav.findPath(nav, from :: any, o.pos, 8) ~= nil, p.id .. ": " .. key .. " can reach " .. o.name)
+				end
+			end
+		end
+	end
+	local a, b = MapGen.generate("province:vienna"), MapGen.generate("province:vienna")
+	assertEq(a.grid.height[5000], b.grid.height[5000], "the same field every time")
+	print(string.format("   (%d province maps in %.1f s)", #EuropeData.Provinces, os.clock() - t0))
+end)

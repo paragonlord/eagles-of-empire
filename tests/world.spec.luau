@@ -84,10 +84,12 @@ test("WorldGen: tiers and quality filters", function()
 end)
 
 test("WorldGen: no part sits below the terrain at its corners, on every map", function()
-	for _, id in { "jena", "auerstedt", "austerlitz", "waterloo" } do
+	-- the authored fields and one province field of each archetype the generator draws
+	for _, id in { "jena", "auerstedt", "austerlitz", "waterloo", "province:rhineland", "province:vienna", "province:moravia" } do
 		local map = MapGen.generate(id)
 		local t = WorldGen.terrain(map)
 		local specs = WorldGen.props(map, t)
+		assertTrue(#specs > 500, id .. ": a world was built")
 		local bad, worst = 0, 0
 		for _, s in specs do
 			if not s.buried then
