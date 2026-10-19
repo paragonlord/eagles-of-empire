@@ -423,24 +423,12 @@ function State.hostileArmyIn(s: State, provinceId: string, nation: string): bool
 	return false
 end
 
-local function ordinal(nation: string, n: number): string
-	if nation == "france" then
-		return if n == 1 then "1er" else tostring(n) .. "e"
-	elseif nation == "britain" or nation == "russia" then
-		local m100, m10 = n % 100, n % 10
-		local suf = if m100 >= 11 and m100 <= 13 then "th" elseif m10 == 1 then "st" elseif m10 == 2 then "nd" elseif m10 == 3 then "rd" else "th"
-		return tostring(n) .. suf
-	end
-	return tostring(n) .. "."
-end
-
 function State.newUnit(s: State, nation: string, unitType: string, experience: number?): Unit
 	local c = EuropeData.UnitClasses[unitType] or error("unknown unit type " .. tostring(unitType))
 	local ck = nation .. "." .. unitType
 	local n = (s.counters[ck] or 0) + 1
 	s.counters[ck] = n
-	local names = EuropeData.UnitNames[nation]
-	local name = if names and names[unitType] then string.format(names[unitType], ordinal(nation, n)) else string.format("%s %s %d", EuropeData.Nations[nation].adjective, c.name, n)
+	local name = EuropeData.unitName(nation, unitType, n)
 	return { key = State.newId(s, "u"), type = unitType, name = name, strength = c.strength, maxStrength = c.strength, experience = experience or c.experience }
 end
 

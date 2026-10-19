@@ -564,6 +564,26 @@ EuropeData.UnitNames = {
 
 -- Generals and starting armies (January 1805) -------------------------------------------------------
 
+local function ordinal(nation: string, n: number): string
+	if nation == "france" then
+		return if n == 1 then "1er" else tostring(n) .. "e"
+	elseif nation == "britain" or nation == "russia" then
+		local m100, m10 = n % 100, n % 10
+		local suf = if m100 >= 11 and m100 <= 13 then "th" elseif m10 == 1 then "st" elseif m10 == 2 then "nd" elseif m10 == 3 then "rd" else "th"
+		return tostring(n) .. suf
+	end
+	return tostring(n) .. "."
+end
+
+-- The `n`th regiment of a type raised by a nation: "3e de Ligne", "95th Rifles", "Bavarian Line infantry 2".
+function EuropeData.unitName(nation: string, unitType: string, n: number): string
+	local names = EuropeData.UnitNames[nation]
+	if names and names[unitType] then
+		return string.format(names[unitType], ordinal(nation, n))
+	end
+	return string.format("%s %s %d", EuropeData.Nations[nation].adjective, EuropeData.UnitClasses[unitType].name, n)
+end
+
 -- Generals a major can appoint later (rating 2), in order; a name already in service is skipped.
 EuropeData.GeneralPool = {
 	france = { "Augereau", "Mortier", "Victor", "Bessières", "Oudinot", "Suchet", "Macdonald", "Grouchy", "Junot", "Gouvion Saint-Cyr", "Lefebvre", "Poniatowski" },

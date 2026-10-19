@@ -174,6 +174,19 @@ between the ridges is open; its cost is the weather, not a terrain class.
 **Objectives.** La Haye Sainte, Hougoumont, Mont-Saint-Jean crossroads — all inside the allied
 deployment zone, so the French must take them. 30 min. Difficulty: very hard.
 
+## Custom battle
+
+The battle picker's "Custom battle" tab (`src/client/UI/CustomSelect.luau`, rules in
+`src/shared/CustomBattle.luau`, control `custom`): pick your nation and the enemy's among the five
+great powers, a field (Jena, Auerstedt, Austerlitz, Waterloo, or the Lombardy, Saxony, Belgium and
+Smolensk province fields) and a budget (5,000 / 8,000 / 12,000 gold), then buy up to 20 regiments
+from the campaign's unit table (`EuropeData.UnitClasses`: cost, strength, battle type; national
+units only for their nation; guard experience 3, others 1). The AI buys a mixed army for the same
+budget (line first, then guns, cavalry, light infantry, heavy cavalry and guard in turn while they
+fit). A nation whose id names a deploy zone on the field keeps that zone; armies stand in rows of
+8 facing each other, an HQ (120) behind each. A meeting battle, 25 minutes; restart refights the
+same armies.
+
 ## Historical moments
 
 Every listed battle carries 2–3 **moments** (`scenario.moments`, types in

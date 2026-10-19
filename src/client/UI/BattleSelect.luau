@@ -15,6 +15,7 @@ export type Callbacks = {
 	difficulty: (value: string) -> (),
 	mode: ((value: string) -> ())?, -- "coop" | "pvp"
 	command: ((value: string) -> ())?, -- "historical" | "other": which army the players command
+	custom: (() -> ())?, -- open the custom battle screen
 	back: () -> (),
 }
 
@@ -249,14 +250,14 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	local setCommand = cb.command
 	if setCommand then
 		local function commandText(): string
-			return if BattleState.command == "other" then "Command: the other army" else "Command: the historical army"
+			return if BattleState.command == "other" then "Command: the other army" else "Command: history's army"
 		end
 		local cmdB: TextButton
 		cmdB = Kit.button(panel, commandText(), function()
 			BattleState.command = if BattleState.command == "other" then "historical" else "other"
 			setCommand(BattleState.command)
 			cmdB.Text = commandText()
-		end, { size = UDim2.fromOffset(220, 30), position = UDim2.new(1, 0, 0, 84), anchor = Vector2.new(1, 0), textSize = 15, tooltip = "Fight from the other side: the AI takes the army history gave you" })
+		end, { size = UDim2.fromOffset(200, 32), position = UDim2.new(1, 0, 0, 84), anchor = Vector2.new(1, 0), textSize = 14, tooltip = "Fight from the other side: the AI takes the army history gave you" })
 		Kit.setEnabled(cmdB, isCommander, "Only the commander chooses")
 	end
 	local tabs = Instance.new("Frame") :: Frame
@@ -304,12 +305,17 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 		end
 		scroll.CanvasPosition = Vector2.new(0, 0)
 	end
-	for i, t in { { "quick", "Quick battles (8–10 min)" }, { "full", "Full battles (25–30 min)" } } do
+	for i, t in { { "quick", "Quick · 8–10 min" }, { "full", "Full · 25–30 min" } } do
 		local key = t[1]
 		tabButtons[key] = Kit.button(tabs, t[2], function()
 			mode = key
 			fill()
-		end, { size = UDim2.fromOffset(250, 32), order = i, textSize = 16, caps = false })
+		end, { size = UDim2.fromOffset(160, 32), order = i, textSize = 16, caps = false })
+	end
+	local openCustom = cb.custom
+	if openCustom then
+		local cbtn = Kit.button(tabs, "Custom battle", openCustom, { size = UDim2.fromOffset(140, 32), order = 3, textSize = 16, caps = false, tooltip = "Two powers, a field, a budget: buy your army" })
+		Kit.setEnabled(cbtn, isCommander, "Only the commander starts a battle")
 	end
 	fill()
 	-- Roblox can leave a card under the scroll window's clip half-drawn on the first frame;

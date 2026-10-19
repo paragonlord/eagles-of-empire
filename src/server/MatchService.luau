@@ -19,6 +19,7 @@ local Remotes = require(script.Parent.Net.Remotes)
 local CommandGate = require(script.Parent.Net.CommandGate)
 local MatchClock = require(script.Parent.Net.MatchClock)
 local CampaignService = require(script.Parent.CampaignService)
+local CustomBattle = require(Shared.CustomBattle)
 local Coop = require(script.Parent.Coop)
 local World = require(script.Parent.World)
 
@@ -629,6 +630,17 @@ local function onControl(player: Player, msg: any)
 	if action == "command" then
 		command = msg.value
 		result(player, msg.requestId, true)
+	elseif action == "custom" then
+		local sc, why = CustomBattle.build(msg.value)
+		if not sc then
+			result(player, msg.requestId, false, why)
+			return
+		end
+		destroyMatch()
+		createMatchFrom(sc, nil)
+		result(player, msg.requestId, true)
+		broadcastState()
+		publish(true)
 	elseif action == "difficulty" then
 		difficulty = msg.value
 		if m and m.state == "deployment" and m.tutorialStep == nil then
@@ -648,6 +660,10 @@ local function onControl(player: Player, msg: any)
 			local scenario, battleId = m.scenario, m.campaignBattleId
 			destroyMatch()
 			createMatchFrom(scenario, battleId)
+		elseif action == "restart" and m and m.scenario.id == "custom" then
+			local scenario = m.scenario -- a custom battle is fought again as built
+			destroyMatch()
+			createMatchFrom(scenario, nil)
 		else
 			local scenarioId = if type(msg.value) == "string" then msg.value elseif m then m.scenario.id else "jena"
 			destroyMatch()

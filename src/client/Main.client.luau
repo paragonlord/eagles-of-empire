@@ -32,6 +32,7 @@ local Loading = require(script.Parent.UI.Loading)
 local DevPanel = require(script.Parent.UI.DevPanel)
 local CampaignScreen = require(script.Parent.UI.CampaignScreen)
 local BattleSelect = require(script.Parent.UI.BattleSelect)
+local CustomSelect = require(script.Parent.UI.CustomSelect)
 local Grand = require(script.Parent.Campaign)
 local Tutorial = require(script.Parent.Tutorial)
 local Cinematic = require(script.Parent.Cinematic)
@@ -100,6 +101,7 @@ local function closePanels()
 	Help.hide()
 	SettingsPanel.hide()
 	BattleSelect.hide()
+	CustomSelect.hide()
 end
 
 local function openHelp()
@@ -129,6 +131,19 @@ menuCallbacks = {
 			end,
 			command = function(v: string)
 				Net.control("command", v)
+			end,
+			custom = function()
+				BattleSelect.hide()
+				CustomSelect.show({
+					fight = function(spec: any)
+						CustomSelect.hide()
+						Net.control("custom", spec)
+					end,
+					back = function()
+						CustomSelect.hide()
+						menuCallbacks.play()
+					end,
+				})
 			end,
 			back = function()
 				BattleSelect.hide()

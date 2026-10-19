@@ -57,6 +57,7 @@ Protocol.ControlActions = {
 	mode = true, -- host: value = "coop" | "pvp" (menu, or during deployment)
 	side = true, -- PvP deployment: value = the faction id of the side to command
 	command = true, -- host, from the menu: value = "historical" | "other" (which army the players command next)
+	custom = true, -- host, from the menu: value = a custom battle (CustomBattle.Spec), checked by the server
 	balance = true, -- host, PvP deployment: even the sides out
 	tutorialStep = true, -- tutorial scenario: value = step number reached (MatchService validates)
 }
@@ -334,6 +335,10 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 		end
 	elseif msg.action == "mode" then
 		if msg.value ~= "coop" and msg.value ~= "pvp" then
+			return false, Protocol.Reasons.badRequest
+		end
+	elseif msg.action == "custom" then
+		if type(msg.value) ~= "table" or type(msg.value.units) ~= "table" then
 			return false, Protocol.Reasons.badRequest
 		end
 	elseif msg.action == "command" then
