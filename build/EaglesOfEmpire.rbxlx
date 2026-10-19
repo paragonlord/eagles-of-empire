@@ -247,7 +247,7 @@ CampaignData.UnitTypes = {
 	light = { name = "Light infantry", class = "infantry", strength = 600, cost = 450, turns = 2, upkeep = 30, recruitable = true },
 	cavalry = { name = "Cavalry", class = "cavalry", strength = 400, cost = 500, turns = 3, upkeep = 40, recruitable = true },
 	artillery = { name = "Foot artillery", class = "artillery", strength = 120, cost = 450, turns = 3, upkeep = 35, recruitable = true },
-	hq = { name = "Headquarters", class = "hq", strength = 40, cost = 0, turns = 0, upkeep = 20, recruitable = false },
+	hq = { name = "Headquarters", class = "hq", strength = 120, cost = 0, turns = 0, upkeep = 20, recruitable = false },
 } :: { [string]: UnitType }
 
 CampaignData.Economy = {
@@ -431,7 +431,7 @@ Config.Shapes = {
 	limbered = { ranks = 1, fire = 0.0, melee = 0.3, speed = 1.0, shock = 3.0, artillery = 1.5, turnRate = 0.8, figureSpacing = 8, rankSpacing = 10 },
 	deployed = { ranks = 1, fire = 1.0, melee = 0.3, speed = 0.0, shock = 3.0, artillery = 1.0, turnRate = 0.0, figureSpacing = 8, rankSpacing = 8 },
 	wedge = { ranks = 4, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.0, artillery = 1.6, turnRate = 1.1, figureSpacing = 5, rankSpacing = 6 },
-	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
+	staff = { ranks = 2, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.5, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
 	-- open order (light infantry and rifles): fires on the move and all round, hard to hit, prey to cavalry
 	skirmish = { ranks = 2, fire = 0.5, melee = 0.5, speed = 1.0, shock = 2.0, artillery = 0.35, turnRate = 1.2, figureSpacing = 7, rankSpacing = 6 },
 	-- inside a building (Sim/Garrison): fires from the windows all round, cannot be charged by horse
@@ -452,6 +452,7 @@ Config.Units = {
 		spot = 260,
 	},
 	cavalry = {
+		mounted = true,
 		speed = 14.0, chargeSpeed = 20.0,
 		defaultShape = "wedge", legalShapes = { wedge = true, line = true },
 		musket = nil,
@@ -475,13 +476,17 @@ Config.Units = {
 		spot = 240,
 	},
 	hq = {
-		speed = 12.0, chargeSpeed = 12.0,
+		-- the general and his escort: a squadron of heavy horse (120 sabres) that can charge
+		mounted = true,
+		speed = 12.0, chargeSpeed = 18.0,
 		defaultShape = "staff", legalShapes = { staff = true },
 		musket = nil,
-		melee = { attack = 0.3, defense = 0.5 },
+		melee = { attack = 1.2, defense = 0.9 },
+		charge = { runUp = 60, base = 0.04, recovery = 40, maxMeleeSeconds = 20, frontFactor = 1.0, flankFactor = 1.8, rearFactor = 2.5 },
 		influence = { radius = 120, moraleBonus = 10, recoveryBonus = 0.3 },
 		rally = { cooldown = 90, radius = 100, moraleRestore = 30, minRoutingSeconds = 5 },
-		lossMoralePenalty = 15, -- to every friendly formation when the HQ is destroyed/exited
+		lossMoralePenalty = 15, -- when an HQ is destroyed/exited: the army's to everyone, a corps general's
+		lossRadius = 300, -- to the formations within this of a fallen corps general
 		baseMorale = 80, fatigueMove = 0.3, fatigueCharge = 0.3, fatigueMelee = 2.0, rest = 2.0,
 		spot = 300,
 	},
@@ -554,6 +559,7 @@ Config.Combat = {
 	ExperienceAccuracy = 0.08, -- per experience level
 	ExperienceMelee = 0.08,
 	ExperienceMorale = 4,
+	ExperienceKills = 150, -- enemy casualties a formation inflicts per experience level gained in battle (max 3)
 	FatigueSpeedPenalty = 0.4,
 	FatigueAccuracyPenalty = 0.3,
 	FatigueMeleePenalty = 0.4,
@@ -2434,7 +2440,7 @@ MAPS.auerstedt_hassenhausen = episode("auerstedt", {
 MAPS.auerstedt_spielberg = episode("auerstedt", {
 	{ id = "spielberg", name = "Spielberg", pos = v(1280, 1130), radius = 60 },
 	{ id = "poppel", name = "Poppel", pos = v(690, 1060), radius = 60 },
-}, { france = { x0 = 1250, z0 = 500, x1 = 1700, z1 = 980 }, prussia = { x0 = 260, z0 = 880, x1 = 660, z1 = 1380 } })
+}, { france = { x0 = 1250, z0 = 500, x1 = 1700, z1 = 980 }, prussia = { x0 = 800, z0 = 880, x1 = 1100, z1 = 1380 } }) -- Orange between Friant and the Lissbach
 MAPS.waterloo_hougoumont = episode("waterloo", {
 	{ id = "hougoumont", name = "Hougoumont", pos = v(760, 790), radius = 60 },
 }, { france = { x0 = 420, z0 = 360, x1 = 1120, z1 = 600 }, britain = { x0 = 560, z0 = 730, x1 = 1060, z1 = 1160 } })
@@ -2868,7 +2874,7 @@ Protocol.CommandKinds = {
 	Stance = { infantry = true, artillery = true },
 	Run = { infantry = true, cavalry = true, hq = true }, -- run or walk on the current march
 	Garrison = { infantry = true }, -- occupy a building: data.strongpoint (MapGen strongpoint id)
-	Charge = { infantry = true, cavalry = true },
+	Charge = { infantry = true, cavalry = true, hq = true }, -- hq: the general's escort
 	Rally = { hq = true },
 	Ability = { hq = true }, -- the HQ general's active ability: data.abilityId (src/shared/Generals.luau)
 	Limber = { artillery = true },
@@ -3317,6 +3323,8 @@ export type Scenario = {
 	moments: { Moments.Moment }?, -- historical moments (src/shared/Moments.luau)
 	mode: ("full" | "episode")?, -- listed battles: the whole field, or a quick-battle slice of it
 	parent: string?, -- episodes: id of the full battle they are cut from
+	buildings: boolean?, -- false: no garrisonable buildings (the tutorial teaches the basics first)
+	attacker: string?, -- the side that came to take the field (the AI defender holds); nil = a meeting battle
 }
 
 -- mode: "full" | "episode"; parent: the full battle's id for episodes (nil for full battles).
@@ -3352,7 +3360,9 @@ end
 local Scenarios = {}
 
 local JENA_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 40, 3, 800, 200, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ", 120, 3, 800, 200, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 120, 3, 780, 280, NORTH, { general = "lannes" }),
+	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 120, 3, 1040, 260, NORTH, { general = "soult" }),
 	-- V Corps (Lannes) — centre
 	u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 700, 320, NORTH),
 	u("france", "V Corps · Lannes", "infantry", "34e de Ligne", 600, 1, 780, 320, NORTH),
@@ -3378,7 +3388,7 @@ local JENA_FRENCH = {
 }
 
 local JENA_PRUSSIAN = {
-	u("prussia", "HQ", "hq", "Hohenlohe — Army HQ", 40, 2, 760, 860, SOUTH, { commander = true, general = "hohenlohe" }),
+	u("prussia", "HQ", "hq", "Hohenlohe — Army HQ", 120, 2, 760, 860, SOUTH, { commander = true, general = "hohenlohe" }),
 	-- Tauentzien's advance guard — forward, Closewitz/Cospeda
 	u("prussia", "Avantgarde · Tauentzien", "infantry", "Füsilier-Bataillon Pelet", 600, 1, 980, 580, SOUTH),
 	u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 20 Prinz Louis Ferdinand", 600, 1, 1060, 600, SOUTH),
@@ -3402,6 +3412,7 @@ local JENA_PRUSSIAN = {
 
 Scenarios.jena = {
 	id = "jena",
+	attacker = "france",
 	name = "Jena, 14 October 1806",
 	map = "jena",
 	briefing = "Dawn, 14 October 1806. Your corps crossed the Saale in the night and stand on the Landgrafenberg above Jena in thick morning mist, which will lift within five minutes. Hohenlohe's Prussians and Saxons hold the villages to the north. Take Vierzehnheiligen, Closewitz and the Dornberg, or break the Prussian army. You have twenty-five minutes before Hohenlohe is reinforced.",
@@ -3458,7 +3469,7 @@ end
 -- on the road from Kösen and enters as reinforcements.
 -- ---------------------------------------------------------------------------------------------
 local AUERSTEDT_FRENCH = {
-	u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 640, WEST, { commander = true, general = "davout" }),
+	u("france", "HQ", "hq", "Davout — III Corps HQ", 120, 3, 1300, 640, WEST, { commander = true, general = "davout" }),
 	-- Gudin's division — Hassenhausen
 	u("france", "Division Gudin", "infantry", "25e de Ligne", 600, 2, 1080, 640, WEST),
 	u("france", "Division Gudin", "infantry", "85e de Ligne", 600, 2, 1080, 760, WEST),
@@ -3483,7 +3494,8 @@ local AUERSTEDT_FRENCH = {
 }
 
 local AUERSTEDT_PRUSSIAN = {
-	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 300, 800, EAST, { commander = true, general = "brunswick" }),
+	u("prussia", "HQ", "hq", "Brunswick — Army HQ", 120, 2, 300, 800, EAST, { commander = true, general = "brunswick" }),
+	u("prussia", "Kavallerie · Blücher", "hq", "Blücher — Cavalry HQ", 120, 2, 420, 1180, EAST, { general = "blucher" }),
 	-- Schmettau's division — first onto the field, centre
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 560, 760, EAST),
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 560, 660, EAST),
@@ -3514,6 +3526,7 @@ local AUERSTEDT_PRUSSIAN = {
 
 Scenarios.auerstedt = {
 	id = "auerstedt",
+	attacker = "prussia",
 	name = "Auerstedt, 14 October 1806",
 	map = "auerstedt",
 	briefing = "Morning, 14 October 1806. Marshal Davout's III Corps has crossed the Saale at Kösen and holds Hassenhausen in the fog, which will clear within four minutes; the Prussian main army under the Duke of Brunswick is coming up the road from Auerstedt, twice your strength but strung out over the Lissbach. Gudin and Friant are on the field; Morand's division is still marching up from the Kösen bridge and will arrive in the first five minutes. Hold Hassenhausen, keep the Kösen bridge, and take Poppel when the Prussian columns falter. Break them before Brunswick can commit his reserve.",
@@ -3564,7 +3577,9 @@ end
 -- army on the Pratzen. Friant's division enters from the south-west as reinforcements.
 -- ---------------------------------------------------------------------------------------------
 local AUSTERLITZ_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 40, 3, 450, 1250, EAST, { commander = true, general = "napoleon" }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Zuran)", 120, 3, 450, 1250, EAST, { commander = true, general = "napoleon" }),
+	u("france", "IV Corps · Soult", "hq", "Soult — IV Corps HQ", 120, 3, 470, 820, EAST, { general = "soult" }),
+	u("france", "V Corps · Lannes", "hq", "Lannes — V Corps HQ", 120, 3, 400, 1400, EAST, { general = "lannes" }),
 	-- IV Corps (Soult) — centre, the hammer against the Pratzen
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 600, 1150, EAST),
 	u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 600, 1070, EAST),
@@ -3601,7 +3616,9 @@ local AUSTERLITZ_FRENCH = {
 }
 
 local AUSTERLITZ_ALLIED = {
-	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1500, 950, WEST, { commander = true, general = "kutuzov" }),
+	u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 120, 2, 1500, 950, WEST, { commander = true, general = "kutuzov" }),
+	u("russia", "Avantgarde · Bagration", "hq", "Bagration — Advance Guard HQ", 120, 2, 1260, 1530, WEST, { general = "bagration" }),
+	u("russia", "1. Kolonne · Dokhturov", "hq", "Buxhöwden — Allied left HQ", 120, 2, 1340, 380, WEST, { general = "buxhowden" }),
 	-- Kienmayer's Austrian advance guard — south, Telnitz
 	u("russia", "Avantgarde · Kienmayer", "cavalry", "Husaren-Regiment Hessen-Homburg", 400, 1, 1100, 260, WEST, { colour = "Austria" }),
 	u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1150, 200, WEST, { colour = "Austria" }),
@@ -3698,7 +3715,8 @@ end
 -- Anglo-allied army on it. Bülow's Prussians enter from the east from minute 12.
 -- ---------------------------------------------------------------------------------------------
 local WATERLOO_FRENCH = {
-	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 40, 3, 1260, 240, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "HQ", "hq", "Napoléon — Imperial HQ (Rossomme)", 120, 3, 1260, 240, NORTH, { commander = true, general = "napoleon" }),
+	u("france", "I Corps · d'Erlon", "hq", "Ney — Wing HQ", 120, 3, 1150, 420, NORTH, { general = "ney" }),
 	-- Grand Battery — the ridge of La Belle Alliance
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1050, 560, NORTH),
 	u("france", "Grande Batterie", "artillery", "Grande Batterie (6-livres)", 120, 2, 1350, 560, NORTH),
@@ -3735,7 +3753,9 @@ local WATERLOO_FRENCH = {
 }
 
 local WATERLOO_ALLIED = {
-	u("britain", "HQ", "hq", "Wellington — Army HQ", 40, 3, 1230, 1130, SOUTH, { commander = true, general = "wellington" }),
+	u("britain", "HQ", "hq", "Wellington — Army HQ", 120, 3, 1230, 1130, SOUTH, { commander = true, general = "wellington" }),
+	u("britain", "Cavalry · Uxbridge", "hq", "Uxbridge — Cavalry HQ", 120, 2, 1300, 1300, SOUTH, { general = "uxbridge" }),
+	u("britain", "5th Division · Picton", "hq", "Picton — 5th Division HQ", 120, 2, 1420, 1230, SOUTH, { general = "picton" }),
 	-- 3rd Division (Alten) — centre right, La Haye Sainte
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
 	u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),
@@ -3774,6 +3794,7 @@ local WATERLOO_ALLIED = {
 
 Scenarios.waterloo = {
 	id = "waterloo",
+	attacker = "france",
 	name = "Waterloo, 18 June 1815",
 	map = "waterloo",
 	briefing = "Late morning, 18 June 1815. Wellington's Anglo-allied army stands along the Mont-Saint-Jean ridge behind the sunken Ohain road, with Hougoumont and La Haye Sainte held in front of it; the night's rain has left the low ground sodden, slowing every march and deadening your round shot. Reille faces Hougoumont, d'Erlon the allied left, the Guard and the cuirassiers are in reserve behind La Belle Alliance. Bülow's Prussians will begin to arrive from the east at Plancenoit from the twelfth minute. Take Hougoumont, La Haye Sainte and the crossroads on the ridge, or break Wellington's army before the Prussians weigh in.",
@@ -3836,6 +3857,7 @@ end
 
 episode({
 	id = "jena_landgrafenberg",
+	attacker = "france",
 	parent = "jena",
 	name = "Lannes on the Landgrafenberg",
 	map = "jena_landgrafenberg",
@@ -3849,7 +3871,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 240,
 	units = {
-		u("france", "HQ", "hq", "Lannes — V Corps HQ", 40, 3, 820, 170, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Lannes — V Corps HQ", 120, 3, 820, 170, NORTH, { commander = true }),
 		u("france", "V Corps · Lannes / Suchet", "infantry", "17e Légère", 600, 2, 700, 330, NORTH),
 		u("france", "V Corps · Lannes / Suchet", "infantry", "34e de Ligne", 600, 1, 800, 330, NORTH),
 		u("france", "V Corps · Lannes / Suchet", "infantry", "40e de Ligne", 600, 1, 900, 330, NORTH),
@@ -3857,7 +3879,7 @@ episode({
 		u("france", "V Corps · Lannes / Suchet", "infantry", "88e de Ligne", 600, 1, 1100, 300, NORTH),
 		u("france", "V Corps · Lannes / Gazan", "infantry", "21e Légère", 600, 2, 620, 300, NORTH),
 		u("france", "V Corps · Lannes", "artillery", "Batterie 5e Corps", 120, 1, 860, 250, NORTH),
-		u("prussia", "HQ", "hq", "Tauentzien — Avantgarde HQ", 40, 2, 800, 680, SOUTH, { commander = true }),
+		u("prussia", "HQ", "hq", "Tauentzien — Avantgarde HQ", 120, 2, 800, 680, SOUTH, { commander = true }),
 		u("prussia", "Avantgarde · Tauentzien", "infantry", "Füsilier-Bataillon Pelet", 600, 1, 1000, 560, SOUTH),
 		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 20 Prinz Louis Ferdinand", 600, 1, 890, 530, SOUTH),
 		u("prussia", "Avantgarde · Tauentzien", "infantry", "IR Nr. 38 Pelchrzim", 600, 1, 560, 500, SOUTH),
@@ -3888,6 +3910,7 @@ episode({
 
 episode({
 	id = "jena_vierzehnheiligen",
+	attacker = "france",
 	parent = "jena",
 	name = "The fight for Vierzehnheiligen",
 	map = "jena_vierzehnheiligen",
@@ -3899,7 +3922,7 @@ episode({
 	summary = "Ney's premature attack took Vierzehnheiligen and was nearly cut off until Lannes and Napoleon came to his aid. Grawert's Prussians then stood for two hours in the open before the burning village, firing volleys at skirmishers they could not see, and broke when the French reserves came up.",
 	difficultyNote = "Even: the village is the battle; whoever holds it has the cover.",
 	units = {
-		u("france", "HQ", "hq", "Ney — VI Corps HQ", 40, 3, 760, 440, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Ney — VI Corps HQ", 120, 3, 760, 440, NORTH, { commander = true }),
 		u("france", "VI Corps · Ney / Marchand", "infantry", "6e Légère", 600, 1, 700, 600, NORTH),
 		u("france", "VI Corps · Ney / Marchand", "infantry", "39e de Ligne", 600, 1, 820, 600, NORTH),
 		u("france", "VI Corps · Ney / Marchand", "infantry", "69e de Ligne", 600, 1, 760, 530, NORTH),
@@ -3908,7 +3931,7 @@ episode({
 		u("france", "V Corps · Lannes", "infantry", "17e Légère", 600, 2, 580, 560, NORTH),
 		u("france", "V Corps · Lannes", "infantry", "40e de Ligne", 600, 1, 960, 600, NORTH),
 		u("france", "V Corps · Lannes", "artillery", "Batterie 5e Corps", 120, 1, 640, 480, NORTH),
-		u("prussia", "HQ", "hq", "Grawert — Division HQ", 40, 2, 900, 890, SOUTH, { commander = true }),
+		u("prussia", "HQ", "hq", "Grawert — Division HQ", 120, 2, 900, 890, SOUTH, { commander = true }),
 		u("prussia", "Division Grawert", "infantry", "IR Nr. 29 Treuenfels", 600, 2, 600, 850, SOUTH),
 		u("prussia", "Division Grawert", "infantry", "IR Nr. 49 Müffling", 600, 1, 700, 850, SOUTH),
 		u("prussia", "Division Grawert", "infantry", "Grenadier-Bataillon Hahn", 600, 2, 820, 850, SOUTH),
@@ -3940,6 +3963,7 @@ episode({
 
 episode({
 	id = "auerstedt_hassenhausen",
+	attacker = "prussia",
 	parent = "auerstedt",
 	name = "Gudin at Hassenhausen",
 	map = "auerstedt_hassenhausen",
@@ -3953,7 +3977,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 180,
 	units = {
-		u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 1300, 700, WEST, { commander = true }),
+		u("france", "HQ", "hq", "Davout — III Corps HQ", 120, 3, 1300, 700, WEST, { commander = true }),
 		u("france", "Division Gudin", "infantry", "25e de Ligne", 600, 2, 1080, 640, WEST),
 		u("france", "Division Gudin", "infantry", "85e de Ligne", 600, 2, 1080, 760, WEST),
 		u("france", "Division Gudin", "infantry", "21e de Ligne", 600, 2, 1180, 600, WEST),
@@ -3961,7 +3985,7 @@ episode({
 		u("france", "Division Gudin", "artillery", "Batterie Gudin", 120, 2, 1230, 700, WEST),
 		u("france", "Division Friant", "infantry", "108e de Ligne", 600, 2, 1400, 900, WEST, { arrival = { seconds = 240, pos = { x = 1400, z = 900 } } }),
 		u("france", "Division Friant", "infantry", "111e de Ligne", 600, 2, 1480, 940, WEST, { arrival = { seconds = 300, pos = { x = 1480, z = 940 } } }),
-		u("prussia", "HQ", "hq", "Brunswick — Army HQ", 40, 2, 560, 760, EAST, { commander = true }),
+		u("prussia", "HQ", "hq", "Brunswick — Army HQ", 120, 2, 560, 760, EAST, { commander = true }),
 		u("prussia", "Division Schmettau", "infantry", "IR Nr. 21 Herzog von Braunschweig", 600, 1, 860, 760, EAST),
 		u("prussia", "Division Schmettau", "infantry", "IR Nr. 30 Borcke", 600, 1, 860, 660, EAST),
 		u("prussia", "Division Schmettau", "infantry", "IR Nr. 22 Pirch", 600, 1, 840, 860, EAST),
@@ -3998,6 +4022,7 @@ episode({
 
 episode({
 	id = "auerstedt_spielberg",
+	attacker = "france",
 	parent = "auerstedt",
 	name = "Friant at Spielberg",
 	map = "auerstedt_spielberg",
@@ -4009,20 +4034,20 @@ episode({
 	summary = "Friant extended Davout's right through Spielberg and turned the Prussian flank while Morand did the same on the left. With Brunswick mortally wounded and the reserve under Kalckreuth never committed, the Prussian army fell back west in growing disorder.",
 	difficultyNote = "Even: a fair fight on open ground; the Prussians hold the stream.",
 	units = {
-		u("france", "HQ", "hq", "Friant — Division HQ", 40, 3, 1550, 760, WEST, { commander = true }),
+		u("france", "HQ", "hq", "Friant — Division HQ", 120, 3, 1550, 760, WEST, { commander = true }),
 		u("france", "Division Friant", "infantry", "33e de Ligne", 600, 2, 1300, 900, WEST),
 		u("france", "Division Friant", "infantry", "48e de Ligne", 600, 2, 1400, 900, WEST),
 		u("france", "Division Friant", "infantry", "108e de Ligne", 600, 2, 1500, 900, WEST),
 		u("france", "Division Friant", "infantry", "111e de Ligne", 600, 2, 1350, 820, WEST),
 		u("france", "III Corps", "artillery", "Batterie du 3e Corps", 120, 2, 1450, 820, WEST),
 		u("france", "Cavalerie · Vialannes", "cavalry", "12e Chasseurs à cheval", 400, 2, 1600, 880, WEST),
-		u("prussia", "HQ", "hq", "Prinz von Oranien — Division HQ", 40, 2, 380, 1150, EAST, { commander = true }),
-		u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 580, 1000, EAST),
-		u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 580, 1100, EAST),
-		u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1200, EAST),
-		u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 480, 1050, EAST),
-		u("prussia", "Kavallerie · Blücher", "cavalry", "Leib-Kürassier-Regiment Nr. 3", 400, 1, 480, 1300, EAST),
-		u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 380, 1300, EAST),
+		u("prussia", "HQ", "hq", "Prinz von Oranien — Division HQ", 120, 2, 820, 1150, EAST, { commander = true }),
+		u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 960, 1000, EAST),
+		u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 960, 1100, EAST),
+		u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 980, 1200, EAST),
+		u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 880, 1050, EAST),
+		u("prussia", "Kavallerie · Blücher", "cavalry", "Leib-Kürassier-Regiment Nr. 3", 400, 1, 880, 1300, EAST),
+		u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 820, 1300, EAST),
 	},
 	moments = {
 		{
@@ -4045,6 +4070,7 @@ episode({
 
 episode({
 	id = "austerlitz_pratzen",
+	attacker = "france",
 	parent = "austerlitz",
 	name = "Soult on the Pratzen",
 	map = "austerlitz_pratzen",
@@ -4058,7 +4084,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 150,
 	units = {
-		u("france", "HQ", "hq", "Soult — IV Corps HQ", 40, 3, 860, 840, EAST, { commander = true }),
+		u("france", "HQ", "hq", "Soult — IV Corps HQ", 120, 3, 860, 840, EAST, { commander = true }),
 		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "10e Légère", 600, 2, 1060, 700, EAST),
 		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "14e de Ligne", 600, 2, 1060, 620, EAST),
 		u("france", "IV Corps · Soult / Saint-Hilaire", "infantry", "36e de Ligne", 600, 1, 980, 660, EAST),
@@ -4067,7 +4093,7 @@ episode({
 		u("france", "IV Corps · Soult / Vandamme", "infantry", "28e de Ligne", 600, 1, 980, 920, EAST),
 		u("france", "IV Corps · Soult / Vandamme", "infantry", "57e de Ligne", 600, 2, 980, 990, EAST),
 		u("france", "IV Corps · Soult", "artillery", "Batterie 4e Corps", 120, 2, 940, 780, EAST),
-		u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 40, 2, 1700, 1000, WEST, { commander = true }),
+		u("russia", "HQ", "hq", "Kutuzov — Allied HQ", 120, 2, 1700, 1000, WEST, { commander = true }),
 		u("russia", "4. Kolonne · Kolowrat", "infantry", "Novgorod Musketeers", 600, 1, 1400, 950, WEST),
 		u("russia", "4. Kolonne · Kolowrat", "infantry", "Apsheron Musketeers", 600, 1, 1400, 1050, WEST),
 		u("russia", "4. Kolonne · Kolowrat", "infantry", "IR Nr. 23 Salzburg", 600, 1, 1480, 1180, WEST, { colour = "Austria" }),
@@ -4099,6 +4125,7 @@ episode({
 
 episode({
 	id = "austerlitz_sokolnitz",
+	attacker = "russia",
 	parent = "austerlitz",
 	name = "Davout at Sokolnitz",
 	map = "austerlitz_sokolnitz",
@@ -4112,7 +4139,7 @@ episode({
 	weather = "fog",
 	weatherUntil = 180,
 	units = {
-		u("france", "HQ", "hq", "Davout — III Corps HQ", 40, 3, 560, 300, EAST, { commander = true }),
+		u("france", "HQ", "hq", "Davout — III Corps HQ", 120, 3, 560, 300, EAST, { commander = true }),
 		u("france", "IV Corps · Soult / Legrand", "infantry", "3e de Ligne", 600, 1, 930, 200, EAST),
 		u("france", "IV Corps · Soult / Legrand", "infantry", "26e Légère", 600, 2, 890, 450, EAST),
 		u("france", "IV Corps · Soult / Legrand", "infantry", "Tirailleurs du Pô", 600, 1, 900, 560, EAST),
@@ -4121,7 +4148,7 @@ episode({
 		u("france", "III Corps · Davout / Friant", "infantry", "48e de Ligne", 600, 2, 300, 200, EAST, { arrival = { seconds = 90, pos = { x = 300, z = 200 } } }),
 		u("france", "III Corps · Davout / Friant", "infantry", "108e de Ligne", 600, 2, 300, 280, EAST, { arrival = { seconds = 120, pos = { x = 300, z = 280 } } }),
 		u("france", "III Corps · Davout / Friant", "infantry", "15e Légère", 600, 2, 360, 240, EAST, { arrival = { seconds = 150, pos = { x = 360, z = 240 } } }),
-		u("russia", "HQ", "hq", "Buxhöwden — Allied left HQ", 40, 2, 1400, 980, WEST, { commander = true }),
+		u("russia", "HQ", "hq", "Buxhöwden — Allied left HQ", 120, 2, 1400, 980, WEST, { commander = true }),
 		u("russia", "Avantgarde · Kienmayer", "infantry", "Székler Grenz-Infanterie", 600, 1, 1100, 720, WEST, { colour = "Austria" }),
 		u("russia", "1. Kolonne · Dokhturov", "infantry", "Novo-Ingermanland Musketeers", 600, 1, 1180, 720, WEST),
 		u("russia", "1. Kolonne · Dokhturov", "infantry", "Yaroslavl Musketeers", 600, 1, 1260, 720, WEST),
@@ -4153,6 +4180,7 @@ episode({
 
 episode({
 	id = "waterloo_hougoumont",
+	attacker = "france",
 	parent = "waterloo",
 	name = "The struggle for Hougoumont",
 	map = "waterloo_hougoumont",
@@ -4165,7 +4193,7 @@ episode({
 	difficultyNote = "Hard: walls, a wood and mud between you and the farm.",
 	weather = "mud",
 	units = {
-		u("france", "HQ", "hq", "Reille — II Corps HQ", 40, 3, 800, 400, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Reille — II Corps HQ", 120, 3, 800, 400, NORTH, { commander = true }),
 		u("france", "II Corps · Reille / Jérôme", "infantry", "1er Légère", 600, 2, 700, 560, NORTH),
 		u("france", "II Corps · Reille / Jérôme", "infantry", "3e de Ligne", 600, 1, 780, 560, NORTH),
 		u("france", "II Corps · Reille / Jérôme", "infantry", "1er de Ligne", 600, 1, 860, 560, NORTH),
@@ -4174,7 +4202,7 @@ episode({
 		u("france", "II Corps · Reille / Bachelu", "infantry", "2e Légère", 600, 2, 1000, 460, NORTH),
 		u("france", "II Corps · Reille", "artillery", "Obusiers du 2e Corps", 120, 1, 880, 460, NORTH),
 		u("france", "II Corps · Reille / Piré", "cavalry", "6e Lanciers", 400, 1, 520, 480, NORTH),
-		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 40, 2, 800, 1130, SOUTH, { commander = true }),
+		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 120, 2, 800, 1130, SOUTH, { commander = true }),
 		u("britain", "1st Division · Cooke / Byng", "infantry", "2/3rd Foot Guards", 700, 2, 760, 790, SOUTH),
 		u("britain", "1st Division · Cooke / Byng", "infantry", "2/2nd Coldstream Guards", 700, 2, 820, 900, SOUTH),
 		u("britain", "1st Division · Cooke / Maitland", "infantry", "2/1st Foot Guards", 700, 2, 760, 1060, SOUTH),
@@ -4204,6 +4232,7 @@ episode({
 
 episode({
 	id = "waterloo_lahayesainte",
+	attacker = "france",
 	parent = "waterloo",
 	name = "The fall of La Haye Sainte",
 	map = "waterloo_lahayesainte",
@@ -4216,7 +4245,7 @@ episode({
 	difficultyNote = "Very hard: a fortified farm, a ridge behind it, and riflemen in the sandpit.",
 	weather = "mud",
 	units = {
-		u("france", "HQ", "hq", "Ney — Advanced HQ", 40, 3, 1200, 420, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "Ney — Advanced HQ", 120, 3, 1200, 420, NORTH, { commander = true }),
 		u("france", "I Corps · d'Erlon / Donzelot", "infantry", "13e Légère", 600, 2, 1120, 600, NORTH),
 		u("france", "I Corps · d'Erlon / Donzelot", "infantry", "51e de Ligne", 600, 1, 1280, 600, NORTH),
 		u("france", "I Corps · d'Erlon / Quiot", "infantry", "54e de Ligne", 600, 1, 1040, 560, NORTH),
@@ -4225,7 +4254,7 @@ episode({
 		u("france", "Grande Batterie", "artillery", "Grande Batterie (12-livres)", 120, 2, 1080, 480, NORTH),
 		u("france", "IV Corps de cavalerie · Milhaud", "cavalry", "1er Cuirassiers", 400, 2, 960, 500, NORTH),
 		u("france", "IV Corps de cavalerie · Milhaud", "cavalry", "4e Cuirassiers", 400, 2, 1440, 480, NORTH),
-		u("britain", "HQ", "hq", "Alten — 3rd Division HQ", 40, 2, 1100, 1220, SOUTH, { commander = true }),
+		u("britain", "HQ", "hq", "Alten — 3rd Division HQ", 120, 2, 1100, 1220, SOUTH, { commander = true }),
 		u("britain", "3rd Division · Alten / Ompteda", "infantry", "2nd Light Battalion KGL", 600, 2, 1200, 920, SOUTH),
 		u("britain", "5th Division · Picton / Kempt", "infantry", "1/95th Rifles", 600, 2, 1270, 1000, SOUTH),
 		u("britain", "3rd Division · Alten / Ompteda", "infantry", "5th Line Battalion KGL", 600, 2, 1100, 1100, SOUTH),
@@ -4273,7 +4302,7 @@ local function stress(): Scenario
 				end
 			else
 				i += 1
-				units[#units + 1] = u(faction, "HQ", "hq", base.name, 40, 2, 800, zBase + (faction == "france" and -80 or 80), heading, { commander = true })
+				units[#units + 1] = u(faction, "HQ", "hq", base.name, 120, 2, 800, zBase + (faction == "france" and -80 or 80), heading, { commander = true })
 			end
 		end
 	end
@@ -4301,10 +4330,10 @@ Scenarios.skirmish = {
 	factions = { player = "france", enemy = "prussia" },
 	factionNames = { france = "France", prussia = "Prussia" },
 	units = {
-		u("france", "HQ", "hq", "French HQ", 40, 2, 800, 200, NORTH, { commander = true }),
+		u("france", "HQ", "hq", "French HQ", 120, 2, 800, 200, NORTH, { commander = true }),
 		u("france", "V Corps", "infantry", "34e de Ligne", 600, 1, 760, 320, NORTH),
 		u("france", "V Corps", "cavalry", "5e Hussards", 400, 1, 900, 300, NORTH),
-		u("prussia", "HQ", "hq", "Prussian HQ", 40, 2, 760, 860, SOUTH, { commander = true }),
+		u("prussia", "HQ", "hq", "Prussian HQ", 120, 2, 760, 860, SOUTH, { commander = true }),
 		u("prussia", "Grawert", "infantry", "IR Nr. 49 Müffling", 600, 1, 740, 700, SOUTH),
 		u("prussia", "Grawert", "artillery", "Batterie Grawert", 120, 1, 820, 740, SOUTH),
 	},
@@ -4321,6 +4350,7 @@ Scenarios.tutorial = {
 	briefing = "Spring 1809, on the Danube. Mon général, an Austrian brigade holds Ebersdorf beyond the Mühlbach, with outposts on our side of the stream. Your aide-de-camp will see you through the handling of the army before we take the village.",
 	factions = { player = "france", enemy = "austria" },
 	factionNames = { france = "France", austria = "Austria" },
+	buildings = false,
 	units = {
 		u("france", "HQ", "hq", "Général de brigade", 40, 2, 200, 100, NORTH, { commander = true }),
 		u("france", "Brigade", "infantry", "1er bataillon, 18e de Ligne", 600, 1, 240, 200, NORTH),
@@ -7494,6 +7524,14 @@ local function desiredPosture(state: AIState): string
 			theirs += 1
 		end
 	end
+	-- The battle's roles (Scenario.attacker): the attacker keeps coming while the enemy holds any
+	-- objective; the defender holds its ground (and counter-attacks only when it is overwhelming).
+	local attacker = (sim.scenario :: any).attacker
+	if attacker == state.faction and theirs > 0 then
+		return "advance"
+	elseif attacker == state.enemy then
+		return "defend"
+	end
 	local deployedEnemy = sim.deployed[state.enemy] or 0
 	if theirs > 0 and (mineN < theirs or (mineN == theirs and deployed >= deployedEnemy)) then
 		return "advance"
@@ -7628,6 +7666,45 @@ local function plan(state: AIState)
 		else
 			local centre = objs[1] or base
 			wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(state.right, 140)), Vec.add(centre, Vec.scale(state.right, 140))
+		end
+	end
+	local lineInf = 0
+	for _, f in state.mine do
+		if f.class == "infantry" and unitOf(state, f.id).role ~= "reserve" then
+			lineInf += 1
+		end
+	end
+	if (posture == "attack" or posture == "advance") and lineInf >= 6 and state.planQuality >= 1 then
+		-- pin and turn: the wing on the side the enemy has fewer men swings wide round his flank
+		local c = wing.centre
+		local dir = Vec.fromHeading(state.facing)
+		local r = Vec.right(dir)
+		local leftN, rightN = 0, 0
+		for _, k in state.known do
+			if k.age < 90 then
+				if Vec.dot(Vec.sub(k.pos, c), r) < 0 then
+					leftN += 1
+				else
+					rightN += 1
+				end
+			end
+		end
+		local side = if leftN <= rightN then -1 else 1
+		local w = if side < 0 then "left" else "right"
+		wing[w] = Vec.add(Vec.add(c, Vec.scale(r, side * 240)), Vec.scale(dir, 90))
+	elseif posture == "defend" then
+		-- reverse slope: stand just behind a crest when one is there (out of sight of the guns)
+		local grid = sim.grid
+		for _, w in WINGS do
+			local p = wing[w]
+			for _, back in { 0, 20, 40 } do
+				local cand = walkable(state, Vec.sub(p, Vec.scale(forward, back)))
+				local ahead = Vec.add(cand, Vec.scale(forward, 45))
+				if Grid.heightAt(grid, ahead.x, ahead.z) > Grid.heightAt(grid, cand.x, cand.z) + 3 then
+					wing[w] = cand
+					break
+				end
+			end
 		end
 	end
 	for _, w in WINGS do
@@ -7858,6 +7935,16 @@ local function garrisonBuildings(state: AIState)
 	if state.posture == "withdraw" then
 		return
 	end
+	-- an attacker only spares a battalion for a building when it has plenty
+	local infantryN = 0
+	for _, f in state.mine do
+		if f.class == "infantry" and not Formation.isBroken(f) then
+			infantryN += 1
+		end
+	end
+	if state.posture ~= "defend" and infantryN < 6 then
+		return
+	end
 	for _, sp in sim.strongpoints do
 		local wanted = false
 		for _, o in sim.objectives do
@@ -7893,6 +7980,18 @@ end
 
 -- Push the nearest free infantry onto an objective nobody contests.
 local function exploit(state: AIState)
+	-- once the objective is ours the battalion that took it rejoins its wing (a garrison holds it)
+	for _, f in state.mine do
+		local u = unitOf(state, f.id)
+		if u.goal == "exploit" and u.point then
+			for _, o in state.sim.objectives do
+				if o.owner == state.faction and Vec.dist(o.def.pos, u.point :: Vec) < 40 then
+					u.goal, u.reason, u.point = "idle", "objective taken", nil
+					break
+				end
+			end
+		end
+	end
 	for _, o in state.sim.objectives do
 		local p = o.def.pos
 		if o.owner ~= state.faction and not o.contested then
@@ -8021,6 +8120,21 @@ local function infantry(state: AIState, f: Formation)
 		u.reason = "reforming"
 		return
 	end
+	-- Light troops screen in open order while no horse is about, and close up when it comes.
+	if Formation.legalShapes(f).skirmish and f.pendingShape == nil and quality(state) then
+		local horse = nearestVisible(state, f.pos, 300, isCav)
+		if not horse and f.shape ~= "skirmish" and nearestKnownDist(state, f.pos, 60) < 350 then
+			if issue(state, "Shape", { f.id }, { shape = "skirmish" }) then
+				u.reason = "screening in open order"
+				return
+			end
+		elseif horse and f.shape == "skirmish" then
+			if issue(state, "Shape", { f.id }, { shape = "line" }) then
+				u.reason = "closing up: horse about"
+				return
+			end
+		end
+	end
 	-- Broken enough: fall back on the reserve.
 	if f.moraleBand == "shaken" and f.strength < f.startStrength * 0.6 and u.goal ~= "retreat" then
 		if issue(state, "Retreat", { f.id }, { pos = state.reserve }) then
@@ -8126,6 +8240,8 @@ local function cavalry(state: AIState, f: Formation)
 					s = if gunsThreatenedBy(state, e) then 85 else 0
 				elseif e.class == "hq" then
 					s = 60
+				elseif e.state == "melee" and e.shape ~= "square" and e.shape ~= "garrison" then
+					s = 95 -- locked in melee with our men: ride into it (worth leaving the reserve for)
 				elseif e.shape ~= "square" and e.state ~= "reforming" then
 					local side = Vec.attackSide(e.pos, e.heading, f.pos)
 					s = if side == "rear" then 80 elseif side == "flank" then 70 else 0
@@ -11936,7 +12052,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 			name = if hq and hq.general then hq.general.name .. " — HQ" else State.nationName(leadNation) .. " — HQ",
 			class = "hq",
 			corps = if hq then hq.name else "HQ",
-			strength = 40,
+			strength = 120,
 			experience = if hq and hq.general then math.min(3, hq.general.rating - 1) else 1,
 			pos = { x = x, z = z },
 			heading = heading,
@@ -15128,7 +15244,6 @@ export type Sim = {
 	homeEdge: (Sim, string) -> Vec,
 	findFormation: (Sim, number) -> Formation?,
 	isVisibleTo: (Sim, string, number) -> boolean,
-	hqOf: (Sim, string) -> Formation?,
 	simLag: number,
 	weather: string, -- key into Config.Weather, may change once at weatherUntil (or by a moment)
 	momentsFired: { [string]: boolean }, -- scenario moments already fired (Sim/Moments)
@@ -15215,16 +15330,6 @@ end
 
 function Sim.isVisibleTo(self: Sim, viewer: string, id: number): boolean
 	return Visibility.isVisibleTo(self :: any, viewer, id)
-end
-
-function Sim.hqOf(self: Sim, faction: string): Formation?
-	for _, id in self.order do
-		local f = self.formations[id]
-		if f and f.faction == faction and f.class == "hq" and Formation.isActive(f) then
-			return f
-		end
-	end
-	return nil
 end
 
 -- A faction's home edge is the map edge nearest its deployment zone.
@@ -15982,7 +16087,6 @@ export type SimLike = {
 	emit: (sim: any, ev: Types.Event) -> (),
 	log: (sim: any, text: string) -> (),
 	homeEdge: (sim: any, faction: string) -> { x: number, z: number },
-	hqOf: (sim: any, faction: string) -> Formation?,
 	map: any,
 }
 
@@ -16664,18 +16768,18 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	if att.timers.bayonet > 0 then
 		rate *= C.BayonetBonus
 	end
-	if att.class == "cavalry" and def.shape == "square" then
+	if Formation.mounted(att) and def.shape == "square" then
 		rate *= 0.3
-	elseif att.class == "cavalry" and def.shape == "garrison" then
+	elseif Formation.mounted(att) and def.shape == "garrison" then
 		rate *= 0.15 -- horsemen cannot get at men behind walls
 	end
-	if def.class == "cavalry" and att.shape == "square" then
+	if Formation.mounted(def) and att.shape == "square" then
 		rate *= C.SquareReturnsDamage
 	end
-	if att.class == "cavalry" and att.inWoods then
+	if Formation.mounted(att) and att.inWoods then
 		rate *= 0.5
 	end
-	if att.class == "cavalry" and att.timers.meleeSeconds > unitA.charge.maxMeleeSeconds then
+	if Formation.mounted(att) and att.timers.meleeSeconds > unitA.charge.maxMeleeSeconds then
 		rate *= 0.5 -- blown horses: sustained melee is not cavalry's business
 	end
 	if att.moraleBand == "shaken" then
@@ -16688,7 +16792,7 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	rate /= unitD.melee.defense
 	local casualties = rollCasualties(sim, rate * DT)
 	local extra = 0
-	if att.class == "cavalry" and def.class == "artillery" then
+	if Formation.mounted(att) and def.class == "artillery" then
 		extra = 2 * DT
 	end
 	attacks[#attacks + 1] = { attackerId = att.id, targetId = def.id, casualties = casualties, side = side, moraleExtra = extra, kind = "melee" }
@@ -16696,7 +16800,7 @@ end
 
 local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attacks: { Attack })
 	local unit = Formation.unitConfig(att)
-	if att.class == "cavalry" then
+	if Formation.mounted(att) then
 		local ch = unit.charge
 		local runUpF = math.clamp(att.runUp / ch.runUp, C.MinRunUpFactor, 1)
 		local side = Vec.attackSide(def.pos, def.heading, att.pos)
@@ -16760,7 +16864,7 @@ function Combat.gather(sim: SimLike): { Attack }
 						target.path = nil
 					end
 					f.path = nil
-				elseif target and Formation.isActive(target) and f.class == "cavalry" and not f.chargeReady and f.timers.chargeRecover <= 0 then
+				elseif target and Formation.isActive(target) and Formation.mounted(f) and not f.chargeReady and f.timers.chargeRecover <= 0 then
 					f.chargeReady = true
 				end
 			elseif state == "charging" and f.order and f.order.pos and not f.order.targetId then
@@ -16876,6 +16980,22 @@ function Combat.gather(sim: SimLike): { Attack }
 end
 
 -- Step 7: apply casualties and ammunition; morale consequences handled by Morale.
+-- Blooded: every Config.Combat.ExperienceKills enemy casualties a formation inflicts make it a
+-- level more experienced (max 3), with the morale that goes with it.
+local function credit(sim: SimLike, att: Formation?, t: Formation, lost: number)
+	if not att or att.faction == t.faction or lost <= 0 then
+		return
+	end
+	att.kills += lost
+	local earned = math.min(3, att.experience + math.floor(att.kills / C.ExperienceKills) - math.floor((att.kills - lost) / C.ExperienceKills))
+	if earned > att.experience then
+		local gain = earned - att.experience
+		att.experience = earned
+		att.baseMorale += C.ExperienceMorale * gain
+		sim.emit(sim, { kind = "message", tick = sim.tick, id = att.id, faction = att.faction, text = att.name .. " is blooded: experience " .. tostring(earned) })
+	end
+end
+
 function Combat.apply(sim: SimLike, attacks: { Attack })
 	for _, a in attacks do
 		local t = sim.formations[a.targetId]
@@ -16883,6 +17003,7 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 			local lost = math.min(t.strength, a.casualties)
 			t.strength -= lost
 			t.casualtiesThisTick += lost
+			credit(sim, sim.formations[a.attackerId], t, lost)
 			if lost > 0 then
 				t.timers.noDamage = 0
 			end
@@ -17023,6 +17144,7 @@ export type Formation = {
 	type: string, -- Config.UnitTypes id
 	fireByRank: boolean, -- drilled: reloads faster halted in line (Config.Combat.FireByRankReload)
 	garrison: string?, -- the strongpoint it holds (Sim/Garrison)
+	kills: number, -- enemy casualties it has inflicted this battle (experience, results)
 	colour: string?,
 	commander: boolean,
 	startStrength: number,
@@ -17095,6 +17217,11 @@ function Formation.unitConfig(f: Formation)
 	return Config.TypeStats[f.type]
 end
 
+-- On horseback: cavalry and the generals' escorts ride, charge and suffer as horsemen do.
+function Formation.mounted(f: Formation): boolean
+	return Formation.unitConfig(f).mounted == true
+end
+
 function Formation.figures(f: Formation): number
 	if f.class == "artillery" then
 		return math.max(1, math.ceil(f.strength / Config.Visual.CrewPerGun))
@@ -17142,6 +17269,7 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		class = def.class,
 		type = unitType,
 		fireByRank = Scenarios.firesByRank(def),
+		kills = 0,
 		colour = def.colour,
 		commander = def.commander == true,
 		startStrength = def.strength,
@@ -17339,16 +17467,18 @@ type SimLike = {
 	formations: { [number]: Formation },
 	strongpoints: { [string]: Strongpoint },
 	map: any,
+	scenario: any,
 	emit: (any, any) -> (),
 }
 
 local Garrison = {}
 
-local ENTER_DIST = 24 -- studs from the building's heart
+local ENTER_DIST = 40 -- studs from the building's heart (or on arriving at the door)
+local NEAR_DIST = 90 -- close enough to see who holds it: storm an enemy, give way to a friend
 
 function Garrison.init(sim: SimLike)
 	sim.strongpoints = {}
-	local list: { any } = sim.map.strongpoints or {}
+	local list: { any } = if sim.scenario.buildings == false then {} else sim.map.strongpoints or {}
 	for _, sp in list do
 		local entry: Strongpoint = { id = sp.id :: string, name = sp.name :: string, pos = sp.pos :: Vec }
 		sim.strongpoints[entry.id] = entry
@@ -17392,10 +17522,11 @@ function Garrison.update(sim: SimLike)
 		local o = f and f.order
 		if f and o and o.kind == "Garrison" and o.strongpoint and not f.garrison and Formation.isActive(f) and f.state ~= "routing" then
 			local sp = sim.strongpoints[o.strongpoint]
+			local d = if sp then Vec.dist(f.pos, sp.pos) else math.huge
+			local holder = sp and sp.holder and sim.formations[sp.holder]
 			if not sp then
 				Formation.clearOrder(f)
-			elseif Vec.dist(f.pos, sp.pos) <= ENTER_DIST then
-				local holder = sp.holder and sim.formations[sp.holder]
+			elseif d <= ENTER_DIST or (d <= NEAR_DIST and (holder ~= nil or f.state == "idle")) then
 				if holder and holder.faction ~= f.faction then
 					-- held by the enemy: storm it
 					f.order = { kind = "Charge", targetId = holder.id, issuedTick = sim.tick, anchor = { x = f.pos.x, z = f.pos.z } }
@@ -17606,7 +17737,6 @@ export type SimLike = {
 	order: { number },
 	emit: (sim: any, ev: Types.Event) -> (),
 	log: (sim: any, text: string) -> (),
-	hqOf: (sim: any, faction: string) -> Formation?,
 	stats: { [string]: any },
 	homeEdge: any, -- (sim, faction) -> {x, z}; optional for test fakes
 	grid: any, -- needs width and depth
@@ -17722,13 +17852,15 @@ local function destroy(sim: SimLike, f: Formation)
 	sim.emit(sim, { kind = "destroyed", tick = sim.tick, id = f.id, faction = f.faction, x = f.pos.x, z = f.pos.z, text = f.name .. " is destroyed" })
 	sim.log(sim, f.name .. " was destroyed")
 	if f.class == "hq" then
+		-- the army's commander: everyone wavers; a corps general: the men around him
+		local hqCfg = Config.Units.hq
 		for _, id in sim.order do
 			local o = sim.formations[id]
-			if o and o.faction == f.faction and Formation.isActive(o) then
-				o.morale = math.max(0, o.morale - Config.Units.hq.lossMoralePenalty)
+			if o and o.faction == f.faction and Formation.isActive(o) and (f.commander or Vec.dist(o.pos, f.pos) <= hqCfg.lossRadius) then
+				o.morale = math.max(0, o.morale - hqCfg.lossMoralePenalty)
 			end
 		end
-		sim.log(sim, f.name .. " fell; the army wavers")
+		sim.log(sim, f.name .. (if f.commander then " fell; the army wavers" else " fell; his corps wavers"))
 	end
 	if f.class == "artillery" then
 		for _, id in sim.order do
@@ -17794,16 +17926,25 @@ function Morale.update(sim: SimLike, f: Formation)
 		f.morale -= M.FatiguePenaltyPerSecond * DT
 	end
 	-- Recovery (HQ influence raises the cap and the rate).
-	local hq = sim.hqOf(sim, f.faction)
+	-- every general steadies the men around him: the nearest HQ in range counts
+	local hq: Formation? = nil
+	local influence = Config.Units.hq.influence
+	for _, id in sim.order do
+		local o = sim.formations[id]
+		if o and o.class == "hq" and o.faction == f.faction and o.id ~= f.id and Formation.isActive(o) and Vec.dist(o.pos, f.pos) <= influence.radius then
+			hq = o
+			break
+		end
+	end
 	local cap = f.baseMorale
 	local rate = 0
 	if t.noDamage >= M.RecoveryDelay then
 		-- Routing formations recover too: that is how they come back to rally.
 		rate = M.RecoveryPerSecond
 	end
-	if hq and hq.id ~= f.id and Vec.dist(hq.pos, f.pos) <= Config.Units.hq.influence.radius then
-		cap += Config.Units.hq.influence.moraleBonus
-		rate += Config.Units.hq.influence.recoveryBonus
+	if hq then
+		cap += influence.moraleBonus
+		rate += influence.recoveryBonus
 	end
 	rate += f.mods.recovery -- generals' traits / abilities (Sim/Abilities)
 	if f.morale < cap then
@@ -17902,7 +18043,7 @@ export type SimLike = {
 
 local function terrainSpeed(f: Formation, grid: Grid.Grid): number
 	local t = Grid.terrainAt(grid, f.pos.x, f.pos.z)
-	return if f.class == "cavalry" then t.cavalrySpeed else t.speed
+	return if Formation.mounted(f) then t.cavalrySpeed else t.speed
 end
 
 function Movement.currentSpeed(sim: SimLike, f: Formation, dir: Vec): number
@@ -25816,7 +25957,7 @@ local function onRightUp()
 	if armed == "Charge" then
 		local ids = {}
 		for _, f in selectedFormations() do
-			if f.class == "infantry" or f.class == "cavalry" then
+			if f.class == "infantry" or f.class == "cavalry" or f.class == "hq" then
 				table.insert(ids, f.id)
 			end
 		end
@@ -30854,7 +30995,7 @@ local COMMAND_CLASSES: { [string]: { string } } = {
 	skirmish = { "infantry" },
 	wedge = { "cavalry" },
 	fire = { "infantry", "artillery" },
-	charge = { "infantry", "cavalry" },
+	charge = { "infantry", "cavalry", "hq" },
 	run = { "infantry", "cavalry", "hq" },
 	attack = { "infantry", "cavalry" },
 	occupy = { "infantry" },
