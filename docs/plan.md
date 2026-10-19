@@ -47,9 +47,9 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Experience earned in battle
 
 ## Phase 5: battle AI
-- [ ] Defence: reverse slope, garrisons, skirmish screens, counter-attacks, cavalry counter-charges
-- [ ] Attack: pin and flank; light cavalry hunts routers and guns
-- [ ] Balance flags cleared (Waterloo, Auerstedt, Spielberg, Hougoumont guns)
+- [x] Defence: reverse slope, garrisons, skirmish screens, counter-attacks, cavalry counter-charges
+- [x] Attack: pin and flank; light cavalry hunts routers and guns
+- [~] Balance flags: Hougoumont guns and Spielberg normal fixed; battle roles added; Waterloo, Auerstedt, Hassenhausen, Spielberg easy/hard stand (docs/balance.md), moved to the whole-game pass
 
 ## Phase 6: campaign economy
 - [ ] Buildings and construction; recruitment needs buildings

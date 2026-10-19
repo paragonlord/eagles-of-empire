@@ -314,7 +314,7 @@ Profiles with more than 5 honours on a unit, or one longer than 40 characters, a
 A scenario may name its `attacker` (TW's attacker and defender): the attacking AI keeps advancing
 while the enemy holds any objective; the defending AI holds its positions, garrisons its buildings
 and counter-attacks only when it is overwhelming (the attack posture at 1.5 : 1). Without one
-(Auerstedt, Austerlitz) both sides decide by the objectives and numbers, as before. Set from
-history: France attacks at Jena, Waterloo and in their episodes and at the Landgrafenberg,
-Vierzehnheiligen, Spielberg and the Pratzen; Prussia at Hassenhausen; the allies at Sokolnitz.
+(Austerlitz) both sides decide by the objectives and numbers, as before. Set from history: France
+attacks at Jena, Waterloo and in their episodes and at the Landgrafenberg, Vierzehnheiligen,
+Spielberg and the Pratzen; Prussia at Auerstedt and Hassenhausen; the allies at Sokolnitz.
 

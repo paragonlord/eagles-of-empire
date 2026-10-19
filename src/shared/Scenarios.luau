@@ -249,6 +249,7 @@ local AUERSTEDT_PRUSSIAN = {
 
 Scenarios.auerstedt = {
 	id = "auerstedt",
+	attacker = "prussia",
 	name = "Auerstedt, 14 October 1806",
 	map = "auerstedt",
 	briefing = "Morning, 14 October 1806. Marshal Davout's III Corps has crossed the Saale at Kösen and holds Hassenhausen in the fog, which will clear within four minutes; the Prussian main army under the Duke of Brunswick is coming up the road from Auerstedt, twice your strength but strung out over the Lissbach. Gudin and Friant are on the field; Morand's division is still marching up from the Kösen bridge and will arrive in the first five minutes. Hold Hassenhausen, keep the Kösen bridge, and take Poppel when the Prussian columns falter. Break them before Brunswick can commit his reserve.",

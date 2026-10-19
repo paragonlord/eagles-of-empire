@@ -135,3 +135,15 @@ hard prussia 3 draw 2 → prussia 5; Auerstedt hard prussia 4 france 1 → uncha
 types drove it (with them off, the old results return); their gaps were narrowed (heavy charge
 0.065, light pursuit ×1.4). Phase 5 (defending AI, Davout's squares) owns the rest.
 
+## After Phases 3–5 (2026-10-19, 5 seeds a cell)
+
+13–14 flags across the last runs (Phase 4 baseline 13, after the AI work 14), a changing mix:
+- Fixed: Hougoumont's guns fire (howitzers), Spielberg normal fights (Orange on the east bank,
+  attacker roles), Landgrafenberg no longer draws on hard.
+- Standing: Waterloo goes to France (Wellington's line collapses at 16–17 min, before Bülow's
+  Prussians arrive at 12–18 min); Auerstedt and Hassenhausen lean Prussian (heavy cavalry,
+  grenadiers); Spielberg easy/hard still draw; La Haye Sainte flips side by difficulty (the KGL
+  garrison); Auerstedt easy reports "no contact" in 4 seeds although a trace of seed 1 shows a
+  full fight (the harness counts volleys, cannon and charges, not melee: to check).
+- Next balance pass: the whole-game pass after Phase 11 (`docs/plan.md`).
+
