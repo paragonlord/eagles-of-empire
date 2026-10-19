@@ -314,6 +314,42 @@ test("Round shot ricochets down its lane: units behind the target are hit, frien
 	assertEq(behind, 0)
 end)
 
+test("Howitzers lob shells over a crest at what the army can see, and the burst hits neighbours", function()
+	-- at the foot of the Landgrafenberg the plateau top is out of sight (see the LOS test above)
+	local sim = newSim({
+		unit("france", "artillery", "Obusiers", 800, 420, -math.pi / 2),
+		unit("france", "artillery", "Batterie", 830, 420, -math.pi / 2),
+		unit("prussia", "infantry", "On the plateau", 800, 180, math.pi / 2),
+		unit("prussia", "infantry", "Beside it", 835, 180, math.pi / 2),
+		unit("france", "cavalry", "Scouts", 800, 250, -math.pi / 2),
+	})
+	for i = 1, 2 do
+		local g = sim.formations[i]
+		g.shape = "deployed"
+		Formation.refreshFootprint(g)
+	end
+	sim.formations[3].fireAtWill = false
+	sim.formations[4].fireAtWill = false
+	run(sim, 1)
+	local how, gun, target = sim.formations[1], sim.formations[2], sim.formations[3]
+	assertEq(how.type, "howitzer")
+	how.reload, gun.reload = 0, 0
+	assertEq(Combat.fireBlockReason(sim, gun, target), "Line of fire blocked")
+	assertEq(Combat.fireBlockReason(sim, how, target), nil, "the howitzer needs no line of sight")
+	local splash = 0
+	for _ = 1, 40 do
+		how.reload = 0
+		how.targetId = target.id
+		gun.reload = 99
+		for _, a in Combat.gather(sim) do
+			if a.attackerId == how.id and a.targetId == 4 then
+				splash += a.casualties
+			end
+		end
+	end
+	assertTrue(splash > 0, "the burst reaches the next battalion")
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

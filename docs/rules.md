@@ -38,6 +38,7 @@ class value.
 | light cavalry | speed 16 (charge 22), melee 1.2/0.75, charge 0.05, ×1.4 charge impact on routing units, spots 380 |
 | heavy cavalry | speed 13 (charge 19), morale 74, melee 1.35/1.0, charge 0.065, more fatigue on the move |
 | horse artillery | speed 7.5, limber/unlimber and reform in half the time, round shot 380 and 2.5 per hit |
+| howitzers | shells: range 400 (min 80), reload 26 s, hit 0.4, 3.5 per hit; indirect (any target the side can see, no line of sight, over friends); the burst hits every formation within 30 studs of the target, friend or foe, for up to half the strike |
 
 ## Movement
 

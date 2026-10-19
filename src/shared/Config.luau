@@ -176,6 +176,9 @@ Config.UnitTypes = {
 	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 13.0, chargeSpeed = 19.0, baseMorale = 74, melee = { attack = 1.35, defense = 1.0 }, charge = { base = 0.065 }, fatigueMove = 0.6 } },
 	footArt = { class = "artillery", name = "Foot artillery" },
 	horseArt = { class = "artillery", name = "Horse artillery", stats = { speed = 7.5, reformScale = 0.5, gun = { roundShot = { range = 380, casualtiesPerHit = 2.5 } } } },
+	-- indirect fire: a target the side can see, no line of sight needed, lobbed over friends; shells
+	-- burst over `splash` studs (Combat cannonade)
+	howitzer = { class = "artillery", name = "Howitzers", stats = { gun = { indirect = true, roundShot = { range = 400, minRange = 80, reload = 26, hit = 0.4, casualtiesPerHit = 3.5, morale = 6, splash = 30 } } } },
 	hq = { class = "hq", name = "Headquarters" },
 }
 

@@ -901,7 +901,7 @@ episode({
 		u("france", "II Corps · Reille / Foy", "infantry", "92e de Ligne", 600, 1, 960, 540, NORTH),
 		u("france", "II Corps · Reille / Foy", "infantry", "100e de Ligne", 600, 1, 1040, 540, NORTH),
 		u("france", "II Corps · Reille / Bachelu", "infantry", "2e Légère", 600, 2, 1000, 460, NORTH),
-		u("france", "II Corps · Reille", "artillery", "Batterie du 2e Corps", 120, 1, 880, 460, NORTH),
+		u("france", "II Corps · Reille", "artillery", "Obusiers du 2e Corps", 120, 1, 880, 460, NORTH),
 		u("france", "II Corps · Reille / Piré", "cavalry", "6e Lanciers", 400, 1, 520, 480, NORTH),
 		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 40, 2, 800, 1130, SOUTH, { commander = true }),
 		u("britain", "1st Division · Cooke / Byng", "infantry", "2/3rd Foot Guards", 700, 2, 760, 790, SOUTH),
@@ -1100,6 +1100,7 @@ local TYPE_MARKS: { [string]: { { string | { string } } } } = {
 	},
 	artillery = {
 		{ "horseArt", { "à cheval", "reitende", " rha", "horse artillery" } },
+		{ "howitzer", { "obusier", "howitzer", "haubitz", "unicorn" } },
 	},
 }
 local DEFAULT_TYPE = { infantry = "line", cavalry = "dragoon", artillery = "footArt", hq = "hq" }

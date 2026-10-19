@@ -129,10 +129,12 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 	if not sim.isVisibleTo(sim, f.faction, target.id) then
 		return "Target not visible"
 	end
-	if not Grid.lineOfSight(sim.grid, f.pos, target.pos) then
+	-- howitzer shells are lobbed: over the crest and over friends, at anything the side can see
+	local lobbed = unit.gun and unit.gun.indirect and Combat.artilleryMode(f, dist) == "roundShot"
+	if not lobbed and not Grid.lineOfSight(sim.grid, f.pos, target.pos) then
 		return "Line of fire blocked"
 	end
-	if laneBlocked(sim, f, target) then
+	if not lobbed and laneBlocked(sim, f, target) then
 		return "Friends in the line of fire"
 	end
 	return nil
@@ -144,7 +146,7 @@ function Combat.artilleryMode(f: Formation, dist: number): "roundShot" | "canist
 	elseif f.ammoMode == "roundShot" then
 		return "roundShot"
 	end
-	return if dist <= Config.Units.artillery.gun.canister.range then "canister" else "roundShot"
+	return if dist <= Formation.unitConfig(f).gun.canister.range then "canister" else "roundShot"
 end
 
 -- Best visible enemy for fire-at-will: nearest in arc and range with a clear lane.
@@ -231,8 +233,20 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	f.state = if f.state == "idle" then "firing" else f.state
 	local side = Vec.attackSide(target.pos, target.heading, f.pos)
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = ammo.morale, kind = "cannon" }
-	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = mode })
-	if mode == "roundShot" then
+	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = if gun.indirect and mode == "roundShot" then "shell" else mode })
+	if ammo.splash then
+		-- a shell bursts: everyone within the splash, friend or foe, takes part of it
+		for _, id in sim.order do
+			local o = sim.formations[id]
+			if o and o ~= f and o ~= target and Formation.isActive(o) then
+				local d = Vec.dist(o.pos, target.pos) - o.halfRadius * 0.5
+				if d < ammo.splash then
+					local n = rollCasualties(sim, expected / shapeF * 0.5 * (1 - math.max(0, d) / ammo.splash) * (Config.Shapes :: any)[o.shape].artillery)
+					attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+				end
+			end
+		end
+	elseif mode == "roundShot" then
 		-- the ball bounces on through whatever stands behind, friend or foe
 		local R = C.Ricochet
 		local dir = Vec.normalize(Vec.sub(target.pos, f.pos))
