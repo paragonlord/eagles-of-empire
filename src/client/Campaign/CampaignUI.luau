@@ -348,8 +348,9 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 		text(panelF, "Occupied by " .. Data.name(ps.occupiedBy), 3, { colour = Kit.HOSTILE })
 	end
 	local facts = { string.format("Income %s", fmt(p.income)), string.format("Manpower %s", fmt(p.manpower)) }
-	if (p.fort or 0) > 0 then
-		table.insert(facts, "Fortress " .. string.rep("I", p.fort))
+	local fort = tonumber(ps.fort) or p.fort or 0
+	if fort > 0 then
+		table.insert(facts, "Fortress " .. string.rep("I", fort))
 	end
 	if p.isPort then
 		table.insert(facts, "Port")
@@ -364,6 +365,45 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	end
 	if owner ~= ctx.player then
 		return
+	end
+	-- buildings: what stands, what is going up, and the next level of each chain
+	if type(ps.buildings) == "table" then
+		local have = {}
+		for _, chain in Data.Europe.BuildingOrder do
+			local level = tonumber(ps.buildings[chain]) or 0
+			local def = Data.Europe.Buildings[chain]
+			if level > 0 and def then
+				table.insert(have, def.levels[level])
+			end
+		end
+		text(panelF, if #have > 0 then table.concat(have, " · ") else "No buildings", 7, { textSize = 13, colour = Kit.MUTED, wrap = true })
+		local c = ps.construction
+		if type(c) == "table" then
+			local def = Data.Europe.Buildings[c.chain]
+			local nextLevel = (tonumber(ps.buildings[c.chain]) or 0) + 1
+			text(panelF, string.format("Building the %s: %s", if def then string.lower(def.levels[nextLevel] or def.name) else tostring(c.chain), plural(tonumber(c.turnsLeft) or 0, "turn")), 8, { textSize = 13 })
+		end
+		local bopts: { any } = view.buildings and view.buildings.options and view.buildings.options[id] or {}
+		if #bopts > 0 and type(c) ~= "table" then
+			Kit.title(panelF, "Build", { size = UDim2.new(1, 0, 0, 22), textSize = 18 }).LayoutOrder = 40
+			local grid = Instance.new("Frame") :: Frame
+			grid.BackgroundTransparency = 1
+			grid.Size = UDim2.new(1, 0, 0, math.ceil(#bopts / 2) * 29)
+			grid.LayoutOrder = 41
+			grid.Parent = panelF
+			local g = Instance.new("UIGridLayout") :: UIGridLayout
+			g.CellSize = UDim2.new(0.5, -3, 0, 26)
+			g.CellPadding = UDim2.fromOffset(6, 3)
+			g.SortOrder = Enum.SortOrder.LayoutOrder
+			g.Parent = grid
+			for i, o in bopts do
+				local b = Kit.button(grid, string.format("%s · %s", tostring(o.name), fmt(o.cost)), function()
+					send("build", { provinceId = id, chain = o.chain })
+				end, { order = i, textSize = 12, caps = false, tooltip = string.format("%s, level %s: %s gold, %s", tostring(o.name), tostring(o.level), fmt(o.cost), plural(tonumber(o.turns) or 1, "turn")) })
+				local why: string? = if not ctx.canAct then ctx.actReason elseif o.available == false then Logic.reason(o.reason) else nil
+				Kit.setEnabled(b, why == nil, why)
+			end
+		end
 	end
 	-- recruitment queue and options
 	local rec = view.recruitment or {}

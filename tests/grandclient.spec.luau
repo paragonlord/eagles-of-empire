@@ -77,3 +77,10 @@ test("Grand client: the battle prompt lists every army and takes odds from the t
 	_, _, odds = Logic.battleSides(view, pb)
 	assertEq(odds, "poor", "odds from the player's side")
 end)
+
+test("Campaign reasons name the building a province lacks", function()
+	assertEq(Logic.reason("needs:stables:2"), "Needs a cavalry school")
+	assertEq(Logic.reason("needs:barracks:3"), "Needs a military school")
+	assertEq(Logic.reason("building"), "Already building here")
+	assertEq(Logic.reason("needs:palace:1"), "needs:palace:1", "an unknown chain stays as it is")
+end)

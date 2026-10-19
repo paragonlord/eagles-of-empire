@@ -52,7 +52,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [~] Balance flags: Hougoumont guns and Spielberg normal fixed; battle roles added; Waterloo, Auerstedt, Hassenhausen, Spielberg easy/hard stand (docs/balance.md), moved to the whole-game pass
 
 ## Phase 6: campaign economy
-- [ ] Buildings and construction; recruitment needs buildings
+- [x] Buildings and construction; recruitment needs buildings
 - [ ] Tax levels, public order effects, rebellion
 - [ ] Gradual replenishment
 - [ ] Winter and supply attrition

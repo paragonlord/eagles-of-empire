@@ -47,11 +47,19 @@ Logic.REASONS = {
 	unknownOffer = "That offer has lapsed",
 	unknownEvent = "That dispatch has been answered",
 	badArgs = "Malformed order",
+	building = "Already building here",
+	fullyBuilt = "Fully built",
 	unknownCommand = "The server does not know that order",
 }
 
 function Logic.reason(code: any): string
 	local s = tostring(code)
+	-- "needs:<chain>:<level>": a building the province lacks
+	local chain, level = string.match(s, "^needs:(%a+):(%d+)$")
+	local def = chain and (EuropeData.Buildings :: any)[chain]
+	if def then
+		return "Needs a " .. string.lower(def.levels[tonumber(level) or 1] or def.name)
+	end
 	return Logic.REASONS[s] or s
 end
 
