@@ -316,6 +316,16 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		Economy.attrit(s, a, Economy.FORCED_MARCH)
 		State.log(s, a.name .. " marches hard: one province more this turn, none the next.")
 		return true, nil
+	elseif kind == "appoint" then
+		local a = myArmy(s, cmd.armyId)
+		if not a then
+			return false, "notYourArmy"
+		end
+		local ok, why = Economy.appoint(s, a)
+		if ok then
+			State.log(s, string.format("%s takes command of %s.", (a.general :: State.General).name, a.name))
+		end
+		return ok, why
 	elseif kind == "replenish" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -528,6 +538,10 @@ function GrandCampaign.view(s: State): { [string]: any }
 				name = a.name,
 				general = if a.general then a.general.name else nil,
 				rating = if a.general then a.general.rating else nil,
+				wins = if a.general then a.general.wins or 0 else nil,
+				losses = if a.general then a.general.losses or 0 else nil,
+				sieges = if a.general then a.general.sieges or 0 else nil,
+				traits = if a.general then State.traits(a.general) else nil,
 				provinceId = a.provinceId,
 				strength = math.floor(State.armyStrength(a)),
 				men = State.men(a),

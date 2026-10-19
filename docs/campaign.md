@@ -166,6 +166,15 @@ Prussia Jäger) and Russia's cavalry (Cossacks).
 
 - An army has a general (`rating` 1–5) or none. Movement: 2 provinces a turn, 3 under a general
   rated 4+ (Napoleon, Davout, Lannes, Masséna, Archduke Charles, Wellington).
+- Generals' careers: every battle an army fights records a win or a loss for its general. Every
+  third win raises the rating (max 5), every third loss lowers it (min 1). A fortress taken
+  (fort 1+) counts a siege for the besiegers' generals. Traits follow from the record: Victor (3+
+  wins, more than losses) +5 % strength, Unlucky (the reverse) −5 %, Siege-master (2+ fortresses)
+  besieges a turn faster. When a side's HQ is destroyed in a tactical battle, the general it
+  belonged to (the side's best-rated) falls and his army goes on without one.
+- `appoint {armyId}`: an army without a general gets the next free name from the nation's pool
+  (`EuropeData.GeneralPool`, majors only) at rating 2 for 500 gold. The AI appoints for field armies
+  of 6+ units away from its capital when its treasury holds 2000.
 - Entering a province costs 1, 2 inside an enemy zone of control (a neighbouring province holds an
   army at war with the mover). Entering a province with a hostile army or one controlled by an enemy
   ends the march. Neutral territory is closed: declare war first.
@@ -207,7 +216,7 @@ Prussia Jäger) and Russia's cavalry (Cossacks).
   army may still march off on its own turn (refusing battle); the log says so ("… withdraws from
   Tyrol before the enemy, refusing battle").
 - Auto-resolve: strength = Σ men × type power (line 1, light 1.1, guard 1.5, cavalry 1.3, heavy 1.6,
-  artillery 3) × (1 + 0.1 experience) × (1 + 0.05 general rating) × nation quality (gameplay:
+  artillery 3) × (1 + 0.1 experience) × (1 + 0.05 general rating ± 0.05 Victor/Unlucky) × nation quality (gameplay:
   France 1.15 for the corps system, Britain 1.1, others 1); defenders holding the province
   × (1.15 + 0.1 fort). p(attacker wins) = A^1.5 / (A^1.5 + D^1.5). Loser loses 25–40 %, winner
   8–18 %; units under 15 % of authorised strength are gone. Winners gain 1 experience (max 3).

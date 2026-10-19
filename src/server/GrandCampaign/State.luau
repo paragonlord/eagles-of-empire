@@ -8,7 +8,8 @@ local RNG = require(Shared.RNG)
 local EuropeData = require(Shared.EuropeData)
 
 export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number, honours: { string }? }
-export type General = { name: string, rating: number }
+-- wins, losses, sieges: the career so far (State.recordBattle); traits follow from it (State.traits)
+export type General = { name: string, rating: number, wins: number?, losses: number?, sieges: number? }
 -- path: the rest of a player's march order beyond this turn's reach; it marches on each new turn
 -- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
@@ -66,6 +67,7 @@ local State = {}
 State.LOG_MAX = 80
 State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
+State.APPOINT_COST = 500 -- a new general for an army that has none
 State.MAX_ARMIES = 16 -- per nation
 State.MAX_QUEUE = { major = 6, minor = 2 }
 State.MAX_HONOURS = 5 -- battle honours per unit; the oldest gives way
@@ -274,12 +276,53 @@ function State.unitPower(u: Unit): number
 	return u.strength * (if c then c.power else 1) * (1 + 0.1 * u.experience)
 end
 
+-- Every third win raises a general's rating (max 5), every third loss lowers it (min 1).
+function State.recordBattle(g: General, won: boolean)
+	if won then
+		g.wins = (g.wins or 0) + 1
+		if (g.wins :: number) % 3 == 0 then
+			g.rating = math.min(5, g.rating + 1)
+		end
+	else
+		g.losses = (g.losses or 0) + 1
+		if (g.losses :: number) % 3 == 0 then
+			g.rating = math.max(1, g.rating - 1)
+		end
+	end
+end
+
+-- Victor: 3+ wins, more than losses. Unlucky: the reverse. Siege-master: 2+ fortresses taken.
+function State.traits(g: General): { string }
+	local w, l, out = g.wins or 0, g.losses or 0, {}
+	if w >= 3 and w > l then
+		out[#out + 1] = "Victor"
+	elseif l >= 3 and l > w then
+		out[#out + 1] = "Unlucky"
+	end
+	if (g.sieges or 0) >= 2 then
+		out[#out + 1] = "Siege-master"
+	end
+	return out
+end
+
+-- +5 % a rating star; Victor another +5 %, Unlucky -5 %.
+function State.generalFactor(g: General?): number
+	if not g then
+		return 1
+	end
+	local f = 1 + 0.05 * g.rating
+	for _, trait in State.traits(g) do
+		f += if trait == "Victor" then 0.05 elseif trait == "Unlucky" then -0.05 else 0
+	end
+	return f
+end
+
 function State.armyStrength(a: Army): number
 	local s = 0
 	for _, u in a.units do
 		s += State.unitPower(u)
 	end
-	return s * (1 + 0.05 * (if a.general then a.general.rating else 0)) * EuropeData.Nations[a.nation].quality
+	return s * State.generalFactor(a.general) * EuropeData.Nations[a.nation].quality
 end
 
 function State.men(a: Army): number
@@ -331,7 +374,7 @@ function State.newUnit(s: State, nation: string, unitType: string, experience: n
 	return { key = State.newId(s, "u"), type = unitType, name = name, strength = c.strength, maxStrength = c.strength, experience = experience or c.experience }
 end
 
-function State.newArmy(s: State, nation: string, name: string, provinceId: string, general: General?): Army
+function State.newArmy(s: State, nation: string, name: string, provinceId: string, general: { name: string, rating: number }?): Army
 	local a: Army = { id = State.newId(s, "a"), nation = nation, name = name, general = if general then { name = general.name, rating = general.rating } else nil, provinceId = provinceId, units = {}, movesLeft = 0 }
 	a.movesLeft = State.maxMoves(a)
 	s.armies[#s.armies + 1] = a

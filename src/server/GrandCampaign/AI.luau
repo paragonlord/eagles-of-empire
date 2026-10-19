@@ -9,7 +9,8 @@
 --   follow        50 - 6 per march: a major's field armies join its main army (strongest with a general)
 --   clear         60 (+80 next to the capital), a hostile army inside our side's land we outnumber 1.3 : 1
 --   go home       15, for armies at peace standing outside their side's territory
---   (detachments without a general and under 4 units never attack enemy land)
+--   (detachments without a general and under 4 units never attack enemy land; a major appoints a
+--   general to a field army of 6+ away from its capital when its treasury holds 2000)
 --   march on the strategic target 70 - 4 per march still to go: field armies (a general or 6+
 --                 units) step to any reachable province nearer the enemy capital chosen by
 --                 AI.strategicTarget where the stack they march with (plus ours already there) is
@@ -352,6 +353,12 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 				State.removeArmy(s, a.id)
 				break
 			end
+		end
+	end
+	-- a field army of six or more away from the capital gets a general from a full treasury
+	for _, a in State.armiesOf(s, nation) do
+		if a.general == nil and #a.units >= 6 and a.provinceId ~= EuropeData.Nations[nation].capital and ns.treasury >= 2000 then
+			Economy.appoint(s, a)
 		end
 	end
 	-- garrisons (armies without a general) hold the capital in wartime; when a hostile army is

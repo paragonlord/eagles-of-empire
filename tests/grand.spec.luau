@@ -887,6 +887,77 @@ test("Grand battles: auto-resolve is deterministic, the loser retreats, war scor
 	assertTrue(ok and why == "alreadyApplied")
 end)
 
+test("Grand generals: careers rise and fall, a general falls with his HQ, a new one costs 500", function()
+	local s = empty(18, "france")
+	Diplomacy.declareWar(s, "france", "austria")
+	local fr = army(s, "france", "venetia", { line = 3 }, { name = "Masséna", rating = 3 })
+	local charles = army(s, "austria", "venetia", { line = 3 }, { name = "Archduke Charles", rating = 4 })
+	local mack = army(s, "austria", "venetia", { line = 2 }, { name = "Mack", rating = 1 })
+	local b = Battles.detect(s)[1]
+	local sc = GrandCampaign.battleScenario(s, b.battleId)
+	local survivors = {}
+	for _, u in sc.units do
+		if u.key and string.sub(u.key, 1, 1) == "u" then
+			survivors[u.key] = { strength = math.floor(u.strength * 0.9), experience = u.experience, destroyed = false, initial = u.strength }
+		end
+	end
+	local enemySide = if Battles.playerSide(s, b) == "attackers" then "defenders" else "attackers"
+	survivors["hq:" .. enemySide] = { strength = 0, experience = 1, destroyed = true, initial = 120 }
+	assertTrue(Battles.apply(s, b.battleId, results("victory"), survivors))
+	assertEq(charles.general, nil, "the HQ was the best general's: he falls with it")
+	assertTrue(string.find(table.concat(s.log, "|"), "Archduke Charles fell", 1, true) ~= nil)
+	assertEq(mack.general.losses, 1)
+	assertEq(fr.general.wins, 1)
+	-- three wins raise the rating and make a Victor; three losses lower it and make him Unlucky
+	local before = State.armyStrength(fr)
+	State.recordBattle(fr.general, true)
+	State.recordBattle(fr.general, true)
+	assertEq(fr.general.rating, 4)
+	assertDeepEq(State.traits(fr.general), { "Victor" })
+	assertTrue(math.abs(State.armyStrength(fr) / before - (1 + 0.05 * 4 + 0.05) / (1 + 0.05 * 3)) < 1e-9, "rating and Victor both count")
+	State.recordBattle(mack.general, false)
+	State.recordBattle(mack.general, false)
+	assertEq(mack.general.rating, 1, "never below 1")
+	assertDeepEq(State.traits(mack.general), { "Unlucky" })
+	assertTrue(math.abs(State.armyStrength(mack) / State.armyStrength({ nation = "austria", units = mack.units }) - (1 + 0.05 - 0.05)) < 1e-9)
+	-- sieges: a fortress taken counts; two make a Siege-master, who takes forts a turn sooner
+	Diplomacy.declareWar(s, "france", "prussia")
+	fr.provinceId = "brandenburg"
+	for _ = 1, 2 do
+		Battles.sieges(s)
+	end
+	assertEq(s.provinces.brandenburg.occupiedBy, "france")
+	assertEq(fr.general.sieges, 1)
+	fr.general.sieges = 2
+	assertDeepEq(State.traits(fr.general), { "Victor", "Siege-master" })
+	fr.provinceId = "eastprussia"
+	Battles.sieges(s)
+	assertEq(s.provinces.eastprussia.siege.turnsLeft, State.fortLevel(s, "eastprussia") - 1, "fort level turns, not fort + 1")
+	-- appoint: an army without a general buys one for 500 from the nation's pool
+	local det = army(s, "france", "paris", { line = 2 })
+	local gold = s.nations.france.treasury
+	assertTrue(GrandCampaign.command(s, { kind = "appoint", armyId = det.id }))
+	assertEq(s.nations.france.treasury, gold - State.APPOINT_COST)
+	assertEq(State.APPOINT_COST, 500)
+	assertEq(det.general.rating, 2)
+	assertTrue(table.find(EuropeData.GeneralPool.france, det.general.name) ~= nil)
+	local ok, why = GrandCampaign.command(s, { kind = "appoint", armyId = det.id })
+	assertTrue(not ok and why == "hasGeneral")
+	local det2 = army(s, "france", "paris", { line = 1 })
+	assertTrue(GrandCampaign.command(s, { kind = "appoint", armyId = det2.id }))
+	assertTrue(det2.general.name ~= det.general.name, "a general serves in one army at a time")
+	s.nations.france.treasury = 100
+	local det3 = army(s, "france", "paris", { line = 1 })
+	ok, why = GrandCampaign.command(s, { kind = "appoint", armyId = det3.id })
+	assertTrue(not ok and why == "insufficientFunds")
+	-- the view shows the record; a save keeps it and old saves (no record) still load
+	local v = GrandCampaign.view(s)
+	assertEq(v.armies[fr.id].wins, 3)
+	assertDeepEq(v.armies[fr.id].traits, { "Victor", "Siege-master" })
+	local back = GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s)))
+	assertEq(State.armyById(back, fr.id).general.sieges, 2)
+end)
+
 test("Grand battles: retreat avoids the battle at a small cost", function()
 	local s = empty(17)
 	Diplomacy.declareWar(s, "france", "prussia")

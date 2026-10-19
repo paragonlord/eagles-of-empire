@@ -278,6 +278,26 @@ local function deliver(s: State, q: State.Recruit)
 end
 
 -- Restores strength up to maxStrength in an owned or allied province: treasury and one manpower per man.
+-- A new general (rating 2) from the nation's pool for an army that has none.
+function Economy.appoint(s: State, a: Army): (boolean, string?)
+	if a.general then
+		return false, "hasGeneral"
+	end
+	local ns = s.nations[a.nation]
+	if ns.treasury < State.APPOINT_COST then
+		return false, "insufficientFunds"
+	end
+	for _, name in EuropeData.GeneralPool[a.nation] or {} do
+		if not State.generalInService(s, name) then
+			ns.treasury -= State.APPOINT_COST
+			local g: State.General = { name = name, rating = 2 }
+			a.general = g
+			return true, nil
+		end
+	end
+	return false, "noGenerals"
+end
+
 function Economy.replenish(s: State, a: Army): number
 	local controller = State.controller(s, a.provinceId)
 	if not State.friendly(s, a.nation, controller) then

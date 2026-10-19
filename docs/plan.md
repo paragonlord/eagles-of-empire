@@ -66,7 +66,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Per-province battle maps
 - [x] Adjacent armies reinforce battles
 - [x] Forced march
-- [ ] General careers: traits, rank, death, appointment
+- [x] General careers: traits, rank, death, appointment
 - [ ] Siege assault
 
 ## Phase 9: diplomacy and agents

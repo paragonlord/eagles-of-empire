@@ -255,7 +255,13 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	t.TextTruncate = Enum.TextTruncate.AtEnd
 	local prov = Data.byId[a.provinceId]
 	local stars = if a.rating then "  " .. string.rep("★", math.clamp(math.floor(tonumber(a.rating) or 0), 0, 5)) else ""
-	text(p, string.format("%s%s · %s", if a.general then "General " .. tostring(a.general) else "No general", stars, tostring(if prov then prov.name else a.provinceId)), 2, { colour = Kit.MUTED })
+	-- the general's career: battles won and lost, fortresses taken, traits
+	local career = ""
+	if a.general and a.wins then
+		local traits = if type(a.traits) == "table" and #a.traits > 0 then " · " .. table.concat(a.traits, ", ") else ""
+		career = string.format("\n%s won, %s lost, %s fortresses taken%s", tostring(a.wins), tostring(a.losses or 0), tostring(a.sieges or 0), traits)
+	end
+	text(p, string.format("%s%s · %s%s", if a.general then "General " .. tostring(a.general) else "No general", stars, tostring(if prov then prov.name else a.provinceId), career), 2, { colour = Kit.MUTED })
 	local moves = if a.movesLeft ~= nil then string.format(" · %d/%d moves", a.movesLeft, a.movesMax or a.movesLeft) else ""
 	text(p, string.format("%s men · %s · strength %s%s", fmt(a.men or a.strength), plural(tonumber(a.unitCount) or 0, "unit"), fmt(a.strength), moves), 3, { font = Enum.Font.SourceSansSemibold })
 	local units: any = a.units
@@ -343,7 +349,13 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 	local fr = buttonRow(p, 101)
 	local fm = Kit.button(fr, if a.forced then "Marching hard" else "Forced march", function()
 		send("forcedMarch", { armyId = a.id })
-	end, { size = UDim2.new(1, 0, 1, 0), tooltip = "One province more this turn for 3% of the men; the army rests next turn" })
+	end, { size = UDim2.new(if a.general then 1 else 0.5, -4, 1, 0), tooltip = "One province more this turn for 3% of the men; the army rests next turn" })
+	if not a.general then
+		local ap = Kit.button(fr, "Appoint general", function()
+			send("appoint", { armyId = a.id })
+		end, { size = UDim2.new(0.5, -4, 1, 0), tooltip = "A new general takes command: 500 gold" })
+		Kit.setEnabled(ap, ctx.canAct, ctx.actReason)
+	end
 	Kit.setEnabled(fm, ctx.canAct and not a.forced, if not ctx.canAct then ctx.actReason else "Already marching hard")
 	if ctx.canAct then
 		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 102, { colour = Kit.MUTED, textSize = 12 })

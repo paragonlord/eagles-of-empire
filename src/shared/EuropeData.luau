@@ -520,6 +520,15 @@ EuropeData.UnitNames = {
 
 -- Generals and starting armies (January 1805) -------------------------------------------------------
 
+-- Generals a major can appoint later (rating 2), in order; a name already in service is skipped.
+EuropeData.GeneralPool = {
+	france = { "Augereau", "Mortier", "Victor", "Bessières", "Oudinot", "Suchet", "Macdonald", "Grouchy", "Junot", "Gouvion Saint-Cyr", "Lefebvre", "Poniatowski" },
+	britain = { "Moore", "Hill", "Picton", "Beresford", "Graham", "Uxbridge", "Craufurd", "Cathcart" },
+	austria = { "Schwarzenberg", "Bellegarde", "Hiller", "Kollowrat", "Liechtenstein", "Klenau", "Archduke Ferdinand" },
+	prussia = { "Gneisenau", "Yorck", "Bülow", "Kleist", "Scharnhorst", "Tauentzien", "Rüchel" },
+	russia = { "Barclay de Tolly", "Bennigsen", "Buxhöwden", "Wittgenstein", "Tormasov", "Miloradovich", "Raevsky", "Dokhturov", "Platov" },
+} :: { [string]: { string } }
+
 local function g(name: string, rating: number): { name: string, rating: number }
 	return { name = name, rating = rating }
 end

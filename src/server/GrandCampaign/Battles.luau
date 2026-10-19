@@ -246,6 +246,17 @@ function Battles.detect(s: State, autoplay: boolean?): { Battle }
 	return out
 end
 
+-- The army whose general commands a side's HQ on the field: the best-rated general there.
+local function hqArmyOf(s: State, b: Battle, side: string): Army?
+	local hqArmy: Army? = nil
+	for _, a in Battles.armies(s, b, side) do
+		if a.general and (hqArmy == nil or (a.general :: State.General).rating > ((hqArmy :: Army).general :: State.General).rating) then
+			hqArmy = a
+		end
+	end
+	return hqArmy
+end
+
 -- Applies survivors (by unit key) and the winner. `survivors` entries keyed "h:<side>:<n>" (set-piece
 -- units) or units the battle did not deploy are covered by their side's overall survival fraction.
 local function applyOutcome(s: State, b: Battle, index: number, winnerSide: string, survivors: { [string]: Survivor }, reason: string)
@@ -284,6 +295,21 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 	for _, sd in { "attackers", "defenders" } do
 		frac[sd] = if initial[sd] > 0 then math.clamp(kept[sd] / initial[sd], 0, 1) else 1
 	end
+	local pname = State.province(b.provinceId).name
+	-- a general whose HQ is destroyed on the field falls; the others' careers record the day
+	for _, sd in { "attackers", "defenders" } do
+		local sv = survivors["hq:" .. sd]
+		local hq = if sv and sv.destroyed then hqArmyOf(s, b, sd) else nil
+		if hq and hq.general then
+			State.log(s, string.format("%s fell at %s at the head of %s.", hq.general.name, pname, hq.name))
+			hq.general = nil
+		end
+	end
+	for _, a in fought do
+		if a.general then
+			State.recordBattle(a.general, sideOf(b, a.nation) == winnerSide)
+		end
+	end
 	local destroyedArmy = false
 	local honour = Battles.honourName(b)
 	for _, a in fought do
@@ -316,7 +342,6 @@ local function applyOutcome(s: State, b: Battle, index: number, winnerSide: stri
 			State.log(s, string.format("%s: %d unit%s carry the battle honour \"%s\".", a.name, honoured, if honoured == 1 then "" else "s", honour))
 		end
 	end
-	local pname = State.province(b.provinceId).name
 	for _, a in fought do
 		if #a.units == 0 then
 			destroyedArmy = destroyedArmy or sideOf(b, a.nation) == loserSide
@@ -481,7 +506,11 @@ function Battles.sieges(s: State)
 		end
 		local by = besieger :: string
 		if not ps.siege or ps.siege.by ~= by then
-			ps.siege = { by = by, turnsLeft = State.fortLevel(s, p.id) + 1 }
+			local master = false
+			for _, a in here do
+				master = master or (a.nation == by and a.general ~= nil and table.find(State.traits(a.general), "Siege-master") ~= nil)
+			end
+			ps.siege = { by = by, turnsLeft = math.max(1, State.fortLevel(s, p.id) + (if master then 0 else 1)) }
 		end
 		local siege = ps.siege :: State.Siege
 		siege.turnsLeft -= 1
@@ -494,6 +523,13 @@ function Battles.sieges(s: State)
 				ps.occupiedBy = by
 			end
 			ps.occupiedTurns = 0
+			if State.fortLevel(s, p.id) > 0 then
+				for _, a in here do
+					if a.nation == by and a.general then
+						a.general.sieges = (a.general.sieges or 0) + 1
+					end
+				end
+			end
 			Diplomacy.addScore(s, by, c, if p.isCapital then Diplomacy.SCORE.capital else Diplomacy.SCORE.province)
 			if wasOwner ~= c and ps.occupiedBy == nil then
 				State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
@@ -714,13 +750,9 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 		local heading = math.atan2(dz, dx)
 		local px, pz = -dz, dx
 		local all: { Placed } = {}
-		local hqArmy: Army? = nil
 		for _, a in Battles.armies(s, battle, side) do
 			for _, u in a.units do
 				all[#all + 1] = { u = u, a = a }
-			end
-			if a.general and (hqArmy == nil or (hqArmy :: Army).general == nil or (a.general :: State.General).rating > ((hqArmy :: Army).general :: State.General).rating) then
-				hqArmy = a
 			end
 		end
 		table.sort(all, function(x: Placed, y: Placed): boolean
@@ -795,7 +827,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 			}
 		end
 		local leadNation = if side == "attackers" then battle.attacker else battle.defender
-		local hq = hqArmy
+		local hq = hqArmyOf(s, battle, side)
 		local x, z = clampTo(zone, cx - dx * (rows * 35 + 60), cz - dz * (rows * 35 + 60))
 		units[#units + 1] = {
 			name = if hq and hq.general then hq.general.name .. " — HQ" else State.nationName(leadNation) .. " — HQ",

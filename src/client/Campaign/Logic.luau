@@ -49,6 +49,8 @@ Logic.REASONS = {
 	badArgs = "Malformed order",
 	building = "Already building here",
 	alreadyForced = "Already marching hard",
+	hasGeneral = "That army already has a general",
+	noGenerals = "No general is free to take command",
 	fullyBuilt = "Fully built",
 	unknownCommand = "The server does not know that order",
 }

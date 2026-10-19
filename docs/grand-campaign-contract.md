@@ -94,4 +94,7 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     {armyIds}}` (neighbouring armies); in its tactical scenario their units carry `arrival`.
 18. `forcedMarch {armyId}`: +1 move now, 3 % of the men, no moves next turn; own armies carry
     `forced` while it applies. Refusal: `alreadyForced`.
+19. Generals: `appoint {armyId}` (500 gold, a pool name at rating 2). Armies with a general carry
+    `wins, losses, sieges, traits` ("Victor", "Unlucky", "Siege-master"). Refusals: `hasGeneral`,
+    `noGenerals`, `insufficientFunds`.
 

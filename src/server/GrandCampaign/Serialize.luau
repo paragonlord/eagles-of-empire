@@ -51,8 +51,16 @@ local function validArmy(a: any): boolean
 	if type(a) ~= "table" or not isStr(a.id) or not nationOk(a.nation) or not isStr(a.name) or not provinceOk(a.provinceId) or not isNum(a.movesLeft) or type(a.units) ~= "table" or #a.units > State.MAX_UNITS then
 		return false
 	end
-	if a.general ~= nil and (type(a.general) ~= "table" or not isStr(a.general.name) or not isNum(a.general.rating)) then
-		return false
+	if a.general ~= nil then
+		local g = a.general
+		if type(g) ~= "table" or not isStr(g.name) or not isNum(g.rating) then
+			return false
+		end
+		for _, k in { "wins", "losses", "sieges" } do
+			if g[k] ~= nil and not isNum(g[k]) then
+				return false
+			end
+		end
 	end
 	if a.forced ~= nil and type(a.forced) ~= "boolean" then
 		return false
