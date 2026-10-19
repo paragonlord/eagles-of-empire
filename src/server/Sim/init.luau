@@ -412,7 +412,7 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 		for _, id in cmd.ids do
 			local f = self.formations[id]
 			if f and Formation.canTakeOrders(f) then
-				applyOrder(self, f, { kind = kind, pos = slots[id], heading = data.heading, issuedTick = self.tick, anchor = { x = f.pos.x, z = f.pos.z } }, queue)
+				applyOrder(self, f, { kind = kind, pos = slots[id], heading = data.heading, issuedTick = self.tick, anchor = { x = f.pos.x, z = f.pos.z }, run = data.run == true or nil }, queue)
 			end
 		end
 		return
@@ -451,6 +451,10 @@ local function applyCommand(self: Sim, cmd: QueuedCommand)
 				end
 			elseif kind == "Stance" then
 				f.fireAtWill = data.fireAtWill == true
+			elseif kind == "Run" then
+				if f.order then
+					f.order.run = data.run == true or nil
+				end
 			elseif kind == "Limber" then
 				local wantLimbered = data.limbered == true
 				if Formation.isLimbered(f) ~= wantLimbered and f.pendingLimber == nil then
@@ -663,6 +667,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 		v.reload = f.reload
 		v.cohesion = f.cohesion
 		v.orderKind = if f.order then f.order.kind else nil
+		v.running = if f.order and f.order.run then true else nil
 		v.targetId = f.targetId
 		v.fireAtWill = f.fireAtWill
 		v.limbered = if f.class == "artillery" then Formation.isLimbered(f) else nil
@@ -698,7 +703,7 @@ local function viewOf(f: Formation, own: boolean): Types.FormationView
 end
 
 local function viewKey(v: Types.FormationView): string
-	return string.format("%.1f|%.1f|%.2f|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d", v.x, v.z, v.heading, v.shape, v.state, v.strength, v.moraleBand, tostring(v.status), tostring(v.orderKind), tostring(v.fireAtWill), tostring(v.ammo), tostring(math.floor((v.morale or 0) / 2)), math.ceil(v.reload or 0)) .. (v.tags or "") .. tostring(v.abilityReadyAt) -- reload in whole seconds so cards stay current
+	return string.format("%.1f|%.1f|%.2f|%s|%s|%d|%s|%s|%s|%s|%s|%s|%d", v.x, v.z, v.heading, v.shape, v.state, v.strength, v.moraleBand, tostring(v.status), tostring(v.orderKind), tostring(v.fireAtWill) .. tostring(v.running), tostring(v.ammo), tostring(math.floor((v.morale or 0) / 2)), math.ceil(v.reload or 0)) .. (v.tags or "") .. tostring(v.abilityReadyAt) -- reload in whole seconds so cards stay current
 end
 
 -- Build the snapshot for one viewer faction. Pass full=true for keyframes.

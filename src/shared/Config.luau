@@ -166,14 +166,14 @@ Config.Units = {
 -- reformScale multiplies reform/limber times; pursuit multiplies a charge's impact on routing units.
 Config.UnitTypes = {
 	line = { class = "infantry", name = "Line infantry" },
-	light = { class = "infantry", name = "Light infantry", stats = { legalShapes = { skirmish = true }, speed = 6.2, chargeSpeed = 8.2, baseMorale = 68, musket = { accuracy = 0.08 }, melee = { attack = 0.9, defense = 0.9 }, spot = 300 } },
+	light = { class = "infantry", name = "Light infantry", stats = { legalShapes = { skirmish = true }, speed = 6.2, chargeSpeed = 8.2, musket = { accuracy = 0.075 }, melee = { attack = 0.95, defense = 0.95 }, spot = 300 } },
 	rifle = { class = "infantry", name = "Rifles", stats = { legalShapes = { skirmish = true }, speed = 6.0, chargeSpeed = 8.0, baseMorale = 70, musket = { range = 130, reload = 21, accuracy = 0.11, ammo = 50 }, melee = { attack = 0.8, defense = 0.85 }, spot = 320 } },
-	grenadier = { class = "infantry", name = "Grenadiers", stats = { baseMorale = 76, melee = { attack = 1.2, defense = 1.15 } } },
-	guard = { class = "infantry", name = "Guard infantry", stats = { baseMorale = 84, musket = { accuracy = 0.08 }, melee = { attack = 1.3, defense = 1.25 } } },
+	grenadier = { class = "infantry", name = "Grenadiers", stats = { baseMorale = 72, melee = { attack = 1.1, defense = 1.05 } } },
+	guard = { class = "infantry", name = "Guard infantry", stats = { baseMorale = 76, melee = { attack = 1.15, defense = 1.1 } } },
 	militia = { class = "infantry", name = "Militia", stats = { baseMorale = 58, musket = { accuracy = 0.055 }, melee = { attack = 0.85, defense = 0.9 } } },
-	lightCav = { class = "cavalry", name = "Light cavalry", stats = { speed = 16.0, chargeSpeed = 22.0, baseMorale = 68, melee = { attack = 1.2, defense = 0.7 }, pursuit = 1.8, charge = { base = 0.05 }, fatigueMove = 0.4, spot = 380 } },
+	lightCav = { class = "cavalry", name = "Light cavalry", stats = { speed = 16.0, chargeSpeed = 22.0, baseMorale = 70, melee = { attack = 1.2, defense = 0.75 }, pursuit = 1.4, charge = { base = 0.05 }, fatigueMove = 0.4, spot = 380 } },
 	dragoon = { class = "cavalry", name = "Dragoons" },
-	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 12.5, chargeSpeed = 19.0, baseMorale = 78, melee = { attack = 1.7, defense = 1.1 }, charge = { base = 0.08 }, fatigueMove = 0.6 } },
+	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 13.0, chargeSpeed = 19.0, baseMorale = 74, melee = { attack = 1.35, defense = 1.0 }, charge = { base = 0.065 }, fatigueMove = 0.6 } },
 	footArt = { class = "artillery", name = "Foot artillery" },
 	horseArt = { class = "artillery", name = "Horse artillery", stats = { speed = 7.5, reformScale = 0.5, gun = { roundShot = { range = 380, casualtiesPerHit = 2.5 } } } },
 	hq = { class = "hq", name = "Headquarters" },
@@ -194,6 +194,9 @@ Config.TypeStats = {} :: { [string]: any }
 for id, t in Config.UnitTypes :: { [string]: any } do
 	Config.TypeStats[id] = merged((Config.Units :: any)[t.class], t.stats or {})
 end
+
+-- Running (Move/AttackMove with run, or the Run order): infantry, cavalry and staff only.
+Config.Run = { speed = 1.4, fatigue = 3.0 }
 
 Config.Combat = {
 	RangeFalloff = 0.65, -- hit factor at max range = 1 - falloff

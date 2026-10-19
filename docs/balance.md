@@ -125,3 +125,13 @@ normal) because the French AI now presses with everything instead of waiting to 
 France 8–11 provinces in January 1809; Austria beaten (dictated peace) in 5 of 8 seeds, white or
 lost peace in 3; Prussia beaten in 3 of 8, at peace on its own terms in 4, still at war in 1; Paris
 never falls. No nation wins by a fixed turn: not degenerate, unchanged.
+
+## Open after unit types (2026-10-19)
+
+Typed units (Phase 1) tilt the Auerstedt episodes further toward Prussia, whose order of battle has
+the Garde du Corps, two Kürassier regiments, hussars, grenadiers and guard against Davout's line
+regiments. 5 seeds a cell, before → after: Hassenhausen normal prussia 4 france 1 → prussia 5,
+hard prussia 3 draw 2 → prussia 5; Auerstedt hard prussia 4 france 1 → unchanged. The cavalry
+types drove it (with them off, the old results return); their gaps were narrowed (heavy charge
+0.065, light pursuit ×1.4). Phase 5 (defending AI, Davout's squares) owns the rest.
+

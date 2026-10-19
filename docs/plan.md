@@ -26,7 +26,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 
 ## Phase 2: TW orders and controls
 - [x] Skirmish order for light infantry and rifles
-- [ ] Run / walk
+- [x] Run / walk
 - [ ] Fire by rank (passive)
 - [ ] TW hotkeys: speed on +/-, control groups 1–9, Ctrl+A, double-click selects type, order keys, attack-move, face
 - [ ] Cards show ammo, fatigue, group number

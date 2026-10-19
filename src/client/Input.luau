@@ -186,10 +186,14 @@ local function previewLine(a: Vec, b: Vec)
 	Figures.setPreview(list)
 end
 
+-- Formations the player set to run (R or the Run button): every march they are given runs.
+local runIds: { [number]: boolean } = {}
+local lastRight = { t = -1, x = 0, z = 0 } -- a second right-click on the same spot runs
+
 local function issueLineMove(a: Vec, b: Vec, queue: boolean)
 	for _, e in linePlacement(a, b) do
 		local pos = clampToMap({ x = e.x, z = e.z })
-		sendOrder("Move", { e.f.id }, { pos = pos, heading = e.heading, frontage = e.frontage, queue = queue })
+		sendOrder("Move", { e.f.id }, { pos = pos, heading = e.heading, frontage = e.frontage, queue = queue, run = runIds[e.f.id] })
 	end
 end
 
@@ -199,6 +203,9 @@ local function issueMove(target: Vec, queue: boolean)
 	if #forms == 0 then
 		return
 	end
+	local now = os.clock()
+	local double = now - lastRight.t < 0.4 and math.abs(target.x - lastRight.x) + math.abs(target.z - lastRight.z) < 40
+	lastRight = { t = if double then -1 else now, x = target.x, z = target.z }
 	local cx, cz = 0, 0
 	for _, f in forms do
 		cx += f.x
@@ -208,7 +215,7 @@ local function issueMove(target: Vec, queue: boolean)
 	cz /= #forms
 	for _, f in forms do
 		local pos = clampToMap({ x = target.x + (f.x - cx), z = target.z + (f.z - cz) })
-		sendOrder("Move", { f.id }, { pos = pos, queue = queue })
+		sendOrder("Move", { f.id }, { pos = pos, queue = queue, run = if double or runIds[f.id] then true else nil })
 	end
 end
 
@@ -571,6 +578,8 @@ local function onKey(input: InputObject)
 		Net.control("speed", 4)
 	elseif k == Enum.KeyCode.F then
 		focusSelection()
+	elseif k == Enum.KeyCode.R then
+		Input.toggleRun()
 	elseif k == Enum.KeyCode.Home then
 		local c = BattleState.armyCentre()
 		Camera.focusOn(c.x, c.z)
@@ -894,6 +903,27 @@ function Input.sendOrder(kind: string, ids: { number }, data: { [string]: any })
 	return sendOrder(kind, ids, data)
 end
 
+-- Run / walk for the selection: its current marches and every later one.
+function Input.toggleRun()
+	local ids, anyRunning = {}, false
+	for _, f in selectedFormations() do
+		if f.class ~= "artillery" and BattleState.canCommand(f.id) then
+			anyRunning = anyRunning or runIds[f.id] == true or f.running == true
+			table.insert(ids, f.id)
+		end
+	end
+	for _, id in ids do
+		runIds[id] = if anyRunning then nil else true
+	end
+	if #ids > 0 then
+		sendOrder("Run", ids, { run = not anyRunning })
+	end
+end
+
+function Input.isRunning(id: number): boolean
+	return runIds[id] == true
+end
+
 function Input.destroy()
 	cancelDrags()
 	mode = "off"
@@ -909,6 +939,7 @@ function Input.destroy()
 	end
 	OrderWheel.destroy()
 	table.clear(deployHeading)
+	table.clear(runIds)
 end
 
 return Input

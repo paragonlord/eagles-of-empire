@@ -53,10 +53,18 @@ function Movement.currentSpeed(sim: SimLike, f: Formation, dir: Vec): number
 	local fatigue = Formation.fatigueFactor(f, Config.Combat.FatigueSpeedPenalty)
 	local weatherF = ((Config.Weather :: any)[sim.weather or "clear"] or Config.Weather.clear).speed
 	local speed = base * shapeFactor * terrainSpeed(f, sim.grid) * slopeFactor * fatigue * weatherF * f.mods.speed
+	if Movement.running(f) then
+		speed *= Config.Run.speed
+	end
 	if f.state == "routing" then
 		speed = base * terrainSpeed(f, sim.grid) * slopeFactor * Config.Morale.RoutSpeedFactor
 	end
 	return speed
+end
+
+-- At the double: a march order with `run`, never guns or a charge (which has its own pace).
+function Movement.running(f: Formation): boolean
+	return f.order ~= nil and f.order.run == true and f.class ~= "artillery" and (f.state == "moving" or f.state == "retreating")
 end
 
 local function turnToward(f: Formation, target: number, dt: number): boolean
@@ -262,6 +270,9 @@ local function followPath(sim: SimLike, f: Formation, speedScale: number)
 	local unit = Formation.unitConfig(f)
 	local terrain = Grid.terrainAt(sim.grid, f.pos.x, f.pos.z)
 	local rate = if f.state == "charging" then unit.fatigueCharge else unit.fatigueMove
+	if Movement.running(f) then
+		rate *= Config.Run.fatigue
+	end
 	f.fatigue = math.min(100, f.fatigue + rate * terrain.fatigue * DT)
 	f.cohesion = math.max(0.3, f.cohesion - terrain.cohesion * DT)
 	-- Stuck detection.

@@ -30,13 +30,13 @@ class value.
 | Type | Changes from its class |
 | --- | --- |
 | line, dragoons, foot artillery | none (the class values) |
-| light | speed 6.2, accuracy 0.08, morale 68, melee 0.9/0.9, spots 300 |
-| rifles | speed 6.0, range 130, reload 21 s, accuracy 0.11, 50 rounds, morale 70, melee 0.8/0.85 |
-| grenadiers | morale 76, melee 1.2/1.15 |
-| guard | morale 84, accuracy 0.08, melee 1.3/1.25 |
+| light | speed 6.2, accuracy 0.075, melee 0.95/0.95, spots 300; may skirmish |
+| rifles | speed 6.0, range 130, reload 21 s, accuracy 0.11, 50 rounds, morale 70, melee 0.8/0.85; may skirmish |
+| grenadiers | morale 72, melee 1.1/1.05 |
+| guard | morale 76, melee 1.15/1.1 |
 | militia | morale 58, accuracy 0.055, melee 0.85/0.9 |
-| light cavalry | speed 16 (charge 22), morale 68, melee 1.2/0.7, charge 0.05, ×1.8 charge impact on routing units, spots 380 |
-| heavy cavalry | speed 12.5 (charge 19), morale 78, melee 1.7/1.1, charge 0.08, more fatigue on the move |
+| light cavalry | speed 16 (charge 22), melee 1.2/0.75, charge 0.05, ×1.4 charge impact on routing units, spots 380 |
+| heavy cavalry | speed 13 (charge 19), morale 74, melee 1.35/1.0, charge 0.065, more fatigue on the move |
 | horse artillery | speed 7.5, limber/unlimber and reform in half the time, round shot 380 and 2.5 per hit |
 
 ## Movement
@@ -53,6 +53,9 @@ fatigueFactor = 1 - 0.4 * fatigue / 100
 | cavalry | 14.0 | 20.0 | wedge ×1.0, line ×1.0 |
 | artillery | 4.5 (limbered) | – | limbered ×1.0, deployed ×0 |
 | hq | 12.0 | – | staff |
+
+Running (a march ordered with `run`, or the Run order on the current march; infantry, cavalry and
+staff, never guns or a charge): speed ×1.4, marching fatigue ×3.
 
 Terrain: open 1.0, road 1.3, woods 0.6 (cavalry 0.4), village 0.7 (0.5), bridge 0.9, steep 0.5,
 water/cliff impassable. Roads give the only >1.0 factor, so marching in column along a road is

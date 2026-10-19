@@ -18,6 +18,7 @@ export type Order = {
 	frontage: number?,
 	issuedTick: number,
 	anchor: Vec?, -- leash anchor for Engage/AttackMove
+	run: boolean?, -- at the double: faster, far more tiring (Config.Run)
 }
 
 export type Command = {
@@ -64,6 +65,7 @@ export type FormationView = {
 	width: number,
 	depth: number,
 	orderKind: string?,
+	running: boolean?, -- own: marching at the double
 	targetId: number?,
 	fireAtWill: boolean?,
 	limbered: boolean?,

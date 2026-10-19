@@ -31,6 +31,7 @@ Protocol.CommandKinds = {
 	Retreat = false,
 	Shape = { infantry = true, cavalry = true },
 	Stance = { infantry = true, artillery = true },
+	Run = { infantry = true, cavalry = true, hq = true }, -- run or walk on the current march
 	Charge = { infantry = true, cavalry = true },
 	Rally = { hq = true },
 	Ability = { hq = true }, -- the HQ general's active ability: data.abilityId (src/shared/Generals.luau)
@@ -221,6 +222,9 @@ function Protocol.validateCommand(cmd: any, ctx: ValidateContext): (boolean, str
 		if data.frontage ~= nil and (not finiteNumber(data.frontage) or data.frontage < 0 or data.frontage > ctx.mapWidth) then
 			return false, Protocol.Reasons.badRequest
 		end
+		if data.run ~= nil and type(data.run) ~= "boolean" then
+			return false, Protocol.Reasons.badRequest
+		end
 		return true, nil
 	elseif kind == "Engage" or kind == "Charge" then
 		local t = data.targetId
@@ -254,6 +258,11 @@ function Protocol.validateCommand(cmd: any, ctx: ValidateContext): (boolean, str
 		return true, nil
 	elseif kind == "Stance" then
 		if type(data.fireAtWill) ~= "boolean" then
+			return false, Protocol.Reasons.badRequest
+		end
+		return true, nil
+	elseif kind == "Run" then
+		if type(data.run) ~= "boolean" then
 			return false, Protocol.Reasons.badRequest
 		end
 		return true, nil

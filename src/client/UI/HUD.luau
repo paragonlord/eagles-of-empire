@@ -615,6 +615,7 @@ local COMMANDS: { CommandDef } = {
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
 	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
 	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
+	{ key = "run", text = "Run", tip = "Run / walk (R): faster, far more tiring. A double right-click runs one march" },
 	{ key = "hold", text = "Hold", tip = "Stand and hold position" },
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
 	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
@@ -656,6 +657,9 @@ local function runCommand(key: string)
 		end
 	elseif key == "charge" then
 		Input.arm(if Input.armed() == "Charge" then nil else "Charge")
+		HUD.refreshCommands()
+	elseif key == "run" then
+		Input.toggleRun()
 		HUD.refreshCommands()
 	elseif key == "hold" or key == "stop" or key == "retreat" then
 		local ids = idsOfClass(forms, { infantry = true, cavalry = true, artillery = true, hq = true })
@@ -855,6 +859,7 @@ local COMMAND_CLASSES: { [string]: { string } } = {
 	wedge = { "cavalry" },
 	fire = { "infantry", "artillery" },
 	charge = { "infantry", "cavalry" },
+	run = { "infantry", "cavalry", "hq" },
 	limber = { "artillery" },
 	ammo = { "artillery" },
 	rally = { "hq" },
@@ -880,6 +885,12 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 		local armed = Input.armed() == "Charge"
 		Kit.setActiveLook(b, armed)
 		b.Text = if armed then "Charge…" else "Charge"
+	elseif key == "run" then
+		local running = false
+		for _, f in forms do
+			running = running or f.running == true or Input.isRunning(f.id)
+		end
+		Kit.setActiveLook(b, running)
 	elseif key == "limber" then
 		local art = firstOfClass(forms, "artillery")
 		b.Text = if art and art.limbered == true then "Unlimber" else "Limber"

@@ -32,6 +32,7 @@ export type Formation = {
 	width: number,
 	depth: number,
 	orderKind: string?,
+	running: boolean?,
 	targetId: number?,
 	fireAtWill: boolean?,
 	limbered: boolean?,

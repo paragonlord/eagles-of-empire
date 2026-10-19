@@ -198,6 +198,40 @@ test("Skirmish order: light troops only; hard to hit, fires on the move and all 
 	assertTrue(skirmishLoss > lineLoss, string.format("skirmish %d vs line %d", skirmishLoss, lineLoss))
 end)
 
+test("Running: faster and far more tiring; the Run order switches pace mid-march; guns never run", function()
+	local function march(double)
+		local sim = newSim({ unit("france", "infantry", "F1", A.x, A.z, 0) })
+		cmd(sim, "Move", { 1 }, { pos = { x = A.x + 300, z = A.z }, run = double })
+		run(sim, 20)
+		local f = sim.formations[1]
+		return f.pos.x - A.x, f.fatigue
+	end
+	local walked, walkTired = march(false)
+	local ran, runTired = march(true)
+	assertTrue(ran > walked * 1.25, string.format("ran %.0f vs walked %.0f", ran, walked))
+	assertTrue(runTired > walkTired * 2, string.format("fatigue %.1f vs %.1f", runTired, walkTired))
+
+	local sim = newSim({
+		unit("france", "infantry", "F1", A.x, A.z, 0),
+		unit("france", "artillery", "Guns", A.x, A.z + 60, 0),
+	})
+	cmd(sim, "Move", { 1, 2 }, { pos = { x = A.x + 300, z = A.z + 30 } })
+	sim:step()
+	sim:step()
+	cmd(sim, "Run", { 1, 2 }, { run = true })
+	sim:step()
+	sim:step()
+	local f, guns = sim.formations[1], sim.formations[2]
+	assertTrue(f.order and f.order.run == true, "switched to the double")
+	assertEq(sim:snapshot("france").formations[1].running, true)
+	local Movement = require(Server.Sim.Movement)
+	assertTrue(not Movement.running(guns), "guns keep their pace")
+	cmd(sim, "Run", { 1 }, { run = false })
+	sim:step()
+	sim:step()
+	assertTrue(not f.order.run, "and back to the walk")
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x
