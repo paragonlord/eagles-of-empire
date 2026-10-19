@@ -270,6 +270,17 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			State.log(s, string.format("%s ordered at %s.", EuropeData.UnitClasses[t].name, State.province(pid).name))
 		end
 		return ok, why
+	elseif kind == "build" then
+		local pid, chain = str(cmd.provinceId), str(cmd.chain)
+		if not pid or not chain then
+			return false, "badArgs"
+		end
+		local ok, why = Economy.build(s, player, pid, chain)
+		if ok then
+			local level = (s.provinces[pid].buildings[chain] or 0) + 1
+			State.log(s, string.format("Work begins on the %s at %s.", string.lower(EuropeData.Buildings[chain].levels[level]), State.province(pid).name))
+		end
+		return ok, why
 	elseif kind == "replenish" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -454,6 +465,9 @@ function GrandCampaign.view(s: State): { [string]: any }
 			occupiedBy = ps.occupiedBy,
 			siege = if ps.siege then { by = ps.siege.by, turnsLeft = ps.siege.turnsLeft } else nil,
 			unrest = Economy.unrest(s, id),
+			buildings = if ps.owner == player then State.copy(ps.buildings) else nil,
+			construction = if ps.owner == player and ps.construction then State.copy(ps.construction) else nil,
+			fort = State.fortLevel(s, id),
 			visibleArmies = vis,
 		}
 	end
@@ -479,6 +493,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		end
 	end
 	local options = {}
+	local buildOptions = {}
 	for _, pid in State.provincesOwned(s, player) do
 		if s.provinces[pid].occupiedBy == nil then
 			local list = {}
@@ -490,6 +505,15 @@ function GrandCampaign.view(s: State): { [string]: any }
 				end
 			end
 			options[pid] = list
+			local blist = {}
+			for _, chain in EuropeData.BuildingOrder do
+				local def = EuropeData.Buildings[chain]
+				local ok, why, nextLevel = Economy.canBuild(s, player, pid, chain)
+				if nextLevel <= EuropeData.BuildingMax then
+					blist[#blist + 1] = { chain = chain, name = def.levels[nextLevel], level = nextLevel, cost = def.cost[nextLevel], turns = def.turns[nextLevel], available = ok, reason = why }
+				end
+			end
+			buildOptions[pid] = blist
 		end
 	end
 	local queue = {}
@@ -546,6 +570,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		provinces = provinces,
 		armies = armies,
 		recruitment = { options = options, queue = queue },
+		buildings = { options = buildOptions },
 		diplomacy = { offers = offers },
 		events = events,
 		pendingBattle = pending,

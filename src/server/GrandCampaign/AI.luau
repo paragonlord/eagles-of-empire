@@ -96,6 +96,29 @@ end
 
 local RECRUIT_CYCLE = { "line", "line", "cavalry", "line", "artillery", "light", "line", "heavy" }
 
+-- One construction a turn, in the richest province with none under way, economy before army.
+local BUILD_PRIORITY = { "trade", "farms", "foundry", "stables", "government", "fort", "school", "barracks" }
+local function build(s: State, nation: string)
+	local n = EuropeData.Nations[nation]
+	-- at war the army comes first: build only from a full treasury
+	local atWar = #State.enemiesOf(s, nation) > 0
+	local reserve = if atWar then (if n.major then 3000 else 1000) else (if n.major then 600 else 300)
+	local where = State.provincesOwned(s, nation)
+	table.sort(where, function(a: string, b: string): boolean
+		local ia, ib = State.province(a).income, State.province(b).income
+		return if ia ~= ib then ia > ib else a < b
+	end)
+	for _, pid in where do
+		for _, chain in BUILD_PRIORITY do
+			local ok, _, nextLevel = Economy.canBuild(s, nation, pid, chain)
+			if ok and s.nations[nation].treasury - EuropeData.Buildings[chain].cost[nextLevel] >= reserve then
+				Economy.build(s, nation, pid, chain)
+				return
+			end
+		end
+	end
+end
+
 local function threatAt(s: State, nation: string, pid: string): number
 	local t = State.hostileStrengthIn(s, pid, nation)
 	for _, n in State.province(pid).neighbours do
@@ -351,6 +374,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 		end
 	end
 	recruit(s, nation)
+	build(s, nation)
 end
 
 return AI

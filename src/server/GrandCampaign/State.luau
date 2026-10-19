@@ -12,7 +12,9 @@ export type General = { name: string, rating: number }
 -- path: the rest of a player's march order beyond this turn's reach; it marches on each new turn
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }? }
 export type Siege = { by: string, turnsLeft: number }
-export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number }
+export type Construction = { chain: string, turnsLeft: number }
+-- buildings: chain -> level (EuropeData.Buildings); construction: the one under way
+export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number, buildings: { [string]: number }, construction: Construction? }
 export type NationState = { treasury: number, manpower: number }
 export type War = { a: string, b: string, score: number, since: number } -- score > 0 favours a
 export type Peace = { winner: string, dictated: boolean, turn: number } -- winner "" = white peace
@@ -93,6 +95,11 @@ function State.sortedKeys(t: { [string]: any }): { string }
 	end
 	table.sort(out)
 	return out
+end
+
+-- Fortress level 0..3: what its fortifications have reached (sieges, auto-resolve).
+function State.fortLevel(s: State, provinceId: string): number
+	return s.provinces[provinceId].buildings.fort or 0
 end
 
 function State.province(id: string): EuropeData.Province
@@ -382,7 +389,7 @@ function State.new(seed: number, playerNation: string?): State
 		victory = nil,
 	}
 	for _, p in EuropeData.Provinces do
-		s.provinces[p.id] = { owner = p.owner1805, occupiedBy = p.occupied1805, siege = nil, occupiedTurns = 0 }
+		s.provinces[p.id] = { owner = p.owner1805, occupiedBy = p.occupied1805, siege = nil, occupiedTurns = 0, buildings = EuropeData.startBuildings(p) }
 	end
 	for _, id in EuropeData.NationOrder do
 		local n = EuropeData.Nations[id]

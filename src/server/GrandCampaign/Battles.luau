@@ -105,7 +105,7 @@ local function sideStrength(s: State, b: Battle, side: string): number
 		t += State.armyStrength(a)
 	end
 	if side == "defenders" and table.find(b.defenders, State.controller(s, b.provinceId)) then
-		t *= 1.15 + 0.1 * State.province(b.provinceId).fort
+		t *= 1.15 + 0.1 * State.fortLevel(s, b.provinceId)
 	end
 	return t
 end
@@ -411,7 +411,7 @@ function Battles.sieges(s: State)
 		end
 		local by = besieger :: string
 		if not ps.siege or ps.siege.by ~= by then
-			ps.siege = { by = by, turnsLeft = p.fort + 1 }
+			ps.siege = { by = by, turnsLeft = State.fortLevel(s, p.id) + 1 }
 		end
 		local siege = ps.siege :: State.Siege
 		siege.turnsLeft -= 1
@@ -428,7 +428,7 @@ function Battles.sieges(s: State)
 			if wasOwner ~= c and ps.occupiedBy == nil then
 				State.log(s, string.format("%s liberates %s.", State.nationName(by), p.name))
 			else
-				State.log(s, string.format("%s %s %s.", State.nationName(by), if p.fort > 0 then "takes the fortress of" else "occupies", p.name))
+				State.log(s, string.format("%s %s %s.", State.nationName(by), if State.fortLevel(s, p.id) > 0 then "takes the fortress of" else "occupies", p.name))
 			end
 		end
 	end

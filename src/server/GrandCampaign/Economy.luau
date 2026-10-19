@@ -23,15 +23,24 @@ Economy.REPLENISH_COST_PER_MAN = 0.5
 Economy.SUBSIDY = 60 -- British treasury per turn to each major fighting France
 Economy.CONTINENTAL = { britain = 0.8, blockaded = 0.95 }
 
+Economy.FARMS_INCOME = 0.05 -- per level of the farms chain
+Economy.TRADE_INCOME = 0.1 -- per level of the trade chain
+
+-- A province's income with its farms and trade.
+function Economy.provinceIncome(s: State, provinceId: string): number
+	local b = s.provinces[provinceId].buildings
+	return State.province(provinceId).income * (1 + Economy.FARMS_INCOME * (b.farms or 0) + Economy.TRADE_INCOME * (b.trade or 0))
+end
+
 function Economy.income(s: State, nation: string): (number, number)
 	local income, manpower = 0, 0
 	for _, p in EuropeData.Provinces do
 		local ps = s.provinces[p.id]
 		if ps.occupiedBy == nil and ps.owner == nation then
-			income += p.income
+			income += Economy.provinceIncome(s, p.id)
 			manpower += p.manpower
 		elseif ps.occupiedBy == nation then
-			income += p.income * Economy.OCCUPIER_SHARE
+			income += Economy.provinceIncome(s, p.id) * Economy.OCCUPIER_SHARE
 		end
 	end
 	if s.flags.continentalSystem then
@@ -111,8 +120,8 @@ function Economy.canRecruit(s: State, nation: string, provinceId: string, unitTy
 	if c.needs == "capital" and EuropeData.Nations[nation].capital ~= provinceId then
 		return false, "needsCapital"
 	end
-	if c.needs == "fort" and p.fort == 0 and not p.isCapital then
-		return false, "needsFortress"
+	if (ps.buildings[c.building.chain] or 0) < c.building.level then
+		return false, "needs:" .. c.building.chain .. ":" .. c.building.level
 	end
 	if Economy.queueCount(s, nation, provinceId) >= 2 then
 		return false, "provinceBusy"
@@ -199,6 +208,62 @@ function Economy.replenish(s: State, a: Army): number
 end
 
 -- One nation's end-of-turn economy.
+-- Can `nation` start the next level of `chain` in `provinceId`? Returns ok, reason, next level.
+function Economy.canBuild(s: State, nation: string, provinceId: string, chain: string): (boolean, string?, number)
+	local def = EuropeData.Buildings[chain]
+	local ps = s.provinces[provinceId]
+	if not def or not ps then
+		return false, "badArgs", 0
+	end
+	local nextLevel = (ps.buildings[chain] or 0) + 1
+	if ps.owner ~= nation or ps.occupiedBy ~= nil then
+		return false, "notYourProvince", nextLevel
+	end
+	if nextLevel > EuropeData.BuildingMax then
+		return false, "fullyBuilt", nextLevel
+	end
+	if ps.construction then
+		return false, "building", nextLevel
+	end
+	if ps.siege ~= nil or State.hostileArmyIn(s, provinceId, nation) then
+		return false, "underSiege", nextLevel
+	end
+	if s.nations[nation].treasury < def.cost[nextLevel] then
+		return false, "insufficientFunds", nextLevel
+	end
+	return true, nil, nextLevel
+end
+
+function Economy.build(s: State, nation: string, provinceId: string, chain: string): (boolean, string?)
+	local ok, why, nextLevel = Economy.canBuild(s, nation, provinceId, chain)
+	if not ok then
+		return false, why
+	end
+	local def = EuropeData.Buildings[chain]
+	s.nations[nation].treasury -= def.cost[nextLevel]
+	s.provinces[provinceId].construction = { chain = chain, turnsLeft = def.turns[nextLevel] }
+	return true, nil
+end
+
+-- Constructions in the nation's own, unoccupied provinces advance a turn; the rest wait.
+local function construct(s: State, nation: string)
+	for _, id in EuropeData.ProvinceIds do
+		local ps = s.provinces[id]
+		local c = ps.construction
+		if c and ps.owner == nation and ps.occupiedBy == nil then
+			c.turnsLeft -= 1
+			if c.turnsLeft <= 0 then
+				ps.construction = nil
+				local level = (ps.buildings[c.chain] or 0) + 1
+				ps.buildings[c.chain] = level
+				if nation == s.playerNation then
+					State.log(s, string.format("%s: the %s is finished.", State.province(id).name, string.lower(EuropeData.Buildings[c.chain].levels[level])))
+				end
+			end
+		end
+	end
+end
+
 function Economy.run(s: State, nation: string)
 	local ns = s.nations[nation]
 	local income, manpower = Economy.income(s, nation)
@@ -232,6 +297,7 @@ function Economy.run(s: State, nation: string)
 			end
 		end
 	end
+	construct(s, nation)
 	for i = #s.recruitment, 1, -1 do
 		local q = s.recruitment[i]
 		if q.nation == nation then

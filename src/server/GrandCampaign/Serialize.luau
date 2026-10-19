@@ -130,6 +130,21 @@ function Serialize.deserialize(p: any): State?
 		if ps.siege ~= nil and (type(ps.siege) ~= "table" or not nationOk(ps.siege.by) or not isNum(ps.siege.turnsLeft)) then
 			return nil
 		end
+		if ps.buildings == nil then
+			ps.buildings = EuropeData.startBuildings(State.province(id)) -- a save from before buildings
+		elseif type(ps.buildings) ~= "table" then
+			return nil
+		else
+			for chain, level in ps.buildings do
+				if EuropeData.Buildings[chain] == nil or not isNum(level) or level < 0 or level > EuropeData.BuildingMax then
+					return nil
+				end
+			end
+		end
+		local c = ps.construction
+		if c ~= nil and (type(c) ~= "table" or EuropeData.Buildings[c.chain] == nil or not isNum(c.turnsLeft)) then
+			return nil
+		end
 	end
 	for _, id in EuropeData.NationOrder do
 		local ns = p.nations[id]

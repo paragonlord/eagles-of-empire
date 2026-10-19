@@ -81,3 +81,9 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     survivors `{strength, experience, destroyed, initial}` per unit key (CampaignService does this).
 13. Persistence: the grand campaign is stored in its own DataStore (`EoEGrand/<scope>`) with its own
     session claim; the small campaign's `view` envelope now carries `name = "Thuringian Campaign"`.
+14. Buildings: `build {provinceId, chain}` starts the next level of a chain (`EuropeData.Buildings`).
+    Own provinces carry `buildings = { [chain] = level }`, `construction? = {chain, turnsLeft}`;
+    every province carries `fort` (its fortress level). `view.buildings.options[provinceId]` lists
+    `{chain, name, level, cost, turns, available, reason?}` for the next level of each chain.
+    Recruitment refusals for a missing building read `needs:<chain>:<level>`.
+

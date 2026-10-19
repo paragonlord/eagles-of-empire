@@ -71,6 +71,29 @@ Dragoons", "4. Musketier-Regiment"):
 Recruiting needs an owned, unoccupied, unbesieged province; two orders per province, six queued per
 major and two per minor. Recruits join an army of the nation in that province or form a garrison.
 
+## Buildings
+
+Each province raises chains of three levels (`EuropeData.Buildings`), one construction at a time,
+paid in full when it starts; it advances a turn while the owner holds the province unoccupied.
+
+| Chain | Levels | Cost (per level) | Turns | Effect |
+|---|---|---|---|---|
+| government | Prefecture, Ministry, Palace | 250 / 500 / 1000 | 2 / 3 / 4 | public order (unrest −1 a level) |
+| barracks | Drill ground, Barracks, Military school | 200 / 450 / 900 | 1 / 2 / 3 | 1: line and light; 3 (capital, majors): guard |
+| stables | Stables, Cavalry school, Stud | 250 / 500 / 900 | 2 / 2 / 3 | 1: light cavalry; 2: heavy cavalry |
+| foundry | Foundry, Cannon works, Arsenal | 300 / 600 / 1000 | 2 / 3 / 3 | 1: artillery |
+| farms | Farms, Enclosures, Estates | 150 / 350 / 700 | 1 / 2 / 3 | +5 % of the province's income a level |
+| trade | Market, Trade hall, Exchange | 250 / 550 / 1100 | 2 / 3 / 4 | +10 % a level |
+| fort | Earthworks, Fortress, Citadel | 300 / 700 / 1400 | 2 / 3 / 4 | the fortress level (siege turns, defence) |
+| school | School, College, University | 250 / 500 / 1000 | 2 / 3 / 4 | research (technology) |
+
+January 1805: every province has a drill ground, stables and its old fortress level; fortresses
+and capitals a cavalry school and a foundry; capitals a government, a school and barracks 2 (a
+great power's capital: 3, its guard). Farms and trade start at nothing, so 1805 incomes are
+unchanged. Saves from before buildings load with this start. The AI builds one thing a turn in its
+richest province (trade, farms, foundry, stables, government, fort, school, barracks), at peace
+from a 600 reserve (minors 300), at war only from 3000 (1000): the army comes first.
+
 ## Armies and movement
 
 - An army has a general (`rating` 1–5) or none. Movement: 2 provinces a turn, 3 under a general

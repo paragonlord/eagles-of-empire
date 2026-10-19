@@ -182,14 +182,14 @@ test("Grand economy: owners collect, occupiers requisition half, upkeep is paid,
 	local expected, expectedMp = 0, 0
 	for _, p in EuropeData.Provinces do
 		if p.owner1805 == "france" then
-			expected += p.income
+			expected += Economy.provinceIncome(s, p.id)
 			expectedMp += p.manpower
 		end
 	end
-	expected += math.floor(EuropeData.province("hanover").income * Economy.OCCUPIER_SHARE)
-	assertEq(income0, expected)
+	expected += Economy.provinceIncome(s, "hanover") * Economy.OCCUPIER_SHARE
+	assertEq(income0, math.floor(expected))
 	assertEq(mp0, expectedMp)
-	assertEq(Economy.income(s, "britain"), EuropeData.province("england").income + EuropeData.province("ireland").income, "Hanover pays the occupier, not the owner")
+	assertEq(Economy.income(s, "britain"), math.floor(Economy.provinceIncome(s, "england") + Economy.provinceIncome(s, "ireland")), "Hanover pays the occupier, not the owner")
 	local a = army(s, "france", "paris", { line = 2 })
 	local before = s.nations.france.treasury
 	Economy.run(s, "france")
@@ -198,7 +198,7 @@ test("Grand economy: owners collect, occupiers requisition half, upkeep is paid,
 	local ok, why = Economy.recruit(s, "france", "normandy", "guard")
 	assertTrue(not ok and why == "needsCapital")
 	ok, why = Economy.recruit(s, "france", "normandy", "heavy")
-	assertTrue(not ok and why == "needsFortress")
+	assertEq(why, "needs:stables:2", "heavy cavalry needs a cavalry school")
 	ok, why = Economy.recruit(s, "france", "hanover", "line")
 	assertTrue(not ok and why == "notYourProvince")
 	local t0, m0 = s.nations.france.treasury, s.nations.france.manpower
@@ -235,6 +235,58 @@ test("Grand economy: owners collect, occupiers requisition half, upkeep is paid,
 		assertEq(u.strength, u.maxStrength)
 	end
 	assertEq(s.nations.france.manpower, 10000 - restored)
+end)
+
+test("Grand buildings: 1805 start, one construction a province, effects, recruits need them, saves", function()
+	local s = empty(4)
+	local paris, normandy = s.provinces.paris.buildings, s.provinces.normandy.buildings
+	assertEq(paris.barracks, 3, "a great power's capital trains its guard")
+	assertTrue((paris.government or 0) >= 1 and (paris.stables or 0) >= 2)
+	assertEq(normandy.barracks, 1, "every province has a drill ground")
+	-- build farms in Normandy: paid up front, done in its turns, income rises
+	local before = Economy.provinceIncome(s, "normandy")
+	local level = (normandy.farms or 0) + 1
+	local t0 = s.nations.france.treasury
+	assertTrue(Economy.build(s, "france", "normandy", "farms"))
+	assertEq(s.nations.france.treasury, t0 - EuropeData.Buildings.farms.cost[level])
+	local ok, why = Economy.build(s, "france", "normandy", "trade")
+	assertTrue(not ok and why == "building", "one construction at a time")
+	ok, why = Economy.build(s, "france", "hanover", "farms")
+	assertTrue(not ok and why == "notYourProvince")
+	for _ = 1, EuropeData.Buildings.farms.turns[level] do
+		Economy.run(s, "france")
+	end
+	assertEq(s.provinces.normandy.buildings.farms, level)
+	assertEq(s.provinces.normandy.construction, nil)
+	assertTrue(Economy.provinceIncome(s, "normandy") > before, "farms raise income")
+	-- heavy cavalry needs a cavalry school: build stables twice in Normandy
+	s.nations.france.treasury = 10000
+	for i = 1, 2 do
+		local lvl = (s.provinces.normandy.buildings.stables or 0)
+		if lvl < 2 then
+			assertTrue(Economy.build(s, "france", "normandy", "stables"))
+			for _ = 1, EuropeData.Buildings.stables.turns[lvl + 1] do
+				Economy.run(s, "france")
+			end
+		end
+	end
+	assertTrue(Economy.canRecruit(s, "france", "normandy", "heavy"), "now it can")
+	-- fortifications lengthen sieges
+	assertEq(State.fortLevel(s, "normandy"), s.provinces.normandy.buildings.fort or 0)
+	-- saves keep them; a save from before buildings gets the 1805 start
+	local back = GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s)))
+	assertTrue(back ~= nil)
+	assertEq(back.provinces.normandy.buildings.stables, 2)
+	local old = GrandCampaign.serialize(s)
+	for _, ps in old.provinces do
+		ps.buildings = nil
+		ps.construction = nil
+	end
+	local migrated = GrandCampaign.deserialize(ProfileStore.clone(old))
+	assertTrue(migrated ~= nil, "an old save still loads")
+	assertEq(migrated.provinces.paris.buildings.barracks, 3)
+	old.provinces.paris.buildings = { palace = 2 }
+	assertEq(GrandCampaign.deserialize(ProfileStore.clone(old)), nil, "an unknown building is refused")
 end)
 
 -- Movement --------------------------------------------------------------------------------------------

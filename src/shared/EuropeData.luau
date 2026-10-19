@@ -53,7 +53,8 @@ export type UnitClass = {
 	turns: number,
 	upkeep: number,
 	power: number, -- auto-resolve weight per man
-	needs: "any" | "fort" | "capital",
+	needs: "any" | "capital",
+	building: { chain: string, level: number }, -- the province must have it (EuropeData.Buildings)
 	majorOnly: boolean,
 	experience: number, -- experience on recruitment
 }
@@ -391,15 +392,56 @@ end
 -- Campaign unit types, mapped onto the tactical sim classes. Strength in tactical men (the sim's
 -- scale); cost in treasury, manpower in men, turns to raise, upkeep per turn.
 EuropeData.UnitClasses = {
-	line = { name = "Line infantry", sim = "line", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", majorOnly = false, experience = 0 },
-	light = { name = "Light infantry", sim = "light", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", majorOnly = false, experience = 1 },
-	guard = { name = "Guard infantry", sim = "guard", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", majorOnly = true, experience = 3 },
-	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", majorOnly = false, experience = 0 },
-	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "fort", majorOnly = false, experience = 1 },
-	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "fort", majorOnly = false, experience = 0 },
+	line = { name = "Line infantry", sim = "line", class = "infantry", strength = 600, cost = 300, manpower = 600, turns = 1, upkeep = 12, power = 1.0, needs = "any", building = { chain = "barracks", level = 1 }, majorOnly = false, experience = 0 },
+	light = { name = "Light infantry", sim = "light", class = "infantry", strength = 600, cost = 350, manpower = 600, turns = 1, upkeep = 14, power = 1.1, needs = "any", building = { chain = "barracks", level = 1 }, majorOnly = false, experience = 1 },
+	guard = { name = "Guard infantry", sim = "guard", class = "infantry", strength = 700, cost = 700, manpower = 700, turns = 3, upkeep = 25, power = 1.5, needs = "capital", building = { chain = "barracks", level = 3 }, majorOnly = true, experience = 3 },
+	cavalry = { name = "Light cavalry", sim = "lightCav", class = "cavalry", strength = 400, cost = 450, manpower = 400, turns = 2, upkeep = 18, power = 1.3, needs = "any", building = { chain = "stables", level = 1 }, majorOnly = false, experience = 0 },
+	heavy = { name = "Heavy cavalry", sim = "heavyCav", class = "cavalry", strength = 400, cost = 600, manpower = 400, turns = 2, upkeep = 24, power = 1.6, needs = "any", building = { chain = "stables", level = 2 }, majorOnly = false, experience = 1 },
+	artillery = { name = "Foot artillery", sim = "footArt", class = "artillery", strength = 120, cost = 400, manpower = 120, turns = 2, upkeep = 20, power = 3.0, needs = "any", building = { chain = "foundry", level = 1 }, majorOnly = false, experience = 0 },
 } :: { [string]: UnitClass }
 
 EuropeData.UnitTypeOrder = { "line", "light", "guard", "cavalry", "heavy", "artillery" }
+
+-- Buildings (docs/campaign.md "Buildings"). Each province raises chains of three levels, one
+-- construction at a time; cost and turns are per level. Effects live in Economy: farms +5 % and
+-- trade +10 % of the province's income per level, government -1 unrest per level, fort = the
+-- province's fortress level (siege turns), school = research; barracks, stables and foundry
+-- unlock recruits (UnitClasses.building).
+export type BuildingChain = { name: string, levels: { string }, cost: { number }, turns: { number } }
+EuropeData.Buildings = {
+	government = { name = "Government", levels = { "Prefecture", "Ministry", "Palace" }, cost = { 250, 500, 1000 }, turns = { 2, 3, 4 } },
+	barracks = { name = "Barracks", levels = { "Drill ground", "Barracks", "Military school" }, cost = { 200, 450, 900 }, turns = { 1, 2, 3 } },
+	stables = { name = "Stables", levels = { "Stables", "Cavalry school", "Stud" }, cost = { 250, 500, 900 }, turns = { 2, 2, 3 } },
+	foundry = { name = "Foundry", levels = { "Foundry", "Cannon works", "Arsenal" }, cost = { 300, 600, 1000 }, turns = { 2, 3, 3 } },
+	farms = { name = "Farms", levels = { "Farms", "Enclosures", "Estates" }, cost = { 150, 350, 700 }, turns = { 1, 2, 3 } },
+	trade = { name = "Trade", levels = { "Market", "Trade hall", "Exchange" }, cost = { 250, 550, 1100 }, turns = { 2, 3, 4 } },
+	fort = { name = "Fortifications", levels = { "Earthworks", "Fortress", "Citadel" }, cost = { 300, 700, 1400 }, turns = { 2, 3, 4 } },
+	school = { name = "School", levels = { "School", "College", "University" }, cost = { 250, 500, 1000 }, turns = { 2, 3, 4 } },
+} :: { [string]: BuildingChain }
+EuropeData.BuildingOrder = { "government", "barracks", "stables", "foundry", "farms", "trade", "fort", "school" }
+EuropeData.BuildingMax = 3
+
+-- January 1805: every province has a drill ground, stables and its fortress; fortresses and
+-- capitals a cavalry school and a foundry; capitals a government, a school and better barracks (a great power's
+-- capital trains its guard). Farms and trade start at nothing, so 1805 incomes are as they were.
+function EuropeData.startBuildings(p: Province): { [string]: number }
+	local b: { [string]: number } = { barracks = 1, stables = 1 }
+	if p.fort > 0 then
+		b.fort = p.fort
+	end
+	if p.fort > 0 or p.isCapital then
+		b.stables = 2 -- heavy cavalry was raised in the fortress towns
+		b.foundry = 1
+	end
+	if p.isCapital then
+		local owner = EuropeData.Nations[p.owner1805]
+		b.government = 1
+		b.school = 1
+		b.stables = 2
+		b.barracks = if owner and owner.major then 3 else 2
+	end
+	return b
+end
 
 -- Per-nation unit names: "%s" takes the regiment ordinal ("1er", "3rd", "4.", by nation).
 -- Other nations: "<adjective> <class name> <n>".
