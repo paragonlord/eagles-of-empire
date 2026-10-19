@@ -13,6 +13,9 @@ from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "build" / "EaglesOfEmpire.rbxlx"
+SYNC = ROOT / "build" / "sync.json"  # script manifest for tools/studio_sync.luau
+
+_scripts: list = []  # {path: [instance names from the service], class, file}
 
 _ref = 0
 
@@ -63,19 +66,27 @@ def classify(filename: str):
     return stem, "ModuleScript"
 
 
-def dir_item(name: str, path: pathlib.Path) -> str:
+def rel(p: pathlib.Path) -> str:
+    return p.relative_to(ROOT).as_posix()
+
+
+def dir_item(name: str, path: pathlib.Path, at: list) -> str:
     """A directory becomes a Folder, or a script if it holds init.luau."""
     children = []
     class_name, source = "Folder", None
+    entry = {"path": at, "class": "Folder", "file": None}
+    _scripts.append(entry)
     for p in sorted(path.iterdir()):
         if p.is_dir():
-            children.append(dir_item(p.name, p))
+            children.append(dir_item(p.name, p, at + [p.name]))
         elif p.suffix == ".luau":
             stem, cls = classify(p.name)
             if stem == "init":
                 class_name, source = cls, p.read_text(encoding="utf-8")
+                entry["class"], entry["file"] = cls, rel(p)
             else:
                 children.append(script_item(stem, cls, p.read_text(encoding="utf-8")))
+                _scripts.append({"path": at + [stem], "class": cls, "file": rel(p)})
     if source is not None:
         extra = '<token name="RunContext">0</token>' if class_name == "Script" else ""
         head = (
@@ -88,12 +99,12 @@ def dir_item(name: str, path: pathlib.Path) -> str:
     return head + "".join(children) + "</Item>"
 
 
-def node_item(name: str, node: dict) -> str:
+def node_item(name: str, node: dict, at: list) -> str:
     if "$path" in node:
-        return dir_item(name, ROOT / node["$path"])
+        return dir_item(name, ROOT / node["$path"], at)
     class_name = node.get("$className", "Folder")
     props = node.get("$properties", {})
-    children = [node_item(k, v) for k, v in node.items() if not k.startswith("$")]
+    children = [node_item(k, v, at + [k]) for k, v in node.items() if not k.startswith("$")]
     prop_text = f'<string name="Name">{escape(name)}</string>' + "".join(prop_xml(k, v) for k, v in props.items())
     return f'<Item class="{class_name}" referent="{ref()}"><Properties>{prop_text}</Properties>' + "".join(children) + "</Item>"
 
@@ -101,7 +112,7 @@ def node_item(name: str, node: dict) -> str:
 def main() -> int:
     project = json.loads((ROOT / "default.project.json").read_text(encoding="utf-8"))
     tree = project["tree"]
-    items = [node_item(k, v) for k, v in tree.items() if not k.startswith("$")]
+    items = [node_item(k, v, [k]) for k, v in tree.items() if not k.startswith("$")]
     xml = (
         '<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" '
         'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
@@ -112,6 +123,7 @@ def main() -> int:
     )
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(xml, encoding="utf-8")
+    SYNC.write_text(json.dumps(_scripts), encoding="utf-8")
     print(f"wrote {OUT} ({OUT.stat().st_size // 1024} KB, {_ref} instances)")
     return 0
 

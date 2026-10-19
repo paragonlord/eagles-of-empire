@@ -20,6 +20,12 @@ Resume from here; do not recap. Updated 2026-10-19.
   `src/shared/Assets.luau`, then `tools/check.sh`, commit, push.
 - One commit per asset slot. Commit messages plain, no tool attributions.
 - After code changes: `python3 tools/build_place.py`, commit `build/EaglesOfEmpire.rbxlx`, push.
+- Studio MCP (`claude mcp add --transport stdio Roblox_Studio -- /Applications/RobloxStudio.app/Contents/MacOS/StudioMCP`):
+  to get source into the open place without reopening it, run `python3 tools/build_place.py`
+  (also writes `build/sync.json`), serve the repo with `python3 -m http.server 8765 --bind
+  127.0.0.1`, stop Play and execute the text of `tools/studio_sync.luau` in Edit. Viewport input
+  coordinates = screenshot coordinates / (capture width / viewport width), minus the 58-px top
+  inset on y.
 
 ## Exact commands
 
