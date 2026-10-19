@@ -854,11 +854,16 @@ function UI.render(ctx: Ctx)
 	left.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	left.CanvasSize = UDim2.new()
 	left.Parent = sg
-	Kit.list(left, 10)
+	local leftList = Kit.list(left, 10)
 	armyPanel(left, ctx, 1)
 	spyPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
-	left.Active = #left:GetChildren() > 1
+	-- only as tall as its panels: below them the map takes the clicks
+	local function fitLeft()
+		left.Size = UDim2.new(0, 350, 0, math.min(leftList.AbsoluteContentSize.Y, sg.AbsoluteSize.Y - 84))
+	end
+	leftList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitLeft)
+	fitLeft()
 	if (diplomacyOpen or objectivesOpen or researchOpen) and view then
 		local right = Instance.new("Frame") :: Frame
 		right.Size = UDim2.new(0, 380, 0, 0)

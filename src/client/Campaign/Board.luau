@@ -523,14 +523,16 @@ local function spyFigure(parent: Instance, ag: any, pos: Vector3): Model
 	local m = Instance.new("Model") :: Model
 	m.Name = "Spy"
 	m:SetAttribute("spy", ag.id)
-	local plinth = cylinder(m, pos + Vector3.new(0, 0.5, 0), 1, 4, Kit.WALNUT, Enum.Material.Wood)
+	local plinth = cylinder(m, pos + Vector3.new(0, 0.5, 0), 1, 5.5, Kit.WALNUT, Enum.Material.Wood)
 	plinth.CanQuery = true
-	local cloak = cylinder(m, pos + Vector3.new(0, 2.6, 0), 3.2, 1.6, INK)
+	cylinder(m, pos + Vector3.new(0, 1.05, 0), 0.2, 5.8, Kit.GILT, Enum.Material.Foil)
+	local cloak = cylinder(m, pos + Vector3.new(0, 3.2, 0), 4.2, 2.4, INK)
 	cloak.CanQuery = true
-	local head = part(m, Vector3.new(0.9, 0.9, 0.9), CFrame.new(pos + Vector3.new(0, 4.7, 0)), Color3.fromRGB(226, 190, 160))
+	local head = part(m, Vector3.new(1.2, 1.2, 1.2), CFrame.new(pos + Vector3.new(0, 5.9, 0)), Color3.fromRGB(226, 190, 160))
 	head.Shape = Enum.PartType.Ball
 	head.CanQuery = true
-	cylinder(m, pos + Vector3.new(0, 5.2, 0), 0.3, 1.8, INK)
+	local hat = cylinder(m, pos + Vector3.new(0, 6.6, 0), 0.35, 2.6, INK)
+	hat.CanQuery = true
 	m.WorldPivot = CFrame.new(pos)
 	m:ScaleTo(FIG)
 	m.Parent = parent
