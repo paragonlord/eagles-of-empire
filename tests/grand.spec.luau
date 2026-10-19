@@ -1605,3 +1605,38 @@ test("Grand QA r7: every province names its own towns for its battle map", funct
 		assertTrue(id == "province:" .. p.id or id == p.terrain)
 	end
 end)
+
+test("Grand AI navy: after Trafalgar the Royal Navy blockades the nearest enemy port it outguns, keeping the home fleets", function()
+	local s = empty(26, "france")
+	table.clear(s.fleets)
+	local function fleet(nation, name, port, line, frigates)
+		local f = { id = State.newFleetId(s), nation = nation, name = name, provinceId = port, line = line, frigates = frigates, movesLeft = State.FLEET_MOVES }
+		table.insert(s.fleets, f)
+		return f
+	end
+	local channel = fleet("britain", "Channel Fleet", "england", 10, 6)
+	local cork = fleet("britain", "Cork Squadron", "ireland", 2, 3)
+	local med = fleet("britain", "Mediterranean Fleet", "lisbon", 8, 4)
+	-- before Trafalgar the fleets keep to their stations
+	GrandCampaign.AI.turn(s, "britain", true)
+	assertEq(med.provinceId, "lisbon")
+	s.flags.navalSupremacy = true
+	GrandCampaign.AI.turn(s, "britain", true)
+	assertEq(channel.provinceId, "england", "the Channel Fleet stays for the ferries")
+	assertEq(cork.provinceId, "ireland")
+	assertTrue(med.provinceId ~= "lisbon", "the Mediterranean Fleet sails")
+	local c = State.controller(s, med.provinceId)
+	assertTrue(State.atWar(s, "britain", c), "on an enemy port: " .. med.provinceId)
+	assertTrue(State.blockaded(s, med.provinceId))
+	-- it does not sail on a port guarded beyond its strength
+	local s2 = empty(27, "france")
+	table.clear(s2.fleets)
+	local m2 = { id = State.newFleetId(s2), nation = "britain", name = "M", provinceId = "lisbon", line = 2, frigates = 0, movesLeft = 3 }
+	table.insert(s2.fleets, m2)
+	for _, port in { "aquitaine", "andalusia", "normandy", "catalonia", "provence", "belgium", "holland", "hanover" } do
+		table.insert(s2.fleets, { id = State.newFleetId(s2), nation = "france", name = "F", provinceId = port, line = 6, frigates = 0, movesLeft = 3 })
+	end
+	s2.flags.navalSupremacy = true
+	GrandCampaign.AI.turn(s2, "britain", true)
+	assertEq(m2.provinceId, "lisbon", "outgunned everywhere: it stays")
+end)

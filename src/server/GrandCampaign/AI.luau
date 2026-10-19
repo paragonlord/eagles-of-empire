@@ -25,6 +25,7 @@ local State = require(script.Parent.State)
 local Movement = require(script.Parent.Movement)
 local Diplomacy = require(script.Parent.Diplomacy)
 local Economy = require(script.Parent.Economy)
+local Navy = require(script.Parent.Navy)
 
 type State = State.State
 type Army = State.Army
@@ -327,6 +328,61 @@ local function recruit(s: State, nation: string)
 	end
 end
 
+-- The Royal Navy after Trafalgar: fleets not lying at home for the ferries (England, Ireland)
+-- sail on the nearest enemy port within a turn that they outgun 1.5 : 1, fight what is there and
+-- blockade it. Before Trafalgar the fleets keep station; other navies stay in port.
+local NAVY_HOME = { england = true, ireland = true }
+local function fleetPower(s: State, provinceId: string, side: string): number
+	local p = 0
+	for _, f in s.fleets do
+		if f.provinceId == provinceId and State.friendly(s, side, f.nation) then
+			p += (f.line * EuropeData.ShipClasses.line.power + f.frigates * EuropeData.ShipClasses.frigate.power) * (Navy.QUALITY[f.nation] or 1)
+		end
+	end
+	return p
+end
+local function navy(s: State, nation: string)
+	if nation ~= "britain" or not s.flags.navalSupremacy or #State.enemiesOf(s, nation) == 0 then
+		return
+	end
+	for _, f in s.fleets do
+		if f.nation == nation and f.movesLeft > 0 and not NAVY_HOME[f.provinceId] and not State.atWar(s, nation, State.controller(s, f.provinceId)) then
+			local mine = (f.line * EuropeData.ShipClasses.line.power + f.frigates * EuropeData.ShipClasses.frigate.power) * (Navy.QUALITY[nation] or 1)
+			-- breadth-first over the fleet lanes, nearest first, ports in lane order
+			local parent: { [string]: string } = {}
+			local dist: { [string]: number } = { [f.provinceId] = 0 }
+			local queue = { f.provinceId }
+			local head = 1
+			local target: string? = nil
+			while head <= #queue and not target do
+				local id = queue[head]
+				head += 1
+				for _, l in EuropeData.FleetLanes do
+					local n = if l[1] == id then l[2] elseif l[2] == id then l[1] else nil
+					if n and dist[n] == nil and dist[id] < f.movesLeft then
+						dist[n] = dist[id] + 1
+						parent[n] = id
+						table.insert(queue, n)
+						local c = State.controller(s, n)
+						if not target and State.atWar(s, nation, c) and mine >= 1.5 * fleetPower(s, n, c) then
+							target = n
+						end
+					end
+				end
+			end
+			if target then
+				local path: { string } = {}
+				local at = target :: string
+				while at ~= f.provinceId do
+					table.insert(path, 1, at)
+					at = parent[at]
+				end
+				Navy.move(s, nation, f.id, path)
+			end
+		end
+	end
+end
+
 function AI.turn(s: State, nation: string, autoplay: boolean?)
 	if not State.alive(s, nation) then
 		return
@@ -406,6 +462,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 	recruit(s, nation)
 	build(s, nation)
 	chooseResearch(s, nation)
+	navy(s, nation)
 end
 
 return AI

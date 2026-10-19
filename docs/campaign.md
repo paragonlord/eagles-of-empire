@@ -294,7 +294,11 @@ besiegers cannot move or assault again that turn.
   earns half its income.
 - `buildShip {provinceId, ship = "frigate" | "line"}` (400 / 900 gold): in an owned, unoccupied,
   unblockaded port; the ship joins the nation's fleet there or forms "<Province> Squadron".
-- The AI neither sails nor builds fleets yet; its fleets fight where enemies come to them.
+- AI: before Trafalgar every fleet keeps station. Afterwards the Royal Navy keeps the fleets lying
+  at England and Ireland for the ferries and sends any other on the nearest enemy port within a
+  turn's sailing that it outguns 1.5 : 1 (its quality counted, the port's guard of the
+  controller's side), to fight and then blockade it; a fleet already blockading stays. Other
+  navies stay in port, and no AI builds ships.
 - Trafalgar sinks every French and Spanish fleet.
 - A save from before the navy gets the 1805 fleets, less the French and Spanish ones if Trafalgar
   was fought.
