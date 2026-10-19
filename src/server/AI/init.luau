@@ -680,6 +680,16 @@ local function garrisonBuildings(state: AIState)
 	if state.posture == "withdraw" then
 		return
 	end
+	-- an attacker only spares a battalion for a building when it has plenty
+	local infantryN = 0
+	for _, f in state.mine do
+		if f.class == "infantry" and not Formation.isBroken(f) then
+			infantryN += 1
+		end
+	end
+	if state.posture ~= "defend" and infantryN < 6 then
+		return
+	end
 	for _, sp in sim.strongpoints do
 		local wanted = false
 		for _, o in sim.objectives do
@@ -715,6 +725,17 @@ end
 
 -- Push the nearest free infantry onto an objective nobody contests.
 local function exploit(state: AIState)
+	-- once the objective is ours the battalion that took it rejoins its wing (a garrison holds it)
+	for _, f in state.mine do
+		local u = unitOf(state, f.id)
+		if u.goal == "exploit" and u.point then
+			for _, o in state.sim.objectives do
+				if o.owner == state.faction and Vec.dist(o.def.pos, u.point :: Vec) < 40 then
+					u.goal, u.reason, u.point = "idle", "objective taken", nil
+				end
+			end
+		end
+	end
 	for _, o in state.sim.objectives do
 		local p = o.def.pos
 		if o.owner ~= state.faction and not o.contested then

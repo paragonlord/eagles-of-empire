@@ -536,7 +536,7 @@ MAPS.auerstedt_hassenhausen = episode("auerstedt", {
 MAPS.auerstedt_spielberg = episode("auerstedt", {
 	{ id = "spielberg", name = "Spielberg", pos = v(1280, 1130), radius = 60 },
 	{ id = "poppel", name = "Poppel", pos = v(690, 1060), radius = 60 },
-}, { france = { x0 = 1250, z0 = 500, x1 = 1700, z1 = 980 }, prussia = { x0 = 260, z0 = 880, x1 = 660, z1 = 1380 } })
+}, { france = { x0 = 1250, z0 = 500, x1 = 1700, z1 = 980 }, prussia = { x0 = 800, z0 = 880, x1 = 1100, z1 = 1380 } }) -- Orange between Friant and the Lissbach
 MAPS.waterloo_hougoumont = episode("waterloo", {
 	{ id = "hougoumont", name = "Hougoumont", pos = v(760, 790), radius = 60 },
 }, { france = { x0 = 420, z0 = 360, x1 = 1120, z1 = 600 }, britain = { x0 = 560, z0 = 730, x1 = 1060, z1 = 1160 } })
