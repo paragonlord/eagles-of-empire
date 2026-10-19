@@ -321,7 +321,10 @@ test("Unit types: stats merge over the class and differ where they should", func
 	end
 	for id, t in Config.UnitTypes do
 		assertTrue(S[id] ~= nil and S[id].baseMorale ~= nil, id)
-		assertDeepEq(S[id].legalShapes, Config.Units[t.class].legalShapes)
+		for shape in Config.Units[t.class].legalShapes do
+			assertTrue(S[id].legalShapes[shape], id .. " keeps its class's " .. shape)
+		end
+		assertEq(S[id].legalShapes.skirmish == true, id == "light" or id == "rifle", id .. ": only light troops skirmish")
 	end
 	assertDeepEq(S.line, Config.Units.infantry, "line is the plain class")
 	assertTrue(S.rifle.musket.range > S.line.musket.range and S.rifle.musket.accuracy > S.line.musket.accuracy)

@@ -80,8 +80,11 @@ yields at choke points (clearance < 24).
 | column | 8 | 0.3 | 1.15 | 1.3 | 1.9 |
 | square | – | 0.5 | 0.9 | 0.15 | 2.2 |
 | travel | 12 | 0 | 0.6 | 1.8 | 2.0 |
+| skirmish (light, rifles) | 2, open | 0.5 | 0.5 | 2.0 (charge ×2.0) | 0.35 |
 
-Reform times (seconds): line 12, column 8, square 15 (10 from column), travel 6, limber 25,
+Skirmishers fire on the move without halting and all round, and are hit by muskets ×0.45.
+
+Reform times (seconds): line 12, column 8, square 15 (10 from column), travel 6, skirmish 6, limber 25,
 unlimber 20. While `reforming`, fire = 0, melee ×0.6, shock taken ×1.5. A square ordered after
 cavalry contact completes only after its timer; the charge already in contact resolves against
 the *previous* shape.

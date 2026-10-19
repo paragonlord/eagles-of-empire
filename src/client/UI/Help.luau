@@ -25,6 +25,7 @@ local FORMATIONS = {
 	{ "Line", "Three ranks: full musketry, slow, vulnerable to cavalry on the flanks." },
 	{ "Column", "Twelve ranks: fast on roads, strong in the bayonet charge, weak to fire and round shot." },
 	{ "Square", "Hollow box: nearly immune to cavalry, half the fire, a gift to artillery. Slow to form." },
+	{ "Skirmish", "Light infantry and rifles only: open order, hard to hit, fires on the move and all round. Cavalry rides it down." },
 	{ "Travel column", "Adopted automatically at choke points; cannot fire. Reforms when clearance allows." },
 	{ "Cavalry wedge", "Charge formation: impact grows with the run-up. Never charge a formed square." },
 	{ "Limbered / deployed", "Guns move only when limbered and fire only when deployed (20–25 s to change)." },

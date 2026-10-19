@@ -135,6 +135,69 @@ test("Unit types change the battle: rifles outrange, horse guns limber fast, lig
 	assertTrue(hussars > cuirassiers and cuirassiers > 0, string.format("hussars %d vs cuirassiers %d", hussars, cuirassiers))
 end)
 
+test("Skirmish order: light troops only; hard to hit, fires on the move and all round, ridden down by cavalry", function()
+	local sim = newSim({
+		unit("france", "infantry", "7e Légère", A.x, A.z, 0),
+		unit("france", "infantry", "34e de Ligne", A.x, A.z + 60, 0),
+	})
+	cmd(sim, "Shape", { 1, 2 }, { shape = "skirmish" })
+	run(sim, Config.ReformTime.skirmish + 0.5)
+	assertEq(sim.formations[1].shape, "skirmish")
+	assertEq(sim.formations[2].shape, "line", "line infantry cannot skirmish")
+	assertTrue(sim.formations[1].width > sim.formations[2].width * 1.5, "open order covers more ground")
+
+	-- the same volleys into a line and into a skirmish screen
+	local function shotAt(shape)
+		local s2 = newSim({
+			unit("prussia", "infantry", "Target", B.x, B.z, 0, 600),
+			unit("france", "infantry", "Shooters", B.x + 80, B.z, math.pi),
+		}, 5)
+		local t = s2.formations[1]
+		t.fireAtWill = false
+		t.shape = shape
+		Formation.refreshFootprint(t)
+		run(s2, 60)
+		return t.startStrength - t.strength
+	end
+	local inLine, inSkirmish = shotAt("line"), shotAt("skirmish")
+	assertTrue(inSkirmish * 1.5 < inLine, string.format("skirmish %d vs line %d", inSkirmish, inLine))
+
+	-- marching skirmishers shoot at an enemy on their flank without stopping
+	local s3 = newSim({
+		unit("france", "infantry", "7e Légère", A.x, A.z, 0),
+		unit("prussia", "infantry", "Flank", A.x + 20, A.z + 70, -math.pi / 2),
+	})
+	local sk = s3.formations[1]
+	sk.shape = "skirmish"
+	Formation.refreshFootprint(sk)
+	s3.formations[2].fireAtWill = false
+	cmd(s3, "Move", { 1 }, { pos = { x = A.x + 200, z = A.z } })
+	local fired, minX = false, sk.pos.x
+	for _ = 1, math.floor(8 / Config.Sim.DT) do
+		s3:step()
+		fired = fired or sk.ammo < Config.TypeStats.light.musket.ammo
+	end
+	assertTrue(fired, "fired at the flank while marching")
+	assertTrue(sk.pos.x > minX + 30, "and kept marching")
+
+	-- cavalry rides a skirmish screen down harder than a line
+	local function charged(shape)
+		local s4 = newSim({
+			unit("prussia", "infantry", "Target", B.x, B.z, 0),
+			unit("france", "cavalry", "15e Dragons", B.x + 160, B.z, math.pi),
+		})
+		local t = s4.formations[1]
+		t.fireAtWill = false
+		t.shape = shape
+		Formation.refreshFootprint(t)
+		cmd(s4, "Charge", { 2 }, { targetId = 1 })
+		run(s4, 25)
+		return t.startStrength - t.strength
+	end
+	local lineLoss, skirmishLoss = charged("line"), charged("skirmish")
+	assertTrue(skirmishLoss > lineLoss, string.format("skirmish %d vs line %d", skirmishLoss, lineLoss))
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

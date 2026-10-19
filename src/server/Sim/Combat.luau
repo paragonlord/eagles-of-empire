@@ -120,8 +120,9 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 		if dist > unit.musket.range then
 			return "Out of range"
 		end
-		-- a square faces every way (its fire factor already counts one face's muskets)
-		if f.shape ~= "square" and not inArc(f, target, math.rad(60)) then
+		-- a square faces every way (its fire factor already counts one face's muskets); skirmishers
+		-- each pick their own mark
+		if f.shape ~= "square" and f.shape ~= "skirmish" and not inArc(f, target, math.rad(60)) then
 			return "Target not to the front"
 		end
 	end
@@ -204,7 +205,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 	f.ammo -= 1
 	f.lastShotTick = sim.tick
 	f.state = if f.state == "idle" then "firing" else f.state
-	f.timers.halt = 1.5 -- infantry halts to deliver the volley
+	f.timers.halt = if f.shape == "skirmish" then 0 else 1.5 -- a formed body halts to deliver the volley
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = 0, kind = "volley" }
 	sim.emit(sim, { kind = "volley", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties })
 end
@@ -437,8 +438,8 @@ function Combat.gather(sim: SimLike): { Attack }
 				if f.class == "artillery" then
 					cannonade(sim, f, target, attacks)
 				elseif f.class == "infantry" then
-					if f.state == "moving" and f.order and f.order.kind == "Move" then
-						-- Moving infantry does not stop for fire-at-will unless attack-moving.
+					if f.state == "moving" and f.order and f.order.kind == "Move" and f.shape ~= "skirmish" then
+						-- Moving infantry does not stop for fire-at-will unless attack-moving (skirmishers fire on the move).
 					else
 						volley(sim, f, target, attacks)
 					end

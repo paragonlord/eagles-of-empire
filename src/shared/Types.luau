@@ -6,7 +6,7 @@ local Vec = require(script.Parent.Vec)
 export type Vec = Vec.Vec
 
 export type UnitClass = "infantry" | "cavalry" | "artillery" | "hq"
-export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff"
+export type Shape = "line" | "column" | "square" | "travel" | "limbered" | "deployed" | "wedge" | "staff" | "skirmish"
 export type State = "idle" | "moving" | "reforming" | "firing" | "charging" | "melee" | "retreating" | "routing" | "rallying" | "destroyed" | "exited" | "offmap"
 export type MoraleBand = "steady" | "shaken" | "routing" | "shattered"
 

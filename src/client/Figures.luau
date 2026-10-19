@@ -203,6 +203,16 @@ local function denseInfantry(shape: string, width: number, depth: number, k: num
 		end
 		return out
 	end
+	if shape == "skirmish" then
+		-- open order: two loose, staggered ranks of men a few paces apart (slots add their own jitter)
+		local files = math.max(2, math.floor(width / (fw * 4)))
+		for r = 0, 1 do
+			for f = 0, files - 1 do
+				table.insert(out, { x = depth / 2 - (r + 0.5) * depth / 2, z = (f + 0.25 + r * 0.5) * width / files - width / 2, face = 0 })
+			end
+		end
+		return out
+	end
 	local shapeDef = (Config.Shapes :: any)[shape]
 	local ranks = if shapeDef and shapeDef.ranks > 0 then shapeDef.ranks else 3
 	if shape == "line" and k >= 2 then

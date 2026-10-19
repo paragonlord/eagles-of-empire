@@ -29,7 +29,8 @@ local BOTTOM_H = CardBar.HEIGHT
 local touch = false
 local MINI_W = 110
 local TOUCH_CELL_H = 34
-local TOUCH_CMD_H = 3 * TOUCH_CELL_H + 6 + 18
+local CMD_ROWS = 4 -- COMMANDS, four to a row
+local TOUCH_CMD_H = CMD_ROWS * TOUCH_CELL_H + (CMD_ROWS - 1) * 3 + 18
 local TOUCH_ROW_H = 34
 local playersCollapsed = false
 
@@ -610,6 +611,7 @@ local COMMANDS: { CommandDef } = {
 	{ key = "line", text = "Line", tip = "Three ranks: full fire, slow (infantry/cavalry)" },
 	{ key = "column", text = "Column", tip = "Deep column: fast, strong in the charge, weak to fire" },
 	{ key = "square", text = "Square", tip = "Hollow box against cavalry; artillery loves it" },
+	{ key = "skirmish", text = "Skirmish", tip = "Light infantry and rifles: open order, fire on the move, hard to hit; cavalry rides it down" },
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
 	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
 	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
@@ -634,6 +636,17 @@ local function runCommand(key: string)
 		local ids = idsOfClass(forms, { cavalry = true })
 		if #ids > 0 then
 			Input.sendOrder("Shape", ids, { shape = "wedge" })
+		end
+	elseif key == "skirmish" then
+		local ids = {}
+		for _, id in idsOfClass(forms, { infantry = true }) do
+			local f = BattleState.formations[id]
+			if f and f.type and Config.TypeStats[f.type].legalShapes.skirmish then
+				table.insert(ids, id)
+			end
+		end
+		if #ids > 0 then
+			Input.sendOrder("Shape", ids, { shape = "skirmish" })
 		end
 	elseif key == "fire" then
 		local ids = idsOfClass(forms, { infantry = true, artillery = true })
@@ -679,7 +692,7 @@ local function buildCommandPanel(sg: ScreenGui)
 	grid.BackgroundTransparency = 1
 	grid.Parent = p
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else 24)
+	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else math.floor((BOTTOM_H - 18 - (CMD_ROWS - 1) * 3) / CMD_ROWS))
 	g.CellPadding = UDim2.fromOffset(3, 3)
 	g.FillDirectionMaxCells = 4
 	g.SortOrder = Enum.SortOrder.LayoutOrder
@@ -838,6 +851,7 @@ local COMMAND_CLASSES: { [string]: { string } } = {
 	line = { "infantry", "cavalry" },
 	column = { "infantry" },
 	square = { "infantry" },
+	skirmish = { "infantry" },
 	wedge = { "cavalry" },
 	fire = { "infantry", "artillery" },
 	charge = { "infantry", "cavalry" },

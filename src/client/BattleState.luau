@@ -3,6 +3,8 @@
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
 local Signal = require(script.Parent.Signal)
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Config = require(Shared.Config)
 
 export type Vec = { x: number, z: number }
 
@@ -418,7 +420,10 @@ function BattleState.validateContext(): any
 			if not f then
 				return nil
 			end
-			if f.class == "infantry" then
+			local stats = f.type and Config.TypeStats[f.type]
+			if stats and (f.class == "infantry" or f.class == "cavalry") then
+				return stats.legalShapes
+			elseif f.class == "infantry" then
 				return { line = true, column = true, square = true }
 			elseif f.class == "cavalry" then
 				return { wedge = true, line = true }

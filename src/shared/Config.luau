@@ -108,10 +108,12 @@ Config.Shapes = {
 	deployed = { ranks = 1, fire = 1.0, melee = 0.3, speed = 0.0, shock = 3.0, artillery = 1.0, turnRate = 0.0, figureSpacing = 8, rankSpacing = 8 },
 	wedge = { ranks = 4, fire = 0.0, melee = 1.0, speed = 1.0, shock = 1.0, artillery = 1.6, turnRate = 1.1, figureSpacing = 5, rankSpacing = 6 },
 	staff = { ranks = 2, fire = 0.0, melee = 0.4, speed = 1.0, shock = 2.0, artillery = 1.5, turnRate = 1.5, figureSpacing = 4, rankSpacing = 4 },
+	-- open order (light infantry and rifles): fires on the move and all round, hard to hit, prey to cavalry
+	skirmish = { ranks = 2, fire = 0.5, melee = 0.5, speed = 1.0, shock = 2.0, artillery = 0.35, turnRate = 1.2, figureSpacing = 7, rankSpacing = 6 },
 }
 
 -- Seconds to change shape (from any shape to the key). Square from column is faster.
-Config.ReformTime = { line = 12, column = 8, square = 15, travel = 6, limbered = 25, deployed = 20, wedge = 4, staff = 2 }
+Config.ReformTime = { line = 12, column = 8, square = 15, travel = 6, limbered = 25, deployed = 20, wedge = 4, staff = 2, skirmish = 6 }
 Config.SquareFromColumnTime = 10
 
 Config.Units = {
@@ -164,8 +166,8 @@ Config.Units = {
 -- reformScale multiplies reform/limber times; pursuit multiplies a charge's impact on routing units.
 Config.UnitTypes = {
 	line = { class = "infantry", name = "Line infantry" },
-	light = { class = "infantry", name = "Light infantry", stats = { speed = 6.2, chargeSpeed = 8.2, baseMorale = 68, musket = { accuracy = 0.08 }, melee = { attack = 0.9, defense = 0.9 }, spot = 300 } },
-	rifle = { class = "infantry", name = "Rifles", stats = { speed = 6.0, chargeSpeed = 8.0, baseMorale = 70, musket = { range = 130, reload = 21, accuracy = 0.11, ammo = 50 }, melee = { attack = 0.8, defense = 0.85 }, spot = 320 } },
+	light = { class = "infantry", name = "Light infantry", stats = { legalShapes = { skirmish = true }, speed = 6.2, chargeSpeed = 8.2, baseMorale = 68, musket = { accuracy = 0.08 }, melee = { attack = 0.9, defense = 0.9 }, spot = 300 } },
+	rifle = { class = "infantry", name = "Rifles", stats = { legalShapes = { skirmish = true }, speed = 6.0, chargeSpeed = 8.0, baseMorale = 70, musket = { range = 130, reload = 21, accuracy = 0.11, ammo = 50 }, melee = { attack = 0.8, defense = 0.85 }, spot = 320 } },
 	grenadier = { class = "infantry", name = "Grenadiers", stats = { baseMorale = 76, melee = { attack = 1.2, defense = 1.15 } } },
 	guard = { class = "infantry", name = "Guard infantry", stats = { baseMorale = 84, musket = { accuracy = 0.08 }, melee = { attack = 1.3, defense = 1.25 } } },
 	militia = { class = "infantry", name = "Militia", stats = { baseMorale = 58, musket = { accuracy = 0.055 }, melee = { attack = 0.85, defense = 0.9 } } },
@@ -196,7 +198,7 @@ end
 Config.Combat = {
 	RangeFalloff = 0.65, -- hit factor at max range = 1 - falloff
 	MaxHitChance = 0.30,
-	TargetShapeFactor = { line = 1.0, column = 1.5, square = 1.3, travel = 1.6, limbered = 1.2, deployed = 1.0, wedge = 1.2, staff = 1.0 },
+	TargetShapeFactor = { line = 1.0, column = 1.5, square = 1.3, travel = 1.6, limbered = 1.2, deployed = 1.0, wedge = 1.2, staff = 1.0, skirmish = 0.45 },
 	FlankFireFactor = 1.35,
 	RearFireFactor = 1.6,
 	FriendlyBlocksFire = true, -- a friendly formation inside the fire lane blocks the volley
@@ -207,7 +209,7 @@ Config.Combat = {
 	BayonetBonus = 1.3,
 	BayonetBonusSeconds = 10,
 	BayonetMoraleShock = { front = 10, flank = 20 },
-	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0 },
+	ChargeShapeFactor = { line = 1.0, column = 1.3, square = 0.15, travel = 1.8, limbered = 3.0, deployed = 3.0, wedge = 1.0, staff = 2.0, skirmish = 2.0 },
 	ChargeRoutingFactor = 1.5,
 	SquareReturnsDamage = 2.0, -- cavalry in melee with a square takes x2
 	MinRunUpFactor = 0.3,
