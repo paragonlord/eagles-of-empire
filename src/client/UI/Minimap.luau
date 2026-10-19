@@ -23,6 +23,7 @@ local CLASS_COLOUR: { [number]: Color3 } = {
 	[IDS.woods] = rgb(P.TreeCrown),
 	[IDS.village] = rgb(P.Roof),
 	[IDS.water] = rgb(P.Water),
+	[IDS.ford] = rgb(P.Water):Lerp(rgb(P.Road), 0.4),
 	[IDS.bridge] = rgb(P.Road),
 	[IDS.steep] = rgb(P.TerrainSlope),
 	[IDS.cliff] = Color3.fromRGB(96, 84, 70),

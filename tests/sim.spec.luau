@@ -390,6 +390,35 @@ test("Charging downhill hits harder than charging up", function()
 	assertTrue(down > up * 1.1, string.format("downhill %d vs uphill %d", down, up))
 end)
 
+test("Fords: brooks can be waded at their fords, slowly and without firing", function()
+	local ford = { x = 520, z = 960 }
+	assertEq(Grid.terrainAt(MAP.grid, ford.x, ford.z).name, "ford")
+	assertEq(Grid.terrainAt(MAP.grid, ford.x + 60, ford.z - 5).name, "water", "beside the ford the brook is deep")
+	local sim = newSim({
+		unit("france", "infantry", "Waders", ford.x, ford.z - 70, -math.pi / 2),
+		unit("prussia", "infantry", "Watchers", ford.x + 70, ford.z + 70, math.pi),
+	})
+	sim.formations[2].fireAtWill = false
+	local f = sim.formations[1]
+	cmd(sim, "Move", { 1 }, { pos = { x = ford.x, z = ford.z + 80 } })
+	local waded, blocked, closest = false, false, math.huge
+	for _ = 1, math.floor(120 / Config.Sim.DT) do
+		sim:step()
+		closest = math.min(closest, Vec.dist(f.pos, ford))
+		if Grid.terrainAt(MAP.grid, f.pos.x, f.pos.z).name == "ford" then
+			waded = true
+			f.reload = 0
+			blocked = blocked or Combat.fireBlockReason(sim, f, sim.formations[2]) == "Wading the ford"
+		end
+		if f.pos.z > ford.z + 60 then
+			break
+		end
+	end
+	assertTrue(f.pos.z > ford.z + 60, string.format("crossed to the far bank (z %.0f)", f.pos.z))
+	assertTrue(closest < 20 and waded, "by the ford")
+	assertTrue(blocked, "no volleys from the middle of the brook")
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x
@@ -833,7 +862,7 @@ test("Rallied formations at the rear edge walk back in to separate slots", funct
 	assertTrue(Vec.dist(p1, p2) > 30 and Vec.dist(p2, p3) > 30 and Vec.dist(p1, p3) > 30, "not piled up")
 end)
 
-test("No map lets a path cross a brook outside its bridges; a unit standing in water steps out", function()
+test("No map lets a path cross a brook outside its bridges and fords; a unit standing in water steps out", function()
 	local Nav = require(Server.Sim.Nav)
 	for _, mapId in { "jena", "auerstedt", "austerlitz", "waterloo", "tutorial" } do
 		local map = MapGen.generate(mapId)

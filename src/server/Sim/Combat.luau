@@ -96,6 +96,9 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 	if f.state == "melee" or f.state == "charging" or f.state == "routing" or f.state == "rallying" then
 		return "Engaged"
 	end
+	if (Grid.terrainAt(sim.grid, f.pos.x, f.pos.z) :: any).noFire then
+		return "Wading the ford"
+	end
 	if f.class == "infantry" and f.shape == "travel" then
 		return "In travel column"
 	end
@@ -311,6 +314,7 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	if uphill(sim, att.pos, def.pos) then
 		rate *= 1 + Config.Slope.DownhillMeleeBonus
 	end
+	rate *= (Grid.terrainAt(sim.grid, att.pos.x, att.pos.z) :: any).melee or 1 -- wading men fight badly
 	rate /= unitD.melee.defense
 	local casualties = rollCasualties(sim, rate * DT)
 	local extra = 0

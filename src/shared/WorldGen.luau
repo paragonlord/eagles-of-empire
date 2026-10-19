@@ -381,7 +381,7 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Dist, Mar
 					end
 				end
 			end
-			if cls == IDS.water or cls == IDS.bridge then
+			if cls == IDS.water or cls == IDS.bridge or cls == IDS.ford then
 				local c = { x = (cx + 0.5) * g.cell, z = (cz + 0.5) * g.cell }
 				local lvl = waterLevelAt(map, c.x, c.z)
 				if lvl then
@@ -1573,7 +1573,7 @@ local function buildRiverside(group: string, river: any, jobs: { Job })
 					local k = h01(c.x + side, c.z, 70)
 					if k < 0.55 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 1.5 + k * 3)))
-						if classAt(p.x, p.z) ~= nil and classAt(p.x, p.z) ~= IDS.water and not nearBridge(p.x, p.z, 6) then
+						if classAt(p.x, p.z) ~= nil and classAt(p.x, p.z) ~= IDS.water and classAt(p.x, p.z) ~= IDS.ford and not nearBridge(p.x, p.z, 6) then
 							-- a reed bed: clusters of thin tall stems, each leaning its own way, khaki-green
 							withQ(2, function()
 								obj("point", function()

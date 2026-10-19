@@ -58,6 +58,10 @@ fatigueFactor = 1 - 0.4 * fatigue / 100
 Running (a march ordered with `run`, or the Run order on the current march; infantry, cavalry and
 staff, never guns or a charge): speed ×1.4, marching fatigue ×3.
 
+Fords: authored shallow crossings of the brooks (30 studs along the bed; Rau-Bach ×2, Lissbach ×2,
+Goldbach ×1, Smohain ×1; none on the Saale or the tutorial's Mühlbach). Speed 0.45 (cavalry 0.55),
+fatigue ×1.6, cohesion loss; no firing while wading; melee ×0.7 from the ford.
+
 Terrain: open 1.0, road 1.3, woods 0.6 (cavalry 0.4), village 0.7 (0.5), bridge 0.9, steep 0.5,
 water/cliff impassable. Roads give the only >1.0 factor, so marching in column along a road is
 the fastest way across the map.

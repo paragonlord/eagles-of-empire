@@ -37,7 +37,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Round shot travels a lane and bounces through what is behind (friendly fire)
 - [x] Howitzer shells: indirect, area hits
 - [x] Downhill charge and melee bonus
-- [ ] Fords
+- [x] Fords
 - [ ] Garrisonable buildings (strongpoints)
 - [ ] Walls and hedges as cover lines
 

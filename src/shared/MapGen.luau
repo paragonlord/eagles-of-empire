@@ -17,7 +17,7 @@ export type Village = { name: string, pos: Vec, radius: number, buildings: { Bui
 export type Tree = { x: number, z: number, r: number, priority: number }
 export type Woods = { name: string?, pos: Vec, rx: number, rz: number, trees: { Tree } }
 export type Road = { points: { Vec }, width: number }
-export type River = { name: string, points: { Vec }, width: number, level: number }
+export type River = { name: string, points: { Vec }, width: number, level: number, fords: { Vec }? } -- fords: shallow crossings (30 studs along the bed)
 export type Bridge = { a: Vec, b: Vec, width: number }
 export type Label = { text: string, pos: Vec, size: number }
 export type Objective = { id: string, name: string, pos: Vec, radius: number }
@@ -60,6 +60,7 @@ type MapDef = {
 }
 
 local IDS = Config.TerrainIds
+local FORD_HALF = 15
 local MapGen = {}
 
 local function v(x: number, z: number): Vec
@@ -166,7 +167,7 @@ MAPS.jena = {
 	},
 	rivers = {
 		{ name = "Saale", points = { v(1500, 0), v(1520, 250), v(1490, 500), v(1530, 750), v(1500, 1000), v(1520, 1200) }, width = 52, level = 1 },
-		{ name = "Rau-Bach", points = { v(0, 1010), v(250, 990), v(520, 960), v(800, 940), v(1100, 980), v(1340, 1000), v(1500, 1000) }, width = 14, level = 18 },
+		{ name = "Rau-Bach", points = { v(0, 1010), v(250, 990), v(520, 960), v(800, 940), v(1100, 980), v(1340, 1000), v(1500, 1000) }, width = 14, level = 18, fords = { v(520, 960), v(1100, 980) } },
 	},
 	bridges = {
 		{ a = v(1440, 150), b = v(1580, 150), width = 24 },
@@ -235,7 +236,7 @@ MAPS.auerstedt = {
 	},
 	rivers = {
 		{ name = "Saale", points = { v(1560, 0), v(1620, 200), v(1780, 380), v(2000, 520) }, width = 50, level = 10 },
-		{ name = "Lissbach", points = { v(740, 0), v(750, 520), v(750, 760), v(750, 1000), v(770, 1500) }, width = 12, level = 17 },
+		{ name = "Lissbach", points = { v(740, 0), v(750, 520), v(750, 760), v(750, 1000), v(770, 1500) }, width = 12, level = 17, fords = { v(745, 260), v(760, 1250) } },
 	},
 	bridges = {
 		{ a = v(1650, 340), b = v(1750, 240), width = 24 },
@@ -315,7 +316,7 @@ MAPS.austerlitz = {
 		{ points = { v(650, 1480), v(690, 1310), v(730, 1300), v(800, 1050) }, width = 5 },
 	},
 	rivers = {
-		{ name = "Goldbach", points = { v(740, 1800), v(730, 1300), v(745, 1050), v(777, 750), v(817, 450), v(878, 180), v(940, 0) }, width = 16, level = 14 },
+		{ name = "Goldbach", points = { v(740, 1800), v(730, 1300), v(745, 1050), v(777, 750), v(817, 450), v(878, 180), v(940, 0) }, width = 16, level = 14, fords = { v(761, 900) } },
 		{ name = "Satschan pond", points = { v(1300, 110), v(1500, 90) }, width = 170, level = 9 },
 		{ name = "Mönitz pond", points = { v(1000, 40), v(1150, 60) }, width = 110, level = 9 },
 	},
@@ -395,7 +396,7 @@ MAPS.waterloo = {
 		{ points = { v(1650, 290), v(2050, 800), v(2150, 1300) }, width = 4 },
 	},
 	rivers = {
-		{ name = "Smohain brook", points = { v(1900, 1150), v(1950, 950), v(2050, 800), v(2250, 650), v(2400, 560) }, width = 10, level = 17 },
+		{ name = "Smohain brook", points = { v(1900, 1150), v(1950, 950), v(2050, 800), v(2250, 650), v(2400, 560) }, width = 10, level = 17, fords = { v(2250, 650) } },
 	},
 	bridges = {
 		{ a = v(1915, 950), b = v(1985, 950), width = 24 },
@@ -650,6 +651,12 @@ function MapGen.generate(mapId: string): MapData
 				if d < half then
 					cls = IDS.water
 					h = math.min(h, river.level - 3)
+					for _, ford in river.fords or {} do
+						if Vec.dist2(p, ford) < FORD_HALF * FORD_HALF then
+							cls = IDS.ford
+							h = river.level - 1
+						end
+					end
 				elseif d < half + 24 then
 					local t = smooth((d - half) / 24)
 					h = math.min(h, (river.level + 0.5) + (h - (river.level + 0.5)) * t)

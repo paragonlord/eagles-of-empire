@@ -24,7 +24,7 @@ Config.Map = {
 
 -- Terrain classes. speed multiplies base unit speed; cover reduces incoming fire;
 -- sightHeight is added to terrain height for LOS when the cell is between observer and target.
-Config.TerrainIds = { open = 1, road = 2, woods = 3, village = 4, water = 5, bridge = 6, steep = 7, cliff = 8 }
+Config.TerrainIds = { open = 1, road = 2, woods = 3, village = 4, water = 5, bridge = 6, steep = 7, cliff = 8, ford = 9 }
 Config.Terrain = {
 	[1] = { name = "open", speed = 1.0, cavalrySpeed = 1.0, passable = true, cover = 0.0, blocksSight = false, sightHeight = 0, fatigue = 1.0, cohesion = 0.0 },
 	[2] = { name = "road", speed = 1.3, cavalrySpeed = 1.3, passable = true, cover = 0.0, blocksSight = false, sightHeight = 0, fatigue = 0.8, cohesion = 0.0 },
@@ -34,6 +34,8 @@ Config.Terrain = {
 	[6] = { name = "bridge", speed = 0.9, cavalrySpeed = 0.8, passable = true, cover = 0.0, blocksSight = false, sightHeight = 0, fatigue = 1.0, cohesion = 0.0 },
 	[7] = { name = "steep", speed = 0.5, cavalrySpeed = 0.45, passable = true, cover = 0.1, blocksSight = false, sightHeight = 0, fatigue = 1.8, cohesion = 0.06 },
 	[8] = { name = "cliff", speed = 0.0, cavalrySpeed = 0.0, passable = false, cover = 0.0, blocksSight = false, sightHeight = 0, fatigue = 1.0, cohesion = 0.0 },
+	-- shallow crossing of a brook: wading, no firing, melee ×0.7 (Combat)
+	[9] = { name = "ford", speed = 0.45, cavalrySpeed = 0.55, passable = true, cover = 0.0, blocksSight = false, sightHeight = 0, fatigue = 1.6, cohesion = 0.08, noFire = true, melee = 0.7 },
 }
 
 Config.Slope = {
