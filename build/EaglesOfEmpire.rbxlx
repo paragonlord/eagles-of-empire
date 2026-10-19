@@ -496,6 +496,9 @@ Config.UnitTypes = {
 	heavyCav = { class = "cavalry", name = "Heavy cavalry", stats = { speed = 13.0, chargeSpeed = 19.0, baseMorale = 74, melee = { attack = 1.35, defense = 1.0 }, charge = { base = 0.065 }, fatigueMove = 0.6 } },
 	footArt = { class = "artillery", name = "Foot artillery" },
 	horseArt = { class = "artillery", name = "Horse artillery", stats = { speed = 7.5, reformScale = 0.5, gun = { roundShot = { range = 380, casualtiesPerHit = 2.5 } } } },
+	-- indirect fire: a target the side can see, no line of sight needed, lobbed over friends; shells
+	-- burst over `splash` studs (Combat cannonade)
+	howitzer = { class = "artillery", name = "Howitzers", stats = { gun = { indirect = true, roundShot = { range = 400, minRange = 80, reload = 26, hit = 0.4, casualtiesPerHit = 3.5, morale = 6, splash = 30 } } } },
 	hq = { class = "hq", name = "Headquarters" },
 }
 
@@ -527,6 +530,9 @@ Config.Combat = {
 	FriendlyBlocksFire = true, -- a friendly formation inside the fire lane blocks the volley
 	FireLaneHalfWidth = 10,
 	FireByRankReload = 0.75, -- reload multiplier for drilled infantry halted in line
+	-- round shot carries on past its target: formations of either side whose footprint touches the
+	-- next `length` studs of the line of fire take `factor` of the first strike, fading to half at the end
+	Ricochet = { length = 140, factor = 0.45, maxHits = 2 },
 	MeleeRatePerSecond = 0.0025, -- casualties = attackerStrength * rate * factors * dt
 	MeleeDirFactor = { front = 1.0, flank = 1.6, rear = 2.2 },
 	MeleeContactDistance = 6, -- studs between footprints
@@ -4137,7 +4143,7 @@ episode({
 		u("france", "II Corps · Reille / Foy", "infantry", "92e de Ligne", 600, 1, 960, 540, NORTH),
 		u("france", "II Corps · Reille / Foy", "infantry", "100e de Ligne", 600, 1, 1040, 540, NORTH),
 		u("france", "II Corps · Reille / Bachelu", "infantry", "2e Légère", 600, 2, 1000, 460, NORTH),
-		u("france", "II Corps · Reille", "artillery", "Batterie du 2e Corps", 120, 1, 880, 460, NORTH),
+		u("france", "II Corps · Reille", "artillery", "Obusiers du 2e Corps", 120, 1, 880, 460, NORTH),
 		u("france", "II Corps · Reille / Piré", "cavalry", "6e Lanciers", 400, 1, 520, 480, NORTH),
 		u("britain", "HQ", "hq", "Cooke — 1st Division HQ", 40, 2, 800, 1130, SOUTH, { commander = true }),
 		u("britain", "1st Division · Cooke / Byng", "infantry", "2/3rd Foot Guards", 700, 2, 760, 790, SOUTH),
@@ -4336,6 +4342,7 @@ local TYPE_MARKS: { [string]: { { string | { string } } } } = {
 	},
 	artillery = {
 		{ "horseArt", { "à cheval", "reitende", " rha", "horse artillery" } },
+		{ "howitzer", { "obusier", "howitzer", "haubitz", "unicorn" } },
 	},
 }
 local DEFAULT_TYPE = { infantry = "line", cavalry = "dragoon", artillery = "footArt", hq = "hq" }
@@ -16353,10 +16360,12 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 	if not sim.isVisibleTo(sim, f.faction, target.id) then
 		return "Target not visible"
 	end
-	if not Grid.lineOfSight(sim.grid, f.pos, target.pos) then
+	-- howitzer shells are lobbed: over the crest and over friends, at anything the side can see
+	local lobbed = unit.gun and unit.gun.indirect and Combat.artilleryMode(f, dist) == "roundShot"
+	if not lobbed and not Grid.lineOfSight(sim.grid, f.pos, target.pos) then
 		return "Line of fire blocked"
 	end
-	if laneBlocked(sim, f, target) then
+	if not lobbed and laneBlocked(sim, f, target) then
 		return "Friends in the line of fire"
 	end
 	return nil
@@ -16368,7 +16377,7 @@ function Combat.artilleryMode(f: Formation, dist: number): "roundShot" | "canist
 	elseif f.ammoMode == "roundShot" then
 		return "roundShot"
 	end
-	return if dist <= Config.Units.artillery.gun.canister.range then "canister" else "roundShot"
+	return if dist <= Formation.unitConfig(f).gun.canister.range then "canister" else "roundShot"
 end
 
 -- Best visible enemy for fire-at-will: nearest in arc and range with a clear lane.
@@ -16455,7 +16464,44 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	f.state = if f.state == "idle" then "firing" else f.state
 	local side = Vec.attackSide(target.pos, target.heading, f.pos)
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = ammo.morale, kind = "cannon" }
-	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = mode })
+	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = if gun.indirect and mode == "roundShot" then "shell" else mode })
+	if ammo.splash then
+		-- a shell bursts: everyone within the splash, friend or foe, takes part of it
+		for _, id in sim.order do
+			local o = sim.formations[id]
+			if o and o ~= f and o ~= target and Formation.isActive(o) then
+				local d = Vec.dist(o.pos, target.pos) - o.halfRadius * 0.5
+				if d < ammo.splash then
+					local n = rollCasualties(sim, expected / shapeF * 0.5 * (1 - math.max(0, d) / ammo.splash) * (Config.Shapes :: any)[o.shape].artillery)
+					attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+				end
+			end
+		end
+	elseif mode == "roundShot" then
+		-- the ball bounces on through whatever stands behind, friend or foe
+		local R = C.Ricochet
+		local dir = Vec.normalize(Vec.sub(target.pos, f.pos))
+		local far = Vec.add(target.pos, Vec.scale(dir, R.length))
+		local strike = expected / shapeF -- the first strike before the target's shape
+		local inLane: { { o: Formation, t: number } } = {}
+		for _, id in sim.order do
+			local o = sim.formations[id]
+			if o and o ~= f and o ~= target and Formation.isActive(o) and Vec.distToSegment(o.pos, target.pos, far) < o.halfRadius * 0.6 then
+				local t = Vec.dot(Vec.sub(o.pos, target.pos), dir) / R.length
+				if t > 0 then
+					table.insert(inLane, { o = o, t = t })
+				end
+			end
+		end
+		table.sort(inLane, function(p: { o: Formation, t: number }, q: { o: Formation, t: number }): boolean
+			return if p.t ~= q.t then p.t < q.t else p.o.id < q.o.id
+		end)
+		for i = 1, math.min(R.maxHits, #inLane) do
+			local o, t = inLane[i].o, inLane[i].t
+			local n = rollCasualties(sim, strike * R.factor * (1 - 0.5 * t) * (Config.Shapes :: any)[o.shape].artillery)
+			attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+		end
+	end
 end
 
 -- Footprints touching: centres within the sum of half-radii plus contact distance.
@@ -28883,10 +28929,10 @@ local function newCard(f: any): Card
 	rect(tired, 3, 4, 5, 2, 45, AMBER)
 	icons.tired = tired
 	local running = iconSlot(row, "running", 8) -- two chevrons: at the double
-	rect(running, 2, 6, 3, 3, 45, Kit.IVORY)
-	rect(running, 2, 6, 3, 7, -45, Kit.IVORY)
-	rect(running, 2, 6, 7, 3, 45, Kit.IVORY)
-	rect(running, 2, 6, 7, 7, -45, Kit.IVORY)
+	rect(running, 2, 6, 3, 3, -45, Kit.IVORY)
+	rect(running, 2, 6, 3, 7, 45, Kit.IVORY)
+	rect(running, 2, 6, 7, 3, -45, Kit.IVORY)
+	rect(running, 2, 6, 7, 7, 45, Kit.IVORY)
 	icons.running = running
 	local dim = Instance.new("Frame") :: Frame
 	dim.Size = UDim2.fromScale(1, 1)
