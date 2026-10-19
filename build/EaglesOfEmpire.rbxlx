@@ -438,10 +438,10 @@ Config.Units = {
 	infantry = {
 		speed = 5.5, chargeSpeed = 7.5,
 		defaultShape = "line", legalShapes = { line = true, column = true, square = true, travel = true },
-		musket = { range = 90, reload = 15, accuracy = 0.07, minReadiness = 0.4 },
+		musket = { range = 90, reload = 15, accuracy = 0.07, minReadiness = 0.4, ammo = 60 },
 		melee = { attack = 1.0, defense = 1.0 },
 		baseMorale = 70, fatigueMove = 0.35, fatigueCharge = 6.0, fatigueMelee = 2.0, rest = 1.5,
-		spot = 260, halfWidthFactor = 1.0,
+		spot = 260,
 	},
 	cavalry = {
 		speed = 14.0, chargeSpeed = 20.0,
@@ -558,12 +558,10 @@ Config.Match = {
 	MaxQueue = 4,
 	LeashDistance = 160, -- engage/attack-move chase limit
 	StuckSeconds = 4,
-	AvoidanceRadius = 12,
 }
 
 Config.AI = {
 	DecisionTicks = 10,
-	PerceptionTicks = 10,
 	CommitSeconds = 20,
 	Difficulties = {
 		easy = { reaction = 2.0, planQuality = 0.6, moraleBonus = 0 },
@@ -1512,7 +1510,7 @@ local LIST: { General } = {
 	-- Britain
 	{ id = "wellington", name = "Wellington", nation = "britain", rank = "Field Marshal", match = { "wellington" },
 		traits = {
-			t("reverse", "Reverse slope", "local", { cover = 0.15, hideBeyond = 120 }, "Infantry halted behind a crest (ground ahead rises): +15% cover, and the enemy cannot see it beyond 120 until it fires.", INF, "crest"),
+			t("reverse", "Reverse slope", "local", { cover = 0.15, hideBeyond = Generals.HiddenRange }, "Infantry halted behind a crest (ground ahead rises): +15% cover, and the enemy cannot see it beyond 120 until it fires.", INF, "crest"),
 			t("peninsula", "Peninsula drill", "local", { accuracy = 1.05 }, "Infantry hits 5% more often.", INF),
 		},
 		ability = { id = "upguards", name = "Up, Guards, and at 'em!", kind = "upguards", cooldown = 180, radius = 250, duration = 12, text = "Infantry within 250 that is halted behind a crest rises: muskets reloaded at once, fire at will on, and +50% accuracy for 12 s. Recharges in 180 s." } },
@@ -8115,8 +8113,20 @@ end
 
 -- Public API -----------------------------------------------------------------------------------------
 
+-- The difficulty's morale bonus goes to the AI's side only (disclosed in settings). Idempotent, so
+-- rebuilding the AI (new difficulty, or the AI changing sides) never stacks it.
+function AI.steady(sim: SimLike, faction: string?, bonus: number)
+	for _, f in sim.formations do
+		local delta = (if f.faction == faction then bonus else 0) - f.aiMoraleBonus
+		f.baseMorale += delta
+		f.morale += delta
+		f.aiMoraleBonus += delta
+	end
+end
+
 function AI.new(sim: SimLike, faction: string, difficulty: string): AIState
 	local diff = (Config.AI.Difficulties :: any)[difficulty] or Config.AI.Difficulties.normal
+	AI.steady(sim, faction, diff.moraleBonus)
 	return {
 		sim = sim,
 		faction = faction,
@@ -9247,7 +9257,7 @@ function Campaign.checkpoint(store: Store, userId: number, sessionId: string, st
 		if old ~= nil and (type(old.session) ~= "table" or old.session.id ~= sessionId) then
 			return nil, "notOwner"
 		end
-		if old ~= nil and old.campaignId ~= nil and old.campaignId ~= state.campaignId and old.restarts > state.restarts then
+		if old ~= nil and old.campaignId ~= nil and old.campaignId ~= state.campaignId and (tonumber(old.restarts) or 0) > state.restarts then
 			return nil, "campaignMismatch"
 		end
 		local p = Campaign.serialize(state)
@@ -9348,6 +9358,9 @@ type Session = {
 	grandLoaded: boolean,
 	grand: GState?,
 	grandRevision: number,
+	-- a stored campaign that could not be read: kept untouched until the player starts a new one
+	smallUnreadable: boolean,
+	grandUnreadable: boolean,
 }
 
 export type Hooks = {
@@ -9408,13 +9421,14 @@ local function ensureSession(player: Player): (Session?, string?)
 	if profile then
 		state = Campaign.deserialize(profile)
 	end
+	local unreadable = state == nil and profile ~= nil and profile.campaignId ~= nil
 	if not state then
 		state = Campaign.new(os.time())
 		if profile and type(profile.revision) == "number" then
 			state.revision = profile.revision
 		end
 	end
-	local created: Session = { userId = player.UserId, sessionId = sessionId, state = state, activeBattleId = nil, activeScenario = nil, activeKind = nil, committed = {}, renewAt = os.clock() + 60, grandLoaded = false, grand = nil, grandRevision = 0 }
+	local created: Session = { userId = player.UserId, sessionId = sessionId, state = state, activeBattleId = nil, activeScenario = nil, activeKind = nil, committed = {}, renewAt = os.clock() + 60, grandLoaded = false, grand = nil, grandRevision = 0, smallUnreadable = unreadable, grandUnreadable = false }
 	session = created
 	return created, nil
 end
@@ -9443,6 +9457,7 @@ local function ensureGrand(s: Session): string?
 	end
 	s.grandRevision = if profile and type(profile.revision) == "number" then profile.revision else 0
 	s.grand = if profile then GrandCampaign.deserialize(profile) else nil
+	s.grandUnreadable = s.grand == nil and profile ~= nil and profile.campaignId ~= nil
 	s.grandLoaded = true
 	return nil
 end
@@ -9471,7 +9486,7 @@ local function onGrand(player: Player, s: Session, requestId: string, data: { [s
 		if s.grand then
 			sendGrandView(player, s)
 		else
-			sendError(player, requestId, "noCampaign")
+			sendError(player, requestId, if s.grandUnreadable then "unreadable" else "noCampaign")
 		end
 		return
 	end
@@ -9489,6 +9504,7 @@ local function onGrand(player: Player, s: Session, requestId: string, data: { [s
 		local fresh = GrandCampaign.new(os.time(), nation)
 		fresh.revision = if s.grand then (s.grand :: GState).revision else s.grandRevision
 		s.grand = fresh
+		s.grandUnreadable = false
 		grandCheckpoint(player, s, requestId)
 		sendGrandView(player, s)
 		return
@@ -9541,6 +9557,10 @@ local function onRemote(player: Player, msg: any)
 	local state = s.state :: State
 	local action = msg.action
 	local data = if type(msg.data) == "table" then msg.data else {}
+	if s.smallUnreadable and (action == "command" or action == "battle" or action == "skip") then
+		sendError(player, requestId, "unreadable")
+		return
+	end
 	if action == "grand" then
 		onGrand(player, s, requestId, data)
 	elseif action == "open" or action == "return" then
@@ -9548,8 +9568,12 @@ local function onRemote(player: Player, msg: any)
 			sendGrandView(player, s)
 		else
 			sendView(player, s)
+			if s.smallUnreadable then
+				sendError(player, requestId, "unreadable")
+			end
 		end
 	elseif action == "new" then
+		s.smallUnreadable = false
 		local fresh = Campaign.new(os.time())
 		fresh.revision = state.revision
 		s.state = fresh
@@ -10172,6 +10196,14 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 		end
 	end
 	Events.run(s, autoplay)
+	-- the player's standing march orders go on (the rules may stop them again)
+	for _, a in table.clone(s.armies) do
+		local rest = a.path
+		if rest and a.nation == s.playerNation and a.movesLeft > 0 then
+			a.path = nil
+			Movement.move(s, a.nation, a.id, rest, true)
+		end
+	end
 	s.phase = if #s.pendingBattles > 0 then "battle" else "player"
 	checkVictory(s)
 	return true, nil
@@ -10270,7 +10302,7 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			end
 			path[i] = p :: string
 		end
-		local ok, why = Movement.move(s, player, a.id, path)
+		local ok, why = Movement.move(s, player, a.id, path, true)
 		return ok, why
 	elseif kind == "recruit" then
 		local pid, t = str(cmd.provinceId), str(cmd.unitType)
@@ -10486,6 +10518,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 				units = if own then State.copy(a.units) else nil,
 				movesLeft = if own then a.movesLeft else nil,
 				movesMax = if own then State.maxMoves(a) else nil,
+				path = if own and a.path then table.clone(a.path) else nil,
 			}
 		end
 	end
@@ -12652,8 +12685,10 @@ function Movement.step(s: State, nation: string, from: string, to: string, moves
 end
 
 -- Moves along `path` (excluding the current province) as far as the rules allow. Fails only if
--- the first step is impossible; otherwise returns the provinces actually entered.
-function Movement.move(s: State, nation: string, armyId: string, path: { string }): (boolean, string?, { string }?)
+-- the first step is impossible; otherwise returns the provinces actually entered. With `keepRest`
+-- (player orders) a march cut short only by this turn's movement keeps the rest as `army.path`;
+-- any other move clears it.
+function Movement.move(s: State, nation: string, armyId: string, path: { string }, keepRest: boolean?): (boolean, string?, { string }?)
 	local a = State.armyById(s, armyId)
 	if not a or a.nation ~= nation then
 		return false, "notYourArmy", nil
@@ -12666,14 +12701,21 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 	local contact = State.hostileArmyIn(s, from, nation)
 	local entered: { string } = {}
 	local maxMoves = State.maxMoves(army)
+	local rest: { string }? = nil
 	for i, to in path do
 		if type(to) ~= "string" then
-			return if i == 1 then false else true, if i == 1 then "badPath" else nil, entered
+			if i == 1 then
+				return false, "badPath", nil
+			end
+			break
 		end
 		local cost, stops, err = Movement.step(s, nation, army.provinceId, to, army.movesLeft, maxMoves)
 		if err or cost > army.movesLeft then
 			if i == 1 then
 				return false, err or "noMovesLeft", nil
+			end
+			if not err then
+				rest = table.move(path, i, #path, 1, {})
 			end
 			break
 		end
@@ -12685,9 +12727,13 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 			break
 		end
 		if army.movesLeft <= 0 then
+			if i < #path then
+				rest = table.move(path, i + 1, #path, 1, {})
+			end
 			break
 		end
 	end
+	army.path = if keepRest then rest else nil
 	if contact and #entered > 0 then
 		State.log(s, string.format("%s withdraws from %s before the enemy, refusing battle.", army.name, State.province(from).name))
 	end
@@ -12838,6 +12884,16 @@ local function validArmy(a: any): boolean
 	end
 	if a.general ~= nil and (type(a.general) ~= "table" or not isStr(a.general.name) or not isNum(a.general.rating)) then
 		return false
+	end
+	if a.path ~= nil then
+		if type(a.path) ~= "table" or #a.path > 8 then
+			return false
+		end
+		for _, id in a.path do
+			if not provinceOk(id) then
+				return false
+			end
+		end
 	end
 	for _, u in a.units do
 		if type(u) ~= "table" or not isStr(u.key) or EuropeData.UnitClasses[u.type] == nil or not isStr(u.name) or not isNum(u.strength) or not isNum(u.maxStrength) or not isNum(u.experience) then
@@ -13007,7 +13063,8 @@ local EuropeData = require(Shared.EuropeData)
 
 export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number, honours: { string }? }
 export type General = { name: string, rating: number }
-export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number }
+-- path: the rest of a player's march order beyond this turn's reach; it marches on each new turn
+export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }? }
 export type Siege = { by: string, turnsLeft: number }
 export type ProvinceState = { owner: string, occupiedBy: string?, siege: Siege?, occupiedTurns: number }
 export type NationState = { treasury: number, manpower: number }
@@ -13510,6 +13567,7 @@ local function refreshAI(m: Match, force: boolean?)
 			AI.step(ai)
 		end
 	else
+		AI.steady(m.sim, nil, 0)
 		m.ai = nil
 		m.sim.aiStep = nil
 	end
@@ -16307,6 +16365,9 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	if att.class == "cavalry" and def.shape == "square" then
 		rate *= 0.3
 	end
+	if def.class == "cavalry" and att.shape == "square" then
+		rate *= C.SquareReturnsDamage
+	end
 	if att.class == "cavalry" and att.inWoods then
 		rate *= 0.5
 	end
@@ -16660,6 +16721,7 @@ export type Formation = {
 	state: Types.State,
 	morale: number,
 	baseMorale: number,
+	aiMoraleBonus: number, -- difficulty bonus currently in baseMorale (AI.steady)
 	fatigue: number,
 	ammo: number,
 	ammoMode: string, -- artillery: auto | roundShot | canister
@@ -16772,8 +16834,9 @@ function Formation.fromDef(id: number, def: UnitDef): Formation
 		state = "idle",
 		morale = baseMorale,
 		baseMorale = baseMorale,
+		aiMoraleBonus = 0,
 		fatigue = 0,
-		ammo = def.class == "artillery" and unit.gun.ammo or (def.class == "infantry" and 60 or 0),
+		ammo = if def.class == "artillery" then unit.gun.ammo elseif unit.musket then unit.musket.ammo else 0,
 		ammoMode = "auto",
 		reload = 0,
 		order = nil,
@@ -18252,7 +18315,7 @@ function Objectives.update(sim: SimLike)
 				end
 				obj.capturing = nil
 				obj.progress = 0
-				sim.emit(sim, { kind = "capture", tick = sim.tick, faction = only, x = obj.def.pos.x, z = obj.def.pos.z, text = obj.def.name .. " taken" })
+				sim.emit(sim, { kind = "capture", tick = sim.tick, faction = only, x = obj.def.pos.x, z = obj.def.pos.z, text = obj.def.name })
 				local names = ((sim :: any).scenario and (sim :: any).scenario.factionNames) or {}
 				local function nameOf(fid: string): string
 					return names[fid] or (string.upper(string.sub(fid, 1, 1)) .. string.sub(fid, 2))
@@ -21321,6 +21384,16 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		send("endTurn")
 	end, { size = UDim2.fromOffset(150, 38), primary = true, order = 3, textSize = 16, tooltip = "End the turn (E)" })
 	Kit.setEnabled(endTurn, ctx.canAct, ctx.actReason)
+	-- narrow screens: shrink the whole bar rather than let the buttons cover the figures
+	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 534 + 24
+	local cam = workspace.CurrentCamera
+	local avail = (if cam then cam.ViewportSize.X else 1280) / Kit.scale() - 24
+	if avail < natural then
+		bar.Size = UDim2.fromOffset(natural, 54)
+		local fit = Instance.new("UIScale") :: UIScale
+		fit.Scale = avail / natural
+		fit.Parent = bar
+	end
 end
 
 -- ------------------------------------------------------------------ left: army and province
@@ -21423,12 +21496,15 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 			end
 		end
 	end
+	-- same rule as the server: the province's controller is us or an ally
 	local ps = view.provinces and view.provinces[a.provinceId]
-	local home = ps and ps.owner == ctx.player and not ps.occupiedBy
+	local controller = ps and (ps.occupiedBy or ps.owner)
+	local me = view.nations and view.nations[ctx.player]
+	local home = controller == ctx.player or (me ~= nil and type(me.allies) == "table" and table.find(me.allies, controller) ~= nil)
 	local rep = Kit.button(br, "Replenish", function()
 		send("replenish", { armyId = a.id })
 	end, { size = UDim2.new(1 / 3, -4, 1, 0), tooltip = "Draw replacements from treasury and manpower" })
-	Kit.setEnabled(rep, ctx.canAct and losses and home == true, if not ctx.canAct then ctx.actReason elseif not losses then "At full strength" else "Replacements only reach armies in your own provinces")
+	Kit.setEnabled(rep, ctx.canAct and losses and home == true, if not ctx.canAct then ctx.actReason elseif not losses then "At full strength" else "Replacements only reach armies in your own or allied provinces")
 	if ctx.canAct then
 		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 101, { colour = Kit.MUTED, textSize = 12 })
 	end
@@ -21590,7 +21666,7 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		else
 			act("Peace", "peace", war, "You are not at war")
 			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
-			act("War", "war", not war and not ally and truce == nil, if ally then "You will not strike an ally" elseif truce then Logic.REASONS.truce else "Already at war", true)
+			act(if ally then "Break & war" else "War", "war", not war and truce == nil, if truce then Logic.REASONS.truce else "Already at war", true)
 		end
 	end
 end
@@ -21970,6 +22046,7 @@ export type Step = { id: string, turn: number, stop: boolean }
 
 Logic.REASONS = {
 	noCampaign = "No grand campaign in progress",
+	unreadable = "Your saved grand campaign could not be read. It has been kept; choosing a nation starts a new one and replaces it",
 	notYourArmy = "That army is not yours",
 	notYourProvince = "You do not hold that province",
 	noMovesLeft = "That army has no movement left this turn",
@@ -23016,6 +23093,7 @@ type Marker = {
 	pxW: number, -- billboard size in screen pixels (for label deconfliction)
 	pxH: number,
 	frame: Frame, -- the ivory plate inside the billboard
+	colour: Color3, -- the unit's colour, worn by the far banner
 	texts: { TextLabel }, -- name/corps lines (hidden in banner mode)
 	curW: number, -- current on-screen plate width (px)
 	curH: number,
@@ -23703,6 +23781,7 @@ local function buildMarker(g: Group, f: any): Marker
 		pxW = pxW,
 		pxH = pxH,
 		frame = plate,
+		colour = g.colour,
 		texts = texts,
 		curW = pxW,
 		curH = pxH,
@@ -24092,7 +24171,7 @@ end
 
 -- Plates scale with distance between a floor and their design size (so they never cover the
 -- field at the deployment zoom). Far away, only HQs, the selection and the hovered unit keep a
--- full plate; the rest shrink to a small blank banner.
+-- full plate; the rest shrink to a small banner in the unit's colour.
 local PLATE_STUDS = 24 -- world width a plate represents before clamping
 local PLATE_MIN_W = 84
 local BANNER_W, BANNER_H = 34, 10
@@ -24105,6 +24184,9 @@ local function sizePlate(m: Marker, w: number, h: number, banner: boolean)
 	m.curW, m.curH = w, h
 	m.gui.Size = UDim2.fromOffset(w, h + 16)
 	m.frame.Size = UDim2.new(1, 0, 0, h)
+	if #m.texts > 0 then
+		m.frame.BackgroundColor3 = if banner then m.colour else IVORY
+	end
 	for _, l in m.texts do
 		l.Visible = not banner
 	end
@@ -27449,6 +27531,7 @@ local REASONS: { [string]: string } = {
 	wrongPhase = "Not during this phase",
 	nothingToReplenish = "Nothing to replenish",
 	badArgs = "Malformed order",
+	unreadable = "Your saved campaign could not be read. It has been kept; starting a new campaign replaces it",
 	unknownCommand = "Unknown order",
 }
 
@@ -31537,11 +31620,18 @@ local function build()
 	local sg = Kit.screen("EoELoading", 40, true)
 	local bg = Instance.new("CanvasGroup") :: CanvasGroup
 	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = Color3.new(1, 1, 1)
-	Kit.gradient(bg, Kit.BLUE, Kit.INSET)
+	bg.BackgroundTransparency = 1
 	bg.BorderSizePixel = 0
 	bg.Active = true
 	bg.Parent = sg
+	-- the gradient lives on its own backdrop: on the CanvasGroup it would tint the title and bar too
+	local paint = Instance.new("Frame") :: Frame
+	paint.Size = UDim2.fromScale(1, 1)
+	paint.BackgroundColor3 = Color3.new(1, 1, 1)
+	paint.BorderSizePixel = 0
+	paint.ZIndex = 0
+	Kit.gradient(paint, Kit.BLUE, Kit.INSET)
+	paint.Parent = bg
 	Kit.title(bg, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 60), position = UDim2.new(0, 0, 0.38, -10), textSize = 48, align = Enum.TextXAlignment.Center, spaced = true, colour = Kit.GILT, rule = true })
 	local c = Kit.label(bg, "Surveying the ground…", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0.38, 64), align = Enum.TextXAlignment.Center, colour = Kit.MUTED })
 	local track = Instance.new("Frame") :: Frame
