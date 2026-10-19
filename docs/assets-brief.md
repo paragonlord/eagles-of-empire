@@ -106,3 +106,24 @@ with alpha, red ink), `eagleEmblem` (imperial eagle, 512² alpha, for the menu).
 
 First test: import one oak, paste its mesh id into `Assets.slots.treeOak.mesh`, set `scale` so
 it is ~12 × 13 × 12, run `tools/check.sh`, play Jena. Every oak on the map becomes that mesh.
+
+## Sound candidates (to audition; none wired in yet)
+
+Found with the Studio Creator Store search on 2026-10-19. Not one has been listened to: open the
+link, play it, and put the id you like into `Assets.sounds` (one commit per slot, then Settings →
+debug audio). **Licensed** = Roblox's licensed libraries (Pro Sound Effects, APM Music), safe to
+use. **Community** = a player's upload: its origin is unknown, so prefer a licensed one or your own
+recording where one exists.
+
+| Slot | Candidate | Source |
+| --- | --- | --- |
+| `drumsMarchFr` (and the other drum slots) | [Army Soldiers March (Promo Length)](https://create.roblox.com/store/asset/9046678026) · [Military Approach](https://create.roblox.com/store/asset/1840899246) · [The Regiment](https://create.roblox.com/store/asset/1840899338) · [Tenor Drum Sounds (b)](https://create.roblox.com/store/asset/1842279455) | Licensed (APM) |
+| `menuMusic` | [Homecoming Of The Victorious (30s)](https://create.roblox.com/store/asset/1838608860) · [War History](https://create.roblox.com/store/asset/1847601287) · [Historical Intro](https://create.roblox.com/store/asset/1845278552) | Licensed (APM) |
+| `bugleCharge` | [Three Fanfares](https://create.roblox.com/store/asset/1838225124) · [Four Short Fanfare Bridges 3](https://create.roblox.com/store/asset/1838583668) | Licensed (APM) |
+| `ambienceField` | [Mountain Birds 1](https://create.roblox.com/store/asset/9112832288) | Licensed (PSE) |
+| `uiClick` | [Hanger Wooded On Off 8](https://create.roblox.com/store/asset/9114775311) (a dry wooden click) | Licensed (PSE) |
+| `musketVolley` | [Musket Fire 1](https://create.roblox.com/store/asset/9103981709) · [Flintlock Musket Fire 1](https://create.roblox.com/store/asset/119085773320119) · [Musket Firing](https://create.roblox.com/store/asset/99091571902207) | Community |
+| `cannonFire` | [Cannon Fire](https://create.roblox.com/store/asset/138726661215326) · [Cannon Fire Shot](https://create.roblox.com/store/asset/72411732778781) | Community |
+| `cavalryCharge` | [Horse Gallop](https://create.roblox.com/store/asset/108771044697744) · [Horse Trot Loopable](https://create.roblox.com/store/asset/92630369612488) | Community |
+
+Skipped: uploads named after commercial games (their rights are doubtful).

@@ -72,6 +72,8 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 - A slot needs `mesh`, `texture`, `native` (the mesh's size in studs as Studio shows on import);
   leave `scale` at `{1, 1, 1}`. Trees stand on their centre; buildings on their highest corner
   with a stone plinth; bridges put the deck at bank height.
+- Sound candidates with links (licensed APM / Pro Sound Effects first) are in
+  `docs/assets-brief.md` "Sound candidates": audition, then fill the slots.
 - Next: `soldierInfantry` (French) and the eight priority sounds in `Assets.sounds`:
   musketVolley, cannonFire, drumsMarchFr, ambienceField, menuMusic, uiClick, bugleCharge,
   cavalryCharge.

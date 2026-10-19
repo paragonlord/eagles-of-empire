@@ -86,5 +86,5 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Reload and melee animations
 
 ## Assets (Studio)
-- [ ] Priority sounds from the Creator Store (ids listed in `docs/handoff.md` for approval)
+- [~] Priority sounds from the Creator Store: candidates listed in `docs/assets-brief.md` ("Sound candidates") for Bartosz to audition; none wired in unheard
 - [ ] Soldier meshes (Bartosz picks)
