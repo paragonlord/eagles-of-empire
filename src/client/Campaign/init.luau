@@ -106,6 +106,11 @@ local function render()
 	if not fleet then
 		selFleet = nil
 	end
+	-- the province panel follows a selected army, spy or fleet when it moves
+	local token = a or spy or fleet
+	if token then
+		selProv = token.provinceId
+	end
 	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, fleet = fleet, province = selProv, others = others, canAct = ok, actReason = why })
 	Board.setSelection(selArmy or selSpy or selFleet, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
