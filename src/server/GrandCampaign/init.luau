@@ -143,7 +143,9 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 	end
 	s.turn += 1
 	for _, a in s.armies do
-		a.movesLeft = State.maxMoves(a)
+		-- a forced march is paid for with a turn's rest
+		a.movesLeft = if a.forced then 0 else State.maxMoves(a)
+		a.forced = nil
 	end
 	-- an army still facing a pending battle cannot march away from it
 	for _, b in s.pendingBattles do
@@ -301,6 +303,19 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			State.log(s, string.format("Work begins on the %s at %s.", string.lower(EuropeData.Buildings[chain].levels[level]), State.province(pid).name))
 		end
 		return ok, why
+	elseif kind == "forcedMarch" then
+		local a = myArmy(s, cmd.armyId)
+		if not a then
+			return false, "notYourArmy"
+		end
+		if a.forced then
+			return false, "alreadyForced"
+		end
+		a.forced = true
+		a.movesLeft += 1
+		Economy.attrit(s, a, Economy.FORCED_MARCH)
+		State.log(s, a.name .. " marches hard: one province more this turn, none the next.")
+		return true, nil
 	elseif kind == "replenish" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -521,6 +536,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 				movesLeft = if own then a.movesLeft else nil,
 				movesMax = if own then State.maxMoves(a) else nil,
 				path = if own and a.path then table.clone(a.path) else nil,
+				forced = if own then a.forced else nil,
 			}
 		end
 	end

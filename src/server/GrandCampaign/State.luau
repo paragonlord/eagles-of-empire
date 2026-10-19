@@ -10,7 +10,8 @@ local EuropeData = require(Shared.EuropeData)
 export type Unit = { key: string, type: string, name: string, strength: number, maxStrength: number, experience: number, honours: { string }? }
 export type General = { name: string, rating: number }
 -- path: the rest of a player's march order beyond this turn's reach; it marches on each new turn
-export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }? }
+-- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
+export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
 export type Siege = { by: string, turnsLeft: number }
 export type Construction = { chain: string, turnsLeft: number }
 -- buildings: chain -> level (EuropeData.Buildings); construction: the one under way; unrestTurns:

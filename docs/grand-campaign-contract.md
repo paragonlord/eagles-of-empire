@@ -92,4 +92,6 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     known), `research?`, `progress?` and `researchPoints`. Locked recruits read `needsTech:<id>`.
 17. Reinforcements: a pending battle may carry `reinforcements = {attackers = {armyIds}, defenders =
     {armyIds}}` (neighbouring armies); in its tactical scenario their units carry `arrival`.
+18. `forcedMarch {armyId}`: +1 move now, 3 % of the men, no moves next turn; own armies carry
+    `forced` while it applies. Refusal: `alreadyForced`.
 

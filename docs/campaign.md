@@ -169,6 +169,8 @@ Prussia Jäger) and Russia's cavalry (Cossacks).
 - Entering a province costs 1, 2 inside an enemy zone of control (a neighbouring province holds an
   army at war with the mover). Entering a province with a hostile army or one controlled by an enemy
   ends the march. Neutral territory is closed: declare war first.
+- Forced march (`forcedMarch {armyId}`, once a turn): one province more this turn for 3 % of the
+  army's men; the army cannot move the next turn.
 - A march order beyond this turn's reach is kept and goes on at the start of each new turn (after
   events), until it arrives or the rules stop it; a new order replaces it. AI marches keep nothing.
 - Sea lanes join ports, need the full allowance and use it all. After Trafalgar no nation at war

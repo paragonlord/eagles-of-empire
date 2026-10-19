@@ -54,6 +54,9 @@ local function validArmy(a: any): boolean
 	if a.general ~= nil and (type(a.general) ~= "table" or not isStr(a.general.name) or not isNum(a.general.rating)) then
 		return false
 	end
+	if a.forced ~= nil and type(a.forced) ~= "boolean" then
+		return false
+	end
 	if a.path ~= nil then
 		if type(a.path) ~= "table" or #a.path > 8 then
 			return false

@@ -340,8 +340,13 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 		send("replenish", { armyId = a.id })
 	end, { size = UDim2.new(1 / 3, -4, 1, 0), tooltip = "Draw replacements from treasury and manpower" })
 	Kit.setEnabled(rep, ctx.canAct and losses and home == true, if not ctx.canAct then ctx.actReason elseif not losses then "At full strength" else "Replacements only reach armies in your own or allied provinces")
+	local fr = buttonRow(p, 101)
+	local fm = Kit.button(fr, if a.forced then "Marching hard" else "Forced march", function()
+		send("forcedMarch", { armyId = a.id })
+	end, { size = UDim2.new(1, 0, 1, 0), tooltip = "One province more this turn for 3% of the men; the army rests next turn" })
+	Kit.setEnabled(fm, ctx.canAct and not a.forced, if not ctx.canAct then ctx.actReason else "Already marching hard")
 	if ctx.canAct then
-		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 101, { colour = Kit.MUTED, textSize = 12 })
+		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 102, { colour = Kit.MUTED, textSize = 12 })
 	end
 end
 

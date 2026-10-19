@@ -48,6 +48,7 @@ Logic.REASONS = {
 	unknownEvent = "That dispatch has been answered",
 	badArgs = "Malformed order",
 	building = "Already building here",
+	alreadyForced = "Already marching hard",
 	fullyBuilt = "Fully built",
 	unknownCommand = "The server does not know that order",
 }

@@ -33,6 +33,7 @@ Economy.TAX = {
 Economy.UNREST_PENALTY = 0.75 -- income of a province at unrest 3 or more
 Economy.REVOLT_TURNS = 2 -- turns at unrest 5 before the province rises
 Economy.REVOLT_ATTRITION = 0.05 -- the owner's troops in a revolted province, a turn
+Economy.FORCED_MARCH = 0.03 -- the men a forced march costs
 Economy.REFILL = 0.1 -- share of a unit's full strength regained a turn at rest in friendly land
 Economy.WINTER_ATTRITION = { allied = 0.02, hostile = 0.04 } -- harsh lands, Nov–Feb (own land: none)
 Economy.FARMS_INCOME = 0.05 -- per level of the farms chain (doubled by Crop rotation)
