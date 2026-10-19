@@ -14,7 +14,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Nav never links brook banks without a bridge
 - [x] Cavalry in melee with a square takes `SquareReturnsDamage`
 - [x] Hard AI morale bonus applied; infantry ammo in Config; dead config removed; rules.md facing text
-- [ ] Campaign: army `path` sent; replenish and war-on-ally rules agree between UI and server
+- [x] Campaign: army `path` sent; replenish and war-on-ally rules agree between UI and server
 - [ ] Far banner tabs tinted by faction
 
 ## Phase 1: real unit types

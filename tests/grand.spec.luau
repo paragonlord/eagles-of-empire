@@ -274,6 +274,34 @@ test("Grand movement: paths, movement points, stops in enemy land, zone of contr
 	local _ = b
 end)
 
+test("Grand movement: an order beyond this turn's reach keeps its route and marches on next turn", function()
+	local s = empty(5, "france")
+	local a = army(s, "france", "provence", { line = 2 })
+	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = a.id, path = { "paris", "champagne", "rhineland" } }))
+	assertEq(a.provinceId, "champagne")
+	assertDeepEq(a.path, { "rhineland" }, "the rest of the route is kept")
+	assertDeepEq(GrandCampaign.view(s).armies[a.id].path, { "rhineland" }, "and shown to the player")
+	local back = GrandCampaign.deserialize(ProfileStore.clone(GrandCampaign.serialize(s)))
+	assertTrue(back ~= nil, "a kept route survives a save")
+	assertDeepEq(State.armyById(back, a.id).path, { "rhineland" })
+	assertTrue(GrandCampaign.endTurn(s))
+	assertEq(a.provinceId, "rhineland", "it marches on at the start of the next turn")
+	assertEq(a.path, nil, "the order is done")
+	assertEq(a.movesLeft, 1)
+	-- a march that ends in a stop (enemy land) keeps nothing; a new order replaces an old one
+	local b = army(s, "france", "provence", { line = 1 })
+	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = b.id, path = { "paris", "champagne", "rhineland" } }))
+	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = a.id, path = { "champagne" } }))
+	assertEq(a.path, nil)
+	b.movesLeft = 2
+	assertTrue(GrandCampaign.command(s, { kind = "move", armyId = b.id, path = { "rhineland" } }))
+	assertEq(b.path, nil, "a fresh order replaces the kept route")
+	-- AI marches never keep routes
+	local c = army(s, "austria", "vienna", { line = 1 })
+	Movement.move(s, "austria", c.id, { "bohemia", "saxony", "thuringia" })
+	assertEq(c.path, nil)
+end)
+
 test("Grand movement: sea lanes need ports and a full allowance; Trafalgar closes them to Britain's enemies", function()
 	local s = empty(4)
 	local a = army(s, "france", "normandy", { line = 2 })

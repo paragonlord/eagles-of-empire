@@ -106,8 +106,10 @@ function Movement.step(s: State, nation: string, from: string, to: string, moves
 end
 
 -- Moves along `path` (excluding the current province) as far as the rules allow. Fails only if
--- the first step is impossible; otherwise returns the provinces actually entered.
-function Movement.move(s: State, nation: string, armyId: string, path: { string }): (boolean, string?, { string }?)
+-- the first step is impossible; otherwise returns the provinces actually entered. With `keepRest`
+-- (player orders) a march cut short only by this turn's movement keeps the rest as `army.path`;
+-- any other move clears it.
+function Movement.move(s: State, nation: string, armyId: string, path: { string }, keepRest: boolean?): (boolean, string?, { string }?)
 	local a = State.armyById(s, armyId)
 	if not a or a.nation ~= nation then
 		return false, "notYourArmy", nil
@@ -120,14 +122,21 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 	local contact = State.hostileArmyIn(s, from, nation)
 	local entered: { string } = {}
 	local maxMoves = State.maxMoves(army)
+	local rest: { string }? = nil
 	for i, to in path do
 		if type(to) ~= "string" then
-			return if i == 1 then false else true, if i == 1 then "badPath" else nil, entered
+			if i == 1 then
+				return false, "badPath", nil
+			end
+			break
 		end
 		local cost, stops, err = Movement.step(s, nation, army.provinceId, to, army.movesLeft, maxMoves)
 		if err or cost > army.movesLeft then
 			if i == 1 then
 				return false, err or "noMovesLeft", nil
+			end
+			if not err then
+				rest = table.move(path, i, #path, 1, {})
 			end
 			break
 		end
@@ -139,9 +148,13 @@ function Movement.move(s: State, nation: string, armyId: string, path: { string 
 			break
 		end
 		if army.movesLeft <= 0 then
+			if i < #path then
+				rest = table.move(path, i + 1, #path, 1, {})
+			end
 			break
 		end
 	end
+	army.path = if keepRest then rest else nil
 	if contact and #entered > 0 then
 		State.log(s, string.format("%s withdraws from %s before the enemy, refusing battle.", army.name, State.province(from).name))
 	end

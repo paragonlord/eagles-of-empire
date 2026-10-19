@@ -301,12 +301,15 @@ local function armyPanel(parent: Instance, ctx: Ctx, order: number)
 			end
 		end
 	end
+	-- same rule as the server: the province's controller is us or an ally
 	local ps = view.provinces and view.provinces[a.provinceId]
-	local home = ps and ps.owner == ctx.player and not ps.occupiedBy
+	local controller = ps and (ps.occupiedBy or ps.owner)
+	local me = view.nations and view.nations[ctx.player]
+	local home = controller == ctx.player or (me ~= nil and type(me.allies) == "table" and table.find(me.allies, controller) ~= nil)
 	local rep = Kit.button(br, "Replenish", function()
 		send("replenish", { armyId = a.id })
 	end, { size = UDim2.new(1 / 3, -4, 1, 0), tooltip = "Draw replacements from treasury and manpower" })
-	Kit.setEnabled(rep, ctx.canAct and losses and home == true, if not ctx.canAct then ctx.actReason elseif not losses then "At full strength" else "Replacements only reach armies in your own provinces")
+	Kit.setEnabled(rep, ctx.canAct and losses and home == true, if not ctx.canAct then ctx.actReason elseif not losses then "At full strength" else "Replacements only reach armies in your own or allied provinces")
 	if ctx.canAct then
 		text(p, "Right-click a province to march. Red marks where an enemy halts you.", 101, { colour = Kit.MUTED, textSize = 12 })
 	end
@@ -468,7 +471,7 @@ local function diplomacy(parent: Instance, ctx: Ctx)
 		else
 			act("Peace", "peace", war, "You are not at war")
 			act("Alliance", "alliance", not war and not ally, if war then "Make peace first" else "Already allied")
-			act("War", "war", not war and not ally and truce == nil, if ally then "You will not strike an ally" elseif truce then Logic.REASONS.truce else "Already at war", true)
+			act(if ally then "Break & war" else "War", "war", not war and truce == nil, if truce then Logic.REASONS.truce else "Already at war", true)
 		end
 	end
 end

@@ -152,6 +152,14 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 		end
 	end
 	Events.run(s, autoplay)
+	-- the player's standing march orders go on (the rules may stop them again)
+	for _, a in table.clone(s.armies) do
+		local rest = a.path
+		if rest and a.nation == s.playerNation and a.movesLeft > 0 then
+			a.path = nil
+			Movement.move(s, a.nation, a.id, rest, true)
+		end
+	end
 	s.phase = if #s.pendingBattles > 0 then "battle" else "player"
 	checkVictory(s)
 	return true, nil
@@ -250,7 +258,7 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 			end
 			path[i] = p :: string
 		end
-		local ok, why = Movement.move(s, player, a.id, path)
+		local ok, why = Movement.move(s, player, a.id, path, true)
 		return ok, why
 	elseif kind == "recruit" then
 		local pid, t = str(cmd.provinceId), str(cmd.unitType)
@@ -466,6 +474,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 				units = if own then State.copy(a.units) else nil,
 				movesLeft = if own then a.movesLeft else nil,
 				movesMax = if own then State.maxMoves(a) else nil,
+				path = if own and a.path then table.clone(a.path) else nil,
 			}
 		end
 	end

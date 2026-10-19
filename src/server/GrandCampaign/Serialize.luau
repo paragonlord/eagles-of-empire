@@ -54,6 +54,16 @@ local function validArmy(a: any): boolean
 	if a.general ~= nil and (type(a.general) ~= "table" or not isStr(a.general.name) or not isNum(a.general.rating)) then
 		return false
 	end
+	if a.path ~= nil then
+		if type(a.path) ~= "table" or #a.path > 8 then
+			return false
+		end
+		for _, id in a.path do
+			if not provinceOk(id) then
+				return false
+			end
+		end
+	end
 	for _, u in a.units do
 		if type(u) ~= "table" or not isStr(u.key) or EuropeData.UnitClasses[u.type] == nil or not isStr(u.name) or not isNum(u.strength) or not isNum(u.maxStrength) or not isNum(u.experience) then
 			return false

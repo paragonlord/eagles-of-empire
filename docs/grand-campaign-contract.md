@@ -48,7 +48,9 @@ Errors come back as `{ kind = "error", requestId, reason }`.
    until the player picks a nation (`newCampaign` replaces it). The Thuringian campaign does the same:
    `open` sends the error after the view, and turns, battles and skips are refused until `new`.
 2. `move {armyId, path}`: `path` excludes the army's current province (max 8 steps). The army goes as
-   far as the rules allow; the call fails only if the first step is impossible.
+   far as the rules allow; the call fails only if the first step is impossible. If only this turn's
+   movement cut it short, the rest is kept: own armies carry `path` (the provinces still to go) and
+   march on at the start of each turn until it is done or the rules stop them; any new move replaces it.
 3. `movesLeft` counts provinces; armies of the player also carry `movesMax`. Army ids are strings
    (`"a12"`), so `armies` is a string-keyed table.
 4. `recruitment = { options = { [provinceId] = { {unitType, name, class, cost, manpower, turns, upkeep,
