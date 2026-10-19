@@ -406,7 +406,8 @@ local function fleetPanel(parent: Instance, ctx: Ctx, order: number)
 	local prov = Data.byId[fl.provinceId]
 	local moves = if fl.movesLeft ~= nil then string.format(" · %s/%s lanes", tostring(fl.movesLeft), tostring(fl.movesMax)) else ""
 	text(p, string.format("%s%s", tostring(if prov then prov.name else fl.provinceId), moves), 2, { colour = Kit.MUTED })
-	text(p, string.format("%s · %s", plural(tonumber(fl.line) or 0, "ship of the line"), plural(tonumber(fl.frigates) or 0, "frigate")), 3, { font = Enum.Font.SourceSansSemibold })
+	local line = tonumber(fl.line) or 0
+	text(p, string.format("%d %s · %s", line, if line == 1 then "ship of the line" else "ships of the line", plural(tonumber(fl.frigates) or 0, "frigate")), 3, { font = Enum.Font.SourceSansSemibold })
 	if fl.nation == ctx.player then
 		text(p, "Right-click a port to sail, three lanes a turn. Armies cross the sea only from a port where your fleet lies; an enemy port it lies in loses half its income.", 4, { textSize = 13, wrap = true })
 	end

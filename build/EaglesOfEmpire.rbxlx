@@ -933,6 +933,40 @@ EuropeData.SeaLanes = {
 	{ "stockholm", "eastprussia" },
 }
 
+-- The navy. Fleets lie in ports and sail port to port along these lanes (the army crossings and
+-- the coastal passages around them); an army crosses a sea lane only from a port where its side
+-- has a fleet.
+EuropeData.FleetLanes = {
+	{ "england", "ireland" }, { "england", "normandy" }, { "england", "belgium" }, { "england", "holland" },
+	{ "england", "denmark" }, { "england", "lisbon" }, { "naples", "sicily" }, { "stockholm", "denmark" },
+	{ "stockholm", "stpetersburg" }, { "stockholm", "eastprussia" },
+	{ "normandy", "aquitaine" }, { "aquitaine", "lisbon" }, { "lisbon", "andalusia" }, { "andalusia", "catalonia" },
+	{ "catalonia", "provence" }, { "provence", "naples" }, { "naples", "dalmatia" }, { "dalmatia", "venetia" },
+	{ "sicily", "constantinople" }, { "belgium", "holland" }, { "holland", "hanover" }, { "hanover", "denmark" },
+	{ "denmark", "eastprussia" }, { "eastprussia", "lithuania" }, { "lithuania", "stpetersburg" },
+}
+
+export type ShipClass = { name: string, cost: number, power: number }
+EuropeData.ShipClasses = {
+	frigate = { name = "Frigate", cost = 400, power = 1 },
+	line = { name = "Ship of the line", cost = 900, power = 3 },
+} :: { [string]: ShipClass }
+
+export type StartFleet = { nation: string, name: string, port: string, line: number, frigates: number }
+EuropeData.StartFleets = {
+	{ nation = "britain", name = "Channel Fleet", port = "england", line = 10, frigates = 6 },
+	{ nation = "britain", name = "Mediterranean Fleet", port = "lisbon", line = 8, frigates = 4 },
+	{ nation = "britain", name = "Cork Squadron", port = "ireland", line = 2, frigates = 3 },
+	{ nation = "france", name = "Brest Squadron", port = "normandy", line = 6, frigates = 3 },
+	{ nation = "france", name = "Toulon Squadron", port = "provence", line = 8, frigates = 4 },
+	{ nation = "spain", name = "Cádiz Squadron", port = "andalusia", line = 8, frigates = 3 },
+	{ nation = "netherlands", name = "Batavian Squadron", port = "holland", line = 3, frigates = 2 },
+	{ nation = "denmark", name = "Danish Fleet", port = "denmark", line = 4, frigates = 2 },
+	{ nation = "sweden", name = "Swedish Fleet", port = "stockholm", line = 3, frigates = 2 },
+	{ nation = "russia", name = "Baltic Fleet", port = "stpetersburg", line = 6, frigates = 3 },
+	{ nation = "ottoman", name = "Ottoman Fleet", port = "constantinople", line = 4, frigates = 3 },
+} :: { StartFleet }
+
 -- Water between the provinces: Voronoi sites that shape coastlines but belong to no province.
 local SEA_SITES: { Vec } = {
 	-- Atlantic, Biscay, Channel, Irish Sea, North Sea
@@ -1018,6 +1052,16 @@ end
 
 function EuropeData.isSeaLane(a: string, b: string): boolean
 	return seaLane[a .. "|" .. b] == true
+end
+
+local fleetLane: { [string]: boolean } = {}
+for _, l in EuropeData.FleetLanes do
+	fleetLane[l[1] .. "|" .. l[2]] = true
+	fleetLane[l[2] .. "|" .. l[1]] = true
+end
+
+function EuropeData.isFleetLane(a: string, b: string): boolean
+	return fleetLane[a .. "|" .. b] == true
 end
 
 -- Signed polygon area (positive = counter-clockwise with +z north).
@@ -1316,9 +1360,9 @@ EuropeData.Events = {
 		id = "trafalgar",
 		turn = T(9, 1805),
 		title = "Trafalgar",
-		text = "Nelson has destroyed the combined French and Spanish fleets off Cape Trafalgar. The Royal Navy rules the seas: no army at war with Britain can cross the water any more.",
+		text = "Nelson has destroyed the combined French and Spanish fleets off Cape Trafalgar. The Royal Navy rules the seas: without ships no French army can cross the water.",
 		condition = { { "atWar", "britain", "france" }, { "notControls", "france", "england" } },
-		effects = { { op = "flag", name = "navalSupremacy" }, { op = "relation", a = "spain", b = "france", delta = -15 } },
+		effects = { { op = "flag", name = "navalSupremacy" }, { op = "sinkFleets", nations = { "france", "spain" } }, { op = "relation", a = "spain", b = "france", delta = -15 } },
 		historical = "21 October 1805: Villeneuve's Franco-Spanish fleet was destroyed; Nelson was killed.",
 	},
 	{
@@ -1520,6 +1564,11 @@ EuropeData.Events = {
 		historical = "Paris capitulated on 31 March 1814; Napoleon abdicated at Fontainebleau on 6 April.",
 	},
 } :: { Event }
+
+EuropeData.EventById = {} :: { [string]: Event }
+for _, e in EuropeData.Events do
+	EuropeData.EventById[e.id] = e
+end
 
 -- Historical battles offered when an army battle happens in that province in that window.
 -- attacker/defender: the battle sides must contain these nations (or their allies) on opposite sides.
@@ -7493,7 +7542,7 @@ function WorldGen.tally(specs: { Spec }): { [string]: number }
 end
 
 return WorldGen
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000053"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000052"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000054"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000053"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Enemy commander. Pure Luau, deterministic: reads its own formations fully, the enemy only
 -- through sim.views[faction] (visible ids + last-known memory), randomness only via sim.rng.
 -- Orders go through sim:queueCommand with the same command kinds the player uses.
@@ -10618,7 +10667,7 @@ function Coop.vote(votes: { [number]: boolean }, userId: number, n: number, deci
 end
 
 return Coop
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign, Europe 1805–1815 (docs/campaign.md, docs/grand-campaign-contract.md). Pure Luau,
 -- deterministic through `state.rng`; no wall clock, no Roblox APIs.
 --
@@ -10638,6 +10687,7 @@ local Economy = require(script.Economy)
 local Movement = require(script.Movement)
 local Diplomacy = require(script.Diplomacy)
 local Battles = require(script.Battles)
+local Navy = require(script.Navy)
 local Events = require(script.Events)
 local AI = require(script.AI)
 local Serialize = require(script.Serialize)
@@ -10653,6 +10703,7 @@ GrandCampaign.Economy = Economy
 GrandCampaign.Movement = Movement
 GrandCampaign.Diplomacy = Diplomacy
 GrandCampaign.Battles = Battles
+GrandCampaign.Navy = Navy
 GrandCampaign.Events = Events
 GrandCampaign.AI = AI
 
@@ -10757,6 +10808,7 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 			Battles.autoResolve(s, b.battleId)
 		end
 	end
+	Navy.battles(s)
 	Battles.sieges(s)
 	for _, n in EuropeData.NationOrder do
 		Economy.run(s, n)
@@ -10769,6 +10821,9 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 	end
 	for _, ag in s.agents do
 		ag.movesLeft = State.SPY_MOVES
+	end
+	for _, f in s.fleets do
+		f.movesLeft = State.FLEET_MOVES
 	end
 	-- an army still facing a pending battle cannot march away from it
 	for _, b in s.pendingBattles do
@@ -10983,6 +11038,30 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		ag.provinceId = to :: string
 		ag.movesLeft -= hops
 		return true, nil
+	elseif kind == "moveFleet" then
+		local id = str(cmd.fleetId)
+		if not id or type(cmd.path) ~= "table" then
+			return false, "badArgs"
+		end
+		local path: { string } = {}
+		for _, p in cmd.path do
+			local step = str(p)
+			if not step then
+				return false, "badPath"
+			end
+			path[#path + 1] = step
+		end
+		return Navy.move(s, player, id, path)
+	elseif kind == "buildShip" then
+		local pid, ship = str(cmd.provinceId), str(cmd.ship)
+		if not pid or not ship then
+			return false, "badArgs"
+		end
+		local ok, why = Navy.build(s, player, pid, ship)
+		if ok then
+			State.log(s, string.format("A %s is launched at %s.", string.lower(EuropeData.ShipClasses[ship].name), State.province(pid).name))
+		end
+		return ok, why
 	elseif kind == "appoint" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -11208,6 +11287,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			owner = ps.owner,
 			occupiedBy = ps.occupiedBy,
 			siege = if ps.siege then { by = ps.siege.by, turnsLeft = ps.siege.turnsLeft } else nil,
+			blockaded = if State.province(id).isPort and State.blockaded(s, id) then true else nil,
 			unrest = Economy.unrest(s, id),
 			buildings = if ps.owner == player then State.copy(ps.buildings) else nil,
 			construction = if ps.owner == player and ps.construction then State.copy(ps.construction) else nil,
@@ -11308,6 +11388,14 @@ function GrandCampaign.view(s: State): { [string]: any }
 			odds = Battles.odds(s, b, player),
 		}
 	end
+	-- fleets of the player's side, and any in sight
+	local fleets = {}
+	for _, f in s.fleets do
+		local own = f.nation == player
+		if own or State.friendly(s, player, f.nation) or seen[f.provinceId] then
+			fleets[#fleets + 1] = { id = f.id, nation = f.nation, name = f.name, provinceId = f.provinceId, line = f.line, frigates = f.frigates, movesLeft = if own then f.movesLeft else nil, movesMax = if own then State.FLEET_MOVES else nil }
+		end
+	end
 	local agents = {}
 	for _, ag in s.agents do
 		if ag.nation == player then
@@ -11335,6 +11423,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		events = events,
 		pendingBattle = pending,
 		agents = agents,
+		fleets = fleets,
 		log = table.clone(s.log),
 		victory = State.copy(s.victory),
 		objectives = objectives(s),
@@ -11445,9 +11534,9 @@ AI.TARGET_RANGE = AI.THEATRE
 
 -- Hops from the nearest province `nation` controls (owned and not occupied, or occupied by it);
 -- sea lanes count only for Britain (the only AI that sails; it ferries armies to friendly ports and
--- never makes opposed landings) while the sea is open to it.
+-- never makes opposed landings, from ports where its fleets lie).
 local function seaAI(s: State, nation: string): boolean
-	return nation == "britain" and not Movement.seaBlocked(s, nation)
+	return nation == "britain"
 end
 
 local function theatre(s: State, nation: string): { [string]: number }
@@ -13323,7 +13412,8 @@ function Economy.provinceIncome(s: State, provinceId: string): number
 	local b = ps.buildings
 	local farms = Economy.FARMS_INCOME * (if State.hasTech(s, ps.owner, "rotation") then 2 else 1)
 	local trade = Economy.TRADE_INCOME + (if State.hasTech(s, ps.owner, "banking") then 0.05 else 0)
-	return State.province(provinceId).income * (1 + farms * (b.farms or 0) + trade * (b.trade or 0))
+	local blockade = if State.blockaded(s, provinceId) then State.BLOCKADE else 1
+	return State.province(provinceId).income * (1 + farms * (b.farms or 0) + trade * (b.trade or 0)) * blockade
 end
 
 -- The cost of a building's next level for this nation (Iron works: a fifth off).
@@ -13939,6 +14029,12 @@ function Events.apply(s: State, effects: { EuropeData.Effect })
 			Diplomacy.makePeace(s, f.a, f.b)
 		elseif op == "flag" then
 			s.flags[f.name] = if f.value == false then nil else true
+		elseif op == "sinkFleets" then
+			for i = #s.fleets, 1, -1 do
+				if table.find(f.nations, s.fleets[i].nation) then
+					table.remove(s.fleets, i)
+				end
+			end
 		elseif op == "relation" then
 			State.addRelation(s, f.a, f.b, f.delta)
 		elseif op == "treasury" then
@@ -14041,8 +14137,8 @@ return Events
 -- Entering a province costs 1, +1 inside an enemy zone of control (a neighbouring province holds
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
 -- (battle) or that a nation at war with the mover controls (siege / occupation). Sea lanes join two
--- ports, need a full allowance and use all of it; after Trafalgar no nation at war with Britain
--- may use them. Armies may enter only their own, allied or enemy (at war) provinces. Contacts are
+-- ports, need a full allowance and use all of it, and a fleet of the army's side in the port it
+-- sails from (State.escortAt). Armies may enter only their own, allied or enemy (at war) provinces. Contacts are
 -- resolved at the end of the turn, after every nation has moved: an army that shares its province
 -- with a hostile army may still march off before then (refusing battle), and that is logged.
 
@@ -14114,10 +14210,6 @@ function Movement.inZoc(s: State, nation: string, provinceId: string): boolean
 	return false
 end
 
-function Movement.seaBlocked(s: State, nation: string): boolean
-	return s.flags.navalSupremacy == true and State.atWar(s, nation, "britain")
-end
-
 -- Cost of one step for an army with `movesLeft` of `maxMoves`. Returns cost, stops, error.
 function Movement.step(s: State, nation: string, from: string, to: string, movesLeft: number, maxMoves: number): (number, boolean, string?)
 	if EuropeData.province(to) == nil or not Movement.adjacent(from, to) then
@@ -14128,8 +14220,8 @@ function Movement.step(s: State, nation: string, from: string, to: string, moves
 	end
 	local stops = State.hostileArmyIn(s, to, nation) or State.atWar(s, nation, State.controller(s, to))
 	if EuropeData.isSeaLane(from, to) then
-		if Movement.seaBlocked(s, nation) then
-			return 0, false, "navalSupremacy"
+		if not State.escortAt(s, nation, from) then
+			return 0, false, "noEscort"
 		end
 		if movesLeft < maxMoves then
 			return 0, false, "seaNeedsFullMoves"
@@ -14206,7 +14298,7 @@ function Movement.search(s: State, nation: string, from: string, sea: string?): 
 	local parent: { [string]: string } = {}
 	local queue = { from }
 	local head = 1
-	local seaOk = sea ~= "none" and not Movement.seaBlocked(s, nation)
+	local seaOk = sea ~= "none"
 	while head <= #queue do
 		local id = queue[head]
 		head += 1
@@ -14215,7 +14307,7 @@ function Movement.search(s: State, nation: string, from: string, sea: string?): 
 		if passable then
 			for _, n in State.province(id).neighbours do
 				local lane = EuropeData.isSeaLane(id, n)
-				if dist[n] == nil and Movement.canEnter(s, nation, n) and (not lane or (seaOk and (sea ~= "friendly" or State.friendly(s, nation, State.controller(s, n))))) then
+				if dist[n] == nil and Movement.canEnter(s, nation, n) and (not lane or (seaOk and State.escortAt(s, nation, id) and (sea ~= "friendly" or State.friendly(s, nation, State.controller(s, n))))) then
 					dist[n] = dist[id] + 1
 					parent[n] = id
 					queue[#queue + 1] = n
@@ -14288,7 +14380,208 @@ function Movement.relocateStrays(s: State)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">Navy</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Fleets (docs/campaign.md "Navy"): sailing port to port along EuropeData.FleetLanes, naval
+-- battles where fleets at war meet (auto-resolved at the end of the turn), and shipbuilding.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local EuropeData = require(Shared.EuropeData)
+local State = require(script.Parent.State)
+local Diplomacy = require(script.Parent.Diplomacy)
+
+type State = State.State
+type Fleet = State.Fleet
+
+local Navy = {}
+
+Navy.QUALITY = { britain = 1.5 } :: { [string]: number } -- the Royal Navy; everyone else 1
+Navy.LOSER_LOSS = { 0.4, 0.6 }
+Navy.WINNER_LOSS = { 0.1, 0.25 }
+
+function Navy.fleetById(s: State, id: string): Fleet?
+	for _, f in s.fleets do
+		if f.id == id then
+			return f
+		end
+	end
+	return nil
+end
+
+local function hostileFleetIn(s: State, provinceId: string, nation: string): boolean
+	for _, f in s.fleets do
+		if f.provinceId == provinceId and State.atWar(s, nation, f.nation) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Sails along `path` (fleet lanes, one move each); stops where an enemy fleet lies.
+function Navy.move(s: State, nation: string, fleetId: string, path: { string }): (boolean, string?)
+	local f = Navy.fleetById(s, fleetId)
+	if not f or f.nation ~= nation then
+		return false, "notYourFleet"
+	end
+	if #path == 0 or #path > State.FLEET_MOVES then
+		return false, "badPath"
+	end
+	local from = f.provinceId
+	for _, to in path do
+		if type(to) ~= "string" or not EuropeData.isFleetLane(from, to) then
+			return false, "notFleetLane"
+		end
+		from = to
+	end
+	if f.movesLeft <= 0 then
+		return false, "noMovesLeft"
+	end
+	for _, to in path do
+		if f.movesLeft <= 0 then
+			break
+		end
+		f.provinceId = to
+		f.movesLeft -= 1
+		if hostileFleetIn(s, to, nation) then
+			f.movesLeft = 0
+			break
+		end
+	end
+	return true, nil
+end
+
+local function power(fleets: { Fleet }): number
+	local p = 0
+	for _, f in fleets do
+		p += (f.line * EuropeData.ShipClasses.line.power + f.frigates * EuropeData.ShipClasses.frigate.power) * (Navy.QUALITY[f.nation] or 1)
+	end
+	return p
+end
+
+local function lose(s: State, f: Fleet, range: { number })
+	local frac = range[1] + s.rng:float() * (range[2] - range[1])
+	f.line -= math.floor(f.line * frac + 0.5)
+	f.frigates -= math.floor(f.frigates * frac + 0.5)
+end
+
+-- The nearest port (by fleet lanes) the fleet's side controls with no enemy fleet in it.
+local function haven(s: State, f: Fleet): string?
+	local seen: { [string]: boolean } = { [f.provinceId] = true }
+	local queue = { f.provinceId }
+	local head = 1
+	while head <= #queue do
+		local id = queue[head]
+		head += 1
+		for _, l in EuropeData.FleetLanes do
+			local n = if l[1] == id then l[2] elseif l[2] == id then l[1] else nil
+			if n and not seen[n] then
+				seen[n] = true
+				if State.friendly(s, f.nation, State.controller(s, n)) and not hostileFleetIn(s, n, f.nation) then
+					return n
+				end
+				queue[#queue + 1] = n
+			end
+		end
+	end
+	return nil
+end
+
+-- Every port where fleets at war lie together: one battle, A^1.5 / (A^1.5 + B^1.5).
+function Navy.battles(s: State)
+	for _, pid in EuropeData.ProvinceIds do
+		local here: { Fleet } = {}
+		for _, f in s.fleets do
+			if f.provinceId == pid then
+				here[#here + 1] = f
+			end
+		end
+		local a, b = {}, {}
+		for _, f in here do
+			if State.friendly(s, f.nation, here[1].nation) then
+				a[#a + 1] = f
+			elseif State.atWar(s, f.nation, here[1].nation) then
+				b[#b + 1] = f
+			end
+		end
+		if #b > 0 then
+			local pa, pb = power(a) ^ 1.5, power(b) ^ 1.5
+			local aWins = s.rng:float() < pa / math.max(1, pa + pb)
+			local winners, losers = if aWins then a else b, if aWins then b else a
+			local lostBefore = 0
+			for _, f in losers do
+				lostBefore += f.line + f.frigates
+				lose(s, f, Navy.LOSER_LOSS)
+			end
+			for _, f in winners do
+				lose(s, f, Navy.WINNER_LOSS)
+			end
+			local sunk = 0
+			for _, f in losers do
+				sunk += f.line + f.frigates
+				local to = haven(s, f)
+				if f.line + f.frigates > 0 and to then
+					f.provinceId = to
+					f.movesLeft = 0
+				else
+					f.line, f.frigates = 0, 0
+				end
+			end
+			for i = #s.fleets, 1, -1 do
+				local f = s.fleets[i]
+				if f.line + f.frigates <= 0 then
+					table.remove(s.fleets, i)
+				end
+			end
+			Diplomacy.addScore(s, winners[1].nation, losers[1].nation, Diplomacy.SCORE.battle)
+			State.log(s, string.format("Naval battle off %s: %s defeats %s, which loses %d of %d ships.", State.province(pid).name, State.nationName(winners[1].nation), State.nationName(losers[1].nation), lostBefore - sunk, lostBefore))
+		end
+	end
+end
+
+-- A ship for `nation` in an owned, unoccupied, unblockaded port: it joins the nation's fleet there
+-- or forms a new squadron.
+function Navy.build(s: State, nation: string, provinceId: string, ship: string): (boolean, string?)
+	local cls = EuropeData.ShipClasses[ship]
+	local p = EuropeData.province(provinceId)
+	if not cls or not p then
+		return false, "badArgs"
+	end
+	if not p.isPort then
+		return false, "notAPort"
+	end
+	local ps = s.provinces[provinceId]
+	if ps.owner ~= nation or ps.occupiedBy ~= nil then
+		return false, "notYourProvince"
+	end
+	if State.blockaded(s, provinceId) then
+		return false, "blockaded"
+	end
+	local ns = s.nations[nation]
+	if ns.treasury < cls.cost then
+		return false, "insufficientFunds"
+	end
+	ns.treasury -= cls.cost
+	local fleet: Fleet? = nil
+	for _, f in s.fleets do
+		if f.nation == nation and f.provinceId == provinceId then
+			fleet = f
+		end
+	end
+	if not fleet then
+		local nf: Fleet = { id = State.newFleetId(s), nation = nation, name = p.name .. " Squadron", provinceId = provinceId, line = 0, frigates = 0, movesLeft = 0 }
+		s.fleets[#s.fleets + 1] = nf
+		fleet = nf
+	end
+	local f = fleet :: Fleet
+	if ship == "line" then
+		f.line += 1
+	else
+		f.frigates += 1
+	end
+	return true, nil
+end
+
+return Navy
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Profile format for the grand campaign (DataStore-safe: string keys, arrays, finite numbers).
 -- `deserialize` validates everything it reads and returns nil rather than a half-valid state.
 
@@ -14303,7 +14596,7 @@ local Serialize = {}
 
 Serialize.VERSION = 1
 
-local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "agents", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
+local FIELDS = { "provinces", "nations", "relations", "wars", "alliances", "trades", "access", "agents", "fleets", "truces", "peaces", "armies", "recruitment", "flags", "fired", "inbox", "offers", "counters", "log", "pendingBattles", "appliedBattles", "usedSetPieces" }
 
 function Serialize.serialize(s: State): { [string]: any }
 	local p: { [string]: any } = {
@@ -14435,6 +14728,8 @@ function Serialize.deserialize(p: any): State?
 	p.trades = if p.trades == nil then {} else p.trades
 	p.access = if p.access == nil then {} else p.access
 	p.agents = if p.agents == nil then {} else p.agents
+	local preNavy = p.fleets == nil
+	p.fleets = if preNavy then {} else p.fleets
 	for _, f in FIELDS do
 		if type(p[f]) ~= "table" then
 			return nil
@@ -14442,6 +14737,14 @@ function Serialize.deserialize(p: any): State?
 	end
 	if #p.agents > State.SPY_MAX * #EuropeData.NationOrder then
 		return nil
+	end
+	if #p.fleets > 200 then
+		return nil
+	end
+	for _, f in p.fleets do
+		if type(f) ~= "table" or not isStr(f.id) or not nationOk(f.nation) or not isStr(f.name) or not provinceOk(f.provinceId) or not isNum(f.line) or not isNum(f.frigates) or not isNum(f.movesLeft) then
+			return nil
+		end
 	end
 	for _, ag in p.agents do
 		if type(ag) ~= "table" or not isStr(ag.id) or not nationOk(ag.nation) or not provinceOk(ag.provinceId) or not isNum(ag.movesLeft) then
@@ -14589,11 +14892,17 @@ function Serialize.deserialize(p: any): State?
 	for _, f in FIELDS do
 		s[f] = State.copy(p[f])
 	end
+	if preNavy then
+		-- a save from before the navy: the 1805 fleets, less those Trafalgar sank
+		s.fleets = {}
+		local sunk = if s.flags.navalSupremacy then { france = true, spain = true } else nil
+		State.startFleets(s :: State, sunk)
+	end
 	return s :: State
 end
 
 return Serialize
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign state: types, construction from EuropeData and the small helpers every rules
 -- module shares. Pure Luau; all randomness through `state.rng`; every loop whose order matters
 -- walks an array (NationOrder, ProvinceIds, armies by id), never `pairs` of a dictionary.
@@ -14609,6 +14918,8 @@ export type General = { name: string, rating: number, wins: number?, losses: num
 -- forced: marched hard this turn (one more province, a few men lost; it rests next turn)
 export type Army = { id: string, nation: string, name: string, general: General?, provinceId: string, units: { Unit }, movesLeft: number, path: { string }?, forced: boolean? }
 export type Siege = { by: string, turnsLeft: number }
+-- A fleet in a port: ships of the line and frigates; sails FLEET_MOVES fleet lanes a turn
+export type Fleet = { id: string, nation: string, name: string, provinceId: string, line: number, frigates: number, movesLeft: number }
 -- A spy: moves SPY_MOVES provinces a turn over any border, sees armies within SPY_SIGHT marches
 export type Agent = { id: string, nation: string, provinceId: string, movesLeft: number }
 export type Construction = { chain: string, turnsLeft: number }
@@ -14645,6 +14956,7 @@ export type State = {
 	trades: { [string]: boolean }, -- pair -> a trade agreement
 	access: { [string]: boolean }, -- "a>b" -> a's armies may march through b's land
 	agents: { Agent },
+	fleets: { Fleet },
 	truces: { [string]: number }, -- pair -> last turn of the truce
 	peaces: { [string]: Peace }, -- pair -> last peace
 	armies: { Army }, -- ascending creation order
@@ -14669,6 +14981,8 @@ State.LOG_MAX = 80
 State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
 State.APPOINT_COST = 500 -- a new general for an army that has none
+State.FLEET_MOVES = 3
+State.BLOCKADE = 0.5 -- income of a blockaded port
 State.SPY_COST = 300
 State.SPY_MAX = 3 -- spies a nation keeps at once
 State.SPY_MOVES = 2
@@ -14761,6 +15075,47 @@ end
 
 function State.allied(s: State, a: string, b: string): boolean
 	return a ~= b and s.alliances[State.pair(a, b)] == true
+end
+
+-- Fleets count on their own (army and unit ids, whose order breaks AI ties, stay as they were).
+function State.newFleetId(s: State): string
+	local n = (s.counters.fleet or 0) + 1
+	s.counters.fleet = n
+	return "f" .. n
+end
+
+-- The 1805 navies (`sunk`: nations whose fleets are gone, for saves from before the navy).
+function State.startFleets(s: State, sunk: { [string]: boolean }?)
+	for _, def in EuropeData.StartFleets do
+		if not (sunk and sunk[def.nation]) then
+			s.fleets[#s.fleets + 1] = { id = State.newFleetId(s), nation = def.nation, name = def.name, provinceId = def.port, line = def.line, frigates = def.frigates, movesLeft = State.FLEET_MOVES }
+		end
+	end
+end
+
+-- A port is blockaded while a fleet at war with its controller lies there and none of its side's.
+function State.blockaded(s: State, provinceId: string): boolean
+	local c = State.controller(s, provinceId)
+	local hostile = false
+	for _, f in s.fleets do
+		if f.provinceId == provinceId then
+			if State.friendly(s, c, f.nation) then
+				return false
+			end
+			hostile = hostile or State.atWar(s, c, f.nation)
+		end
+	end
+	return hostile
+end
+
+-- An army of `nation` may cross the sea from `provinceId`: its own or an ally's fleet lies there.
+function State.escortAt(s: State, nation: string, provinceId: string): boolean
+	for _, f in s.fleets do
+		if f.provinceId == provinceId and State.friendly(s, nation, f.nation) then
+			return true
+		end
+	end
+	return false
 end
 
 function State.agentById(s: State, id: string): Agent?
@@ -15044,6 +15399,7 @@ function State.new(seed: number, playerNation: string?): State
 		trades = {},
 		access = {},
 		agents = {},
+		fleets = {},
 		truces = {},
 		peaces = {},
 		armies = {},
@@ -15085,15 +15441,16 @@ function State.new(seed: number, playerNation: string?): State
 		local a = State.newArmy(s, def.nation, def.name, def.province, def.general)
 		State.addUnits(s, a, def.units, def.experience)
 	end
+	State.startFleets(s)
 	State.log(s, string.format("The campaign opens. You lead the %s.", State.nationName(player)))
 	return s
 end
 
 return State
-]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
 -- Server entry point.
 require(script.Parent.MatchService).start()
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Match lifecycle, co-op / PvP roles, sides and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
@@ -16089,7 +16446,7 @@ MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatc
 end }
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000036"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000037"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-player request gate: rate limiting and request-id de-duplication. Pure Luau; the
 -- caller injects real elapsed time (never the paused battle clock).
 
@@ -16154,7 +16511,7 @@ function CommandGate.forget(gate: Gate, key: any)
 end
 
 return CommandGate
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Real time → logical ticks. Speed scales the accumulator, never the step. Work per frame is
 -- bounded; sustained overload shows up as simLag instead of a giant step.
 
@@ -16211,7 +16568,7 @@ function MatchClock.advance(clock: Clock, realDt: number, step: () -> ()): numbe
 end
 
 return MatchClock
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Creates the RemoteEvents under ReplicatedStorage/EoE/Remotes (server only).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16244,7 +16601,7 @@ function Remotes.create(): { [string]: RemoteEvent }
 end
 
 return Remotes
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000038"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000039"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Versioned profile store on top of DataStoreService.UpdateAsync. Pure Luau; the DataStore
 -- service is injected so tests run in the CLI with the memory adapter.
 --
@@ -16453,7 +16810,7 @@ function ProfileStore.releaseSession(self: Store, userId: number, sessionId: str
 end
 
 return ProfileStore
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The authoritative battle simulation. Pure Luau: no Roblox APIs, no wall-clock time.
 -- Owns formations, commands, the fixed tick, visibility, objectives, victory and snapshots.
 -- Tick order is documented in docs/architecture.md and implemented in Sim:step().
@@ -17336,7 +17693,7 @@ function Sim.buildResults(self: Sim, winner: string, reason: string, viewer: str
 end
 
 return Sim
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Generals in battle: trait modifiers recomputed every tick (bounded) and the HQ's active ability.
 -- Data and plain-text descriptions live in src/shared/Generals.luau; docs/rules.md ("Generals")
 -- is the contract. Pure Luau, deterministic, no randomness.
@@ -17753,7 +18110,7 @@ function Abilities.view(sim: SimLike, f: Formation, v: any)
 end
 
 return Abilities
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Fire, artillery, melee and charge resolution. Step 6 gathers attacks from a frozen view of
 -- the tick (positions/states as they are after movement); step 7 applies them. Both sides
 -- resolve simultaneously; ordering is ascending formation id for determinism.
@@ -18327,7 +18684,7 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 end
 
 return Combat
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000041"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Map edges as a faction's "home" (where routers flee, where rallied units turn back from).
 -- A home is one of four sides, chosen as the side facing away from the enemy's deployment.
 -- Edges are identified from the home point, which always lies just beyond its edge.
@@ -18402,7 +18759,7 @@ function Edges.home(own: Point, enemy: Point?, w: number, d: number, margin: num
 end
 
 return Edges
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation records: creation from scenario definitions, footprint geometry, shape changes,
 -- legality helpers. Pure Luau; no Roblox APIs.
 
@@ -18749,7 +19106,7 @@ function Formation.frontCentre(f: Formation): Vec
 end
 
 return Formation
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Garrison</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Garrison</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Buildings (docs/rules.md "Buildings"): the heart of every village or farm (MapGen strongpoints)
 -- holds one infantry battalion. A Garrison order marches it there and, if the building is free,
 -- moves it in (shape "garrison", Config.Shapes). Any shape change away from "garrison" — a new
@@ -18854,7 +19211,7 @@ function Garrison.update(sim: SimLike)
 end
 
 return Garrison
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Evaluates the scenario's historical moments (src/shared/Moments.luau) every
 -- Moments.EveryTicks ticks, after objectives. Pure and deterministic: reads sim state only,
 -- fires each moment at most once, in list order.
@@ -19021,7 +19378,7 @@ function Moments.update(sim: any)
 end
 
 return Moments
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morale, fatigue effects, rout / rally / shatter transitions, destruction. Step 8.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -19307,7 +19664,7 @@ function Morale.hqRally(sim: SimLike, hq: Formation): (boolean, string?)
 end
 
 return Morale
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Timed transitions (shape/limber/rally/charge recovery), navigation, movement, facing,
 -- choke-point travel columns, avoidance, stuck detection and routing flight.
 -- Runs in tick steps 3 and 4. Formations are processed in ascending id order.
@@ -19779,7 +20136,7 @@ function Movement.update(sim: SimLike, f: Formation)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation navigation on a coarse grid derived from the terrain grid.
 -- Nodes are Config.Map.NavCellSize studs; a node is walkable when its clearance allows at
 -- least a travel column (half-width 8). Cost = distance / infantry terrain speed.
@@ -20101,7 +20458,7 @@ function Nav.segmentMinClearance(nav: NavGrid, a: Vec, b: Vec): number
 end
 
 return Nav
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Objective capture (step 9) and the single victory evaluator (step 10).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -20326,7 +20683,7 @@ function Objectives.evaluate(sim: SimLike): (string?, string?)
 end
 
 return Objectives
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-faction visibility: which enemy formations are currently seen, and last-known memory.
 -- Recomputed every Config.Sim.VisibilityEveryTicks ticks (step 5). The AI and the snapshot
 -- filter both read this; nothing else decides what a faction knows.
@@ -20465,7 +20822,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">World</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">World</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Builds the battlefield once per map on the server: terrain voxels and the structure tier of
 -- WorldGen's props (ground, fields, bridges, houses, trees, walls, hedges) under
 -- workspace.EoEWorld, which replicates to every client. The root folder carries attributes:
@@ -20597,7 +20954,7 @@ function World.clear()
 end
 
 return World
-]]></ProtectedString></Properties></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000102"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000101"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000100"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000103"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000102"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000101"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The audio layer: a mixer of buses (master → sfx / music / ambience / ui, each a SoundGroup
 -- bound live to Settings), positional one-shots anchored at the event with a roll-off scaled
 -- by camera height (loud and crisp from low, quieter and muffled from high), per-key cooldowns
@@ -21123,7 +21480,7 @@ function Audio.destroy()
 end
 
 return Audio
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side mirror of the match: merged snapshot data, pending orders, match metadata.
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
@@ -21562,7 +21919,7 @@ function BattleState.validateContext(): any
 end
 
 return BattleState
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scriptable RTS camera: bounded pan, rotate, zoom, pitch; never clips into hills.
 -- Height is measured above the terrain under the focus point.
 
@@ -21988,7 +22345,7 @@ function Camera.destroy()
 end
 
 return Camera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign client: the server's grandView is the only state. Owns the board, the
 -- camera, the panels and the board input while open; `close()` removes all of it (Main calls
 -- it on every lifecycle change) and `request()` asks for the view again (menu, back from battle).
@@ -22018,6 +22375,7 @@ local ours: { [string]: boolean } = {}
 local conns: { RBXScriptConnection } = {}
 local selArmy: any = nil
 local selSpy: any = nil
+local selFleet: any = nil
 local selProv: string? = nil
 local hoverProv: string? = nil
 local lastTurn: number? = nil
@@ -22039,6 +22397,15 @@ end
 
 local function armyById(id: any): any
 	return Logic.army(view, id)
+end
+
+local function fleetById(id: any): any
+	for _, f in (view and view.fleets) or {} do
+		if f.id == id then
+			return f
+		end
+	end
+	return nil
 end
 
 local function spyById(id: any): any
@@ -22082,8 +22449,12 @@ local function render()
 	if not spy then
 		selSpy = nil
 	end
-	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, province = selProv, others = others, canAct = ok, actReason = why })
-	Board.setSelection(selArmy or selSpy, selProv, if own and ok then Logic.reachable(view, a) else nil)
+	local fleet = fleetById(selFleet)
+	if not fleet then
+		selFleet = nil
+	end
+	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, fleet = fleet, province = selProv, others = others, canAct = ok, actReason = why })
+	Board.setSelection(selArmy or selSpy or selFleet, selProv, if own and ok then Logic.reachable(view, a) else nil)
 	local path = nil
 	if own and ok then
 		path = if hoverProv then route(a, hoverProv) else nil
@@ -22098,7 +22469,7 @@ local function render()
 end
 
 local function select(armyId: any, provId: string?)
-	selArmy, selSpy, selProv, hoverProv = armyId, nil, provId, nil
+	selArmy, selSpy, selFleet, selProv, hoverProv = armyId, nil, nil, provId, nil
 	render()
 end
 
@@ -22116,7 +22487,7 @@ local function onInput(input: InputObject, gp: boolean)
 			end
 		elseif input.KeyCode == Enum.KeyCode.Escape then
 			if not UI.escape() then
-				selArmy, selSpy, selProv = nil, nil, nil
+				selArmy, selSpy, selFleet, selProv = nil, nil, nil, nil
 			end
 			render()
 		end
@@ -22130,6 +22501,11 @@ local function onInput(input: InputObject, gp: boolean)
 			select(nil, if ag then ag.provinceId else nil)
 			selSpy = id
 			render()
+		elseif kind == "fleet" then
+			local fl = fleetById(id)
+			select(nil, if fl then fl.provinceId else nil)
+			selFleet = id
+			render()
 		elseif kind == "province" then
 			select(nil, id)
 		else
@@ -22138,6 +22514,22 @@ local function onInput(input: InputObject, gp: boolean)
 	elseif t == Enum.UserInputType.MouseButton2 then
 		local a = armyById(selArmy)
 		local kind, id = Board.pick()
+		local fleet = fleetById(selFleet)
+		if fleet and fleet.nation == player() and canAct() then
+			-- a fleet sails port to port along the fleet lanes
+			local target = if kind == "province" then id elseif kind == "fleet" then (fleetById(id) or {}).provinceId else nil
+			if target and target ~= fleet.provinceId then
+				local r = Logic.fleetRoute(fleet, target)
+				if not r then
+					UI.toast("Ships cannot sail there")
+				elseif #r > (tonumber(fleet.movesLeft) or 0) then
+					UI.toast("Too far for this turn")
+				else
+					send("moveFleet", { fleetId = fleet.id, path = r })
+				end
+			end
+			return
+		end
 		local spy = spyById(selSpy)
 		if spy and canAct() then
 			-- a spy goes where it is sent, over any border, within its marches
@@ -22296,11 +22688,11 @@ function Grand.close()
 	CampaignCamera.stop()
 	UI.destroy()
 	Board.destroy()
-	selArmy, selSpy, selProv, hoverProv = nil, nil, nil, nil
+	selArmy, selSpy, selFleet, selProv, hoverProv = nil, nil, nil, nil, nil
 end
 
 return Grand
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign tabletop: Europe as a painted relief board on a walnut table, far from the
 -- battlefield. Static geometry (land, sea, mountains, towns, forts, piers, names) builds once;
 -- owner colours, borders, occupation hatching, armies, highlights and the path preview follow
@@ -22345,6 +22737,7 @@ local baseColour: { [string]: Color3 } = {}
 type Edge = { a: { x: number, z: number }, b: { x: number, z: number }, provs: { string } }
 local edges: { [string]: Edge } = {}
 local armyModels: { [any]: Model } = {}
+local moorings: { [string]: { at: Vector3, dir: Vector3 } } = {} -- each port's pier: where its fleets lie
 local highlight: Highlight? = nil
 type Label = { part: BasePart, base: number, at: Vector3 }
 local labels: { Label } = {}
@@ -22692,7 +23085,9 @@ function Board.build()
 			if best then
 				local m = Board.toWorld((best.a.x + best.b.x) / 2, (best.a.z + best.b.z) / 2)
 				local out = m - Board.toWorld(p.centre.x, p.centre.z)
-				pier(statics, m, Vector3.new(out.X, 0, out.Z).Unit)
+				local dir = Vector3.new(out.X, 0, out.Z).Unit
+				pier(statics, m, dir)
+				moorings[p.id] = { at = m, dir = dir }
 			end
 		end
 	end
@@ -22820,6 +23215,41 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	return m
 end
 
+-- A fleet: a two-decker under sail flying its nation's colours, with a "line · frigates" plate.
+-- Drawn broadside to the board camera (which looks north), sails square to it, like a map token.
+local function shipFigure(parent: Instance, fl: any, pos: Vector3): Model
+	local m = Instance.new("Model") :: Model
+	m.Name = "Fleet"
+	m:SetAttribute("fleet", fl.id)
+	local function piece(size: Vector3, offset: Vector3, colour: Color3, material: EnumMaterial?): Part
+		local p = part(m, size, CFrame.new(pos + offset), colour, material)
+		p.CanQuery = true
+		return p
+	end
+	local hull = piece(Vector3.new(9, 1.6, 3), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+	piece(Vector3.new(9.05, 0.35, 3.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
+	piece(Vector3.new(2, 1.2, 2.4), Vector3.new(3.6, 1.8, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+	for _, x in { -2.4, 1 } do
+		piece(Vector3.new(0.35, 7, 0.35), Vector3.new(x, 4.8, 0), Color3.fromRGB(60, 44, 30))
+		piece(Vector3.new(3.4, 3.6, 0.2), Vector3.new(x, 5.2, 0.3), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+	end
+	piece(Vector3.new(1.6, 1, 0.15), Vector3.new(-1.6, 8.6, 0), Data.colour(fl.nation))
+	local bb = Instance.new("BillboardGui") :: BillboardGui
+	bb.Size = UDim2.new(6, 52, 1.2, 14)
+	bb.StudsOffset = Vector3.new(0, 1.5, 0) -- above the waterline, or the sea hides it
+	bb.LightInfluence = 0
+	bb.Adornee = hull
+	bb.Parent = m
+	local plate = Kit.label(bb, string.format("%d · %d", math.floor(tonumber(fl.line) or 0), math.floor(tonumber(fl.frigates) or 0)), { size = UDim2.fromScale(1, 1), textSize = 13, font = Enum.Font.Garamond, align = Enum.TextXAlignment.Center, colour = Kit.IVORY })
+	plate.TextScaled = true
+	plate.BackgroundTransparency = 0.1
+	plate.BackgroundColor3 = Color3.fromRGB(36, 52, 74)
+	m.WorldPivot = CFrame.new(pos)
+	m:ScaleTo(FIG)
+	m.Parent = parent
+	return m
+end
+
 -- The player's spy: a cloaked figure on a small plinth (picked as "spy").
 local function spyFigure(parent: Instance, ag: any, pos: Vector3): Model
 	local m = Instance.new("Model") :: Model
@@ -22893,6 +23323,17 @@ function Board.setView(view: any?)
 				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
 				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
 			end
+		end
+	end
+	local inPort: { [string]: number } = {}
+	for _, fl in view.fleets or {} do
+		local moor = moorings[fl.provinceId]
+		if moor then
+			local n = inPort[fl.provinceId] or 0
+			inPort[fl.provinceId] = n + 1
+			local side = Vector3.new(-moor.dir.Z, 0, moor.dir.X)
+			local at = Vector3.new(moor.at.X, ORIGIN.Y + SEA_Y, moor.at.Z) + moor.dir * 16 + side * (n * 16 * FIG)
+			armyModels[fl.id] = shipFigure(d, fl, at)
 		end
 	end
 	for _, ag in view.agents or {} do
@@ -23006,6 +23447,10 @@ function Board.pick(): (string?, any)
 		if sp ~= nil then
 			return "spy", sp
 		end
+		local fl = inst:GetAttribute("fleet")
+		if fl ~= nil then
+			return "fleet", fl
+		end
 		local p = inst:GetAttribute("prov")
 		if p ~= nil then
 			return "province", p
@@ -23043,7 +23488,7 @@ function Board.updateLabels(cameraHeight: number)
 end
 
 return Board
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Board camera: orbit (middle drag), pan (WASD / arrows), zoom (wheel), clamped to the board
 -- and smoothed. Runs after the battlefield camera in the render step, so it owns the view
 -- while the campaign is open; the battlefield camera is told to ignore its keys meanwhile.
@@ -23181,7 +23626,7 @@ function CampaignCamera.stop()
 end
 
 return CampaignCamera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign panels in the Kit style: top bar, selected army and province (left),
 -- diplomacy (right) and the documents on top: event dispatches, the battle dialog, the
 -- turn summary, victory/defeat and the choice of nation. Rebuilt from the view on each
@@ -23205,6 +23650,7 @@ export type Ctx = {
 	sessionOnly: boolean,
 	army: any?, -- selected army
 	spy: any?, -- selected spy (view.agents)
+	fleet: any?, -- selected fleet (view.fleets)
 	province: string?, -- selected province
 	others: { any }, -- the player's other armies in the selected army's province
 	canAct: boolean,
@@ -23575,6 +24021,26 @@ local function spyPanel(parent: Instance, ctx: Ctx, order: number)
 	Kit.setEnabled(sb, why == nil, why)
 end
 
+local function fleetPanel(parent: Instance, ctx: Ctx, order: number)
+	local fl = ctx.fleet
+	if not fl then
+		return
+	end
+	local p = panel(parent, order)
+	local head = row(p, 1, 30)
+	flag(head, fl.nation, 30, 20, UDim2.fromOffset(0, 2))
+	local t = Kit.title(head, tostring(fl.name), { size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 22, caps = false })
+	t.TextTruncate = Enum.TextTruncate.AtEnd
+	local prov = Data.byId[fl.provinceId]
+	local moves = if fl.movesLeft ~= nil then string.format(" · %s/%s lanes", tostring(fl.movesLeft), tostring(fl.movesMax)) else ""
+	text(p, string.format("%s%s", tostring(if prov then prov.name else fl.provinceId), moves), 2, { colour = Kit.MUTED })
+	local line = tonumber(fl.line) or 0
+	text(p, string.format("%d %s · %s", line, if line == 1 then "ship of the line" else "ships of the line", plural(tonumber(fl.frigates) or 0, "frigate")), 3, { font = Enum.Font.SourceSansSemibold })
+	if fl.nation == ctx.player then
+		text(p, "Right-click a port to sail, three lanes a turn. Armies cross the sea only from a port where your fleet lies; an enemy port it lies in loses half its income.", 4, { textSize = 13, wrap = true })
+	end
+end
+
 local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	local id = ctx.province
 	local p = if id then Data.byId[id] else nil
@@ -23606,6 +24072,9 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	elseif ps.unrest and ps.unrest > 0 then
 		text(panelF, string.format("Unrest %s%s", tostring(ps.unrest), if ps.unrest >= 3 then " · income cut by a quarter" else ""), 5, { colour = Kit.HOSTILE })
 	end
+	if ps.blockaded then
+		text(panelF, "Blockaded by an enemy fleet: the port earns half its income.", 6, { colour = Kit.HOSTILE, wrap = true })
+	end
 	local siege = ps.siege
 	if type(siege) == "table" then
 		text(panelF, string.format("Besieged by %s: falls in %s unless relieved.", Data.name(siege.by), plural(tonumber(siege.turnsLeft) or 0, "turn")), 6, { colour = Kit.HOSTILE })
@@ -23630,7 +24099,17 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 			end
 		end
 		text(panelF, if #have > 0 then table.concat(have, " · ") else "No buildings", 7, { textSize = 13, colour = Kit.MUTED, wrap = true })
-		local spyB = Kit.button(buttonRow(panelF, 9, 26), "Recruit spy · 300", function()
+		if p.isPort then
+			local shipRow = buttonRow(panelF, 9, 26)
+			for _, ship in { "frigate", "line" } do
+				local cls = Data.Europe.ShipClasses[ship]
+				local sb = Kit.button(shipRow, string.format("%s · %s", cls.name, fmt(cls.cost)), function()
+					send("buildShip", { provinceId = id, ship = ship })
+				end, { size = UDim2.new(0.5, -3, 1, 0), textSize = 12, caps = false, tooltip = "Launch it here: it joins your fleet in this port" })
+				Kit.setEnabled(sb, ctx.canAct and not ps.blockaded, if not ctx.canAct then ctx.actReason else "The port is blockaded")
+			end
+		end
+		local spyB = Kit.button(buttonRow(panelF, 10, 26), "Recruit spy · 300", function()
 			send("recruitSpy", { provinceId = id })
 		end, { size = UDim2.new(1, 0, 1, 0), textSize = 12, caps = false, tooltip = "A spy sees armies within two marches and can sabotage a siege" })
 		local hasGov = (tonumber(ps.buildings.government) or 0) >= 1
@@ -23666,7 +24145,7 @@ local function provincePanel(parent: Instance, ctx: Ctx, order: number)
 	-- recruitment queue and options
 	local rec = view.recruitment or {}
 	local queued = 0
-	local q = column(panelF, 10)
+	local q = column(panelF, 11)
 	for _, e in rec.queue or {} do
 		if type(e) == "table" and e.provinceId == id then
 			queued += 1
@@ -24040,6 +24519,7 @@ function UI.render(ctx: Ctx)
 	local leftList = Kit.list(left, 10)
 	armyPanel(left, ctx, 1)
 	spyPanel(left, ctx, 1)
+	fleetPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
 	-- only as tall as its panels: below them the map takes the clicks
 	local function fitLeft()
@@ -24159,7 +24639,7 @@ function UI.destroy()
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign static data (shared EuropeData) and the nation look-ups the board and panels
 -- share: colour, name, flag.
 
@@ -24213,7 +24693,7 @@ function Data.flag(nation: string?): Factions.Flag
 end
 
 return Data
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure grand-campaign view logic (no Roblox types, so tests run it in the Luau CLI): who may act,
 -- march routes mirroring the server's Movement rules, reachable provinces, readable reasons,
 -- the turn summary and offer terms.
@@ -24236,6 +24716,11 @@ Logic.REASONS = {
 	badPath = "No road leads there",
 	seaNeedsFullMoves = "A sea crossing needs the army's full movement",
 	navalSupremacy = "The Royal Navy holds the seas against you",
+	noEscort = "No fleet of yours lies in that port to carry the army",
+	notYourFleet = "That is not your fleet",
+	notFleetLane = "Ships cannot sail there",
+	notAPort = "Ships are built in ports",
+	blockaded = "The port is blockaded",
 	insufficientFunds = "Not enough treasury",
 	insufficientManpower = "Not enough manpower",
 	queueFull = "The recruitment queue is full",
@@ -24372,8 +24857,14 @@ local function inZoc(view: any, id: string): boolean
 	return false
 end
 
-local function seaBlocked(view: any): boolean
-	return view.flags ~= nil and view.flags.navalSupremacy == true and Logic.atWar(view, "britain")
+-- Same rule as the server: an army sails only from a port where its side has a fleet.
+local function escortAt(view: any, id: string): boolean
+	for _, f in view.fleets or {} do
+		if f.provinceId == id and friendly(view, f.nation) then
+			return true
+		end
+	end
+	return false
 end
 
 -- Shortest march for army `a` to `goal` as board steps (turn numbers from movement points;
@@ -24387,7 +24878,6 @@ function Logic.route(view: any, a: any, goal: string): { Step }?
 	local seen: { [string]: boolean } = { [start] = true }
 	local queue = { start }
 	local head = 1
-	local seaOk = not seaBlocked(view)
 	while head <= #queue do
 		local id = queue[head]
 		head += 1
@@ -24396,7 +24886,7 @@ function Logic.route(view: any, a: any, goal: string): { Step }?
 		end
 		if id == start or not stops(view, id) then
 			for _, n in (EuropeData.province(id) :: any).neighbours do
-				if not seen[n] and canEnter(view, n) and (seaOk or not EuropeData.isSeaLane(id, n)) then
+				if not seen[n] and canEnter(view, n) and (not EuropeData.isSeaLane(id, n) or escortAt(view, id)) then
 					seen[n] = true
 					parent[n] = id
 					table.insert(queue, n)
@@ -24431,6 +24921,37 @@ function Logic.route(view: any, a: any, goal: string): { Step }?
 		from = id
 	end
 	return steps
+end
+
+-- Shortest sailing from a fleet's port to `goal` over the fleet lanes (ids after the start), or nil.
+function Logic.fleetRoute(fleet: any, goal: string): { string }?
+	local start = fleet.provinceId
+	local parent: { [string]: string } = {}
+	local seen: { [string]: boolean } = { [start] = true }
+	local queue = { start }
+	local head = 1
+	while head <= #queue do
+		local id = queue[head]
+		head += 1
+		for _, l in EuropeData.FleetLanes do
+			local n = if l[1] == id then l[2] elseif l[2] == id then l[1] else nil
+			if n and not seen[n] then
+				seen[n] = true
+				parent[n] = id
+				table.insert(queue, n)
+			end
+		end
+	end
+	if goal == start or not seen[goal] then
+		return nil
+	end
+	local ids: { string } = {}
+	local c: string = goal
+	while c ~= start do
+		table.insert(ids, 1, c)
+		c = parent[c]
+	end
+	return ids
 end
 
 function Logic.reachable(view: any, a: any): { [string]: boolean }
@@ -24520,7 +25041,7 @@ function Logic.offerText(o: any): string
 end
 
 return Logic
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
 -- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
 -- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~6 s.
@@ -24691,7 +25212,7 @@ function Cinematic.clear()
 end
 
 return Cinematic
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pooled one-shot visual effects driven by snapshot events (plus a cavalry dust trail read from
 -- formation state). Smoke and dust are soft translucent particles (built-in smoke texture, no
 -- asset ids) burst from a small round-robin pool of emitter parts; flashes, earth spray and rout
@@ -25164,7 +25685,7 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
 -- unit `colour` override, else the faction), display names and marker-flag designs.
 
@@ -25262,7 +25783,7 @@ function Factions.slabDarken(faction: string?): number
 end
 
 return Factions
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
@@ -26871,7 +27392,7 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Ground</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Ground</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Rendered-ground sampler for everything cosmetic (figures, bodies, rings, ghosts, smoke).
 -- The sim's heightmap (`Grid.heightAt`) is an approximation of the voxel terrain; the
 -- figures must stand on what is actually drawn, so this casts rays down onto
@@ -27032,7 +27553,7 @@ end
 Ground.CLEARANCE = CLEARANCE
 
 return Ground
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -28091,7 +28612,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, readies the world per map (the
 -- server builds it; the client adds its detail tier and waits for replication and terrain
 -- meshing), wires the modules together and drives the match lifecycle from MatchState messages.
@@ -28683,7 +29204,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -28827,7 +29348,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -28978,7 +29499,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
@@ -29067,7 +29588,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -29111,7 +29632,7 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Touch mode, pure: detection, gesture phases and the UI scale (docs/mobile-contract.md).
 -- No Roblox calls here so the spec can run headless; Settings.touch() feeds the device in.
 
@@ -29161,7 +29682,7 @@ function Touch.scale(viewportX: number, viewportY: number, touch: boolean): numb
 end
 
 return Touch
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -29567,7 +30088,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000093"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000094"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: Quick battles (each battle a framed painting header over its two episode
 -- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
@@ -29900,7 +30421,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -30592,7 +31113,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -31346,7 +31867,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -31594,7 +32115,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -31679,7 +32200,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -32834,7 +33355,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -32944,7 +33465,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents: aged post, tea-stained at the edges with
@@ -34019,7 +34540,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
 -- What the client saw of its own army during one battle, for the results report: one record per
 -- own formation (start, last strength, final status) and counts of squares, charges, routs,
 -- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
@@ -34171,7 +34692,7 @@ function Ledger.counts(): Counts
 end
 
 return Ledger
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (world replication + terrain settle).
 -- Fades out rather than cutting, so the first frame of the field is never a pop.
 
@@ -34292,7 +34813,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -34451,7 +34972,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -34719,7 +35240,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Radial order wheel for touch (docs/mobile-contract.md): eight brass plaques around a gilt
 -- ring under the finger that held a selected unit. Slide onto a plaque and lift to pick it.
 -- Positions come in screen pixels; the screen carries Kit's UIScale, so they are divided out.
@@ -34881,7 +35402,7 @@ function OrderWheel.destroy()
 end
 
 return OrderWheel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000090"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Where the stains fall on an aged sheet. Pure numbers (no Roblox types) so the headless spec
 -- can check it: every mark lies inside the unit square, and the same seed gives the same sheet.
 
@@ -34933,7 +35454,7 @@ function PaperLayout.sheet(seed: number): Sheet
 end
 
 return PaperLayout
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000090"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -35288,7 +35809,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000092"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, typeface, place names, AI difficulty.
 -- Applies live via Settings.
 
@@ -35487,7 +36008,7 @@ Settings.changed:Connect(function(key: string)
 end)
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000092"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000093"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -35657,7 +36178,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000099"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000094"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000100"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000095"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battlefield light, graded like a painted campaign map: a warm late-afternoon sun by default,
 -- a pale morning fog that lifts into clear sun (the Sun of Austerlitz), and a soft wet overcast
 -- for rain and mud (Waterloo). Built-in sky and post effects only (no asset ids).
@@ -36121,7 +36642,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000095"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000096"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side props. The structure (trees, houses, bridges, walls, hedges, ground) is built
 -- by the server from WorldGen and replicates under workspace.EoEWorld; this module adds the
 -- detail tier for this client (hearth smoke, valley fog) from the same WorldGen, plus ground
@@ -36564,7 +37085,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000096"><Properties><bool name="Disabled">false</bool><string name="Name">Ready</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000097"><Properties><bool name="Disabled">false</bool><string name="Name">Ready</string><ProtectedString name="Source"><![CDATA[--!strict
 -- World readiness gate. The loading screen stays up until (i) the server's world folder has
 -- replicated (part count against its WorldReady attribute), (ii) terrain meshing has settled
 -- (a grid of raycasts hits terrain three checks running) and (iii) two consecutive frames
@@ -36701,7 +37222,7 @@ function Ready.wait(mapId: string, map: any, alive: () -> boolean, onProgress: (
 end
 
 return Ready
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000097"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000098"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -37702,7 +38223,7 @@ function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, see
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000098"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000099"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client side of the terrain: the voxels, palette and pick planes are built by the server
 -- (src/server/World.luau) and replicate; this keeps only the per-client bits.
 
@@ -37722,4 +38243,4 @@ function Terrain.pickPlane(): Instance?
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000103"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000104"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000105"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000104"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000105"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000106"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item></roblox>

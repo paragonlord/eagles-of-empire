@@ -902,6 +902,27 @@ EoE errors or warnings.
 - Harness note: Escape in Play opens Roblox's own menu, which eats clicks until a second Escape.
 - Not seen yet: sabotage inside a besieged fortress (covered by `tests/grand.spec.luau`).
 
+**2026-10-19 round 36 (Phase 10: the navy), synced through the Studio MCP.** No EoE errors or
+warnings. Played as Britain.
+- Pass: every 1805 fleet lies off its port's pier: Channel Fleet (England), Cork Squadron (Ireland),
+  the Batavian Squadron (Holland), the Brest Squadron (Normandy), the Danes (`r36-fleet-tokens.jpg`).
+  Clicking the Channel Fleet opens its panel ("England & Scotland · 3/3 lanes, 10 ships of the line ·
+  6 frigates", how sailing and blockades work); the England panel offers "Frigate · 400" and
+  "Ship of the line · 900" (`r36-fleet-panel.jpg`).
+- Pass: a right-click on Holland sails the fleet there (0/3 lanes). At the turn's end: "Naval
+  battle off Holland: United Kingdom defeats Batavian Republic, which loses 2 of 5 ships"; the
+  Channel Fleet is down to 8 + 5, the Dutch survivors fall back to Belgium
+  (`r36-naval-battle-holland.jpg`), and Holland reads "Blockaded by an enemy fleet: the port earns
+  half its income" (`r36-holland-blockaded.jpg`).
+- Fixed: the ship plates sat below the waterline (the sea hid them) and the sails were set
+  fore-and-aft along the coast, so the camera saw them edge-on. Ships are now drawn broadside to
+  the board camera with square sails, like the army figures, and the plate rides above the hull.
+- Fixed: "10 ship of the lines" reads "10 ships of the line".
+- Small: the sails face away from the board's sun and read grey rather than white; a ship mesh
+  (Bartosz's asset list) would do better than parts.
+- Not seen yet: an escorted landing, a fleet built in port, Trafalgar removing the French and
+  Spanish fleets (all covered by `tests/grand.spec.luau`).
+
 ## Known failures
 
 None recorded yet.

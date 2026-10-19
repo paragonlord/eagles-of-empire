@@ -522,27 +522,27 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 end
 
 -- A fleet: a two-decker under sail flying its nation's colours, with a "line · frigates" plate.
-local function shipFigure(parent: Instance, fl: any, pos: Vector3, dir: Vector3): Model
+-- Drawn broadside to the board camera (which looks north), sails square to it, like a map token.
+local function shipFigure(parent: Instance, fl: any, pos: Vector3): Model
 	local m = Instance.new("Model") :: Model
 	m.Name = "Fleet"
 	m:SetAttribute("fleet", fl.id)
-	local face = CFrame.lookAt(pos, pos + Vector3.new(-dir.Z, 0, dir.X)) -- broadside to the shore
 	local function piece(size: Vector3, offset: Vector3, colour: Color3, material: EnumMaterial?): Part
-		local p = part(m, size, face * CFrame.new(offset), colour, material)
+		local p = part(m, size, CFrame.new(pos + offset), colour, material)
 		p.CanQuery = true
 		return p
 	end
-	local hull = piece(Vector3.new(3, 1.6, 9), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
-	piece(Vector3.new(3.05, 0.35, 9.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
-	piece(Vector3.new(2.4, 1.2, 2), Vector3.new(0, 1.8, 3.6), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
-	for _, z in { -2.4, 1 } do
-		piece(Vector3.new(0.35, 7, 0.35), Vector3.new(0, 4.8, z), Color3.fromRGB(60, 44, 30))
-		piece(Vector3.new(0.2, 3.6, 3.4), Vector3.new(0, 5.2, z), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+	local hull = piece(Vector3.new(9, 1.6, 3), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+	piece(Vector3.new(9.05, 0.35, 3.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
+	piece(Vector3.new(2, 1.2, 2.4), Vector3.new(3.6, 1.8, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+	for _, x in { -2.4, 1 } do
+		piece(Vector3.new(0.35, 7, 0.35), Vector3.new(x, 4.8, 0), Color3.fromRGB(60, 44, 30))
+		piece(Vector3.new(3.4, 3.6, 0.2), Vector3.new(x, 5.2, 0.3), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
 	end
-	piece(Vector3.new(0.15, 1, 1.6), Vector3.new(0, 8.6, -2.4), Data.colour(fl.nation))
+	piece(Vector3.new(1.6, 1, 0.15), Vector3.new(-1.6, 8.6, 0), Data.colour(fl.nation))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
 	bb.Size = UDim2.new(6, 52, 1.2, 14)
-	bb.StudsOffset = Vector3.new(0, -2.4, 0)
+	bb.StudsOffset = Vector3.new(0, 1.5, 0) -- above the waterline, or the sea hides it
 	bb.LightInfluence = 0
 	bb.Adornee = hull
 	bb.Parent = m
@@ -639,7 +639,7 @@ function Board.setView(view: any?)
 			inPort[fl.provinceId] = n + 1
 			local side = Vector3.new(-moor.dir.Z, 0, moor.dir.X)
 			local at = Vector3.new(moor.at.X, ORIGIN.Y + SEA_Y, moor.at.Z) + moor.dir * 16 + side * (n * 16 * FIG)
-			armyModels[fl.id] = shipFigure(d, fl, at, moor.dir)
+			armyModels[fl.id] = shipFigure(d, fl, at)
 		end
 	end
 	for _, ag in view.agents or {} do

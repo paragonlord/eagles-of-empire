@@ -4,11 +4,11 @@ Resume from here; do not recap. Updated 2026-10-19.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 91 files, 206 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 92 files, 209 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
-- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–9 done, next
-  Phase 10: the navy).
+- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–10 done, next
+  Phase 11: modes and presentation).
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
@@ -23,8 +23,9 @@ Resume from here; do not recap. Updated 2026-10-19.
   campaign: kept march routes, unreadable saves kept, buildings, taxes and revolts, gradual
   refill and winter attrition, a research tree, national rosters, a battle map per province,
   reinforcing armies, forced march, general careers and appointments, siege assaults, trade
-  agreements, military access, gifts, spies.
-- Studio QA log: `docs/qa.md` (rounds 1–35). Balance table: `docs/balance.md`.
+  agreements, military access, gifts, spies, a navy (fleets, escorts, naval battles, blockades,
+  shipbuilding; Trafalgar sinks the Franco-Spanish fleets).
+- Studio QA log: `docs/qa.md` (rounds 1–36). Balance table: `docs/balance.md`.
 
 ## Workflow
 
