@@ -78,6 +78,7 @@ State.APPLIED_MAX = 64
 State.MAX_UNITS = 20 -- per army
 State.APPOINT_COST = 500 -- a new general for an army that has none
 State.FLEET_MOVES = 3
+State.BLOCKADE = 0.5 -- income of a blockaded port
 State.SPY_COST = 300
 State.SPY_MAX = 3 -- spies a nation keeps at once
 State.SPY_MOVES = 2
@@ -186,6 +187,21 @@ function State.startFleets(s: State, sunk: { [string]: boolean }?)
 			s.fleets[#s.fleets + 1] = { id = State.newFleetId(s), nation = def.nation, name = def.name, provinceId = def.port, line = def.line, frigates = def.frigates, movesLeft = State.FLEET_MOVES }
 		end
 	end
+end
+
+-- A port is blockaded while a fleet at war with its controller lies there and none of its side's.
+function State.blockaded(s: State, provinceId: string): boolean
+	local c = State.controller(s, provinceId)
+	local hostile = false
+	for _, f in s.fleets do
+		if f.provinceId == provinceId then
+			if State.friendly(s, c, f.nation) then
+				return false
+			end
+			hostile = hostile or State.atWar(s, c, f.nation)
+		end
+	end
+	return hostile
 end
 
 -- An army of `nation` may cross the sea from `provinceId`: its own or an ally's fleet lies there.

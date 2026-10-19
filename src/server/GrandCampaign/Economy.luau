@@ -63,7 +63,8 @@ function Economy.provinceIncome(s: State, provinceId: string): number
 	local b = ps.buildings
 	local farms = Economy.FARMS_INCOME * (if State.hasTech(s, ps.owner, "rotation") then 2 else 1)
 	local trade = Economy.TRADE_INCOME + (if State.hasTech(s, ps.owner, "banking") then 0.05 else 0)
-	return State.province(provinceId).income * (1 + farms * (b.farms or 0) + trade * (b.trade or 0))
+	local blockade = if State.blockaded(s, provinceId) then State.BLOCKADE else 1
+	return State.province(provinceId).income * (1 + farms * (b.farms or 0) + trade * (b.trade or 0)) * blockade
 end
 
 -- The cost of a building's next level for this nation (Iron works: a fifth off).

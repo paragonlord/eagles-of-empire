@@ -582,6 +582,74 @@ test("Grand navy: fleets in port carry armies over the sea; Trafalgar sinks the 
 	assertTrue(#old.fleets > 0 and french == 0)
 end)
 
+test("Grand navy: fleets sail port to port, fight when enemies meet, blockade ports, are built in ports", function()
+	local s = empty(24, "britain")
+	table.clear(s.fleets)
+	local function fleet(nation, port, line, frigates)
+		local f = { id = State.newFleetId(s), nation = nation, name = nation .. " test fleet", provinceId = port, line = line, frigates = frigates, movesLeft = State.FLEET_MOVES }
+		table.insert(s.fleets, f)
+		return f
+	end
+	local home = fleet("britain", "england", 10, 4)
+	-- sailing: along fleet lanes, three a turn, over any border
+	local ok, why = GrandCampaign.command(s, { kind = "moveFleet", fleetId = home.id, path = { "paris" } })
+	assertTrue(not ok and why == "notFleetLane")
+	assertTrue(GrandCampaign.command(s, { kind = "moveFleet", fleetId = home.id, path = { "normandy", "aquitaine", "lisbon" } }))
+	assertEq(home.provinceId, "lisbon")
+	assertEq(home.movesLeft, 0)
+	ok, why = GrandCampaign.command(s, { kind = "moveFleet", fleetId = home.id, path = { "andalusia" } })
+	assertTrue(not ok and why == "noMovesLeft")
+	-- blockade: an enemy fleet in a port its owner does not guard halves the port's income
+	local full = Economy.provinceIncome(s, "normandy")
+	home.provinceId = "normandy"
+	assertTrue(State.blockaded(s, "normandy"))
+	assertEq(Economy.provinceIncome(s, "normandy"), full * State.BLOCKADE)
+	local v = GrandCampaign.view(s)
+	assertTrue(v.provinces.normandy.blockaded == true)
+	-- a French squadron comes out: they fight; the loser loses more ships and leaves (or sinks)
+	local fr = fleet("france", "normandy", 6, 3)
+	assertTrue(not State.blockaded(s, "normandy"), "guarded by its own fleet")
+	local ships = { britain = 14, france = 9 }
+	GrandCampaign.Navy.battles(s)
+	local after = { britain = 0, france = 0 }
+	local stillThere = { britain = false, france = false }
+	for _, f in s.fleets do
+		after[f.nation] += f.line + f.frigates
+		stillThere[f.nation] = stillThere[f.nation] or f.provinceId == "normandy"
+	end
+	assertTrue(after.britain < ships.britain and after.france < ships.france, "both lose ships")
+	assertTrue(not (stillThere.britain and stillThere.france), "one side gives way")
+	assertTrue(string.find(table.concat(s.log, "|"), "Naval battle", 1, true) ~= nil)
+	assertTrue(math.abs(Diplomacy.score(s, "britain", "france")) == Diplomacy.SCORE.battle)
+	local _ = fr
+	-- shipbuilding: in an own, unblockaded port
+	local gold = s.nations.britain.treasury
+	assertTrue(GrandCampaign.command(s, { kind = "buildShip", provinceId = "ireland", ship = "frigate" }))
+	assertEq(s.nations.britain.treasury, gold - EuropeData.ShipClasses.frigate.cost)
+	local cork = nil
+	for _, f in s.fleets do
+		if f.nation == "britain" and f.provinceId == "ireland" then
+			cork = f
+		end
+	end
+	assertTrue(cork ~= nil and cork.frigates == 1 and cork.line == 0, "a new squadron in Ireland")
+	assertTrue(GrandCampaign.command(s, { kind = "buildShip", provinceId = "ireland", ship = "line" }))
+	assertEq(cork.line, 1, "joins the squadron there")
+	local s2 = empty(25, "france")
+	ok, why = GrandCampaign.command(s2, { kind = "buildShip", provinceId = "paris", ship = "line" })
+	assertTrue(not ok and why == "notAPort")
+	table.clear(s2.fleets)
+	table.insert(s2.fleets, { id = State.newFleetId(s2), nation = "britain", name = "x", provinceId = "normandy", line = 1, frigates = 0, movesLeft = 0 })
+	ok, why = GrandCampaign.command(s2, { kind = "buildShip", provinceId = "normandy", ship = "line" })
+	assertTrue(not ok and why == "blockaded")
+	-- moves come back each turn
+	home.movesLeft = 0
+	assertTrue(GrandCampaign.endTurn(s))
+	for _, f in s.fleets do
+		assertEq(f.movesLeft, State.FLEET_MOVES)
+	end
+end)
+
 -- Sieges and occupation -------------------------------------------------------------------------------
 
 test("Grand sieges: fort + 1 turns, broken by a relieving army, then occupation and war score", function()

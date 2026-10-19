@@ -18,6 +18,7 @@ local Economy = require(script.Economy)
 local Movement = require(script.Movement)
 local Diplomacy = require(script.Diplomacy)
 local Battles = require(script.Battles)
+local Navy = require(script.Navy)
 local Events = require(script.Events)
 local AI = require(script.AI)
 local Serialize = require(script.Serialize)
@@ -33,6 +34,7 @@ GrandCampaign.Economy = Economy
 GrandCampaign.Movement = Movement
 GrandCampaign.Diplomacy = Diplomacy
 GrandCampaign.Battles = Battles
+GrandCampaign.Navy = Navy
 GrandCampaign.Events = Events
 GrandCampaign.AI = AI
 
@@ -137,6 +139,7 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 			Battles.autoResolve(s, b.battleId)
 		end
 	end
+	Navy.battles(s)
 	Battles.sieges(s)
 	for _, n in EuropeData.NationOrder do
 		Economy.run(s, n)
@@ -366,6 +369,30 @@ function GrandCampaign.command(s: State, cmd: Command): (boolean, string?)
 		ag.provinceId = to :: string
 		ag.movesLeft -= hops
 		return true, nil
+	elseif kind == "moveFleet" then
+		local id = str(cmd.fleetId)
+		if not id or type(cmd.path) ~= "table" then
+			return false, "badArgs"
+		end
+		local path: { string } = {}
+		for _, p in cmd.path do
+			local step = str(p)
+			if not step then
+				return false, "badPath"
+			end
+			path[#path + 1] = step
+		end
+		return Navy.move(s, player, id, path)
+	elseif kind == "buildShip" then
+		local pid, ship = str(cmd.provinceId), str(cmd.ship)
+		if not pid or not ship then
+			return false, "badArgs"
+		end
+		local ok, why = Navy.build(s, player, pid, ship)
+		if ok then
+			State.log(s, string.format("A %s is launched at %s.", string.lower(EuropeData.ShipClasses[ship].name), State.province(pid).name))
+		end
+		return ok, why
 	elseif kind == "appoint" then
 		local a = myArmy(s, cmd.armyId)
 		if not a then
@@ -591,6 +618,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 			owner = ps.owner,
 			occupiedBy = ps.occupiedBy,
 			siege = if ps.siege then { by = ps.siege.by, turnsLeft = ps.siege.turnsLeft } else nil,
+			blockaded = if State.province(id).isPort and State.blockaded(s, id) then true else nil,
 			unrest = Economy.unrest(s, id),
 			buildings = if ps.owner == player then State.copy(ps.buildings) else nil,
 			construction = if ps.owner == player and ps.construction then State.copy(ps.construction) else nil,

@@ -281,6 +281,20 @@ besiegers cannot move or assault again that turn.
   and Cork Squadron (Ireland); France's Brest (Normandy) and Toulon (Provence) squadrons; Spain at
   Cádiz; the Dutch, Danish, Swedish, Russian Baltic and Ottoman fleets.
 - An army crosses a sea lane only from a port where its own or an ally's fleet lies.
+- `moveFleet {fleetId, path}`: three fleet lanes a turn (`EuropeData.FleetLanes`: the army
+  crossings plus the coastal passages from the Channel round Iberia into the Mediterranean and
+  Adriatic, and through the North Sea into the Baltic), over any border; a fleet stops where an
+  enemy fleet lies. Moves come back each turn.
+- Naval battles, at the end of the turn (after the land battles, before sieges), wherever fleets
+  at war share a port: power = Σ (line × 3 + frigates) × quality (Britain 1.5, others 1);
+  p(A wins) = A^1.5 / (A^1.5 + B^1.5). The loser loses 40–60 % of its ships, the winner 10–25 %;
+  the loser's survivors fall back to the nearest port its side controls with no enemy fleet, or
+  are sunk. War score as a land battle (+8).
+- Blockade: a port where a fleet at war with its controller lies and none of the controller's side
+  earns half its income.
+- `buildShip {provinceId, ship = "frigate" | "line"}` (400 / 900 gold): in an owned, unoccupied,
+  unblockaded port; the ship joins the nation's fleet there or forms "<Province> Squadron".
+- The AI neither sails nor builds fleets yet; its fleets fight where enemies come to them.
 - Trafalgar sinks every French and Spanish fleet.
 - A save from before the navy gets the 1805 fleets, less the French and Spanish ones if Trafalgar
   was fought.

@@ -109,5 +109,7 @@ Errors come back as `{ kind = "error", requestId, reason }`.
     `notYourSpy`, `tooFar`, `notBesieging`, `spyResting`, `nothingToSabotage`.
 23. Navy: `view.fleets = { {id, nation, name, provinceId, line, frigates, movesLeft?, movesMax?} }`
     (the player's side's and any in sight; moves for the player's own). A sea crossing without a
-    fleet of the army's side in the port is refused `noEscort`.
+    fleet of the army's side in the port is refused `noEscort`. `moveFleet {fleetId, path}` and
+    `buildShip {provinceId, ship}`; provinces carry `blockaded`. Refusals: `notYourFleet`,
+    `notFleetLane`, `noMovesLeft`, `notAPort`, `blockaded`, `insufficientFunds`.
 
