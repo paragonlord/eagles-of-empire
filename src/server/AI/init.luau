@@ -732,6 +732,7 @@ local function exploit(state: AIState)
 			for _, o in state.sim.objectives do
 				if o.owner == state.faction and Vec.dist(o.def.pos, u.point :: Vec) < 40 then
 					u.goal, u.reason, u.point = "idle", "objective taken", nil
+					break
 				end
 			end
 		end
