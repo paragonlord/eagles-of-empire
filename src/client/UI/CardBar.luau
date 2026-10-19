@@ -95,23 +95,42 @@ local function box(parent: Instance, d: number, x: number, y: number, colour: Co
 	return f
 end
 
--- Class glyph centred in a CARD_W x 26 area.
-local function glyph(parent: Frame, class: string)
+-- Class glyph centred in a CARD_W x 26 area, with a small mark for the unit's type.
+local function glyph(parent: Frame, class: string, unitType: string?)
 	local cx, cy = CARD_W / 2, 13
-	local ink = Kit.IVORY
-	if class == "infantry" then -- crossed muskets
+	local ink = if unitType == "militia" then Kit.MUTED else Kit.IVORY
+	if class == "infantry" and (unitType == "light" or unitType == "rifle") then -- one musket and the light infantry's horn
+		rect(parent, 2, 26, cx + 4, cy, -35, ink)
+		rect(parent, 4, 7, cx + 10.5, cy + 9.5, -35, ink)
+		ring(parent, 11, cx - 8, cy - 2, if unitType == "rifle" then Color3.fromRGB(130, 175, 115) else ink, 2)
+	elseif class == "infantry" then -- crossed muskets
 		rect(parent, 2, 26, cx, cy, 35, ink)
 		rect(parent, 2, 26, cx, cy, -35, ink)
 		rect(parent, 4, 7, cx - 6.5, cy + 9.5, 35, ink) -- butts
 		rect(parent, 4, 7, cx + 6.5, cy + 9.5, -35, ink)
+		if unitType == "grenadier" then -- the flaming grenade
+			ring(parent, 7, cx, cy - 9, Kit.GOLD, 2)
+		elseif unitType == "guard" then -- a crown bar
+			rect(parent, 12, 3, cx, cy - 11, 0, Kit.GOLD)
+			rect(parent, 3, 4, cx - 5, cy - 13, 0, Kit.GOLD)
+			rect(parent, 3, 4, cx + 5, cy - 13, 0, Kit.GOLD)
+		end
 	elseif class == "cavalry" then -- sabre with crossguard
 		local r = math.rad(30)
+		if unitType == "heavyCav" then -- behind a cuirass
+			ring(parent, 18, cx, cy + 1, Kit.GILT_DARK, 3)
+		elseif unitType == "dragoon" then -- and a carbine
+			rect(parent, 2, 22, cx, cy, -30, ink)
+		end
 		rect(parent, 2, 24, cx, cy, 30, ink)
 		rect(parent, 11, 2, cx - math.sin(r) * 7, cy + math.cos(r) * 7, 30, ink)
 		rect(parent, 3, 5, cx - math.sin(r) * 10, cy + math.cos(r) * 10, 30, ink)
 	elseif class == "artillery" then -- barrel on a wheel
 		rect(parent, 24, 5, cx + 3, cy - 2, -15, ink)
 		ring(parent, 12, cx - 3, cy + 5, ink, 2)
+		if unitType == "horseArt" then -- a horseshoe
+			ring(parent, 8, cx + 12, cy + 7, Kit.GOLD, 2)
+		end
 	elseif class == "hq" then -- eight-point star
 		rect(parent, 14, 14, cx, cy, 0, Kit.GOLD)
 		rect(parent, 14, 14, cx, cy, 45, Kit.GOLD)
@@ -162,8 +181,9 @@ local function tipFor(id: number): string
 	if not f then
 		return ""
 	end
+	local kind = f.type and (Config.UnitTypes :: any)[f.type]
 	local lines = {
-		tostring(f.name or ("#" .. id)),
+		tostring(f.name or ("#" .. id)) .. (if kind then " · " .. kind.name else ""),
 		tostring(f.corps or ""),
 		string.format("%d / %d men · %s", f.strength, f.startStrength, string.upper(string.sub(f.moraleBand, 1, 1)) .. string.sub(f.moraleBand, 2)),
 		STATE_WORD[f.state] or f.state,
@@ -229,7 +249,7 @@ local function newCard(f: any): Card
 	g.Position = UDim2.fromOffset(0, 7)
 	g.BackgroundTransparency = 1
 	g.Parent = b
-	glyph(g, f.class)
+	glyph(g, f.class, f.type)
 	local name = Kit.label(b, abbreviate(tostring(f.name or id)), { size = UDim2.new(1, -6, 0, 12), position = UDim2.fromOffset(3, 34), textSize = 10, align = Enum.TextXAlignment.Center })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 	local count = Kit.label(b, "", { size = UDim2.new(0.6, 0, 0, 10), position = UDim2.fromOffset(4, 47), textSize = 9, font = Enum.Font.GothamBold })

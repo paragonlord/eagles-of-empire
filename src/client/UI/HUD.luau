@@ -504,7 +504,7 @@ local function buildInspector(sg: ScreenGui)
 	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
 	inspectorBarFill = Kit.bar(p, UDim2.new(1, 0, 0, 6), UDim2.new(0, 0, 0, 30), Kit.FRANCE)
 	local y = 40
-	local names = { corps = "Corps", class = "Class", strength = "Strength", morale = "Morale", fatigue = "Fatigue", ammo = "Ammunition", shape = "Shape", status = "Status" }
+	local names = { corps = "Corps", class = "Type", strength = "Strength", morale = "Morale", fatigue = "Fatigue", ammo = "Ammunition", shape = "Shape", status = "Status" }
 	for i, key in INSPECTOR_FIELDS do
 		local col = (i - 1) % 2
 		local rowY = y + ((i - 1) // 2) * 32
@@ -536,7 +536,8 @@ local function updateInspector()
 	F.name.Text = if #forms > 1 then string.format("%s  (+%d)", tostring(f.name or f.id), #forms - 1) else tostring(f.name or f.id)
 	F.exp.Text = string.rep("›", math.clamp(f.experience or 0, 0, 3))
 	F.corps.Text = tostring(f.corps or "—")
-	F.class.Text = string.upper(string.sub(f.class, 1, 1)) .. string.sub(f.class, 2)
+	local kind = f.type and (Config.UnitTypes :: any)[f.type]
+	F.class.Text = if kind then kind.name else string.upper(string.sub(f.class, 1, 1)) .. string.sub(f.class, 2)
 	F.strength.Text = string.format("%d / %d", f.strength, f.startStrength)
 	if inspectorBarFill then
 		Kit.setBar(inspectorBarFill, f.strength / math.max(f.startStrength, 1))

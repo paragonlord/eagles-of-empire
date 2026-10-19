@@ -22,7 +22,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Types inferred from regiment names in every scenario
 - [x] Per-type stats (rifles, grenadiers, guard, light/heavy cavalry, dragoons, horse artillery)
 - [x] Campaign unit types map onto sim types
-- [ ] Cards and inspector show the type
+- [x] Cards and inspector show the type
 
 ## Phase 2: TW orders and controls
 - [ ] Skirmish order for light infantry and rifles

@@ -12,6 +12,7 @@ export type Formation = {
 	name: string?,
 	corps: string?,
 	class: string,
+	type: string?, -- Config.UnitTypes id
 	colour: string?,
 	x: number,
 	z: number,
