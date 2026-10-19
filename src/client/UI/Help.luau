@@ -9,14 +9,19 @@ local Help = {}
 local gui: ScreenGui? = nil
 
 local CONTROLS = {
-	{ "Left click", "Select a formation · drag to box-select · Shift adds or removes" },
-	{ "Right click", "Move there (keeps the selection's spacing) · on an enemy: Engage" },
+	{ "Left click", "Select a formation · drag to box-select · Shift adds or removes · double-click: all of its type" },
+	{ "Right click", "Move there (keeps the selection's spacing) · on an enemy: Engage · double: run there" },
 	{ "Right drag", "Draw the line: formations spread along it and face its open side" },
+	{ "Alt + right click", "Turn in place to face that point" },
 	{ "Shift + order", "Queue the order after the current one (up to 4)" },
 	{ "WASD / arrows", "Pan the camera · Q / E rotate · wheel zoom · PgUp / PgDn pitch" },
 	{ "F / Home", "Focus the selection / return to the army" },
-	{ "Space · 1 2 3", "Pause or resume · speed ×1 ×2 ×4" },
-	{ "Ctrl + 4…9 / 4…9", "Assign a control group / recall it" },
+	{ "Space · + / −", "Pause or resume · faster / slower (×1 ×2 ×4)" },
+	{ "Ctrl + 1…9 / 1…9", "Assign a control group / recall it (twice: centre on it) · Ctrl + A: everyone" },
+	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
+	{ "T Z M R", "Fire at will · charge · attack-move · run / walk" },
+	{ "H ⌫ X", "Hold · halt · retreat" },
+	{ "U I P", "Guns: limber · ammunition · HQ: rally" },
 	{ "Esc", "Clear the selection, close panels" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
 }

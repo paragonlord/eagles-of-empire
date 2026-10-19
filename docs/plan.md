@@ -28,7 +28,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Skirmish order for light infantry and rifles
 - [x] Run / walk
 - [x] Fire by rank (passive)
-- [ ] TW hotkeys: speed on +/-, control groups 1–9, Ctrl+A, double-click selects type, order keys, attack-move, face
+- [x] TW hotkeys: speed on +/-, control groups 1–9, Ctrl+A, double-click selects type, order keys, attack-move, face
 - [ ] Cards show ammo, fatigue, group number
 - [ ] Unit stats panel; inspect visible enemies
 - [ ] Camera: edge scroll, follow unit, lower minimum height

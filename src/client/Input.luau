@@ -188,6 +188,7 @@ end
 
 -- Formations the player set to run (R or the Run button): every march they are given runs.
 local runIds: { [number]: boolean } = {}
+local lastClick: { id: number?, t: number } = { id = nil, t = -1 } -- double-click selects the type
 local lastRight = { t = -1, x = 0, z = 0 } -- a second right-click on the same spot runs
 
 local function issueLineMove(a: Vec, b: Vec, queue: boolean)
@@ -197,8 +198,9 @@ local function issueLineMove(a: Vec, b: Vec, queue: boolean)
 	end
 end
 
--- Plain move keeps each formation's offset from the selection centroid.
-local function issueMove(target: Vec, queue: boolean)
+-- Plain move keeps each formation's offset from the selection centroid. AttackMove goes to the
+-- infantry and cavalry (they fight their way there); guns and staff simply march.
+local function issueMove(target: Vec, queue: boolean, kind: string?)
 	local forms = selectedFormations()
 	if #forms == 0 then
 		return
@@ -215,7 +217,8 @@ local function issueMove(target: Vec, queue: boolean)
 	cz /= #forms
 	for _, f in forms do
 		local pos = clampToMap({ x = target.x + (f.x - cx), z = target.z + (f.z - cz) })
-		sendOrder("Move", { f.id }, { pos = pos, queue = queue, run = if double or runIds[f.id] then true else nil })
+		local k = if kind == "AttackMove" and (f.class == "infantry" or f.class == "cavalry") then "AttackMove" else "Move"
+		sendOrder(k, { f.id }, { pos = pos, queue = queue, run = if double or runIds[f.id] then true else nil })
 	end
 end
 
@@ -339,6 +342,10 @@ local function ctrl(): boolean
 	return UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
 end
 
+local function alt(): boolean
+	return UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt) or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
+end
+
 local function cancelDrags()
 	left.down = false
 	left.dragging = false
@@ -414,6 +421,22 @@ local function onLeftUp()
 	end
 	local id, kind = pickAt(g)
 	if id and kind == "own" then
+		local now = os.clock()
+		if lastClick.id == id and now - lastClick.t < 0.4 then
+			-- double-click: every formation of ours of the same type
+			local f = BattleState.formations[id]
+			local same = {}
+			for oid, o in BattleState.formations do
+				if BattleState.canCommand(oid) and f and (o.type or o.class) == (f.type or f.class) and o.state ~= "routing" and o.state ~= "destroyed" and o.state ~= "exited" then
+					table.insert(same, oid)
+				end
+			end
+			table.sort(same)
+			Selection.set(same)
+			lastClick = { id = nil, t = -1 }
+			return
+		end
+		lastClick = { id = id, t = now }
 		if shift() then
 			Selection.toggle(id)
 		else
@@ -487,6 +510,17 @@ local function onRightUp()
 		end
 		armed = nil
 		Input.action:Fire("disarm")
+	elseif armed == "AttackMove" then
+		issueMove(g, shift(), "AttackMove")
+		armed = nil
+		Input.action:Fire("disarm")
+	elseif alt() then
+		-- turn in place to face the clicked point
+		for _, f in selectedFormations() do
+			if BattleState.canCommand(f.id) then
+				sendOrder("Face", { f.id }, { heading = Vec.heading(Vec.sub(g, { x = f.x, z = f.z })), queue = shift() })
+			end
+		end
 	elseif id and (kind == "enemy" or kind == "ghost") then
 		issueEngage(id, shift())
 	elseif kind == "own" and id and Selection.count() == 1 and Selection.isSelected(id) then
@@ -549,6 +583,33 @@ local function focusSelection()
 	Camera.focusOn(cx / #forms, cz / #forms)
 end
 
+local GROUP_KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine }
+-- One key per command panel order (HUD runs them through Input.wheelPick, like the touch wheel).
+local ORDER_KEYS: { [EnumItem]: string } = {
+	[Enum.KeyCode.L] = "line",
+	[Enum.KeyCode.C] = "column",
+	[Enum.KeyCode.B] = "square",
+	[Enum.KeyCode.K] = "skirmish",
+	[Enum.KeyCode.Y] = "wedge",
+	[Enum.KeyCode.T] = "fire",
+	[Enum.KeyCode.Z] = "charge",
+	[Enum.KeyCode.R] = "run",
+	[Enum.KeyCode.M] = "attack",
+	[Enum.KeyCode.H] = "hold",
+	[Enum.KeyCode.Backspace] = "stop",
+	[Enum.KeyCode.X] = "retreat",
+	[Enum.KeyCode.U] = "limber",
+	[Enum.KeyCode.I] = "ammo",
+	[Enum.KeyCode.P] = "rally",
+}
+local SPEEDS = { 1, 2, 4 }
+local lastGroup = { n = 0, t = -1 }
+
+local function stepSpeed(dir: number): number
+	local i = table.find(SPEEDS, BattleState.speed) or 1
+	return SPEEDS[math.clamp(i + dir, 1, #SPEEDS)]
+end
+
 local function onKey(input: InputObject)
 	local k = input.KeyCode
 	local state = BattleState.state
@@ -570,27 +631,39 @@ local function onKey(input: InputObject)
 		elseif state == "paused" then
 			Net.control("resume")
 		end
-	elseif k == Enum.KeyCode.One then
-		Net.control("speed", 1)
-	elseif k == Enum.KeyCode.Two then
-		Net.control("speed", 2)
-	elseif k == Enum.KeyCode.Three then
-		Net.control("speed", 4)
+	elseif k == Enum.KeyCode.Equals or k == Enum.KeyCode.Plus or k == Enum.KeyCode.KeypadPlus then
+		Net.control("speed", stepSpeed(1))
+	elseif k == Enum.KeyCode.Minus or k == Enum.KeyCode.KeypadMinus then
+		Net.control("speed", stepSpeed(-1))
+	elseif k == Enum.KeyCode.A and ctrl() then
+		local all = {}
+		for id, f in BattleState.formations do
+			if BattleState.canCommand(id) and f.state ~= "routing" and f.state ~= "destroyed" and f.state ~= "exited" then
+				table.insert(all, id)
+			end
+		end
+		table.sort(all)
+		Selection.set(all)
+	elseif ORDER_KEYS[k] and (state == "running" or state == "paused") then
+		Input.wheelPick:Fire(ORDER_KEYS[k])
 	elseif k == Enum.KeyCode.F then
 		focusSelection()
-	elseif k == Enum.KeyCode.R then
-		Input.toggleRun()
+
 	elseif k == Enum.KeyCode.Home then
 		local c = BattleState.armyCentre()
 		Camera.focusOn(c.x, c.z)
 	else
-		local groupKeys = { Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine }
-		for i, code in groupKeys do
+		for n, code in GROUP_KEYS do
 			if k == code then
 				if ctrl() then
-					Selection.assignGroup(i + 3)
+					Selection.assignGroup(n)
 				else
-					Selection.recallGroup(i + 3)
+					local now = os.clock()
+					Selection.recallGroup(n)
+					if lastGroup.n == n and now - lastGroup.t < 0.4 then
+						focusSelection() -- a double tap centres the camera on the group
+					end
+					lastGroup = { n = n, t = now }
 				end
 			end
 		end
