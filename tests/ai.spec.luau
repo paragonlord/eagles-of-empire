@@ -286,3 +286,37 @@ test("Hard difficulty steadies the AI's own army by its morale bonus, once", fun
 	AI.steady(sim, nil, 0)
 	assertEq(fr.baseMorale, frBase, "no AI, no bonus")
 end)
+
+test("AI garrisons a free building by an objective it holds", function()
+	-- the strongpoint nearest any objective on Jena
+	local sp, obj
+	for _, s in MAP.strongpoints do
+		for _, o in MAP.objectives do
+			if Vec.dist(s.pos, o.pos) < 90 and not sp then
+				sp, obj = s, o
+			end
+		end
+	end
+	assertTrue(sp ~= nil, "a village objective with a strongpoint")
+	local sim = newSim({
+		unit("prussia", "infantry", "IR Nr. 29", sp.pos.x + 60, sp.pos.z + 120, -math.pi / 2),
+		unit("prussia", "infantry", "IR Nr. 49", sp.pos.x - 60, sp.pos.z + 120, -math.pi / 2),
+	})
+	for _, o in sim.objectives do
+		if o.def.id == obj.id then
+			o.owner = "prussia"
+		end
+	end
+	local st = attach(sim)
+	local held = false
+	for _ = 1, math.floor(60 / DT) do
+		sim:step()
+		local h = sim.strongpoints[sp.id].holder
+		if h and sim.formations[h].faction == "prussia" then
+			held = true
+			break
+		end
+	end
+	assertTrue(held, sp.name .. " garrisoned by the defenders")
+	local _ = st
+end)

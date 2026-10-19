@@ -71,7 +71,7 @@ export type AIState = {
 
 local AI = {}
 
-local PATH_CMDS = { Move = true, AttackMove = true, Engage = true, Charge = true, Retreat = true }
+local PATH_CMDS = { Move = true, AttackMove = true, Engage = true, Charge = true, Retreat = true, Garrison = true }
 local MAX_PATH_CMDS = 8
 local WINGS = { "centre", "left", "right" }
 local MUSKET = Config.Units.infantry.musket.range
@@ -626,6 +626,46 @@ local function guardGuns(state: AIState)
 	end
 end
 
+-- Buildings (Sim/Garrison): a free village heart by an objective we hold, or by our line while we
+-- defend, gets the nearest available battalion.
+local function garrisonBuildings(state: AIState)
+	local sim = state.sim
+	if state.posture == "withdraw" then
+		return
+	end
+	for _, sp in sim.strongpoints do
+		local wanted = false
+		for _, o in sim.objectives do
+			if o.owner == state.faction and Vec.dist(o.def.pos, sp.pos) < 90 then
+				wanted = true
+			end
+		end
+		if not wanted and state.posture == "defend" then
+			for _, w in WINGS do
+				local wp = state.wingPos[w]
+				if wp and Vec.dist(wp, sp.pos) < 200 then
+					wanted = true
+				end
+			end
+		end
+		local holder = sp.holder and sim.formations[sp.holder]
+		local enRoute = false
+		for _, f in state.mine do
+			if f.order and f.order.kind == "Garrison" and f.order.strongpoint == sp.id then
+				enRoute = true
+			end
+		end
+		if wanted and not holder and not enRoute then
+			local best, bd = nearestOwn(state, sp.pos, function(f)
+				return availableInfantry(state, f) and f.garrison == nil
+			end)
+			if best and bd <= 250 and issue(state, "Garrison", { best.id }, { strongpoint = sp.id }) then
+				setGoal(state, best.id, "garrison", "holding " .. sp.name, 600)
+			end
+		end
+	end
+end
+
 -- Push the nearest free infantry onto an objective nobody contests.
 local function exploit(state: AIState)
 	for _, o in state.sim.objectives do
@@ -717,6 +757,13 @@ local function infantry(state: AIState, f: Formation)
 		u.goal, u.reason = "melee", "in contact"
 		return
 	end
+	if f.garrison or (f.order and f.order.kind == "Garrison") then
+		-- holding (or on the way to) a building: it stays until the army withdraws
+		if state.posture == "withdraw" and f.garrison then
+			issue(state, "Retreat", { f.id }, {})
+		end
+		return
+	end
 	-- Cavalry threat: form square unless friendly cavalry screens.
 	local threat, td = nearestVisible(state, f.pos, 140, function(e)
 		if not isCav(e) then
@@ -773,7 +820,8 @@ local function infantry(state: AIState, f: Formation)
 	if charging then
 		return
 	end
-	if u.goal == "charge" or (u.goal == "square" and f.shape ~= "square" and f.pendingShape ~= "square") then
+	local pending = (f :: any).pendingShape
+	if u.goal == "charge" or (u.goal == "square" and f.shape ~= "square" and pending ~= "square") then
 		u.goal = "idle"
 	end
 	-- Enemy in musket range: engage (attack posture) or face it and let fire-at-will work.
@@ -1116,6 +1164,7 @@ function AI.step(state: AIState)
 		return
 	end
 	guardGuns(state)
+	garrisonBuildings(state)
 	exploit(state)
 	for _, f in state.mine do
 		local u = unitOf(state, f.id)

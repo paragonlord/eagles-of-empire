@@ -38,7 +38,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Howitzer shells: indirect, area hits
 - [x] Downhill charge and melee bonus
 - [x] Fords
-- [ ] Garrisonable buildings (strongpoints)
+- [x] Garrisonable buildings (strongpoints)
 - [ ] Walls and hedges as cover lines
 
 ## Phase 4: generals
