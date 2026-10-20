@@ -15,6 +15,18 @@ export type Slot = {
 	-- then fitted to each object's box, so one oak mesh serves every oak size
 }
 
+-- A generated figure kit (tools/kit_import.luau): one textured mesh per body piece, placed in the
+-- figure frame (+X forward, +Y up, +Z right, ground at 0). Soldiers poses the pieces with the
+-- part-built figure's anim codes, so the kit marches, reloads and charges like it.
+export type Piece = {
+	mesh: string,
+	texture: string,
+	size: { number }, -- carrier part, studs
+	scale: { number }, -- SpecialMesh.Scale
+	cf: { number }, -- x, y, z, then XYZ Euler angles (radians)
+}
+export type Kit = { [string]: Piece }
+
 local function slot(texture: string?): Slot
 	return { mesh = "", texture = texture or "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
 end
@@ -161,6 +173,212 @@ Assets.sounds = {
 	battleMusicTense = sound(0.6, { 1, 1 }, 1, true),
 	campaignMusic = sound(0.5, { 1, 1 }, 1, true),
 }
+
+-- Kits by nation (Look.nation), each kind from one generated figure retextured per uniform.
+-- infantry_*: torso, head, headgear (the nation's line headgear), armL, armR, legL, legR, musket.
+-- cavalry_*: horse body, neck, four legs (legFL ...), rider and riderHead (helmet and sabre),
+-- 3.9 studs tall. A nation with no kit keeps the part-built figure.
+Assets.kits = {
+	infantry_france = {
+		torso = { mesh = "rbxassetid://72447424433783", texture = "rbxassetid://76009995950013", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://115740877823408", texture = "rbxassetid://73188983304116", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://107169635745358", texture = "rbxassetid://138854108381670", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://121594989973603", texture = "rbxassetid://137137930547812", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://111440529891696", texture = "rbxassetid://100399824521086", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://96888915771832", texture = "rbxassetid://123963383821382", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://97071635557023", texture = "rbxassetid://87912861052007", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://130456209273865", texture = "rbxassetid://95977280465596", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_prussia = {
+		torso = { mesh = "rbxassetid://100340254732697", texture = "rbxassetid://86434840880705", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://91903684493092", texture = "rbxassetid://70709158942177", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://87704916367887", texture = "rbxassetid://103951449579693", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://89534756824826", texture = "rbxassetid://79840849952658", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://73999327676912", texture = "rbxassetid://130531744331411", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://90788648929694", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://115989188416001", texture = "rbxassetid://134421712320133", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://78667426847451", texture = "rbxassetid://97155862407087", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_austria = {
+		torso = { mesh = "rbxassetid://126063052168951", texture = "rbxassetid://107479516027570", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://89464617975261", texture = "rbxassetid://105227040308491", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://87704916367887", texture = "rbxassetid://76756090875089", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://134899576134687", texture = "rbxassetid://130100051785342", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://73999327676912", texture = "rbxassetid://106069557452960", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://87754351395901", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://76701290095774", texture = "rbxassetid://106508536091446", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://133213331850745", texture = "rbxassetid://115096728123059", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_russia = {
+		torso = { mesh = "rbxassetid://100307931846787", texture = "rbxassetid://121846545707287", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://91903684493092", texture = "rbxassetid://129929602202542", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://87704916367887", texture = "rbxassetid://123890667837311", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://130012504213142", texture = "rbxassetid://134631179173911", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://135381172107540", texture = "rbxassetid://116385866069807", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://107149799289347", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://76701290095774", texture = "rbxassetid://90495551040836", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://91878694098089", texture = "rbxassetid://118861877060416", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_britain = {
+		torso = { mesh = "rbxassetid://129183344218951", texture = "rbxassetid://103941331179810", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://91903684493092", texture = "rbxassetid://118685226239707", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://87704916367887", texture = "rbxassetid://123760337615564", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://90122556834763", texture = "rbxassetid://73663532939296", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://107730648252390", texture = "rbxassetid://129771445221741", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://72617049022748", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://77142277884567", texture = "rbxassetid://91284207331557", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://78667426847451", texture = "rbxassetid://131218067439061", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_saxony = {
+		torso = { mesh = "rbxassetid://129183344218951", texture = "rbxassetid://81398696499863", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://91903684493092", texture = "rbxassetid://129975501176486", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://87704916367887", texture = "rbxassetid://81578671947679", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://90122556834763", texture = "rbxassetid://73390537946974", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://107730648252390", texture = "rbxassetid://94562223647464", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://90233699217808", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://76701290095774", texture = "rbxassetid://140664416298924", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://78667426847451", texture = "rbxassetid://103961039376190", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_netherlands = {
+		torso = { mesh = "rbxassetid://129183344218951", texture = "rbxassetid://121043910384796", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://91903684493092", texture = "rbxassetid://95654127317878", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://87704916367887", texture = "rbxassetid://103692339740816", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://90122556834763", texture = "rbxassetid://122082390175976", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://135381172107540", texture = "rbxassetid://98137796365664", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://73839047365298", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://76701290095774", texture = "rbxassetid://134020398034292", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://78667426847451", texture = "rbxassetid://116241276421749", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	infantry_bavaria = {
+		torso = { mesh = "rbxassetid://129183344218951", texture = "rbxassetid://93330769644288", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://115995662052450", texture = "rbxassetid://93426260340941", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://93468585124691", texture = "rbxassetid://130574658518085", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://90122556834763", texture = "rbxassetid://91749711042022", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://107730648252390", texture = "rbxassetid://124450630139133", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://75999870250590", texture = "rbxassetid://120917923814018", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://77142277884567", texture = "rbxassetid://107696127085071", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://117599744605645", texture = "rbxassetid://90018048390884", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+	cavalry_france = {
+		body = { mesh = "rbxassetid://101209066546460", texture = "rbxassetid://135331797219533", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://95314629656435", texture = "rbxassetid://99922572574292", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://96275282726194", texture = "rbxassetid://117170299366500", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://94832972494815", texture = "rbxassetid://131954730851579", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://73085611638906", texture = "rbxassetid://119698898981922", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://79084536683650", texture = "rbxassetid://107739209709240", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://97228754256621", texture = "rbxassetid://119121153923312", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://116188909619161", texture = "rbxassetid://111264749434518", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_prussia = {
+		body = { mesh = "rbxassetid://126980995434593", texture = "rbxassetid://105356024757049", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://104804374875586", texture = "rbxassetid://140647944335623", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://100731151188144", texture = "rbxassetid://131481807512125", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://70918914869313", texture = "rbxassetid://72999112208405", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://90666174572538", texture = "rbxassetid://124493348520639", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://93454033435597", texture = "rbxassetid://92778571420128", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://115652056463517", texture = "rbxassetid://71329329511247", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://107408663248265", texture = "rbxassetid://129083245291610", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_austria = {
+		body = { mesh = "rbxassetid://126980995434593", texture = "rbxassetid://86132092363876", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://104804374875586", texture = "rbxassetid://106657063708168", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://72223682665238", texture = "rbxassetid://126829823237199", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://72184720023128", texture = "rbxassetid://136769917169436", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://70783407002482", texture = "rbxassetid://93392678083101", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://125265575406381", texture = "rbxassetid://128727272432428", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://135167894328595", texture = "rbxassetid://134725499345479", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://77513473129021", texture = "rbxassetid://102455605558394", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_russia = {
+		body = { mesh = "rbxassetid://122914315147108", texture = "rbxassetid://73259070832816", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://108744649704930", texture = "rbxassetid://109698653027019", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://72223682665238", texture = "rbxassetid://125179309308962", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://83027753552191", texture = "rbxassetid://109622183143346", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://70783407002482", texture = "rbxassetid://124062250720190", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://104955681348224", texture = "rbxassetid://132449992515390", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://103297166522723", texture = "rbxassetid://126829224207393", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://107646498701188", texture = "rbxassetid://126708628288394", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_britain = {
+		body = { mesh = "rbxassetid://122914315147108", texture = "rbxassetid://116022173856999", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://135826896533041", texture = "rbxassetid://88488895964205", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://73042617453852", texture = "rbxassetid://85980232866263", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://72184720023128", texture = "rbxassetid://101518959169225", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://128255260241006", texture = "rbxassetid://115928205004848", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://104955681348224", texture = "rbxassetid://137283276385545", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://103297166522723", texture = "rbxassetid://112917349089077", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://107646498701188", texture = "rbxassetid://123062050570215", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_saxony = {
+		body = { mesh = "rbxassetid://119102249427555", texture = "rbxassetid://90004683328021", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://93037243702051", texture = "rbxassetid://117824422992487", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://72223682665238", texture = "rbxassetid://138570423124000", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://88269720329818", texture = "rbxassetid://81533158544797", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://111102222738325", texture = "rbxassetid://115335064804579", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://125265575406381", texture = "rbxassetid://78136041454769", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://135167894328595", texture = "rbxassetid://81914521336965", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://77513473129021", texture = "rbxassetid://110431775089464", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_netherlands = {
+		body = { mesh = "rbxassetid://126980995434593", texture = "rbxassetid://107801186516172", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://104804374875586", texture = "rbxassetid://109504271356800", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://72223682665238", texture = "rbxassetid://101871281153258", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://83027753552191", texture = "rbxassetid://131414450845679", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://111102222738325", texture = "rbxassetid://138825892487951", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://125265575406381", texture = "rbxassetid://83311613055208", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://135167894328595", texture = "rbxassetid://74726164781330", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://125030104198826", texture = "rbxassetid://110135495802951", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	cavalry_bavaria = {
+		body = { mesh = "rbxassetid://122914315147108", texture = "rbxassetid://115607948742721", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://104804374875586", texture = "rbxassetid://113631942679996", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://72223682665238", texture = "rbxassetid://105551710540828", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://83027753552191", texture = "rbxassetid://121942413923895", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://111102222738325", texture = "rbxassetid://82949309365561", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://125265575406381", texture = "rbxassetid://111456254734864", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://103340490040183", texture = "rbxassetid://137924320187544", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://107646498701188", texture = "rbxassetid://91755086531963", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	-- headgear swaps worn on a kit's head (head_<Look.head>): stand on the head top, front to +X
+	head_bearskin = { headgear = { mesh = "rbxassetid://76596095858373", texture = "rbxassetid://75179736797078", size = { 0.370, 0.800, 0.561 }, scale = { 0.935, 0.935, 0.935 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
+	head_bicorne = { headgear = { mesh = "rbxassetid://129696614120605", texture = "rbxassetid://104357746964512", size = { 0.768, 0.360, 0.420 }, scale = { 1.536, 1.536, 1.536 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
+	head_crested = { headgear = { mesh = "rbxassetid://119676080371945", texture = "rbxassetid://85213909999178", size = { 0.325, 0.620, 0.436 }, scale = { 1.033, 1.033, 1.033 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
+	head_bonnet = { headgear = { mesh = "rbxassetid://101140967079858", texture = "rbxassetid://121301412148902", size = { 0.527, 0.780, 0.528 }, scale = { 1.040, 1.040, 1.040 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
+	-- gun_*: barrel, carriage, wheelL, wheelR; muzzle to +X, axle over the origin, 2 studs tall
+	gun_france = {
+		barrel = { mesh = "rbxassetid://104670291301066", texture = "rbxassetid://82829453107788", size = { 0.829, 0.933, 2.325 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.423, 1.534, -0.001, 0, -1.571, 0 } },
+		carriage = { mesh = "rbxassetid://131963666798321", texture = "rbxassetid://84427755863901", size = { 1.556, 1.303, 1.523 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.007, 0.774, -0.001, 0, -1.571, 0 } },
+		wheelL = { mesh = "rbxassetid://107119790762274", texture = "rbxassetid://140684159418792", size = { 0.412, 1.410, 1.420 }, scale = { 1.000, 1.000, 1.000 }, cf = { -0.001, 0.705, -0.841, 0, -1.571, 0 } },
+		wheelR = { mesh = "rbxassetid://129908926252251", texture = "rbxassetid://131213773238798", size = { 0.420, 1.404, 1.421 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.001, 0.708, 0.841, 0, -1.571, 0 } },
+	},
+	gun_austria = {
+		barrel = { mesh = "rbxassetid://126576605817440", texture = "rbxassetid://96904922973636", size = { 0.829, 0.933, 2.325 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.423, 1.534, -0.001, 0, -1.571, 0 } },
+		carriage = { mesh = "rbxassetid://117480650559983", texture = "rbxassetid://75095711954068", size = { 1.556, 1.303, 1.523 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.007, 0.774, -0.001, 0, -1.571, 0 } },
+		wheelL = { mesh = "rbxassetid://73299283152527", texture = "rbxassetid://75290792192611", size = { 0.412, 1.410, 1.420 }, scale = { 1.000, 1.000, 1.000 }, cf = { -0.001, 0.705, -0.841, 0, -1.571, 0 } },
+		wheelR = { mesh = "rbxassetid://117572760467346", texture = "rbxassetid://140703325449684", size = { 0.420, 1.404, 1.421 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.001, 0.708, 0.841, 0, -1.571, 0 } },
+	},
+	gun_britain = {
+		barrel = { mesh = "rbxassetid://95291511847105", texture = "rbxassetid://138991677162116", size = { 0.829, 0.933, 2.325 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.423, 1.534, -0.001, 0, -1.571, 0 } },
+		carriage = { mesh = "rbxassetid://117480650559983", texture = "rbxassetid://105786252723114", size = { 1.556, 1.303, 1.523 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.007, 0.774, -0.001, 0, -1.571, 0 } },
+		wheelL = { mesh = "rbxassetid://73299283152527", texture = "rbxassetid://114631889756618", size = { 0.412, 1.410, 1.420 }, scale = { 1.000, 1.000, 1.000 }, cf = { -0.001, 0.705, -0.841, 0, -1.571, 0 } },
+		wheelR = { mesh = "rbxassetid://81450504410703", texture = "rbxassetid://80872205674537", size = { 0.420, 1.404, 1.421 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.001, 0.708, 0.841, 0, -1.571, 0 } },
+	},
+	cavalry_emperor = { -- Napoleon: the Guard chasseur coat on a grey
+		body = { mesh = "rbxassetid://129420610842126", texture = "rbxassetid://127466484525918", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://97810334031536", texture = "rbxassetid://84838549504166", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://136655313774729", texture = "rbxassetid://138865376002160", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://93646707869151", texture = "rbxassetid://115100213114456", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://90666174572538", texture = "rbxassetid://84556248222313", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://125265575406381", texture = "rbxassetid://120345732090340", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://126705425320346", texture = "rbxassetid://87238983341073", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://107646498701188", texture = "rbxassetid://75819985288111", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	limber_france = { limber = { mesh = "rbxassetid://79895136778232", texture = "rbxassetid://104087580561513", size = { 2.168, 1.528, 2.600 }, scale = { 1.355, 1.355, 1.355 }, cf = { 1.6, 0.764, 0, 0, -1.571, 0 } } },
+} :: { [string]: Kit }
+
+function Assets.kit(key: string): Kit?
+	return Assets.kits[key]
+end
 
 -- A texture id for a slot, or nil when the slot has none.
 function Assets.textureOf(key: string): string?
@@ -380,7 +598,9 @@ Config.Vision = {
 Config.Visual = {
 	SoldiersPerFigure = 25,
 	CrewPerGun = 20,
-	FarLodDistance = 420, -- camera distance beyond which ranks become blocks
+	-- camera distance beyond which ranks become blocks, by quality (Low, Medium, High): the default
+	-- view (~565 away) shows men at every setting; the figure budget thins ranks past it
+	FarLodDistance = { 600, 700, 850 },
 	MaxFiguresHigh = 1200,
 	MaxFiguresLow = 400,
 	-- RGB 0-255 triples (plain tables so the sim/tests never need Roblox datatypes);
@@ -26266,6 +26486,7 @@ return Factions
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Config = require(Shared.Config)
 local Vec = require(Shared.Vec)
 local BattleState = require(script.Parent.BattleState)
@@ -27152,6 +27373,10 @@ local FIGURE_COST: { [string]: { near: number, mid: number } } = {
 	artillery = { near = 140, mid = 30 },
 }
 local SPECIALS_COST = { near = 155, mid = 60 } -- officer, colour and two drummers per battalion
+-- A nation with generated kits builds every tier from the same few meshes: eight a man or a
+-- horse and rider; a gun is four plus four gunners of seven.
+local KIT_COST: { [string]: number } = { infantry = 8, cavalry = 8, hq = 8, artillery = 32 }
+local KIT_SPECIALS_COST = 40
 
 local function budget(): number
 	local q = Settings.get().quality
@@ -27160,6 +27385,9 @@ local function budget(): number
 end
 
 local function groupCost(g: Group, f: any, near: boolean): number
+	if Assets.kit("infantry_" .. g.faction) then
+		return visualCount(f) * (KIT_COST[g.class] or 8) + (if g.class == "infantry" then KIT_SPECIALS_COST else 0)
+	end
 	local c = FIGURE_COST[g.class] or FIGURE_COST.infantry
 	return visualCount(f) * (if near then c.near else c.mid) + (if g.class == "infantry" then (if near then SPECIALS_COST.near else SPECIALS_COST.mid) else 0)
 end
@@ -27646,7 +27874,7 @@ function Figures.update(dt: number)
 	local hovered = Selection.hovered()
 	local coop = BattleState.coop()
 	local deploying = BattleState.state == "deployment"
-	local farD = Config.Visual.FarLodDistance
+	local farD = Config.Visual.FarLodDistance[math.clamp(Settings.get().quality, 1, 3)]
 
 	for id, g in groups do
 		local f: any = if g.ghost then BattleState.lastKnown[id] else BattleState.formations[id]
@@ -36949,16 +37177,15 @@ local function own<T>(i: T & Instance, parent: Instance): T
 	return i
 end
 
--- Technology is not writable from every context; try Future, then ShadowMap, else keep the place's.
-local function setTechnology()
-	local ok = pcall(function()
-		(LightingService :: any).Technology = Enum.Technology.Future
+-- Lighting.Technology is not writable by scripts; LightingStyle and PrioritizeLightingQuality
+-- replaced it and are. Realistic shading everywhere; at High the shadows keep their quality
+-- before the view distance does, lower settings keep the long view a general needs.
+local function setStyle(quality: number)
+	pcall(function()
+		local L = LightingService :: any
+		L.LightingStyle = Enum.LightingStyle.Realistic
+		L.PrioritizeLightingQuality = quality >= 3
 	end)
-	if not ok then
-		pcall(function()
-			(LightingService :: any).Technology = Enum.Technology.ShadowMap
-		end)
-	end
 end
 
 local function c3(r: number, g: number, b: number): Color3
@@ -37264,7 +37491,7 @@ function Lighting.apply(quality: number)
 	currentQuality = quality
 	clearOwned()
 	atmosphere, cc, bloom, rays, clouds = nil, nil, nil, nil, nil
-	setTechnology()
+	setStyle(quality)
 	local L = LightingService
 	-- Studio puts its own ColorGrading (Retro tonemapper) into Lighting; it turned the field teal
 	-- (round 18). The grade here is ours alone.
@@ -37445,7 +37672,7 @@ local function groundY(x: number, z: number): number
 	return Grid.heightAt(currentMap.grid, x, z)
 end
 
-local LABEL_MAX_K = 2.0 -- largest camera-height scale applied in updateLabels
+local LABEL_MAX_K = 1.4 -- largest camera-height scale applied in updateLabels
 local LABEL_MAX_RISE = 5 -- studs of terrain rise tolerated under a plate before it is shortened
 
 -- Highest ground under a plate of half-length `hl` (world X) and half-depth `hd` (world Z).
@@ -37464,7 +37691,7 @@ end
 local function buildLabel(parent: Instance, l: any, isVillage: boolean)
 	-- Villages are the names players navigate by: larger and steadier than terrain features,
 	-- which no longer dwarf them (Landgrafenberg vs Closewitz in Studio).
-	local size = if isVillage then 24 else math.clamp(17 * l.size, 13, 22)
+	local size = if isVillage then 16 else math.clamp(12 * l.size, 9, 15)
 	-- plate length follows the name so long names keep their letter height
 	local len = size * math.max(3, 0.56 * #l.text)
 	-- Shorten the plate on steep ground (it clipped at the ends on slopes in Studio), then lift it
@@ -37707,22 +37934,34 @@ end
 local HOVER_RADIUS = 70 -- studs around the cursor within which hover names show
 local NEAR_FADE = 160 -- camera this close to a floating name: it fades so as not to shout
 
+-- Ground names, as in TW, belong to the map view, not the fighting: hidden below LABEL_HIDE,
+-- faded in by LABEL_SHOW, and grown only modestly with height. Returns the plate scale and the
+-- text transparency for a camera height.
+local LABEL_HIDE, LABEL_SHOW = 200, 320
+function Props.groundLabelLook(cameraHeight: number): (number, number)
+	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
+	local t = math.clamp((cameraHeight - LABEL_HIDE) / (LABEL_SHOW - LABEL_HIDE), 0, 1)
+	return k, 1 - t * 0.88
+end
+
 -- Ground labels grow with camera height so they stay readable from any zoom. Floating and hover
 -- names are billboards that scale with height and fade in and out over a few frames.
-local lastLabelK = -1
+local lastLabelK, lastLabelAlpha = -1, -1
 function Props.updateLabels(cameraHeight: number)
-	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
+	local k, alpha = Props.groundLabelLook(cameraHeight)
 	if labelMode == "ground" or labelMode == "off" then
-		if math.abs(k - lastLabelK) < 0.05 then
+		if math.abs(k - lastLabelK) < 0.05 and math.abs(alpha - lastLabelAlpha) < 0.03 then
 			return
 		end
-		lastLabelK = k
+		lastLabelK, lastLabelAlpha = k, alpha
 		for _, l in labelParts do
 			l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
+			l.text.TextTransparency = alpha
+			l.text.TextStrokeTransparency = 0.6 + 0.4 * (alpha - 0.12) / 0.88
 		end
 		return
 	end
-	lastLabelK = -1
+	lastLabelK, lastLabelAlpha = -1, -1
 	local cam = workspace.CurrentCamera
 	local camPos = if cam then cam.CFrame.Position else Vector3.zero
 	local cx, cz = nil, nil
@@ -37820,7 +38059,7 @@ function Props.clear()
 		zoneFolder = nil
 	end
 	table.clear(labelParts)
-	lastLabelK = -1
+	lastLabelK, lastLabelAlpha = -1, -1
 	table.clear(objectiveMarks)
 end
 
@@ -38205,12 +38444,12 @@ local POLE = Vector3.new(0.05, 0, 0.35)
 -- of the shouldered musket; levelled: both reach forward along the piece.
 local ARM_L_REST = CFrame.new(0.02, 2.08, -0.44) * CFrame.Angles(0, 0, math.rad(8))
 local ARM_R_REST = CFrame.new(0.02, 2.08, 0.44) * CFrame.Angles(0, 0, math.rad(-6))
-local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(20), math.rad(-78))
-local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-62))
+local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(-20), math.rad(78))
+local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(62))
 -- Reloading: the musket stands upright in front, butt on the ground, the left hand on the barrel
 -- and the right working the ramrod; the last part of the cycle it is levelled and fired.
-local RAM = CFrame.new(0.55, 0.05, 0.12) * CFrame.Angles(0, 0, math.rad(6))
-local ARM_L_RAM = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(10), math.rad(-38))
+local RAM = CFrame.new(0.55, 0.9, 0.12) * CFrame.Angles(0, 0, math.rad(6)) -- the middle of the musket; its butt is on the ground
+local ARM_L_RAM = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(-10), math.rad(38))
 local RAMMING = 0.75 -- share of the reload cycle spent loading
 local THRUST = 0.35 -- studs a bayonet thrust drives forward
 
@@ -38275,10 +38514,47 @@ local function meshed(key: string, size: Vector3, colour: Color3): BasePart?
 	return p
 end
 
+-- ------------------------------------------------------------------ generated kits
+
+-- A kit piece as a part carrying its mesh, cloned from one template per piece.
+local templates: { [Assets.Piece]: BasePart } = {}
+local function piece(p: Assets.Piece): BasePart
+	local t = templates[p]
+	if not t then
+		local part = mk(Vector3.new(p.size[1], p.size[2], p.size[3]), Color3.new(1, 1, 1))
+		local m = Instance.new("SpecialMesh") :: SpecialMesh
+		m.MeshType = Enum.MeshType.FileMesh
+		m.MeshId = p.mesh
+		m.TextureId = p.texture
+		m.Scale = Vector3.new(p.scale[1], p.scale[2], p.scale[3])
+		m.Parent = part
+		templates[p] = part
+		t = part
+	end
+	return (t :: BasePart):Clone() :: BasePart
+end
+
+local function at(p: Assets.Piece): CFrame
+	local c = p.cf
+	return CFrame.new(c[1], c[2], c[3]) * CFrame.Angles(c[4], c[5], c[6])
+end
+
+-- The kit figure's shoulders stand this much above the part-built one's: arm and musket poses
+-- turn about the kit's own shoulder (partCFrame's `pivot` for anims 3, 12, 13).
+local KIT_LIFT = 0.42
+-- The kit musket is longer than the part-built one; it is held this far toward the muzzle from
+-- its middle, so the butt sits at the hip shouldered and in the shoulder levelled.
+local KIT_GRIP = 0.72
+
 -- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets
 -- levelled. act = "reload" (firing infantry) or "thrust" (infantry in melee), at t in [0, 1) of
 -- each man's own cycle, moves the musket and arms (3, 12, 13).
 function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: number, armed: boolean, act: string?, t: number?): CFrame
+	if pivot ~= 0 and (anim == 3 or anim == 12 or anim == 13) then
+		-- a kit's musket stands on its butt while ramming, so only the hands are lifted then
+		local grounded = anim == 3 and act == "reload" and (t or 0) < RAMMING
+		return CFrame.new(0, if grounded then 0 else pivot, 0) * Soldiers.partCFrame(anim, lc, 0, swing, armed, act, t)
+	end
 	local phase = t or 0
 	if act == "reload" and phase < RAMMING then
 		if anim == 3 then
@@ -38287,7 +38563,7 @@ function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: num
 			return ARM_L_RAM * lc
 		elseif anim == 13 then
 			local stroke = 0.5 + 0.5 * math.sin(phase * math.pi * 2 * 4) -- four strokes of the ramrod
-			return CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-115 - 40 * stroke)) * lc
+			return CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(15 + 45 * stroke)) * lc
 		end
 	elseif act == "thrust" and (anim == 3 or anim == 12 or anim == 13) then
 		local drive = CFrame.new(THRUST * math.max(0, math.sin(phase * math.pi * 2)), 0, 0)
@@ -38300,7 +38576,7 @@ function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: num
 		end
 		local a = if anim == 1 or anim == 4 then swing else -swing
 		local p = lc.Position
-		return CFrame.new(p.X, pivot, p.Z) * CFrame.Angles(0, 0, a) * CFrame.new(0, p.Y - pivot, 0)
+		return CFrame.new(p.X, pivot, p.Z) * CFrame.Angles(0, 0, a) * CFrame.new(0, p.Y - pivot, 0) * lc.Rotation
 	elseif anim == 3 then
 		return (if armed then LEVEL else SHOULDER) * lc
 	elseif anim == 6 then
@@ -38814,9 +39090,71 @@ end
 
 export type InfantryRole = "line" | "colour" | "drummer"
 
+-- Where each kit piece goes on the part-built rig: legs swing from the hip (1/2), arms (12/13)
+-- and musket (3) pose about the kit's shoulder, so at rest every piece stands as generated.
+export type KitEntry = { key: string, lc: CFrame, anim: number, pivot: number }
+function Soldiers.kitLayout(kit: Assets.Kit): { KitEntry }
+	local hip = kit.legL.cf[2] + kit.legL.size[2] / 2 - 0.1
+	local lift = CFrame.new(0, KIT_LIFT, 0)
+	return {
+		{ key = "torso", lc = at(kit.torso), anim = 0, pivot = 0 },
+		{ key = "head", lc = at(kit.head), anim = 0, pivot = 0 },
+		{ key = "legL", lc = at(kit.legL), anim = 1, pivot = hip },
+		{ key = "legR", lc = at(kit.legR), anim = 2, pivot = hip },
+		{ key = "armL", lc = (lift * ARM_L_REST):Inverse() * at(kit.armL), anim = 12, pivot = KIT_LIFT },
+		{ key = "armR", lc = (lift * ARM_R_REST):Inverse() * at(kit.armR), anim = 13, pivot = KIT_LIFT },
+		{ key = "headgear", lc = at(kit.headgear), anim = 0, pivot = 0 },
+		{ key = "musket", lc = CFrame.new(0, KIT_GRIP, 0) * at(kit.musket).Rotation, anim = 3, pivot = KIT_LIFT },
+	}
+end
+
+-- The nation's generated kit. It wears a shako; other headgear is the part-built one on the
+-- kit's head. Colour bearers and drummers carry their pole or drum instead of the musket.
+-- Headgear on a kit's head: a generated hat for this kind when there is one, else the kit's
+-- own (it wears the nation's line headgear), else the part-built one.
+local function kitHeadgear(add: Add, kit: Assets.Kit, L: Look, seed: number): boolean
+	local hat = Assets.kit("head_" .. L.head)
+	local g = kit.headgear.cf
+	if hat then
+		local bottom = g[2] - kit.headgear.size[2] / 2 + 0.02
+		add(piece(hat.headgear), CFrame.new(g[1], bottom + hat.headgear.size[2] / 2, g[3]) * at(hat.headgear).Rotation, 0, 0)
+		return true
+	end
+	local N = NATIONS[L.nation]
+	if N and L.head == N.head then
+		return false -- the kit's own
+	end
+	local h = kit.head.cf
+	headgear(add, L, CFrame.new(h[1], h[2] + kit.head.size[2] / 2 - 0.03, h[3]), false, seed)
+	return true
+end
+
+local function infantryKit(add: Add, kit: Assets.Kit, L: Look, role: InfantryRole, seed: number)
+	for _, e in Soldiers.kitLayout(kit) do
+		if e.key == "headgear" and kitHeadgear(add, kit, L, seed) then
+			continue
+		elseif e.key ~= "musket" or role == "line" then
+			add(piece(kit[e.key]), e.lc, e.anim, e.pivot)
+		end
+	end
+	if role == "colour" then
+		add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2 + KIT_LIFT, POLE.Z), 0, 0)
+		Soldiers.flag(add, L.nation, CFrame.new(POLE.X - 0.03, 3.65 + KIT_LIFT, POLE.Z), 1.7, 1.25, 6)
+	elseif role == "drummer" then
+		local drum = CFrame.new(0.38, 1.45, 0.14) * CFrame.Angles(0, 0, math.pi / 2)
+		add(cyl(0.44, 0.31, if L.nation == "france" then BRASS else WHITE), drum, 0, 0)
+		add(cyl(0.46, 0.27, L.facing), drum, 0, 0) -- hoops
+	end
+end
+
 -- Legs, coat with facings, belts, knapsack, head and headgear. `seed` varies company pompons.
 function Soldiers.infantry(add: Add, L: Look, detail: boolean, role: InfantryRole, seed: number?)
 	local s = seed or 0
+	local kit = Assets.kit("infantry_" .. L.nation)
+	if kit and L.kind ~= "gunner" then
+		infantryKit(add, kit, L, role, s)
+		return
+	end
 	local mesh = meshed("soldierInfantry", Vector3.new(0.9, 3.2, 0.9), L.coat)
 	if mesh then
 		add(mesh, CFrame.new(0, 1.6, 0), 0, 0)
@@ -38868,7 +39206,25 @@ end
 -- ------------------------------------------------------------------ cavalry
 
 -- Horse alone (also used for limber teams). `seed` picks a coat colour unless `hide` is given.
+-- A kit horse: body with saddle, neck and head, and four legs swinging in diagonal pairs from
+-- the shoulder (4/5), as the part-built horse's do.
+local function horseKit(add: Add, kit: Assets.Kit, origin: CFrame)
+	local shoulder = kit.legFL.cf[2] + kit.legFL.size[2] / 2 - 0.1
+	add(piece(kit.body), origin * at(kit.body), 0, 0)
+	add(piece(kit.neck), origin * at(kit.neck), 0, 0)
+	local legs: { [string]: number } = { legFL = 4, legFR = 5, legBL = 5, legBR = 4 }
+	for key, anim in legs do
+		add(piece(kit[key]), origin * at(kit[key]), anim, shoulder)
+	end
+end
+
+-- Horse alone (limber teams, gun teams): the French kit's bay when there is one.
 function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, hide: Color3?)
+	local kit = Assets.kit("cavalry_france")
+	if kit then
+		horseKit(add, kit, origin)
+		return
+	end
 	local coat = hide or HORSES[seed % #HORSES + 1]
 	local mesh = meshed("horse", Vector3.new(3.4, 3.0, 0.9), coat)
 	if mesh then
@@ -38887,7 +39243,33 @@ function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, 
 	end
 end
 
+-- Where a kit rider's head is, for a hat in place of the kit's helmet (officers' bicornes).
+local RIDER_HEAD = Vector3.new(0.12, 3.42, 0)
+
+-- The nation's horse-soldier kit: horse, rider, and the rider's helmet with his sabre. Officers
+-- and generals wear their hat instead; lancers carry the part-built lance and pennon.
+local function cavalryKit(add: Add, kit: Assets.Kit, L: Look)
+	horseKit(add, kit, CFrame.identity)
+	add(piece(kit.rider), at(kit.rider), 0, 0)
+	local hat = if L.head == "bicorne" then Assets.kit("head_bicorne") else nil
+	if hat then
+		add(piece(hat.headgear), CFrame.new(RIDER_HEAD + Vector3.new(0, hat.headgear.size[2] / 2, 0)) * at(hat.headgear).Rotation, 0, 0)
+	else
+		add(piece(kit.riderHead), at(kit.riderHead), 0, 0)
+	end
+	local pennon = L.pennon
+	if pennon then
+		add(mk(Vector3.new(0.06, 5.2, 0.06), DARK_WOOD), CFrame.new(0.3, 3.6, 0.42) * CFrame.Angles(0, 0, math.rad(-6)), 0, 0)
+		add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[1])), CFrame.new(0.15, 6.0, 0.42), 0, 0)
+	end
+end
+
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
+	local kit = (if L.kind == "emperor" then Assets.kit("cavalry_emperor") else nil) or Assets.kit("cavalry_" .. L.nation)
+	if kit then
+		cavalryKit(add, kit, L)
+		return
+	end
 	local mesh = meshed("soldierCavalry", Vector3.new(3.6, 4.0, 1.0), L.coat)
 	if mesh then
 		add(mesh, CFrame.new(0, 2.0, 0), 0, 0)
@@ -38937,7 +39319,55 @@ end
 
 -- One gun on a two-wheeled carriage with trail, crew of 4; limbered: hooked to a limber
 -- with a two-horse team, crew walking alongside. Carriage paint follows the nation.
+-- Gun kits by carriage paint: French olive, Austrian ochre, the blue-grey of Britain and the
+-- German states.
+local GUN_KIT: { [string]: string } = { austria = "gun_austria", britain = "gun_britain", prussia = "gun_britain", saxony = "gun_britain", bavaria = "gun_britain" }
+
+-- A gunner from the nation's infantry kit, at rest without a musket; the whole man steps clear
+-- of the gun as it fires (anim 11, `side` = ±1).
+local function gunnerKit(add: Add, kit: Assets.Kit, foot: CFrame, side: number)
+	for _, key in { "torso", "head", "headgear", "armL", "armR", "legL", "legR" } do
+		add(piece(kit[key]), foot * at(kit[key]), 11, side)
+	end
+end
+
+local function gunKit(add: Add, kit: Assets.Kit, L: Look, limbered: boolean, seed: number)
+	local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
+	for _, key in { "barrel", "carriage", "wheelL", "wheelR" } do
+		add(piece(kit[key]), g * at(kit[key]), 0, 0)
+	end
+	if limbered then
+		local limber = Assets.kit("limber_france")
+		if limber then
+			add(piece(limber.limber), at(limber.limber), 0, 0)
+		else
+			for side = -1, 1, 2 do
+				wheel(add, CFrame.new(1.0, 0.65, side * 0.65), 0.65, L.carriage)
+			end
+			add(mk(Vector3.new(1.0, 0.55, 1.0), L.carriage), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
+			add(mk(Vector3.new(2.6, 0.12, 0.12), L.carriage), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
+		end
+		Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
+		Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
+	end
+	local crew = Assets.kit("infantry_" .. L.nation)
+	local spots = if limbered then { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } else { { -1.7, -1.1 }, { -1.7, 1.1 }, { 0.3, -1.45 }, { 0.3, 1.45 } }
+	for _, p in spots do
+		local foot = CFrame.new(p[1], 0, p[2])
+		if crew then
+			gunnerKit(add, crew, foot, if p[2] < 0 then -1 else 1)
+		else
+			gunner(add, L, foot)
+		end
+	end
+end
+
 function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, seed: number)
+	local kit = Assets.kit(GUN_KIT[L.nation] or "gun_france")
+	if kit then
+		gunKit(add, kit, L, limbered, seed)
+		return
+	end
 	local gunMesh = meshed("gun", Vector3.new(4.4, 2.2, 2.6), L.carriage)
 	if gunMesh then
 		local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()

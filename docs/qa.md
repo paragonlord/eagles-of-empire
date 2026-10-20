@@ -983,6 +983,25 @@ EoE errors. Studio rendered again; synced 6 scripts and played by mouse and keyb
   so that battle's Return to Campaign opened the Thuringian map; opening Grand Campaign from the
   menu showed the same session. Through the UI the flag is set.
 
+**2026-10-20 round 39 (graphics G1: generated soldiers, horses and guns), Studio MCP, builds
+b6ed9b1 → 761bd90.** No script errors in the console (only Studio's own UIBlox warnings).
+- Pass: Studio's mesh generator publishes every piece as an asset and `generate_texture` repaints
+  one figure per nation, so all eight nations share one infantry layout and one cavalry layout
+  (`g1-infantry-nations.jpg`, `g1-cavalry-nations.jpg`).
+- Pass: in Jena the French line is the textured kit (shakos, crossbelts, knapsacks, shouldered
+  muskets); next to the part-built officer the difference is plain (`g1-kit-france-close.jpg`).
+- Pass: generals ride kit horses in bicornes; Napoleon has his own kit (Guard chasseur green on a
+  grey) (`g1-generals-bicorne.jpg`). A limbered battery: kit gun reversed, kit gunners, kit
+  horses (`g1-battery-limbered.jpg`; the limber was then replaced by a generated one).
+- Pass: at the default view (420 high) the battalions are figures, not slabs; with the morning
+  fog they read as small dark ranks under their plates (`g1-default-view-men.jpg`).
+- Fixed on the way: levelled muskets pulled both arms backward and a reloading musket stood half
+  in the ground (the arm angles had the wrong sign; the ram pose sat the musket's middle at the
+  ground). Tests now pin the hands forward and the butt on the ground, part-built and kit.
+- Seen: the unit plates are large next to the new figures at mid zoom; TW uses small banners.
+  Plates and ground materials are the next pass (G2).
+- Not judged from stills: the march, reload and thrust beats on the kit figures in motion.
+
 ## Known failures
 
 None recorded yet.
