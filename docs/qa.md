@@ -1024,7 +1024,7 @@ b6ed9b1 → 761bd90.** No script errors in the console (only Studio's own UIBlox
   (`g4-nation-picker-rulers.jpg`).
 - Pass, then tightened: the battle cards carry a portrait of the unit's own soldier, the class
   glyph a corner badge (`g4-cards-portraits-first.jpg`); the first cut framed the whole man too
-  small, so the portrait camera moved in to head and shoulders.
+  small, so the portrait camera moved in to head and shoulders (`g4-cards-portraits.jpg`).
 - Frame cost on Lannes on the Landgrafenberg (default view, High): 7,762 figure parts, Studio's
   RenderCPUFrameTime 6.1 ms a frame (60 fps needs 16.7). The Play window ran at 15 fps, which
   is Studio's throttle for an unfocused window, not the game. A full Waterloo at High still

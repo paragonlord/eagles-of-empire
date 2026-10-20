@@ -4,11 +4,12 @@ Resume from here; do not recap. Updated 2026-10-20.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 95 files, 221 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 231 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
 - Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–11 and the
-  whole-game balance and AI pass done; next: the open items below).
+  whole-game balance and AI pass done) and the graphics pass G0–G4 (generated soldiers, painted
+  ground, real Europe on the board, paintings and portraits); next: the open items below.
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
