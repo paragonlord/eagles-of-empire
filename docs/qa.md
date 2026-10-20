@@ -1002,6 +1002,27 @@ b6ed9b1 → 761bd90.** No script errors in the console (only Studio's own UIBlox
   Plates and ground materials are the next pass (G2).
 - Not judged from stills: the march, reload and thrust beats on the kit figures in motion.
 
+**2026-10-20 round 40 (graphics G2–G4: ground, board, paintings), Studio MCP, builds 63e2496 →
+385a888.** No script errors in the console.
+- Pass: the seven generated ground materials take over the terrain (clover in the meadows,
+  furrows in the plough, stubble rows); with lighter season tints the field reads olive, sage
+  and umber instead of saturated plastic (`g2-ground-painted-first.jpg` → `g2-ground-painted-tinted.jpg`;
+  candidates `g2-material-swatches.jpg`). Unit plates are smaller.
+- Pass: the campaign board is real Europe: Natural Earth coasts and lakes, thin blue rivers over
+  the owner tint, the Alps and Pyrenees raised with snow, the Carpathians and Balkans in rock and
+  forest; borders and occupation stripes stop at the shore (`g3-board-europe.jpg`). Army tokens
+  are the nation's cavalry kit on the walnut plinth (`g3-army-token-kit.jpg`).
+- Fixed on the way: the owner tint was buried under the terrain (smooth terrain draws a part-full
+  voxel's surface between its middle and its top; the fill now accounts for it), and rivers
+  carved as water channels showed as grey trenches through the tint (now drawn as lines).
+- Pass: the loading screen shows the battle's painting (Vernet's Jena for Jena and Auerstedt)
+  under the title and tips (`g4-loading-jena-painting.jpg`); the menu column has Philippoteaux's
+  sky over the badge (`g4-menu-painting.jpg`).
+- Fixed: the nation picker's portraits covered the names (Kit.flag pads a text button's left
+  edge; the portrait, name and flag now sit in a plain frame inside the button).
+- Not seen yet: card portraits in a battle, nation names at high zoom on the board, the
+  Thuringian parchment, the trestle and stone bridges and hedgerows on a map that has them.
+
 ## Known failures
 
 None recorded yet.

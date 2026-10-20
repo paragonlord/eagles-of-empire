@@ -28,7 +28,7 @@ Resume from here; do not recap. Updated 2026-10-20.
   blockades); either side in the listed battles,
   custom battles, kills and an In history section in the results, loading tips, visible round
   shot, reload and bayonet animations.
-- Studio QA log: `docs/qa.md` (rounds 1–38). Balance table: `docs/balance.md`.
+- Studio QA log: `docs/qa.md` (rounds 1–40). Balance table: `docs/balance.md`.
 
 ## Workflow
 
@@ -67,23 +67,34 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 
 ## Assets (src/shared/Assets.luau, guide in docs/assets-brief.md)
 
-- Filled: trees `treeOak`, `treeBeech`, `treePine`, `treePoplar` (mesh + texture + `native`);
-  buildings `houseA`, `houseB`, `barn`, `church`, `windmill`; textures `bark`, `roofTile`,
-  `wall`, `thatch`; `Kit.paperTextureId`. Only `houseA` has been seen in Studio (QA round 29).
-- A slot needs `mesh`, `texture`, `native` (the mesh's size in studs as Studio shows on import);
-  leave `scale` at `{1, 1, 1}`. Trees stand on their centre; buildings on their highest corner
-  with a stone plinth; bridges put the deck at bank height.
+- Graphics pass (2026-10-20), all generated in Studio through the MCP and published to your
+  account; full list in `docs/assets-brief.md`:
+  - **Soldiers are kits**: eight textured pieces per figure, posed on the old animation codes.
+    Infantry and cavalry for France, Prussia, Austria, Russia, Britain, Saxony, Netherlands,
+    Bavaria (`Assets.kits`); Napoleon's own; guns in three paints with kit crews; a limber; hats
+    (bearskin, bicorne, crested helmet, Highland bonnet). `tools/kit_import.luau` turns a
+    generated model into a kit entry.
+  - **Ground**: seven MaterialVariants in `default.project.json` (MaterialService) override the
+    terrain's base materials; the client turns them on (`World/Terrain.paintGround`).
+  - **World**: hedgerow, willow, stone and trestle bridges, cart; ship of the line (board fleets).
+  - **Paintings and portraits** (public domain, Wikimedia Commons): menu, loading per battle,
+    results ribbon; the five sovereigns on the nation picker; the Thuringian parchment map drawn
+    by `tools/thuringia_map.py`.
+- Campaign board geography: `tools/geo.py` (Natural Earth, public domain) writes
+  `src/shared/EuropeGeo.luau`; `src/shared/Relief.luau` reads it (land, relief, rivers).
+- Filled earlier: trees, houses, barn, church, windmill, bark/roof/wall/thatch textures.
 - Sound candidates with links (licensed APM / Pro Sound Effects first) are in
   `docs/assets-brief.md` "Sound candidates": audition, then fill the slots.
-- Next: `soldierInfantry` (French) and the eight priority sounds in `Assets.sounds`:
-  musketVolley, cannonFire, drumsMarchFr, ambienceField, menuMusic, uiClick, bugleCharge,
-  cavalryCharge.
+- Next: the eight priority sounds in `Assets.sounds` (musketVolley, cannonFire, drumsMarchFr,
+  ambienceField, menuMusic, uiClick, bugleCharge, cavalryCharge); a kaskett for Austria; a wall
+  and a fence section (both generations failed, they stay part-built).
 
 ## Open items
 
-0. Studio checklist, what is left after QA round 38: the reload and bayonet beats in motion (stills
-   cannot show them), and the round shot in motion now that the ball is 1.3 studs and its
-   trail 0.4 (`src/client/Effects.luau`, `roundShot`).
+0. Studio checklist, what is left after QA round 40: the kit soldiers marching, reloading and
+   thrusting in motion (stills cannot show them), the round shot in motion (1.3-stud ball), the
+   volley light and the howitzer shell burst, burning Hougoumont at Waterloo's 4:00 moment, and
+   the frame rate on a full Waterloo at High now that every man is eight meshes.
 
 1. Two-player Studio test (Test → Clients and Servers → 2 Players, by hand): co-op wings, pause
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.
@@ -94,7 +105,7 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
    the defending line meeting attacks in its flank (see the whole-game pass notes).
 4. Real phone: pinch/twist direction and pan speed knobs in `src/client/Camera.luau`.
 5. A human playthrough of the grand campaign to a peace.
-6. Willow, hedge, wall, fence, cart and reed meshes have no slots yet; add when assets exist.
+6. Reeds have no mesh slot; the wall and fence generations failed (part-built for now).
 
 ## Where things live
 

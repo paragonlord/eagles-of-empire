@@ -857,22 +857,27 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 			-- the button's text moves into its own label so the picture never covers it
 			local label = b.Text
 			b.Text = ""
+			-- a plain frame holds them, so Kit.flag's text padding for buttons does not apply
+			local card = Instance.new("Frame") :: Frame
+			card.Size = UDim2.fromScale(1, 1)
+			card.BackgroundTransparency = 1
+			card.Parent = b
 			local pic = Instance.new("ImageLabel") :: ImageLabel
 			pic.Size = UDim2.fromOffset(78, 78)
-			pic.Position = UDim2.new(0, 9, 0.5, 0)
+			pic.Position = UDim2.new(0, 6, 0.5, 0)
 			pic.AnchorPoint = Vector2.new(0, 0.5)
 			pic.Image = ruler
 			pic.BackgroundColor3 = Kit.WALNUT
 			pic.BorderSizePixel = 0
-			pic.Parent = b
+			pic.Parent = card
 			local frame = Instance.new("UIStroke") :: UIStroke
 			frame.Color = Kit.GILT_DARK
 			frame.Thickness = 2
 			frame.Parent = pic
-			local name = Kit.label(b, label, { size = UDim2.new(1, -104, 0, 44), position = UDim2.fromOffset(98, 12), textSize = 16, wrap = true, colour = Kit.INK })
+			local name = Kit.label(card, label, { size = UDim2.new(1, -100, 0, 44), position = UDim2.fromOffset(94, 12), textSize = 16, wrap = true, colour = Kit.INK })
 			name.Font = Enum.Font.Garamond
 			name.TextYAlignment = Enum.TextYAlignment.Top
-			Kit.flag(b, id, Vector2.new(30, 20), UDim2.fromOffset(98, 62))
+			Kit.flag(card, id, Vector2.new(30, 20), UDim2.fromOffset(94, 62))
 		else
 			flag(b, id, 30, 20, UDim2.fromOffset(5, 7)) -- Kit.flag reserves the text padding itself
 		end
