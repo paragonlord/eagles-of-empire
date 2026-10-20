@@ -534,6 +534,20 @@ test("Buildings: ordered into a building the enemy holds, a battalion storms it"
 	assertTrue(stormed, "the Garrison order turned into a charge on the holders")
 end)
 
+test("A battalion marching through idle friends works round them instead of standing pushed", function()
+	-- an idle battalion and a cavalry regiment square in its way, as an army's reserve stands
+	local sim = newSim({
+		unit("france", "infantry", "Marcher", A.x - 120, A.z, 0),
+		unit("france", "infantry", "Reserve", A.x, A.z, 0),
+		unit("france", "cavalry", "Horse", A.x, A.z + 30, 0, 400),
+	})
+	local f = sim.formations[1]
+	local dest = { x = A.x + 120, z = A.z }
+	cmd(sim, "Move", { 1 }, { pos = dest })
+	run(sim, 120)
+	assertTrue(Vec.dist(f.pos, dest) < 20, string.format("arrived (%.0f short, %s)", Vec.dist(f.pos, dest), f.state))
+end)
+
 test("Facing distinguishes front, flank and rear fire", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Target", B.x, B.z, 0), -- facing +x

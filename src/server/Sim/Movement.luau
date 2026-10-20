@@ -233,7 +233,7 @@ local function arrive(sim: SimLike, f: Formation)
 end
 
 -- Advance along the path by one tick.
-local function followPath(sim: SimLike, f: Formation, speedScale: number)
+local function followPath(sim: SimLike, f: Formation, speedScale: number, crowded: boolean?)
 	local path = f.path
 	if not path then
 		return
@@ -287,7 +287,11 @@ local function followPath(sim: SimLike, f: Formation, speedScale: number)
 		f.timers.stuck += DT
 		if f.timers.stuck > Config.Match.StuckSeconds then
 			local dest = orderDestination(sim, f)
-			if not dest or not Movement.plan(sim, f, dest) then
+			local o = f.order
+			if crowded and dest and o and (o.kind == "Move" or o.kind == "AttackMove") and Vec.dist(f.pos, dest) < f.halfRadius * 4 then
+				-- the spot is taken by friends: halt beside it
+				arrive(sim, f)
+			elseif not dest or not Movement.plan(sim, f, dest) then
 				sim.emit(sim, { kind = "message", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. ": route blocked" })
 				Formation.clearOrder(f)
 			end
@@ -329,14 +333,19 @@ local function updateTravelShape(sim: SimLike, f: Formation)
 	end
 end
 
--- Separation between friendly footprints; the lower id has priority at choke points.
-local function avoid(sim: SimLike, f: Formation): number
-	local scale = 1
+-- Separation between friendly footprints; the lower id has priority at choke points. On the march
+-- idle friends are passed through, as through the intervals of a line (pushed back by them all
+-- the way, a battalion never got past an army's idle reserve); near the end of the march they
+-- push, so arrivals spread out beside them (`crowded`: pushed by one this tick).
+local function avoid(sim: SimLike, f: Formation): (number, boolean)
+	local scale, crowded = 1, false
+	local path = f.path
+	local dest = path and path[#path]
 	for _, otherId in sim.order do
 		if otherId ~= f.id then
 			local o = sim.formations[otherId]
-			if o and o.faction == f.faction and Formation.isActive(o) and o.state ~= "melee" and f.state ~= "melee" then
-				local minDist = f.halfRadius + o.halfRadius
+			local minDist = if o then f.halfRadius + o.halfRadius else 0
+			if o and o.faction == f.faction and Formation.isActive(o) and o.state ~= "melee" and f.state ~= "melee" and (o.state ~= "idle" or (dest ~= nil and Vec.dist(f.pos, dest) < minDist * 2)) then
 				local d2 = Vec.dist2(f.pos, o.pos)
 				if d2 < minDist * minDist and d2 > 0.01 then
 					local d = math.sqrt(d2)
@@ -346,6 +355,7 @@ local function avoid(sim: SimLike, f: Formation): number
 						if o.state == "moving" and o.id < f.id and Grid.clearanceAt(sim.grid, f.pos.x, f.pos.z) < 24 then
 							scale = 0.5 -- yield at the choke point
 						end
+						crowded = crowded or o.state == "idle"
 						local np = Vec.add(f.pos, Vec.scale(dir, math.min(push, 2) * DT * 10))
 						if Nav.isWalkable(sim.nav, np) then
 							f.pos = np
@@ -355,7 +365,7 @@ local function avoid(sim: SimLike, f: Formation): number
 			end
 		end
 	end
-	return scale
+	return scale, crowded
 end
 
 local function routeToHome(sim: SimLike, f: Formation)
@@ -464,8 +474,8 @@ function Movement.update(sim: SimLike, f: Formation)
 			end
 		end
 		updateTravelShape(sim, f)
-		local scale = avoid(sim, f)
-		followPath(sim, f, scale)
+		local scale, crowded = avoid(sim, f)
+		followPath(sim, f, scale, crowded)
 	end
 end
 

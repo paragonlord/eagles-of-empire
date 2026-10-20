@@ -79,7 +79,10 @@ guns ±30° from their facing; a square fires all round.
 Navigation: A* on the 16-stud nav grid, cost = distance / terrain.speed, nodes impassable
 when clearance < 8. Replan when the path is blocked for `StuckSeconds = 4` or a new order
 arrives. Avoidance: friendly formations whose footprints (half-radii) overlap push apart; the lower id
-yields at choke points (clearance < 24).
+yields at choke points (clearance < 24). A formation on the march passes through idle friends (as
+through the intervals of a line) until it is within twice their combined half-radii of its
+destination, where they push it aside; stuck there for `StuckSeconds` with an idle friend on the
+spot, a Move or AttackMove halts beside it.
 
 ## Shapes and reforming
 
