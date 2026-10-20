@@ -434,6 +434,7 @@ Assets.paintings = {
 	austerlitz = "rbxassetid://72324631406127", -- Gérard, La bataille d'Austerlitz (1810)
 	jena = "rbxassetid://77495645476448", -- Vernet, Bataille d'Iéna (1836)
 	waterloo = "rbxassetid://104564772834798", -- Sadler, The Battle of Waterloo (c. 1815)
+	thuringia = "rbxassetid://115020031615909", -- the campaign map's parchment (tools/thuringia_map.py)
 }
 
 -- The painting for a battle map: its battle's, or the menu's for maps without one.

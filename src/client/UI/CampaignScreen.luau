@@ -4,6 +4,8 @@
 -- The server view is the only state; every action goes back through `callbacks.send`.
 
 local Kit = require(script.Parent.Kit)
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Factions = require(script.Parent.Parent.Factions)
 
 local CampaignScreen = {}
@@ -573,6 +575,12 @@ local function build()
 	local aspect = Instance.new("UIAspectRatioConstraint") :: UIAspectRatioConstraint
 	aspect.AspectRatio = 1.15
 	aspect.Parent = mf
+	-- the parchment map: the Saale, the Ilm and the Elster, hills and woods (tools/thuringia_map.py)
+	local parchment = Instance.new("ImageLabel") :: ImageLabel
+	parchment.Size = UDim2.fromScale(1, 1)
+	parchment.BackgroundTransparency = 1
+	parchment.Image = Assets.paintings.thuringia
+	parchment.Parent = mf
 	local rl = Instance.new("Frame") :: Frame
 	rl.Size = UDim2.fromScale(1, 1)
 	rl.BackgroundTransparency = 1

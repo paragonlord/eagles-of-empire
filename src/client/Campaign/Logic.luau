@@ -345,4 +345,12 @@ function Logic.offerText(o: any): string
 	return string.format("%s proposes %s.", nationName(o.from), tostring(o.kind))
 end
 
+-- Board label tiers by camera height, as text transparencies (0 shown, 1 hidden): province
+-- names up close, nation names across their lands from high up, cross-fading in between.
+local TIER_LOW, TIER_HIGH = 360, 560
+function Logic.labelTiers(cameraHeight: number): (number, number)
+	local t = math.clamp((cameraHeight - TIER_LOW) / (TIER_HIGH - TIER_LOW), 0, 1)
+	return t, 1 - t
+end
+
 return Logic

@@ -332,6 +332,24 @@ local function volley(ev: any)
 	end
 	local hx, hz = cx + fwd.X * 5, cz + fwd.Z * 5
 	emit("haze", CFrame.new(hx, groundY(hx, hz) + 3, hz) * CFrame.Angles(0, -f.heading, 0), Vector3.new(6, 1, f.width), 1 + thick)
+	-- at High the volley lights the ground and its own smoke for a blink (one light per volley)
+	local lf = folder
+	if Settings.get().quality >= 3 and lf then
+		local holder = Instance.new("Part") :: Part
+		holder.Anchored, holder.CanCollide, holder.CanQuery, holder.CanTouch = true, false, false, false
+		holder.Transparency = 1
+		holder.Size = Vector3.one
+		holder.Position = Vector3.new(cx, groundY(cx, cz) + 3, cz)
+		local light = Instance.new("PointLight") :: PointLight
+		light.Color = Color3.fromRGB(255, 196, 120)
+		light.Range = math.clamp(f.width * 0.6, 12, 40)
+		light.Brightness = 3
+		light.Shadows = false
+		light.Parent = holder
+		holder.Parent = lf
+		TweenService:Create(light, TweenInfo.new(dur + 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Brightness = 0 }):Play()
+		Debris:AddItem(holder, dur + 0.4)
+	end
 	Camera.shake(0.2)
 end
 
@@ -359,7 +377,22 @@ local function cannon(ev: any)
 	emit("haze", CFrame.new(muzzle + Vector3.new(dx * 8, 1.5, dz * 8)), Vector3.new(6, 1, 6), 1)
 	if ev.tx and dist > 1 then
 		local px, pz = -dz, dx
-		if ev.text == "canister" then
+		if ev.text == "shell" then
+			-- a howitzer shell: lobbed, it bursts over the target in a flash, a dirty puff and
+			-- a ring of thrown earth (Combat: area hits round the impact)
+			local x, z = ev.tx + px * (rng:NextNumber() - 0.5) * 6, ev.tz + pz * (rng:NextNumber() - 0.5) * 6
+			later(dist / 160, function()
+				local gy = groundY(x, z)
+				spawn(x, gy + 3, z, FLASH, 4, 1, 0.12, 0, 0.05)
+				spawn(x, gy + 3, z, BLAST, 2.5, 7, 0.3, 1.2, 0.25)
+				emit("plume", CFrame.lookAt(Vector3.new(x, gy + 2.5, z), Vector3.new(x, gy + 12, z)), Vector3.new(3, 2, 3), 14)
+				for k = 1, count(6) do
+					local a = k / 6 * math.pi * 2
+					strike(x + math.cos(a) * 5, z + math.sin(a) * 5, 2, math.cos(a), math.sin(a))
+				end
+				Camera.shake(0.8)
+			end)
+		elseif ev.text == "canister" then
 			for _ = 1, count(12) do
 				local r = dist * (0.45 + rng:NextNumber() * 0.65)
 				local side = (rng:NextNumber() - 0.5) * 0.45 * r

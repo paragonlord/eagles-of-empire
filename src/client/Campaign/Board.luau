@@ -47,6 +47,8 @@ local highlight: Highlight? = nil
 type Label = { part: BasePart, base: number, at: Vector3 }
 local labels: { Label } = {}
 local labelK = 0
+local nationLabels: { BasePart } = {} -- big nation names over their lands (rebuilt per view)
+local nationDirty = false
 local FIG = 1.6 -- figure scale
 
 -- A map point on the board; without `y` it stands on the ground (the tint, or a hill above it).
@@ -674,6 +676,25 @@ function Board.setView(view: any?)
 			end
 		end
 	end
+	-- each nation's name across the middle of its lands, in capitals
+	table.clear(nationLabels)
+	local sum: { [string]: { x: number, z: number, n: number } } = {}
+	for _, p in Data.Provinces do
+		local o = owner[p.id]
+		local acc = sum[o] or { x = 0, z = 0, n = 0 }
+		acc.x, acc.z, acc.n = acc.x + p.centre.x, acc.z + p.centre.z, acc.n + 1
+		sum[o] = acc
+	end
+	for nation, acc in sum do
+		local nat = Data.Nations[nation]
+		if nat and acc.n >= 2 then
+			local size = math.clamp(10 + acc.n * 2.2, 14, 34)
+			local part = groundLabel(d, string.upper((string.gsub(nat.name, "^[Tt]he ", ""))), Board.toWorld(acc.x / acc.n, acc.z / acc.n, TINT_Y + 4), size)
+			part.Size = Vector3.new(size, 0.2, size * 7)
+			table.insert(nationLabels, part)
+		end
+	end
+	nationDirty = true
 	if not view then
 		return
 	end
@@ -846,20 +867,43 @@ function Board.destroy()
 	table.clear(edges)
 	table.clear(armyModels)
 	table.clear(labels)
+	table.clear(nationLabels)
 	labelK = 0
 end
 
+local function fadeLabel(part: BasePart, alpha: number)
+	local gui = part:FindFirstChildOfClass("SurfaceGui") :: SurfaceGui?
+	local l = if gui then gui:FindFirstChildOfClass("TextLabel") :: TextLabel? else nil
+	if l then
+		l.TextTransparency = 0.05 + 0.95 * alpha
+		l.TextStrokeTransparency = 0.45 + 0.55 * alpha
+	end
+	if gui then
+		gui.Enabled = alpha < 0.99
+	end
+end
+
 -- Names grow with the camera height so they stay readable (never below their table size).
+local lastTier = -1
 function Board.updateLabels(cameraHeight: number)
 	local k = math.clamp(cameraHeight / 220, 1, 2.6)
-	if math.abs(k - labelK) < 0.03 then
-		return
+	local pa, na = Logic.labelTiers(cameraHeight)
+	if math.abs(k - labelK) >= 0.03 then
+		labelK = k
+		for _, l in labels do
+			local h = l.base * k
+			l.part.Size = Vector3.new(h, 0.2, h * 4)
+			l.part.CFrame = CFrame.new(l.at + Vector3.new(0, 0, 14 + h * 0.5)) * CFrame.Angles(0, -math.pi / 2, 0)
+		end
 	end
-	labelK = k
-	for _, l in labels do
-		local h = l.base * k
-		l.part.Size = Vector3.new(h, 0.2, h * 4)
-		l.part.CFrame = CFrame.new(l.at + Vector3.new(0, 0, 14 + h * 0.5)) * CFrame.Angles(0, -math.pi / 2, 0)
+	if math.abs(pa - lastTier) >= 0.02 or nationDirty then
+		lastTier, nationDirty = pa, false
+		for _, l in labels do
+			fadeLabel(l.part, pa)
+		end
+		for _, part in nationLabels do
+			fadeLabel(part, na)
+		end
 	end
 end
 
