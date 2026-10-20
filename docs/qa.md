@@ -1032,6 +1032,48 @@ b6ed9b1 → 761bd90.** No script errors in the console (only Studio's own UIBlox
 - Not seen yet: nation names at high zoom on the board, the Thuringian parchment, the trestle
   and stone bridges and hedgerows on a map that has them.
 
+**2026-10-20 round 41 (graphics G5: Waterloo frame time, phones, Low), Studio MCP, builds
+b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox warnings).
+- Measured with the MicroProfiler (LibMP snapshots, `EoE figures` / `EoE effects` / `EoE hud`
+  labels now on the client frame). The Play window runs at 15 fps unfocused and this Mac (M4)
+  draws it at 5K Retina, so the GPU wait below is high here and lower on a 1080p screen.
+- Fixed: **Waterloo's soldiers cost 13 ms of script a frame at the default view** (Medium, the
+  opening march, 7,242 figure parts): every battalion within the far-LOD distance re-placed all
+  its parts every frame, idle ones too, because the "milling about" offsets never settle.
+  Battalions past 150 studs no longer mill; past 150 they refresh 30 times a second, past 500
+  15 times, off screen 4 times (`Soldiers.refreshInterval`), and the four-corner ground lift is
+  only worked out close up. Same view after: 2 ms a frame in Studio.
+- Waterloo, French attack at La Haye Sainte (minute 5 at ×4, both armies in contact), per drawn
+  frame in Studio: High 14,772 figure parts, soldiers 7.5 ms (3.5 of it moving the parts),
+  render CPU 5.4 ms, 1.7 M triangles, GPU wait 14.6 ms; Medium 11,690 parts, soldiers 7.7 ms;
+  Low 7,406 parts, soldiers 7.2 ms. Studio's 15 fps makes every battalion due every frame; at
+  60 fps the distant ones (all of them at the default height) cost a half to a quarter of that,
+  so about 2–4 ms (`g5-waterloo-fight.jpg`). Still to see: the frame rate on a real machine.
+- Fixed: **on a phone the main menu's entries ran off the bottom** (iPhone 17 Pro in the device
+  simulator: only the badge and the title showed; `g5-phone-menu-before.jpg`). A short screen
+  drops the painted header and the rules and shrinks the column to fit, entries 45 px tall
+  (`Touch.fitColumn`; `g5-phone-menu.jpg`).
+- Fixed: **the battle picker, custom battle, help and results panels (720–760 × 620–640) ran off
+  a phone** with their titles and Back buttons above the screen
+  (`g5-phone-battle-select-before.jpg`). `Kit.fit` scales a centred panel to the screen's width
+  and cuts it to its height; the list scrolls (`g5-phone-battle-select.jpg`). The desktop
+  Settings sheet uses it too: on a 650 px window its Close button sat under Roblox's top bar.
+- Fixed: **the touch battle HUD covered the whole field** (`g5-phone-battle-before.jpg`): the
+  16-button command panel, minimap and cards filled a 500 × 215-unit screen and the battle's
+  name ran over the clock. The panel now opens from an Orders button in the corner row (holding
+  a unit still opens the order wheel), the minimap shrinks to the room above the cards, the
+  objectives sit top-right with no balance bar, the ticker is two lines and the title is
+  shorter (`g5-phone-battle.jpg`; `docs/mobile-contract.md`).
+- Fixed: the deployment sheet's stamp sat over the weather notes on a short sheet; it is left
+  off when the margin has no room (`g5-phone-deployment.jpg`).
+- Fixed: **Low quality (a phone's default) read olive and maroon with the map edge in view**
+  (`g5-low-before.jpg`): Low has no Atmosphere, and the distance fog standing in for it started
+  past most of the field. The fog now starts close (280 studs in the afternoon) and the grade is
+  a little duller (`g5-low-after.jpg`; Medium from the same camera: `g5-medium-same-view.jpg`).
+- Harness note: the simulator keeps a keyboard, so "auto" controls flip between touch and
+  desktop during a session; pick Touch in Settings (as the contract says) before judging the
+  touch layout. Clicks in the simulator land 62 px left and 20 px up of the screen position.
+
 ## Known failures
 
 None recorded yet.

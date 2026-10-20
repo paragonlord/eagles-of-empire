@@ -131,6 +131,6 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 - [ ] Ornaments: wax, stamp, eagle (not started; the code-drawn seal and stamp stay)
 
 ## G5: performance and phones
-- [~] Frame time: 6.1 ms render CPU at High on the Landgrafenberg with kit figures (Studio); Waterloo at High and the Low preset not measured
-- [ ] Phone check (Device Simulator)
+- [x] Frame time: Waterloo measured at High, Medium and Low (QA round 41); distant battalions refresh 15–30 times a second, the soldiers' script 13 → 2 ms at the default view; a real machine's frame rate still to see
+- [x] Phone check (Device Simulator, iPhone 17 Pro): menu, battle picker, panels and the battle HUD fit; Low's haze restored
 - [ ] Final QA round and handoff
