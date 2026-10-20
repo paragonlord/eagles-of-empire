@@ -34,6 +34,12 @@ local MINI_W = 90
 local TOUCH_CELL_H = 34
 local CMD_ROWS = 4 -- COMMANDS, four to a row
 local TOUCH_CMD_H = CMD_ROWS * TOUCH_CELL_H + (CMD_ROWS - 1) * 3 + 18
+-- Desktop, Total War style: the orders sit in two rows of eight right on top of the unit cards,
+-- the unit's details in the bottom-left corner beneath its general's ability.
+local STRIP_COLS, STRIP_CELL_W, STRIP_CELL_H, STRIP_PAD = 8, 66, 22, 6
+local STRIP_W = STRIP_COLS * STRIP_CELL_W + (STRIP_COLS - 1) * 3 + 2 * STRIP_PAD
+local STRIP_H = 2 * STRIP_CELL_H + 3 + 2 * STRIP_PAD
+local STRIP_Y = -EDGE - BOTTOM_H - 4 -- the strip's foot, just above the card bar
 local TOUCH_ROW_H = 34
 local playersCollapsed = false
 
@@ -504,7 +510,7 @@ end
 local INSPECTOR_FIELDS = { "corps", "class", "strength", "morale", "fatigue", "ammo", "shape", "status" }
 
 local function buildInspector(sg: ScreenGui)
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
 	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21, caps = false })
 	inspectorFields.name.TextTruncate = Enum.TextTruncate.AtEnd
 	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
@@ -629,12 +635,12 @@ local COMMANDS: { CommandDef } = {
 	{ key = "skirmish", text = "Skirmish", tip = "Light infantry and rifles: open order, fire on the move, hard to hit; cavalry rides it down" },
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
 	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
-	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
+	{ key = "charge", text = "Charge", tip = "Charge (J): then right-click a target or a point" },
 	{ key = "run", text = "Run", tip = "Run / walk (R): faster, far more tiring. A double right-click runs one march" },
 	{ key = "attack", text = "Attack", tip = "Attack-move (M): then right-click; they fight their way there" },
 	{ key = "hold", text = "Hold", tip = "Stand and hold position" },
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
-	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
+	{ key = "retreat", text = "Retreat", tip = "Retreat (N): fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
 	{ key = "ammo", text = "Auto", tip = "Ammunition, click to cycle: auto / round shot (long) / canister (short)" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
@@ -729,15 +735,15 @@ end
 local function buildCommandPanel(sg: ScreenGui)
 	local p = if touch
 		then Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, TOUCH_CMD_H), position = UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4), anchor = Vector2.new(1, 1), transparency = 0.1, padding = 9 })
-		else Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, BOTTOM_H), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 9 })
+		else Kit.panel(sg, { size = UDim2.fromOffset(STRIP_W, STRIP_H), position = UDim2.new(0.5, 0, 1, STRIP_Y), anchor = Vector2.new(0.5, 1), transparency = 0.1, padding = STRIP_PAD })
 	local grid = Instance.new("Frame") :: Frame
 	grid.Size = UDim2.fromScale(1, 1)
 	grid.BackgroundTransparency = 1
 	grid.Parent = p
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else math.floor((BOTTOM_H - 18 - (CMD_ROWS - 1) * 3) / CMD_ROWS))
+	g.CellSize = if touch then UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), TOUCH_CELL_H) else UDim2.fromOffset(STRIP_CELL_W, STRIP_CELL_H)
 	g.CellPadding = UDim2.fromOffset(3, 3)
-	g.FillDirectionMaxCells = 4
+	g.FillDirectionMaxCells = if touch then 4 else STRIP_COLS
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.Parent = grid
 	for i, c in COMMANDS do
@@ -762,7 +768,7 @@ local function buildCommandPanel(sg: ScreenGui)
 	bar.Parent = rb
 	rallyBar = bar
 
-	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, -EDGE - BOTTOM_H - 10), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
+	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, if touch then -EDGE - BOTTOM_H - 10 else STRIP_Y - STRIP_H - 6), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
@@ -837,7 +843,7 @@ local function buildAbility(sg: ScreenGui)
 		if f and g then
 			Input.sendOrder("Ability", { f.id }, { abilityId = g.ability.id })
 		end
-	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
+	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
 	b.RichText = true
 	b.Visible = false
 	b.ClipsDescendants = true

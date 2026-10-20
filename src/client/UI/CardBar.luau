@@ -28,7 +28,7 @@ local ARROW_W = 18
 local PAD = 5
 local GAP = 3
 CardBar.HEIGHT = 96
-CardBar.SIDE_MARGIN = 276 -- clear of the command panel (left) and the minimap (right)
+CardBar.SIDE_MARGIN = 276 -- clear of the unit details (left) and the minimap (right)
 
 local AMBER = Color3.fromRGB(196, 140, 40)
 local MORALE_DEFAULT: { [string]: number } = { steady = 100, shaken = 45, routing = 15, shattered = 0 }

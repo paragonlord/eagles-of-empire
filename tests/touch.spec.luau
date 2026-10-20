@@ -71,3 +71,14 @@ test("Touch: a big panel fits the screen's width by scale and its height by its 
 	assertTrue(h * k <= 381 / 1.5 - 16 + 1e-6, "the height fits: " .. h * k)
 	assertTrue(k * 1.5 >= 0.9, "text stays near its desktop size on the phone: " .. k * 1.5)
 end)
+
+test("Camera: D pans to the screen's right and A to its left, at any heading", function()
+	local Camera = require(Client.Camera)
+	-- Roblox's camera right is look x up: looking along +z (yaw 90 degrees) the right is -x
+	local x, z = Camera.screenRight(math.pi / 2)
+	assertTrue(math.abs(x + 1) < 1e-9 and math.abs(z) < 1e-9, string.format("looking north, right is -x: %.2f %.2f", x, z))
+	x, z = Camera.screenRight(0)
+	assertTrue(math.abs(x) < 1e-9 and math.abs(z - 1) < 1e-9, string.format("looking +x, right is +z: %.2f %.2f", x, z))
+	assertEq(Camera.HEIGHT_KEYS.up, Enum.KeyCode.X, "X raises the camera (Total War)")
+	assertEq(Camera.HEIGHT_KEYS.down, Enum.KeyCode.Z, "Z lowers it")
+end)

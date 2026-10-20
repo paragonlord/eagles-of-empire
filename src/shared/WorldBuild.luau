@@ -36,12 +36,14 @@ function WorldBuild.applyPalette(map: any)
 	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads, tracks, yards
 	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(122, 112, 98)) -- village streets
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
-	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(160, 150, 112)) -- pale but not white banks
-	t.WaterColor = rgb(P.Water)
-	t.WaterTransparency = 0.5
-	t.WaterWaveSize = 0.08
-	t.WaterWaveSpeed = 6
-	t.WaterReflectance = 0.4
+	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(134, 122, 92)) -- wet, muddy banks and river beds
+	-- deep enough that the bed no longer shows through pale; a slow ripple with a little sky in it
+	-- (more reflection read as a pale strip under the fog grade)
+	t.WaterColor = rgb(P.RiverWater)
+	t.WaterTransparency = 0.2
+	t.WaterWaveSize = 0.12
+	t.WaterWaveSpeed = 8
+	t.WaterReflectance = 0.3
 end
 
 -- Writes the map and its skirt as 4-stud voxels, chunk by chunk, yielding between chunks.

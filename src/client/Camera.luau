@@ -23,6 +23,7 @@ local DEFAULT_YAW = math.pi / 2 -- look toward +z (north)
 local PAN_SPEED = 1.1 -- studs per second per stud of height
 local ROTATE_SPEED = 1.6
 local ZOOM_STEP = 1.15
+local HEIGHT_SPEED = 1.1 -- X / Z: the height grows or shrinks by e^1.1 (3x) a second
 local DAMP = 10
 local EDGE_PX = 6 -- edge scrolling band at the window border
 
@@ -53,6 +54,15 @@ local function groundY(x: number, z: number): number
 	end
 	return 0
 end
+
+-- Screen-right on the ground for a camera looking along `yaw`: Roblox's right vector is
+-- look x up, so looking along (cos, sin) it is (-sin, cos), a quarter turn the positive way.
+function Camera.screenRight(yaw: number): (number, number)
+	return math.cos(yaw + math.pi / 2), math.sin(yaw + math.pi / 2)
+end
+
+-- Total War's height keys.
+Camera.HEIGHT_KEYS = { up = Enum.KeyCode.X, down = Enum.KeyCode.Z }
 
 local function textBoxFocused(): boolean
 	return (UserInputService:GetFocusedTextBox() :: TextBox?) ~= nil
@@ -111,10 +121,9 @@ local function readKeys(dt: number)
 	if fwd ~= 0 or side ~= 0 then
 		follow = nil -- panning takes the camera back
 		local speed = PAN_SPEED * cur.height * dt
-		-- forward on screen = look direction projected on the ground; right = +90° in sim space
-		-- is the screen-left in Roblox (Y-up, right-handed), so screen-right is yaw - 90°.
+		-- forward on screen = look direction projected on the ground
 		local fx, fz = math.cos(cur.yaw), math.sin(cur.yaw)
-		local rx, rz = math.cos(cur.yaw - math.pi / 2), math.sin(cur.yaw - math.pi / 2)
+		local rx, rz = Camera.screenRight(cur.yaw)
 		target.x += (fx * fwd + rx * side) * speed
 		target.z += (fz * fwd + rz * side) * speed
 	end
@@ -123,6 +132,12 @@ local function readKeys(dt: number)
 	end
 	if isDown(Enum.KeyCode.E) then
 		target.yaw -= ROTATE_SPEED * dt
+	end
+	if isDown(Camera.HEIGHT_KEYS.up) then
+		target.height *= math.exp(HEIGHT_SPEED * dt)
+	end
+	if isDown(Camera.HEIGHT_KEYS.down) then
+		target.height /= math.exp(HEIGHT_SPEED * dt)
 	end
 	if isDown(Enum.KeyCode.PageUp) then
 		target.pitch += 0.8 * dt
@@ -345,7 +360,7 @@ function Camera.panPixels(dx: number, dy: number)
 	local cam = workspace.CurrentCamera
 	local k = cur.height * PAN_DRAG / (if cam then math.max(cam.ViewportSize.Y, 1) else 720)
 	local fx, fz = math.cos(cur.yaw), math.sin(cur.yaw)
-	local rx, rz = math.cos(cur.yaw - math.pi / 2), math.sin(cur.yaw - math.pi / 2)
+	local rx, rz = Camera.screenRight(cur.yaw)
 	target.x += (fx * dy - rx * dx) * k
 	target.z += (fz * dy - rz * dx) * k
 	clampTarget()
