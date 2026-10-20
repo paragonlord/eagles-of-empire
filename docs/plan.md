@@ -50,6 +50,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Defence: reverse slope, garrisons, skirmish screens, counter-attacks, cavalry counter-charges
 - [x] Attack: pin and flank; light cavalry hunts routers and guns
 - [x] Balance flags: Hougoumont guns and Spielberg normal fixed; battle roles added; whole-game pass after Phase 11 (squares without flanks, collapse on field strength, march gridlock, defender posture and outposts): 8 flags against history down to 4, Waterloo to the allies in ~40 %; Auerstedt (Prussia) and the episode draws stand (docs/balance.md)
+- [x] Reinforcements join the line, reserves counterattack lost objectives (a garrison counts double), Auerstedt's Prussians arrive in pieces: against history 4 → 3, Waterloo to the allies in 23 of 30 (docs/balance.md)
 
 ## Phase 6: campaign economy
 - [x] Buildings and construction; recruitment needs buildings

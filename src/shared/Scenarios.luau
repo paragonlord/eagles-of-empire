@@ -230,20 +230,20 @@ local AUERSTEDT_PRUSSIAN = {
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 22 Pirch", 600, 1, 520, 860, EAST),
 	u("prussia", "Division Schmettau", "infantry", "Grenadier-Bataillon Hanstein", 600, 2, 480, 700, EAST),
 	u("prussia", "Division Schmettau", "artillery", "Batterie Schmettau", 120, 1, 430, 760, EAST),
-	-- Wartensleben's division — left, over the Sonnenkuppe
-	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 23 Winning", 600, 1, 540, 500, EAST),
-	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 55 Manstein", 600, 1, 540, 400, EAST),
-	u("prussia", "Division Wartensleben", "infantry", "Grenadier-Bataillon Rheinbaben", 600, 2, 460, 450, EAST),
-	u("prussia", "Division Wartensleben", "artillery", "Batterie Wartensleben", 120, 1, 400, 500, EAST),
-	u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 560, 350, EAST),
-	-- Orange's division — right, toward Poppel
-	u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 380, 1000, EAST),
-	u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 380, 1100, EAST),
-	u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1050, EAST),
-	u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 300, 1050, EAST),
-	-- Kalckreuth's reserve — held back behind the Eckartsberg
-	u("prussia", "Reserve · Kalckreuth", "infantry", "IR Nr. 15 Garde", 600, 2, 200, 850, EAST),
-	u("prussia", "Reserve · Kalckreuth", "infantry", "Grenadier-Garde Nr. 6", 600, 2, 200, 750, EAST),
+	-- Wartensleben's division — left, over the Sonnenkuppe, a few minutes behind Schmettau
+	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 23 Winning", 600, 1, 540, 500, EAST, { arrival = { seconds = 180, pos = { x = 200, z = 500 } } }),
+	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 55 Manstein", 600, 1, 540, 400, EAST, { arrival = { seconds = 200, pos = { x = 200, z = 400 } } }),
+	u("prussia", "Division Wartensleben", "infantry", "Grenadier-Bataillon Rheinbaben", 600, 2, 460, 450, EAST, { arrival = { seconds = 220, pos = { x = 200, z = 450 } } }),
+	u("prussia", "Division Wartensleben", "artillery", "Batterie Wartensleben", 120, 1, 400, 500, EAST, { arrival = { seconds = 240, pos = { x = 200, z = 500 } } }),
+	u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 560, 350, EAST, { arrival = { seconds = 200, pos = { x = 200, z = 350 } } }),
+	-- Orange's division — right, toward Poppel, the last up the road
+	u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 380, 1000, EAST, { arrival = { seconds = 330, pos = { x = 150, z = 1000 } } }),
+	u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 380, 1100, EAST, { arrival = { seconds = 360, pos = { x = 150, z = 1100 } } }),
+	u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1050, EAST, { arrival = { seconds = 390, pos = { x = 150, z = 1050 } } }),
+	u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 300, 1050, EAST, { arrival = { seconds = 420, pos = { x = 150, z = 1050 } } }),
+	-- Kalckreuth's reserve — held back behind the Eckartsberg; historically never committed
+	u("prussia", "Reserve · Kalckreuth", "infantry", "IR Nr. 15 Garde", 600, 2, 200, 850, EAST, { arrival = { seconds = 1200, pos = { x = 150, z = 850 } } }),
+	u("prussia", "Reserve · Kalckreuth", "infantry", "Grenadier-Garde Nr. 6", 600, 2, 200, 750, EAST, { arrival = { seconds = 1230, pos = { x = 150, z = 750 } } }),
 	-- Blücher's cavalry — the northern flank
 	u("prussia", "Kavallerie · Blücher", "cavalry", "Garde du Corps Nr. 13", 400, 2, 480, 1200, EAST),
 	u("prussia", "Kavallerie · Blücher", "cavalry", "Gensd'armes Kürassier Nr. 10", 400, 1, 420, 1250, EAST),

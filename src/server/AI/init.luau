@@ -34,6 +34,7 @@ type Unit = {
 	goal: string,
 	reason: string,
 	role: string, -- left | centre | right | reserve | guns | hq
+	placed: boolean, -- infantry: given its role (the first plan, or on arriving as a reinforcement)
 	commitUntil: number,
 	squareUntil: number,
 	withdrawUntil: number,
@@ -64,6 +65,7 @@ export type AIState = {
 	gunPos: { [number]: Vec },
 	nextPlan: number,
 	rolesAssigned: boolean,
+	held: { [string]: boolean }, -- objectives this side has held: worth taking back
 	units: { [number]: Unit },
 	mine: { Formation },
 	visible: { Formation },
@@ -84,7 +86,7 @@ local function unitOf(state: AIState, id: number): Unit
 	if u then
 		return u
 	end
-	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil, lastPos = nil, lastPosAt = 0, guardId = nil }
+	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", placed = false, commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil, lastPos = nil, lastPosAt = 0, guardId = nil }
 	state.units[id] = fresh
 	return fresh
 end
@@ -518,8 +520,9 @@ local function plan(state: AIState)
 	state.hqPos = hqPos
 
 	-- Roles are sticky. First plan: >= 20 % of infantry (those nearest home) in reserve, the rest
-	-- split by lateral position into wings; cavalry all reserve. Later plans only rotate a badly
-	-- damaged line unit to the reserve and promote a healthy reserve unit into its place.
+	-- split by lateral position into wings; cavalry all reserve. A battalion arriving later tops
+	-- the reserve up to that 20 % or joins the wing nearest its road. Later plans only rotate a
+	-- badly damaged line unit to the reserve and promote a healthy reserve unit into its place.
 	local inf: { Formation } = {}
 	for _, f in state.mine do
 		local u = unitOf(state, f.id)
@@ -561,6 +564,33 @@ local function plan(state: AIState)
 		local side = #line // 3
 		for i, f in line do
 			unitOf(state, f.id).role = if i <= side then "left" elseif i > #line - side then "right" else "centre"
+		end
+		for _, f in inf do
+			unitOf(state, f.id).placed = true
+		end
+	end
+	for _, f in inf do
+		local u = unitOf(state, f.id)
+		if not u.placed then
+			u.placed = true
+			local nRes = 0
+			for _, o in inf do
+				if unitOf(state, o.id).role == "reserve" and o ~= f then
+					nRes += 1
+				end
+			end
+			if nRes < math.ceil(0.2 * #inf) then
+				u.role = "reserve"
+			else
+				local best, bestD = "centre", math.huge
+				for _, w in WINGS do
+					local d = math.abs(lateral(state, f.pos) - lateral(state, wing[w]))
+					if d < bestD then
+						best, bestD = w, d
+					end
+				end
+				u.role = best
+			end
 		end
 	end
 	for _, f in inf do
@@ -812,10 +842,104 @@ local function exploit(state: AIState)
 	end
 end
 
+-- Take back what the enemy took: an objective this side held, or one on its own ground, that the
+-- enemy now holds gets up to two fresh reserve battalions marching on it, when they (with friends
+-- already there) at least match the enemy seen round it, a garrison behind walls counting double
+-- (Davout's and Wellington's reserves, not a line waiting for the next assault). They rejoin
+-- the reserve once it is ours again or their two minutes are up.
+local COUNTER_MAX, COUNTER_RANGE, COUNTER_COMMIT = 2, 600, 120
+local COUNTER_NEAR, COUNTER_ODDS = 150, 1 -- the enemy counted round the objective; friends needed per enemy man
+local GARRISON_WEIGHT = 2 -- a man behind walls counts for two
+-- Strength round a point: the enemy this side knows of (a garrison counting double), and its
+-- own steady horse and foot.
+local function oddsAt(state: AIState, p: Vec): (number, number)
+	local enemy, friends = 0, 0
+	for _, k in state.known do
+		if Vec.dist(k.pos, p) < COUNTER_NEAR then
+			local f = state.sim.formations[k.id]
+			enemy += k.strength * (if f and f.garrison then GARRISON_WEIGHT else 1)
+		end
+	end
+	for _, f in state.mine do
+		if (f.class == "infantry" or f.class == "cavalry") and not Formation.isBroken(f) and Vec.dist(f.pos, p) < COUNTER_NEAR then
+			friends += f.strength
+		end
+	end
+	return enemy, friends
+end
+
+local function counterattack(state: AIState)
+	local sim = state.sim
+	for _, o in sim.objectives do
+		if o.owner == state.faction then
+			state.held[o.def.id] = true
+		end
+	end
+	for _, f in state.mine do
+		local u = unitOf(state, f.id)
+		if u.goal == "counter" and u.point then
+			-- arrived and outmatched: fall back rather than die there
+			local enemy, friends = oddsAt(state, u.point :: Vec)
+			local outmatched = Vec.dist(f.pos, u.point :: Vec) < COUNTER_NEAR and friends < enemy * COUNTER_ODDS * 0.75
+			local done = not committed(state, u) or not healthy(f) or outmatched
+			for _, o in sim.objectives do
+				if o.owner == state.faction and not o.contested and Vec.dist(o.def.pos, u.point :: Vec) < 40 then
+					done = true
+				end
+			end
+			if done then
+				u.goal, u.reason, u.point = "idle", "counterattack over", nil
+			end
+		end
+	end
+	if state.posture == "withdraw" then
+		return
+	end
+	for _, o in sim.objectives do
+		local p = o.def.pos
+		local ours = state.held[o.def.id] or MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, sim:homeEdge(state.faction)) < Vec.dist(p, sim:homeEdge(state.enemy))
+		if ours and o.owner == state.enemy then
+			local going = 0
+			for _, f in state.mine do
+				local u = unitOf(state, f.id)
+				if u.goal == "counter" and u.point and Vec.dist(u.point :: Vec, p) < 40 then
+					going += 1
+				end
+			end
+			-- never fed in piecemeal, nor blind: the enemy holding it has been seen, and what goes,
+			-- with friends already there, must about match it
+			local enemy, friends = oddsAt(state, p)
+			local picks: { Formation } = {}
+			for _ = going + 1, COUNTER_MAX do
+				local best, bd = nearestOwn(state, p, function(f)
+					-- standing in reserve, or still marching to it
+					local u = unitOf(state, f.id)
+					local marching = f.class == "infantry" and f.state == "moving" and healthy(f) and f.shape ~= "square" and u.goal == "reserve"
+					return (availableInfantry(state, f) or marching) and u.role == "reserve" and not damaged(f) and table.find(picks, f) == nil
+				end)
+				if not best or bd > COUNTER_RANGE then
+					break
+				end
+				picks[#picks + 1] = best
+				friends += best.strength
+			end
+			if #picks > 0 and enemy > 0 and friends >= enemy * COUNTER_ODDS and quality(state) then
+				local dest = walkable(state, p)
+				for _, f in picks do
+					if issue(state, "AttackMove", { f.id }, { pos = dest, heading = state.facing }) then
+						unitOf(state, f.id).point = dest
+						setGoal(state, f.id, "counter", "retaking " .. o.def.name, COUNTER_COMMIT)
+					end
+				end
+			end
+		end
+	end
+end
+
 -- Formation behaviour --------------------------------------------------------------------------
 
 local function goalPoint(state: AIState, u: Unit): Vec?
-	if u.goal == "guard" or u.goal == "exploit" then
+	if u.goal == "guard" or u.goal == "exploit" or u.goal == "counter" then
 		return u.point
 	end
 	if u.role == "reserve" then
@@ -845,7 +969,7 @@ local function maintain(state: AIState, f: Formation, u: Unit)
 		end
 	end
 	if issue(state, "Move", { f.id }, { pos = p, heading = state.facing }) then
-		u.goal = if u.goal == "guard" or u.goal == "exploit" then u.goal elseif u.role == "reserve" then "reserve" else "line:" .. u.role
+		u.goal = if u.goal == "guard" or u.goal == "exploit" or u.goal == "counter" then u.goal elseif u.role == "reserve" then "reserve" else "line:" .. u.role
 		u.reason = string.format("moving to the %s position (%.0f)", u.role, d)
 	end
 end
@@ -1268,6 +1392,7 @@ function AI.new(sim: SimLike, faction: string, difficulty: string): AIState
 		gunPos = {},
 		nextPlan = 0,
 		rolesAssigned = false,
+		held = {},
 		units = {},
 		mine = {},
 		visible = {},
@@ -1294,6 +1419,7 @@ function AI.step(state: AIState)
 	guardGuns(state)
 	garrisonBuildings(state)
 	exploit(state)
+	counterattack(state)
 	for _, f in state.mine do
 		local u = unitOf(state, f.id)
 		if f.state == "routing" or f.state == "rallying" then
@@ -1310,6 +1436,11 @@ function AI.step(state: AIState)
 			hq(state, f)
 		end
 	end
+end
+
+-- Tests: the strength round a point as the counterattack weighs it (enemy, friends).
+function AI.oddsAt(state: AIState, p: Vec): (number, number)
+	return oddsAt(state, p)
 end
 
 function AI.debugView(state: AIState): { { id: number, goal: string, reason: string } }

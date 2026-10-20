@@ -4,7 +4,7 @@ Resume from here; do not recap. Updated 2026-10-20.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 231 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 239 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
 - Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–11 and the
@@ -29,7 +29,7 @@ Resume from here; do not recap. Updated 2026-10-20.
   blockades); either side in the listed battles,
   custom battles, kills and an In history section in the results, loading tips, visible round
   shot, reload and bayonet animations.
-- Studio QA log: `docs/qa.md` (rounds 1–40). Balance table: `docs/balance.md`.
+- Studio QA log: `docs/qa.md` (rounds 1–41). Balance table: `docs/balance.md`.
 
 ## Workflow
 
@@ -92,19 +92,23 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 
 ## Open items
 
-0. Studio checklist, what is left after QA round 40: the kit soldiers marching, reloading and
+0. Studio checklist, what is left after QA round 41: the kit soldiers marching, reloading and
    thrusting in motion (stills cannot show them), the round shot in motion (1.3-stud ball), the
    volley light and the howitzer shell burst, burning Hougoumont at Waterloo's 4:00 moment, and
-   the frame rate on a full Waterloo at High now that every man is eight meshes.
+   the frame rate of a full Waterloo on a real machine (Studio's unfocused 15 fps hides the
+   distant battalions' slower refresh, `Soldiers.refreshInterval`).
 
 1. Two-player Studio test (Test → Clients and Servers → 2 Players, by hand): co-op wings, pause
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.
 2. Sound check once ids land: Settings → debug audio, every event fires, volleys from many
    battalions do not stack into a wall.
-3. Balance: 15 flags in `docs/balance.md`, 4 against history (Auerstedt goes to Prussia against
-   an AI Davout; Waterloo normal/hard lean French, the allies win ~40 % overall). Next lever:
-   the defending line meeting attacks in its flank (see the whole-game pass notes).
-4. Real phone: pinch/twist direction and pan speed knobs in `src/client/Camera.luau`.
+3. Balance: 17 flags in `docs/balance.md`, 3 against history, all Auerstedt (the Prussian horse
+   pins Davout's battalions in square and the infantry shoots the squares). Waterloo now goes to
+   the allies in 23 of 30 AI-vs-AI battles; the Hougoumont episode is about even (14 of 30).
+   Next lever: when the AI forms square (not with enemy foot in musket range).
+4. Real phone: pinch/twist direction and pan speed knobs in `src/client/Camera.luau` (finger
+   drags were mirrored sideways like A/D, fixed). The Device Simulator keeps a keyboard: pick
+   Touch in Settings before judging the touch layout.
 5. A human playthrough of the grand campaign to a peace.
 6. Reeds have no mesh slot; the wall and fence generations failed (part-built for now).
 

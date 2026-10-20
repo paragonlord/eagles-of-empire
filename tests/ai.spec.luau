@@ -376,6 +376,139 @@ test("Battle roles: the attacking AI comes on while the enemy holds anything; th
 	assertEq(postureAs("france"), "defend", "the defender holds")
 end)
 
+test("Reinforcements join the line: battalions arriving after the first plan take a wing, not all the reserve", function()
+	local units = {
+		unit("prussia", "infantry", "IR Nr. 29", 700, 760, -math.pi / 2),
+		unit("prussia", "infantry", "IR Nr. 49", 780, 760, -math.pi / 2),
+		unit("prussia", "infantry", "IR Nr. 50", 860, 760, -math.pi / 2),
+		unit("prussia", "infantry", "IR Nr. 51", 940, 760, -math.pi / 2),
+		unit("france", "infantry", "34e de Ligne", 800, 300, math.pi / 2),
+		unit("france", "infantry", "40e de Ligne", 880, 300, math.pi / 2),
+	}
+	for i, x in { 600, 700, 900, 1000 } do
+		local r = unit("prussia", "infantry", "Arriving " .. i, x, 900, -math.pi / 2)
+		r.arrival = { seconds = 10, pos = { x = x, z = 900 } }
+		units[#units + 1] = r
+	end
+	local sc = scenario(units)
+	sc.attacker = "prussia"
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+	sim:start()
+	sim.objectives[1].owner = "france"
+	local st = attach(sim)
+	run(sim, 30)
+	local inLine, reserve = 0, 0
+	for _, v in AI.debugView(st) do
+		local f = sim.formations[v.id]
+		if f and f.class == "infantry" and string.sub(f.name, 1, 8) == "Arriving" then
+			if string.sub(v.goal, 1, 8) == "reserve/" then
+				reserve += 1
+			else
+				inLine += 1
+			end
+		end
+	end
+	assertEq(inLine + reserve, 4, "all four arrived")
+	assertTrue(inLine >= 2, "most arrivals take a place in the line: " .. inLine .. " in line, " .. reserve .. " in reserve")
+end)
+
+test("The defender counterattacks: its reserve marches on an objective the enemy took from it", function()
+	-- Prussia defends; the objective nearest its line was Prussian and is now French
+	local probe = Sim.new({ matchId = "m", scenario = scenario({ FAR_FRIEND, FAR_ENEMY }), map = MAP, seed = 3 })
+	local target = probe.objectives[1]
+	for _, o in probe.objectives do
+		if o.def.pos.z > target.def.pos.z then
+			target = o
+		end
+	end
+	local tp = target.def.pos
+	local units = {}
+	for i = 1, 5 do
+		units[#units + 1] = unit("prussia", "infantry", "IR " .. i, tp.x - 200 + i * 70, tp.z + 220, -math.pi / 2)
+	end
+	-- the battalion that took it, in sight beside the village
+	units[#units + 1] = unit("france", "infantry", "34e de Ligne", tp.x + 110, tp.z - 30, math.pi / 2)
+	units[#units + 1] = FAR_FRIEND
+	local sc = scenario(units)
+	sc.attacker = "france"
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+	sim:start()
+	local st = attach(sim)
+	local o
+	for _, x in sim.objectives do
+		if x.def.id == target.def.id then
+			o = x
+		end
+	end
+	o.owner = "prussia"
+	run(sim, 20)
+	o.owner = "france"
+	run(sim, 20)
+	local countering = 0
+	for _, v in AI.debugView(st) do
+		if string.find(v.goal, "counter", 1, true) then
+			countering += 1
+		end
+	end
+	assertTrue(countering >= 1 and countering <= 2, "one or two battalions go to retake it: " .. countering)
+end)
+
+test("A counterattack counts a garrison behind walls double", function()
+	local units = {
+		unit("prussia", "infantry", "IR 1", 700, 900, -math.pi / 2),
+		unit("france", "infantry", "34e de Ligne", 760, 760, math.pi / 2),
+		unit("france", "infantry", "40e de Ligne", 840, 760, math.pi / 2),
+	}
+	local sim = Sim.new({ matchId = "m", scenario = scenario(units), map = MAP, seed = 3 })
+	sim:start()
+	local st = attach(sim)
+	local a, b = byId(sim, "france", "infantry")[1], byId(sim, "france", "infantry")[2]
+	st.known = {
+		{ id = a.id, pos = a.pos, class = "infantry", heading = 0, shape = "line", age = 0, strength = 600 },
+		{ id = b.id, pos = b.pos, class = "infantry", heading = 0, shape = "line", age = 0, strength = 600 },
+	}
+	local p = { x = 800, z = 760 }
+	local open = AI.oddsAt(st, p)
+	a.garrison = "somewhere"
+	local walled = AI.oddsAt(st, p)
+	assertEq(open, 1200, "two battalions in the open")
+	assertEq(walled, 1800, "one of them behind walls counts for two")
+end)
+
+test("The defender does not feed its reserve piecemeal into an enemy massed on the objective", function()
+	local probe = Sim.new({ matchId = "m", scenario = scenario({ FAR_FRIEND, FAR_ENEMY }), map = MAP, seed = 3 })
+	local target = probe.objectives[1]
+	for _, o in probe.objectives do
+		if o.def.pos.z > target.def.pos.z then
+			target = o
+		end
+	end
+	local tp = target.def.pos
+	local units = {}
+	for i = 1, 5 do
+		units[#units + 1] = unit("prussia", "infantry", "IR " .. i, tp.x - 200 + i * 70, tp.z + 220, -math.pi / 2)
+	end
+	-- four French battalions round the objective, in the open beside the village (in sight)
+	for i, dx in { -130, -90, 90, 130 } do
+		units[#units + 1] = unit("france", "infantry", "Ligne " .. i, tp.x + dx, tp.z - 30, math.pi / 2)
+	end
+	units[#units + 1] = FAR_FRIEND
+	local sc = scenario(units)
+	sc.attacker = "france"
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+	sim:start()
+	local st = attach(sim)
+	for _, x in sim.objectives do
+		if x.def.id == target.def.id then
+			x.owner = "france"
+		end
+	end
+	run(sim, 20)
+	for _, v in AI.debugView(st) do
+		assertTrue(not string.find(v.goal, "counter", 1, true), "two battalions do not go against four: " .. v.goal)
+	end
+end)
+
 test("Battle roles: the defending AI does not leave its ground for the part of the attacker it sees", function()
 	local sc = scenario({
 		unit("prussia", "infantry", "IR Nr. 29", 760, 760, -math.pi / 2),

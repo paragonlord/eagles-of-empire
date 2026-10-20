@@ -18,46 +18,46 @@ without contact, casualties > 60 % or < 5 %, more than half of a side's formatio
 artillery that never fires, cavalry that never charges, objectives never contested, and quick
 battles decided by the clock without a single capture.
 
-## Final table (5 seeds, both sides AI; whole-game pass after Phase 11, 2026-10-20)
+## Final table (5 seeds, both sides AI; after the reinforcement and counterattack pass, 2026-10-20)
 
 | scenario | diff | winner (n) | reason | min | contact | cas% F/E | routs F/E | shat F/E | lost F/E | flips | guns | charges | history | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| jena | easy | france 5 | All objectives held | 17.9 | 2.7 | 36/53 | 8.6/21.6 | 2%/1% | 1.8/4.8 | 6.0 | 19 | 28.8 | French victory (decisive) | - |
-| jena | normal | france 4 prussia 1 | All objectives held | 19.2 | 2.7 | 41/51 | 10.8/20.6 | 0%/0% | 2.4/4.8 | 6.2 | 15 | 28.4 | French victory (decisive) | - |
-| jena | hard | france 5 | All objectives held | 18.6 | 2.4 | 38/53 | 10.0/20.8 | 0%/0% | 2.4/4.8 | 6.0 | 19 | 38.8 | French victory (decisive) | - |
-| auerstedt | easy | prussia 5 | Your army has collapsed | 20.7 | 4.9 | 53/27 | 23.8/11.4 | 1%/3% | 6.6/1.8 | 4.2 | 51 | 19.4 | French victory (Davout outnumbered 2:1) | prussia wins 5/5 against history |
-| auerstedt | normal | prussia 4 france 1 | Your army has collapsed | 25.1 | 4.7 | 60/38 | 21.6/13.0 | 2%/1% | 7.8/2.8 | 4.2 | 37 | 27.2 | French victory (Davout outnumbered 2:1) | - |
-| auerstedt | hard | prussia 5 | Your army has collapsed | 19.8 | 4.8 | 60/28 | 22.2/6.6 | 6%/3% | 7.0/0.8 | 4.0 | 40 | 26.6 | French victory (Davout outnumbered 2:1) | prussia wins 5/5 against history |
-| austerlitz | easy | russia 3 france 2 | Time expired; the enemy holds more objectives | 40.0 | 5.7 | 57/44 | 36.6/29.0 | 0%/0% | 10.0/5.2 | 4.8 | 26 | 37.8 | French victory (decisive) | - |
-| austerlitz | normal | russia 4 france 1 | Time expired; the enemy holds more objectives | 40.0 | 4.6 | 58/50 | 43.2/38.8 | 0%/0% | 11.2/9.0 | 5.4 | 12 | 43.4 | French victory (decisive) | - |
-| austerlitz | hard | russia 4 france 1 | Time expired; the enemy holds more objectives | 40.0 | 3.6 | 61/51 | 44.4/35.8 | 0%/1% | 11.2/8.0 | 5.0 | 30 | 55.6 | French victory (decisive) | france casualties 61% |
-| waterloo | easy | britain 4 france 1 | The enemy holds every objective | 26.2 | 0.5 | 58/53 | 30.0/39.6 | 1%/2% | 7.8/10.0 | 6.8 | 67 | 44.8 | Allied victory (decisive) | - |
-| waterloo | normal | france 5 | All objectives held | 21.6 | 0.5 | 49/62 | 29.2/47.0 | 1%/0% | 5.8/12.8 | 6.4 | 33 | 55.0 | Allied victory (decisive) | france wins 5/5 against history; britain casualties 62% |
-| waterloo | hard | france 3 britain 2 | The enemy army has collapsed | 18.8 | 0.5 | 46/55 | 26.6/42.2 | 3%/0% | 5.8/13.6 | 6.0 | 49 | 49.4 | Allied victory (decisive) | - |
-| jena_landgrafenberg | easy | draw 3 prussia 2 | Time expired with the field divided | 10.0 | 0.7 | 44/26 | 7.8/4.8 | 0%/0% | 1.2/0.6 | 2.6 | 7 | 6.4 | Closewitz and Cospeda taken | - |
-| jena_landgrafenberg | normal | france 2 prussia 2 draw 1 | Time expired with the field divided | 10.0 | 0.7 | 37/29 | 6.0/6.8 | 0%/0% | 1.0/1.2 | 3.0 | 6 | 5.8 | Closewitz and Cospeda taken | - |
-| jena_landgrafenberg | hard | prussia 3 draw 2 | Time expired; the enemy holds more objectives | 10.0 | 0.6 | 34/28 | 5.8/6.2 | 0%/0% | 0.2/1.4 | 2.8 | 4 | 7.2 | Closewitz and Cospeda taken | - |
-| jena_vierzehnheiligen | easy | france 5 | All objectives held | 10.0 | 0.4 | 32/40 | 2.6/6.4 | 0%/0% | 0.4/0.8 | 1.8 | 9 | 13.0 | village taken, Grawert's line shot to pieces | france wins 5/5 |
-| jena_vierzehnheiligen | normal | france 4 prussia 1 | All objectives held | 10.0 | 0.3 | 33/49 | 3.6/9.4 | 0%/0% | 0.4/2.0 | 2.2 | 10 | 12.0 | village taken, Grawert's line shot to pieces | - |
-| jena_vierzehnheiligen | hard | prussia 3 france 1 draw 1 | Time expired; the enemy holds more objectives | 10.0 | 0.4 | 36/36 | 6.2/6.2 | 0%/0% | 1.4/0.8 | 0.8 | 5 | 15.4 | village taken, Grawert's line shot to pieces | - |
-| auerstedt_hassenhausen | easy | draw 4 prussia 1 | Time expired with the field divided | 9.6 | 1.8 | 42/23 | 6.2/2.4 | 2%/0% | 1.4/0.2 | 2.0 | 3 | 8.4 | Gudin held Hassenhausen | - |
-| auerstedt_hassenhausen | normal | prussia 5 | Time expired; the enemy holds more objectives | 9.3 | 1.6 | 50/26 | 7.4/0.8 | 0%/0% | 2.0/0.0 | 2.6 | 1 | 9.6 | Gudin held Hassenhausen | prussia wins 5/5 against history |
-| auerstedt_hassenhausen | hard | draw 4 prussia 1 | Time expired with the field divided | 10.0 | 1.3 | 38/25 | 6.4/5.2 | 2%/0% | 1.0/0.2 | 2.2 | 5 | 9.6 | Gudin held Hassenhausen | - |
+| jena | easy | france 5 | The enemy army has collapsed | 19.0 | 2.6 | 39/58 | 9.6/22.4 | 0%/3% | 2.0/5.6 | 5.8 | 11 | 25.0 | French victory (decisive) | - |
+| jena | normal | france 4 prussia 1 | All objectives held | 18.7 | 2.6 | 42/53 | 10.8/21.0 | 0%/3% | 2.8/4.2 | 5.4 | 22 | 25.4 | French victory (decisive) | - |
+| jena | hard | france 5 | All objectives held | 14.2 | 2.3 | 26/46 | 5.6/19.0 | 0%/0% | 1.4/4.8 | 5.4 | 7 | 21.8 | French victory (decisive) | - |
+| auerstedt | easy | prussia 5 | Time expired; the enemy holds more objectives | 39.7 | 7.6 | 50/37 | 22.2/13.2 | 3%/1% | 5.8/2.6 | 4.6 | 118 | 16.0 | French victory (Davout outnumbered 2:1) | prussia wins 5/5 against history |
+| auerstedt | normal | prussia 5 | Your army has collapsed | 27.2 | 6.1 | 64/41 | 27.0/17.2 | 7%/4% | 7.4/3.0 | 4.4 | 43 | 35.0 | French victory (Davout outnumbered 2:1) | prussia wins 5/5 against history; france casualties 64% |
+| auerstedt | hard | prussia 5 | Your army has collapsed | 24.8 | 6.5 | 55/35 | 27.2/14.4 | 10%/3% | 6.4/2.8 | 4.0 | 33 | 27.6 | French victory (Davout outnumbered 2:1) | prussia wins 5/5 against history |
+| austerlitz | easy | russia 4 france 1 | Time expired; the enemy holds more objectives | 38.7 | 5.0 | 61/51 | 44.4/37.0 | 1%/0% | 9.6/6.6 | 5.8 | 30 | 45.0 | French victory (decisive) | france casualties 61% |
+| austerlitz | normal | france 3 russia 2 | Time expired holding more objectives | 39.1 | 4.9 | 61/56 | 44.2/41.6 | 0%/2% | 11.2/10.0 | 5.8 | 35 | 46.0 | French victory (decisive) | france casualties 61% |
+| austerlitz | hard | russia 4 france 1 | Time expired; the enemy holds more objectives | 36.8 | 3.6 | 64/49 | 47.2/33.0 | 1%/0% | 13.6/8.8 | 4.4 | 17 | 62.8 | French victory (decisive) | france casualties 64% |
+| waterloo | easy | britain 5 | The enemy holds every objective | 25.3 | 0.5 | 62/46 | 34.2/31.0 | 2%/1% | 9.6/7.4 | 6.2 | 97 | 41.8 | Allied victory (decisive) | france casualties 62% |
+| waterloo | normal | britain 4 france 1 | The enemy holds every objective | 20.0 | 0.5 | 51/41 | 32.4/31.0 | 0%/1% | 6.6/6.6 | 6.8 | 35 | 47.2 | Allied victory (decisive) | - |
+| waterloo | hard | britain 3 france 2 | The enemy holds every objective | 23.5 | 0.5 | 54/61 | 29.6/47.2 | 1%/3% | 7.0/14.4 | 7.0 | 64 | 49.8 | Allied victory (decisive) | britain casualties 61% |
+| jena_landgrafenberg | easy | draw 3 prussia 2 | Time expired with the field divided | 10.0 | 0.7 | 40/26 | 5.6/5.0 | 0%/0% | 0.8/0.8 | 2.6 | 10 | 6.0 | Closewitz and Cospeda taken | - |
+| jena_landgrafenberg | normal | draw 2 france 2 prussia 1 | Time expired with the field divided | 10.0 | 0.7 | 36/23 | 5.8/5.4 | 0%/0% | 0.8/0.8 | 3.2 | 5 | 6.0 | Closewitz and Cospeda taken | - |
+| jena_landgrafenberg | hard | prussia 4 france 1 | Time expired; the enemy holds more objectives | 10.0 | 0.6 | 34/29 | 6.6/6.8 | 0%/0% | 0.4/1.0 | 2.2 | 4 | 6.6 | Closewitz and Cospeda taken | - |
+| jena_vierzehnheiligen | easy | france 5 | All objectives held | 10.0 | 0.4 | 32/41 | 2.6/6.4 | 0%/0% | 0.4/0.8 | 1.8 | 9 | 12.6 | village taken, Grawert's line shot to pieces | france wins 5/5 |
+| jena_vierzehnheiligen | normal | france 4 prussia 1 | All objectives held | 10.0 | 0.3 | 34/50 | 3.6/9.4 | 0%/0% | 0.4/2.0 | 2.2 | 10 | 12.6 | village taken, Grawert's line shot to pieces | - |
+| jena_vierzehnheiligen | hard | prussia 3 draw 1 france 1 | Time expired; the enemy holds more objectives | 10.0 | 0.4 | 36/36 | 6.2/6.2 | 0%/0% | 1.4/0.8 | 0.8 | 5 | 15.4 | village taken, Grawert's line shot to pieces | - |
+| auerstedt_hassenhausen | easy | draw 3 prussia 2 | Time expired with the field divided | 10.0 | 1.8 | 46/24 | 6.4/2.2 | 2%/0% | 1.8/0.2 | 2.4 | 3 | 9.2 | Gudin held Hassenhausen | - |
+| auerstedt_hassenhausen | normal | prussia 4 draw 1 | Time expired; the enemy holds more objectives | 9.2 | 1.6 | 50/27 | 7.8/2.4 | 2%/0% | 1.8/0.0 | 2.4 | 1 | 10.2 | Gudin held Hassenhausen | - |
+| auerstedt_hassenhausen | hard | draw 3 prussia 2 | Time expired with the field divided | 10.0 | 1.3 | 38/26 | 5.8/5.4 | 0%/0% | 0.8/0.2 | 2.4 | 3 | 10.6 | Gudin held Hassenhausen | - |
 | auerstedt_spielberg | easy | draw 5 | Time expired with the field divided | 10.0 | 3.0 | 17/23 | 2.6/1.6 | 3%/3% | 0.0/0.2 | 2.0 | 5 | 6.2 | Friant turned the Prussian left | draw 5/5 |
 | auerstedt_spielberg | normal | draw 5 | Time expired with the field divided | 10.0 | 3.1 | 24/18 | 4.4/1.2 | 0%/0% | 0.0/0.0 | 2.0 | 10 | 8.4 | Friant turned the Prussian left | draw 5/5 |
 | auerstedt_spielberg | hard | draw 5 | Time expired with the field divided | 10.0 | 2.8 | 14/22 | 1.0/1.6 | 0%/0% | 0.0/0.4 | 2.0 | 4 | 6.2 | Friant turned the Prussian left | draw 5/5 |
-| austerlitz_pratzen | easy | france 5 | All objectives held | 10.0 | 0.9 | 14/25 | 0.4/6.2 | 0%/0% | 0.0/1.6 | 4.4 | 6 | 1.2 | Pratzen taken | france wins 5/5 |
-| austerlitz_pratzen | normal | france 5 | All objectives held | 10.0 | 0.9 | 21/22 | 0.8/6.8 | 0%/0% | 0.0/1.0 | 4.0 | 6 | 3.0 | Pratzen taken | france wins 5/5 |
-| austerlitz_pratzen | hard | france 5 | All objectives held | 10.0 | 0.8 | 25/23 | 2.4/6.8 | 0%/2% | 0.6/1.2 | 4.0 | 8 | 2.8 | Pratzen taken | france wins 5/5 |
-| austerlitz_sokolnitz | easy | draw 5 | Time expired with the field divided | 10.0 | 1.5 | 27/17 | 5.6/1.6 | 0%/0% | 1.2/0.2 | 3.0 | 10 | 0.0 | Telnitz/Sokolnitz held, allied left stuck | draw 5/5; cavalry never charges |
-| austerlitz_sokolnitz | normal | draw 5 | Time expired with the field divided | 10.0 | 1.6 | 32/17 | 7.0/1.4 | 0%/0% | 1.4/0.0 | 3.0 | 6 | 0.2 | Telnitz/Sokolnitz held, allied left stuck | draw 5/5 |
-| austerlitz_sokolnitz | hard | draw 5 | Time expired with the field divided | 10.0 | 1.6 | 29/16 | 6.2/1.4 | 0%/0% | 1.2/0.0 | 3.0 | 9 | 0.2 | Telnitz/Sokolnitz held, allied left stuck | draw 5/5 |
-| waterloo_hougoumont | easy | britain 3 france 2 | Time expired; the enemy holds more objectives | 10.0 | 0.6 | 41/24 | 6.6/4.8 | 2%/0% | 0.6/0.8 | 1.4 | 0 | 1.8 | Hougoumont held all day | - |
-| waterloo_hougoumont | normal | france 3 britain 2 | The enemy army has collapsed | 8.6 | 0.7 | 36/29 | 4.0/6.0 | 2%/0% | 0.0/1.2 | 1.2 | 7 | 2.8 | Hougoumont held all day | - |
-| waterloo_hougoumont | hard | britain 4 france 1 | Time expired; the enemy holds more objectives | 10.0 | 0.7 | 38/25 | 5.4/5.4 | 0%/0% | 0.2/1.0 | 1.2 | 5 | 4.2 | Hougoumont held all day | - |
-| waterloo_lahayesainte | easy | britain 3 draw 2 | Time expired; the enemy holds more objectives | 10.0 | 0.8 | 36/17 | 4.4/3.2 | 4%/0% | 0.0/0.0 | 2.8 | 22 | 3.6 | La Haye Sainte fell | - |
-| waterloo_lahayesainte | normal | britain 2 draw 2 france 1 | Time expired with the field divided | 10.0 | 0.8 | 40/31 | 7.2/6.0 | 0%/0% | 0.4/0.8 | 3.6 | 32 | 4.8 | La Haye Sainte fell | - |
-| waterloo_lahayesainte | hard | draw 3 france 1 britain 1 | Time expired with the field divided | 10.0 | 0.8 | 38/30 | 5.8/6.2 | 0%/0% | 0.0/1.0 | 3.0 | 23 | 3.0 | La Haye Sainte fell | - |
+| austerlitz_pratzen | easy | france 5 | All objectives held | 10.0 | 0.9 | 25/29 | 2.2/7.4 | 2%/2% | 0.2/1.2 | 4.0 | 9 | 1.8 | Pratzen taken | france wins 5/5 |
+| austerlitz_pratzen | normal | france 3 draw 2 | Time expired with the field divided | 10.0 | 0.9 | 19/23 | 1.0/6.8 | 0%/0% | 0.0/1.2 | 5.2 | 5 | 2.8 | Pratzen taken | - |
+| austerlitz_pratzen | hard | france 3 draw 2 | All objectives held | 10.0 | 0.8 | 26/24 | 3.4/6.8 | 0%/7% | 0.6/0.8 | 4.4 | 11 | 2.6 | Pratzen taken | - |
+| austerlitz_sokolnitz | easy | draw 5 | Time expired with the field divided | 10.0 | 1.5 | 33/20 | 7.2/2.2 | 0%/0% | 1.4/0.2 | 3.0 | 11 | 0.2 | Telnitz/Sokolnitz held, allied left stuck | draw 5/5 |
+| austerlitz_sokolnitz | normal | draw 5 | Time expired with the field divided | 10.0 | 1.6 | 29/20 | 7.0/0.8 | 2%/0% | 0.8/0.2 | 3.0 | 2 | 0.8 | Telnitz/Sokolnitz held, allied left stuck | draw 5/5 |
+| austerlitz_sokolnitz | hard | draw 5 | Time expired with the field divided | 10.0 | 1.6 | 29/20 | 6.8/2.2 | 0%/0% | 0.8/0.0 | 3.0 | 6 | 0.4 | Telnitz/Sokolnitz held, allied left stuck | draw 5/5 |
+| waterloo_hougoumont | easy | britain 5 | Time expired; the enemy holds more objectives | 10.0 | 0.6 | 47/27 | 5.8/5.0 | 2%/0% | 0.8/1.0 | 1.0 | 4 | 2.4 | Hougoumont held all day | britain wins 5/5 |
+| waterloo_hougoumont | normal | france 4 britain 1 | All objectives held | 9.0 | 0.7 | 37/26 | 3.6/6.6 | 0%/0% | 0.0/1.0 | 1.6 | 0 | 1.2 | Hougoumont held all day | - |
+| waterloo_hougoumont | hard | france 4 britain 1 | The enemy army has collapsed | 7.9 | 0.7 | 40/29 | 3.0/6.4 | 0%/0% | 0.0/1.0 | 1.4 | 2 | 3.2 | Hougoumont held all day | - |
+| waterloo_lahayesainte | easy | britain 4 draw 1 | Time expired; the enemy holds more objectives | 10.0 | 0.8 | 33/16 | 4.4/2.4 | 2%/0% | 0.2/0.0 | 3.0 | 22 | 3.2 | La Haye Sainte fell | - |
+| waterloo_lahayesainte | normal | britain 2 draw 2 france 1 | The enemy holds every objective | 10.0 | 0.8 | 40/31 | 7.0/6.0 | 0%/0% | 0.2/0.6 | 3.6 | 36 | 4.6 | La Haye Sainte fell | - |
+| waterloo_lahayesainte | hard | france 2 britain 2 draw 1 | Time expired; the enemy holds more objectives | 10.0 | 0.8 | 38/28 | 6.2/6.2 | 0%/0% | 0.2/0.8 | 3.4 | 22 | 4.0 | La Haye Sainte fell | - |
 
 ## What the first pass found (before any change)
 
@@ -176,7 +176,7 @@ three bugs and two AI faults:
   at most 150 back, with wings at least 200 apart; battalions still marching to their wing may
   be sent into a building.
 
-Result 15 flags, 4 against history (table above): Waterloo goes to the allies in about 40 % of
+Result 15 flags, 4 against history (the table before the next pass): Waterloo goes to the allies in about 40 % of
 battles over three difficulties (8 seeds: easy 4–4, normal 3–5, hard 2–6; before 0 of 15),
 Vierzehnheiligen and La Haye Sainte follow history, Hassenhausen is a draw on easy and hard
 (Gudin holds) and still Prussian on normal. Standing:
@@ -191,3 +191,41 @@ Vierzehnheiligen and La Haye Sainte follow history, Hassenhausen is a draw on ea
 - **5/5 for the historical winner** in episodes (Pratzen, Vierzehnheiligen easy) is flagged only
   because the episodes are not marked lopsided.
 
+## Reinforcements and counterattacks (2026-10-20, 10 seeds a cell where noted)
+
+Giving Auerstedt the piecemeal Prussian arrival its briefing always promised ("strung out over
+the Lissbach") stopped the battle cold: the Prussian AI sat still for 40 minutes. Traces found
+two AI faults that touched every battle with reinforcements or a defender:
+- **Reinforcements never joined the line.** Wing roles were handed out once, at the first plan;
+  a battalion entering later kept the default "reserve" all battle (Morand at Auerstedt, Davout's
+  divisions at Austerlitz, Bülow at Waterloo). An arriving battalion now tops the reserve up to
+  its 20 % or joins the wing nearest its road.
+- **Reserves never counterattacked.** A defender's reserve grows as damaged battalions rotate
+  into it (11 of 18 French battalions at Auerstedt by minute 18) and stood while the enemy held
+  the village it had lost. An objective this side held, or one on its own ground, that the enemy
+  now holds draws up to two fresh reserve battalions (attack-move), when they and the friends
+  already there at least match the enemy known round it, a garrison behind walls counting double
+  (`AI.oddsAt`); they fall back if they arrive outmatched and rejoin the reserve once it is
+  retaken or after two minutes.
+- **Auerstedt arrives in pieces:** Wartensleben's division at minutes 3–4, Orange's at 5½–7,
+  Kalckreuth's reserve (historically never committed) at minute 20.
+
+Historical winner's wins out of 30 (10 seeds × 3 difficulties), before → after:
+
+| scenario | before | reinforcements only | + counterattack (never storm a garrison) | + counterattack (garrison counts double), kept |
+|---|---|---|---|---|
+| Waterloo (allies) | 12 | 13 | 12 | 23 |
+| Austerlitz (France) | 7 | 4 | 10 | 10 |
+| Hougoumont episode (allies) | 21 | 21 | 20 | 14 |
+
+The first counterattack (no odds test) took Waterloo to 21 but Hougoumont to 10: the British
+reserve marched on the walled farm in the open and broke there. Asking 1.5 : 1 instead of even
+odds cost Waterloo 4 and did not help Hougoumont. Final table (5 seeds): 17 flags, 3 against
+history, all Auerstedt (before: 15 and 4; Waterloo normal and Hassenhausen normal are off the
+list). The new flags are casualties over 60 % in Austerlitz and Waterloo (the armies now commit
+their reserves) and 5/5 wins for the historical winner in episodes.
+- **Auerstedt still goes to Prussia.** Arriving in pieces the Prussian AI still wins the
+  firefight: Blücher's horse puts the French into square and the infantry shoots the squares
+  (French 64 % casualties, Prussian 41 %). Rating Davout's corps elite (experience 3) changed
+  nothing measurable and was dropped. A human Davout has what the AI does not use: the ridge,
+  the fog and Morand's arrival.

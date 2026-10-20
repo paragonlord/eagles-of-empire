@@ -686,7 +686,8 @@ Config.Visual = {
 		TerrainGrass = { 154, 138, 78 },
 		TerrainSlope = { 122, 92, 58 },
 		TerrainWoodsFloor = { 62, 78, 42 },
-		Water = { 90, 95, 168 },
+		Water = { 90, 95, 168 }, -- the minimap's rivers
+		RiverWater = { 56, 80, 74 }, -- the battlefield's: a slow green-grey European river, not a lake
 		Bank = { 196, 180, 140 },
 		Road = { 140, 122, 92 },
 		Roof = { 138, 74, 50 },
@@ -4651,20 +4652,20 @@ local AUERSTEDT_PRUSSIAN = {
 	u("prussia", "Division Schmettau", "infantry", "IR Nr. 22 Pirch", 600, 1, 520, 860, EAST),
 	u("prussia", "Division Schmettau", "infantry", "Grenadier-Bataillon Hanstein", 600, 2, 480, 700, EAST),
 	u("prussia", "Division Schmettau", "artillery", "Batterie Schmettau", 120, 1, 430, 760, EAST),
-	-- Wartensleben's division — left, over the Sonnenkuppe
-	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 23 Winning", 600, 1, 540, 500, EAST),
-	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 55 Manstein", 600, 1, 540, 400, EAST),
-	u("prussia", "Division Wartensleben", "infantry", "Grenadier-Bataillon Rheinbaben", 600, 2, 460, 450, EAST),
-	u("prussia", "Division Wartensleben", "artillery", "Batterie Wartensleben", 120, 1, 400, 500, EAST),
-	u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 560, 350, EAST),
-	-- Orange's division — right, toward Poppel
-	u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 380, 1000, EAST),
-	u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 380, 1100, EAST),
-	u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1050, EAST),
-	u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 300, 1050, EAST),
-	-- Kalckreuth's reserve — held back behind the Eckartsberg
-	u("prussia", "Reserve · Kalckreuth", "infantry", "IR Nr. 15 Garde", 600, 2, 200, 850, EAST),
-	u("prussia", "Reserve · Kalckreuth", "infantry", "Grenadier-Garde Nr. 6", 600, 2, 200, 750, EAST),
+	-- Wartensleben's division — left, over the Sonnenkuppe, a few minutes behind Schmettau
+	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 23 Winning", 600, 1, 540, 500, EAST, { arrival = { seconds = 180, pos = { x = 200, z = 500 } } }),
+	u("prussia", "Division Wartensleben", "infantry", "IR Nr. 55 Manstein", 600, 1, 540, 400, EAST, { arrival = { seconds = 200, pos = { x = 200, z = 400 } } }),
+	u("prussia", "Division Wartensleben", "infantry", "Grenadier-Bataillon Rheinbaben", 600, 2, 460, 450, EAST, { arrival = { seconds = 220, pos = { x = 200, z = 450 } } }),
+	u("prussia", "Division Wartensleben", "artillery", "Batterie Wartensleben", 120, 1, 400, 500, EAST, { arrival = { seconds = 240, pos = { x = 200, z = 500 } } }),
+	u("prussia", "Division Wartensleben", "cavalry", "Dragoner-Regiment Königin Nr. 5", 400, 1, 560, 350, EAST, { arrival = { seconds = 200, pos = { x = 200, z = 350 } } }),
+	-- Orange's division — right, toward Poppel, the last up the road
+	u("prussia", "Division Oranien", "infantry", "IR Nr. 19 Prinz von Oranien", 600, 1, 380, 1000, EAST, { arrival = { seconds = 330, pos = { x = 150, z = 1000 } } }),
+	u("prussia", "Division Oranien", "infantry", "IR Nr. 25 Möllendorff", 600, 1, 380, 1100, EAST, { arrival = { seconds = 360, pos = { x = 150, z = 1100 } } }),
+	u("prussia", "Division Oranien", "infantry", "Füsilier-Bataillon Oswald", 600, 1, 600, 1050, EAST, { arrival = { seconds = 390, pos = { x = 150, z = 1050 } } }),
+	u("prussia", "Division Oranien", "artillery", "Batterie Oranien", 120, 1, 300, 1050, EAST, { arrival = { seconds = 420, pos = { x = 150, z = 1050 } } }),
+	-- Kalckreuth's reserve — held back behind the Eckartsberg; historically never committed
+	u("prussia", "Reserve · Kalckreuth", "infantry", "IR Nr. 15 Garde", 600, 2, 200, 850, EAST, { arrival = { seconds = 1200, pos = { x = 150, z = 850 } } }),
+	u("prussia", "Reserve · Kalckreuth", "infantry", "Grenadier-Garde Nr. 6", 600, 2, 200, 750, EAST, { arrival = { seconds = 1230, pos = { x = 150, z = 750 } } }),
 	-- Blücher's cavalry — the northern flank
 	u("prussia", "Kavallerie · Blücher", "cavalry", "Garde du Corps Nr. 13", 400, 2, 480, 1200, EAST),
 	u("prussia", "Kavallerie · Blücher", "cavalry", "Gensd'armes Kürassier Nr. 10", 400, 1, 420, 1250, EAST),
@@ -6019,12 +6020,14 @@ function WorldBuild.applyPalette(map: any)
 	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads, tracks, yards
 	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(122, 112, 98)) -- village streets
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
-	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(160, 150, 112)) -- pale but not white banks
-	t.WaterColor = rgb(P.Water)
-	t.WaterTransparency = 0.5
-	t.WaterWaveSize = 0.08
-	t.WaterWaveSpeed = 6
-	t.WaterReflectance = 0.4
+	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(134, 122, 92)) -- wet, muddy banks and river beds
+	-- deep enough that the bed no longer shows through pale; a slow ripple with a little sky in it
+	-- (more reflection read as a pale strip under the fog grade)
+	t.WaterColor = rgb(P.RiverWater)
+	t.WaterTransparency = 0.2
+	t.WaterWaveSize = 0.12
+	t.WaterWaveSpeed = 8
+	t.WaterReflectance = 0.3
 end
 
 -- Writes the map and its skirt as 4-stud voxels, chunk by chunk, yielding between chunks.
@@ -8533,6 +8536,7 @@ type Unit = {
 	goal: string,
 	reason: string,
 	role: string, -- left | centre | right | reserve | guns | hq
+	placed: boolean, -- infantry: given its role (the first plan, or on arriving as a reinforcement)
 	commitUntil: number,
 	squareUntil: number,
 	withdrawUntil: number,
@@ -8563,6 +8567,7 @@ export type AIState = {
 	gunPos: { [number]: Vec },
 	nextPlan: number,
 	rolesAssigned: boolean,
+	held: { [string]: boolean }, -- objectives this side has held: worth taking back
 	units: { [number]: Unit },
 	mine: { Formation },
 	visible: { Formation },
@@ -8583,7 +8588,7 @@ local function unitOf(state: AIState, id: number): Unit
 	if u then
 		return u
 	end
-	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil, lastPos = nil, lastPosAt = 0, guardId = nil }
+	local fresh: Unit = { goal = "idle", reason = "", role = "reserve", placed = false, commitUntil = 0, squareUntil = 0, withdrawUntil = 0, nextMove = 0, orderedStep = -1, point = nil, lastPos = nil, lastPosAt = 0, guardId = nil }
 	state.units[id] = fresh
 	return fresh
 end
@@ -9017,8 +9022,9 @@ local function plan(state: AIState)
 	state.hqPos = hqPos
 
 	-- Roles are sticky. First plan: >= 20 % of infantry (those nearest home) in reserve, the rest
-	-- split by lateral position into wings; cavalry all reserve. Later plans only rotate a badly
-	-- damaged line unit to the reserve and promote a healthy reserve unit into its place.
+	-- split by lateral position into wings; cavalry all reserve. A battalion arriving later tops
+	-- the reserve up to that 20 % or joins the wing nearest its road. Later plans only rotate a
+	-- badly damaged line unit to the reserve and promote a healthy reserve unit into its place.
 	local inf: { Formation } = {}
 	for _, f in state.mine do
 		local u = unitOf(state, f.id)
@@ -9060,6 +9066,33 @@ local function plan(state: AIState)
 		local side = #line // 3
 		for i, f in line do
 			unitOf(state, f.id).role = if i <= side then "left" elseif i > #line - side then "right" else "centre"
+		end
+		for _, f in inf do
+			unitOf(state, f.id).placed = true
+		end
+	end
+	for _, f in inf do
+		local u = unitOf(state, f.id)
+		if not u.placed then
+			u.placed = true
+			local nRes = 0
+			for _, o in inf do
+				if unitOf(state, o.id).role == "reserve" and o ~= f then
+					nRes += 1
+				end
+			end
+			if nRes < math.ceil(0.2 * #inf) then
+				u.role = "reserve"
+			else
+				local best, bestD = "centre", math.huge
+				for _, w in WINGS do
+					local d = math.abs(lateral(state, f.pos) - lateral(state, wing[w]))
+					if d < bestD then
+						best, bestD = w, d
+					end
+				end
+				u.role = best
+			end
 		end
 	end
 	for _, f in inf do
@@ -9311,10 +9344,104 @@ local function exploit(state: AIState)
 	end
 end
 
+-- Take back what the enemy took: an objective this side held, or one on its own ground, that the
+-- enemy now holds gets up to two fresh reserve battalions marching on it, when they (with friends
+-- already there) at least match the enemy seen round it, a garrison behind walls counting double
+-- (Davout's and Wellington's reserves, not a line waiting for the next assault). They rejoin
+-- the reserve once it is ours again or their two minutes are up.
+local COUNTER_MAX, COUNTER_RANGE, COUNTER_COMMIT = 2, 600, 120
+local COUNTER_NEAR, COUNTER_ODDS = 150, 1 -- the enemy counted round the objective; friends needed per enemy man
+local GARRISON_WEIGHT = 2 -- a man behind walls counts for two
+-- Strength round a point: the enemy this side knows of (a garrison counting double), and its
+-- own steady horse and foot.
+local function oddsAt(state: AIState, p: Vec): (number, number)
+	local enemy, friends = 0, 0
+	for _, k in state.known do
+		if Vec.dist(k.pos, p) < COUNTER_NEAR then
+			local f = state.sim.formations[k.id]
+			enemy += k.strength * (if f and f.garrison then GARRISON_WEIGHT else 1)
+		end
+	end
+	for _, f in state.mine do
+		if (f.class == "infantry" or f.class == "cavalry") and not Formation.isBroken(f) and Vec.dist(f.pos, p) < COUNTER_NEAR then
+			friends += f.strength
+		end
+	end
+	return enemy, friends
+end
+
+local function counterattack(state: AIState)
+	local sim = state.sim
+	for _, o in sim.objectives do
+		if o.owner == state.faction then
+			state.held[o.def.id] = true
+		end
+	end
+	for _, f in state.mine do
+		local u = unitOf(state, f.id)
+		if u.goal == "counter" and u.point then
+			-- arrived and outmatched: fall back rather than die there
+			local enemy, friends = oddsAt(state, u.point :: Vec)
+			local outmatched = Vec.dist(f.pos, u.point :: Vec) < COUNTER_NEAR and friends < enemy * COUNTER_ODDS * 0.75
+			local done = not committed(state, u) or not healthy(f) or outmatched
+			for _, o in sim.objectives do
+				if o.owner == state.faction and not o.contested and Vec.dist(o.def.pos, u.point :: Vec) < 40 then
+					done = true
+				end
+			end
+			if done then
+				u.goal, u.reason, u.point = "idle", "counterattack over", nil
+			end
+		end
+	end
+	if state.posture == "withdraw" then
+		return
+	end
+	for _, o in sim.objectives do
+		local p = o.def.pos
+		local ours = state.held[o.def.id] or MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, sim:homeEdge(state.faction)) < Vec.dist(p, sim:homeEdge(state.enemy))
+		if ours and o.owner == state.enemy then
+			local going = 0
+			for _, f in state.mine do
+				local u = unitOf(state, f.id)
+				if u.goal == "counter" and u.point and Vec.dist(u.point :: Vec, p) < 40 then
+					going += 1
+				end
+			end
+			-- never fed in piecemeal, nor blind: the enemy holding it has been seen, and what goes,
+			-- with friends already there, must about match it
+			local enemy, friends = oddsAt(state, p)
+			local picks: { Formation } = {}
+			for _ = going + 1, COUNTER_MAX do
+				local best, bd = nearestOwn(state, p, function(f)
+					-- standing in reserve, or still marching to it
+					local u = unitOf(state, f.id)
+					local marching = f.class == "infantry" and f.state == "moving" and healthy(f) and f.shape ~= "square" and u.goal == "reserve"
+					return (availableInfantry(state, f) or marching) and u.role == "reserve" and not damaged(f) and table.find(picks, f) == nil
+				end)
+				if not best or bd > COUNTER_RANGE then
+					break
+				end
+				picks[#picks + 1] = best
+				friends += best.strength
+			end
+			if #picks > 0 and enemy > 0 and friends >= enemy * COUNTER_ODDS and quality(state) then
+				local dest = walkable(state, p)
+				for _, f in picks do
+					if issue(state, "AttackMove", { f.id }, { pos = dest, heading = state.facing }) then
+						unitOf(state, f.id).point = dest
+						setGoal(state, f.id, "counter", "retaking " .. o.def.name, COUNTER_COMMIT)
+					end
+				end
+			end
+		end
+	end
+end
+
 -- Formation behaviour --------------------------------------------------------------------------
 
 local function goalPoint(state: AIState, u: Unit): Vec?
-	if u.goal == "guard" or u.goal == "exploit" then
+	if u.goal == "guard" or u.goal == "exploit" or u.goal == "counter" then
 		return u.point
 	end
 	if u.role == "reserve" then
@@ -9344,7 +9471,7 @@ local function maintain(state: AIState, f: Formation, u: Unit)
 		end
 	end
 	if issue(state, "Move", { f.id }, { pos = p, heading = state.facing }) then
-		u.goal = if u.goal == "guard" or u.goal == "exploit" then u.goal elseif u.role == "reserve" then "reserve" else "line:" .. u.role
+		u.goal = if u.goal == "guard" or u.goal == "exploit" or u.goal == "counter" then u.goal elseif u.role == "reserve" then "reserve" else "line:" .. u.role
 		u.reason = string.format("moving to the %s position (%.0f)", u.role, d)
 	end
 end
@@ -9767,6 +9894,7 @@ function AI.new(sim: SimLike, faction: string, difficulty: string): AIState
 		gunPos = {},
 		nextPlan = 0,
 		rolesAssigned = false,
+		held = {},
 		units = {},
 		mine = {},
 		visible = {},
@@ -9793,6 +9921,7 @@ function AI.step(state: AIState)
 	guardGuns(state)
 	garrisonBuildings(state)
 	exploit(state)
+	counterattack(state)
 	for _, f in state.mine do
 		local u = unitOf(state, f.id)
 		if f.state == "routing" or f.state == "rallying" then
@@ -9809,6 +9938,11 @@ function AI.step(state: AIState)
 			hq(state, f)
 		end
 	end
+end
+
+-- Tests: the strength round a point as the counterattack weighs it (enemy, friends).
+function AI.oddsAt(state: AIState, p: Vec): (number, number)
+	return oddsAt(state, p)
 end
 
 function AI.debugView(state: AIState): { { id: number, goal: string, reason: string } }
@@ -23031,6 +23165,7 @@ local DEFAULT_YAW = math.pi / 2 -- look toward +z (north)
 local PAN_SPEED = 1.1 -- studs per second per stud of height
 local ROTATE_SPEED = 1.6
 local ZOOM_STEP = 1.15
+local HEIGHT_SPEED = 1.1 -- X / Z: the height grows or shrinks by e^1.1 (3x) a second
 local DAMP = 10
 local EDGE_PX = 6 -- edge scrolling band at the window border
 
@@ -23061,6 +23196,15 @@ local function groundY(x: number, z: number): number
 	end
 	return 0
 end
+
+-- Screen-right on the ground for a camera looking along `yaw`: Roblox's right vector is
+-- look x up, so looking along (cos, sin) it is (-sin, cos), a quarter turn the positive way.
+function Camera.screenRight(yaw: number): (number, number)
+	return math.cos(yaw + math.pi / 2), math.sin(yaw + math.pi / 2)
+end
+
+-- Total War's height keys.
+Camera.HEIGHT_KEYS = { up = Enum.KeyCode.X, down = Enum.KeyCode.Z }
 
 local function textBoxFocused(): boolean
 	return (UserInputService:GetFocusedTextBox() :: TextBox?) ~= nil
@@ -23119,10 +23263,9 @@ local function readKeys(dt: number)
 	if fwd ~= 0 or side ~= 0 then
 		follow = nil -- panning takes the camera back
 		local speed = PAN_SPEED * cur.height * dt
-		-- forward on screen = look direction projected on the ground; right = +90° in sim space
-		-- is the screen-left in Roblox (Y-up, right-handed), so screen-right is yaw - 90°.
+		-- forward on screen = look direction projected on the ground
 		local fx, fz = math.cos(cur.yaw), math.sin(cur.yaw)
-		local rx, rz = math.cos(cur.yaw - math.pi / 2), math.sin(cur.yaw - math.pi / 2)
+		local rx, rz = Camera.screenRight(cur.yaw)
 		target.x += (fx * fwd + rx * side) * speed
 		target.z += (fz * fwd + rz * side) * speed
 	end
@@ -23131,6 +23274,12 @@ local function readKeys(dt: number)
 	end
 	if isDown(Enum.KeyCode.E) then
 		target.yaw -= ROTATE_SPEED * dt
+	end
+	if isDown(Camera.HEIGHT_KEYS.up) then
+		target.height *= math.exp(HEIGHT_SPEED * dt)
+	end
+	if isDown(Camera.HEIGHT_KEYS.down) then
+		target.height /= math.exp(HEIGHT_SPEED * dt)
 	end
 	if isDown(Enum.KeyCode.PageUp) then
 		target.pitch += 0.8 * dt
@@ -23353,7 +23502,7 @@ function Camera.panPixels(dx: number, dy: number)
 	local cam = workspace.CurrentCamera
 	local k = cur.height * PAN_DRAG / (if cam then math.max(cam.ViewportSize.Y, 1) else 720)
 	local fx, fz = math.cos(cur.yaw), math.sin(cur.yaw)
-	local rx, rz = math.cos(cur.yaw - math.pi / 2), math.sin(cur.yaw - math.pi / 2)
+	local rx, rz = Camera.screenRight(cur.yaw)
 	target.x += (fx * dy - rx * dx) * k
 	target.z += (fz * dy - rz * dx) * k
 	clampTarget()
@@ -27278,6 +27427,7 @@ type Group = {
 	rz: number,
 	rh: number,
 	dirty: boolean,
+	wait: number, -- seconds until a dirty group may be re-placed (Soldiers.refreshInterval)
 	phase: number,
 	marker: Marker,
 	ring: { BasePart }?,
@@ -28005,6 +28155,7 @@ local function rebuildBody(g: Group, f: any)
 		buildFar(g, f)
 	end
 	g.dirty = true
+	g.wait = 0 -- new parts are placed at once
 end
 
 local function layoutKeyOf(g: Group, f: any): string
@@ -28046,6 +28197,7 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		rz = f.z,
 		rh = f.heading,
 		dirty = true,
+		wait = 0,
 		phase = 0,
 		marker = nil :: any,
 		ring = nil,
@@ -28549,7 +28701,7 @@ local function clipCheck(dt: number)
 		end
 	end
 	for _, g in groups do
-		if g.lod == "near" then
+		if g.lod == "near" and Soldiers.refreshInterval(g.dist, true) == 0 then -- farther men skip the lift
 			for _, p in g.parts do
 				check(p)
 			end
@@ -28583,6 +28735,9 @@ function Figures.update(dt: number)
 	local coop = BattleState.coop()
 	local deploying = BattleState.state == "deployment"
 	local farD = Config.Visual.FarLodDistance[math.clamp(Settings.get().quality, 1, 3)]
+	-- the view, widened by a third each way so a line half in shot counts as in it
+	local view = cam.ViewportSize
+	local mx, my = view.X / 3, view.Y / 3
 
 	for id, g in groups do
 		local f: any = if g.ghost then BattleState.lastKnown[id] else BattleState.formations[id]
@@ -28603,8 +28758,13 @@ function Figures.update(dt: number)
 				end
 			end
 			-- LOD with hysteresis
-			local dist = (camPos - Vector3.new(g.rx, groundY(g.rx, g.rz), g.rz)).Magnitude
+			local centre = Vector3.new(g.rx, groundY(g.rx, g.rz), g.rz)
+			local dist = (camPos - centre).Magnitude
 			g.dist = dist
+			local vp = cam:WorldToViewportPoint(centre)
+			local onScreen = dist < 150 or (vp.Z > 0 and vp.X > -mx and vp.X < view.X + mx and vp.Y > -my and vp.Y < view.Y + my)
+			local every = Soldiers.refreshInterval(dist, onScreen)
+			g.wait = math.min(g.wait - dt, every) -- coming into shot (or closer) cuts the wait short
 			local wantLod = if g.ghost then "far" elseif g.lod == "near" then (if dist > farD * 1.1 then "far" else "near") else (if dist < farD then "near" else "far")
 			if wantLod ~= g.lod then
 				g.lod = wantLod
@@ -28629,15 +28789,16 @@ function Figures.update(dt: number)
 			if action and not g.ghost and g.lod == "near" then
 				g.dirty = true
 			end
-			-- flocking layer: near LOD only, infantry/cavalry, quality 2+
-			if flockOn and not g.ghost and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
+			-- flocking layer: near LOD close to the camera only, infantry/cavalry, quality 2+
+			if flockOn and every == 0 and not g.ghost and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
 				local bound = if f.shape == "line" and not animating then 0.6 else 1.2
 				if stepFlock(g, math.min(dt, 0.05), animating and state ~= "routing", bound, now) then
 					g.dirty = true
 				end
 			end
-			if g.dirty then
+			if g.dirty and g.wait <= dt / 2 then -- due within half a frame: now, not a frame late
 				g.dirty = false
+				g.wait = every
 				local baseY = groundY(g.rx, g.rz)
 				local cf = frame(g.rx, baseY, g.rz, g.rh) -- figures stand upright; slots sample their own ground
 				local tilted = groundFrame(g.rx, g.rz, 0, g.rh, f.width, f.depth) -- blocks and rings follow the slope
@@ -28669,8 +28830,11 @@ function Figures.update(dt: number)
 						local fx, fz = math.cos(h), math.sin(h)
 						pitch = (groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2
 					end
-					-- every corner of the footprint clears the surface
-					y += Ground.liftAt(wp.X, wp.Z, y, h, foot[1], foot[2], if pitched then pitch else nil)
+					-- every corner of the footprint clears the surface; close up only, since past
+					-- 150 studs a sunk heel is under a pixel and the four extra samples a man cost most
+					if every == 0 then
+						y += Ground.liftAt(wp.X, wp.Z, y, h, foot[1], foot[2], if pitched then pitch else nil)
+					end
 					local sw = 0
 					if animating then
 						local ph = g.phase + s.phase
@@ -28757,6 +28921,7 @@ function Figures.update(dt: number)
 			if wasSelected ~= selected then
 				prevSelected[id] = selected
 				g.dirty = true
+				g.wait = 0
 			end
 			local showStatus = selected or id == hovered
 			local m = g.marker
@@ -28779,13 +28944,17 @@ function Figures.update(dt: number)
 		end
 	end
 	placeBodies(now, moveParts, moveCfs)
+	debug.profilebegin("EoE figures move")
 	if #moveParts > 0 then
 		workspace:BulkMoveTo(moveParts, moveCfs, Enum.BulkMoveMode.FireCFrameChanged)
 	end
+	debug.profileend()
 	labelClock += dt
 	if labelClock >= LABEL_INTERVAL then
 		labelClock = 0
+		debug.profilebegin("EoE figures labels")
 		deconflictLabels(cam)
+		debug.profileend()
 	end
 end
 
@@ -29593,12 +29762,12 @@ local ORDER_KEYS: { [EnumItem]: string } = {
 	[Enum.KeyCode.K] = "skirmish",
 	[Enum.KeyCode.Y] = "wedge",
 	[Enum.KeyCode.T] = "fire",
-	[Enum.KeyCode.Z] = "charge",
+	[Enum.KeyCode.J] = "charge", -- Z and X are the camera's height (Total War)
 	[Enum.KeyCode.R] = "run",
 	[Enum.KeyCode.M] = "attack",
 	[Enum.KeyCode.H] = "hold",
 	[Enum.KeyCode.Backspace] = "stop",
-	[Enum.KeyCode.X] = "retreat",
+	[Enum.KeyCode.N] = "retreat",
 	[Enum.KeyCode.U] = "limber",
 	[Enum.KeyCode.I] = "ammo",
 	[Enum.KeyCode.P] = "rally",
@@ -30618,11 +30787,18 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
 	end
 end)
 
+-- Each step is labelled for the MicroProfiler (Ctrl+F6), so a slow frame names its culprit.
+local function step(label: string, fn: (number) -> (), dt: number)
+	debug.profilebegin(label)
+	fn(dt)
+	debug.profileend()
+end
+
 RunService.RenderStepped:Connect(function(dt: number)
-	Figures.update(dt)
-	Effects.update(dt)
-	Audio.update(dt)
-	HUD.update(dt)
+	step("EoE figures", Figures.update, dt)
+	step("EoE effects", Effects.update, dt)
+	step("EoE audio", Audio.update, dt)
+	step("EoE hud", HUD.update, dt)
 	Props.updateLabels(Camera.height())
 	Props.setLabelYaw(Camera.getYaw())
 	pendingClock += dt
@@ -31119,6 +31295,22 @@ function Touch.scale(viewportX: number, viewportY: number, touch: boolean): numb
 		return 1
 	end
 	return if math.min(viewportX, viewportY) < 600 then 1.5 else 1.15
+end
+
+-- A centred panel designed w x h on a screen availW x availH units (pixels over the UI scale),
+-- 8 units clear of each edge: the scale that fits its width, and the height (design units) to
+-- give it so it fits too; its scrolling body takes up the difference.
+function Touch.fitPanel(availW: number, availH: number, w: number, h: number): (number, number)
+	local k = math.min(1, (availW - 16) / w)
+	return k, math.min(h, (availH - 16) / k)
+end
+
+-- A column laid out for `full` units of height (or `compact` without its header) on a screen
+-- `height` units tall (pixels over the UI scale): compact when the full one does not fit, and
+-- the scale that fits whichever is shown.
+function Touch.fitColumn(height: number, full: number, compact: number): (boolean, number)
+	local small = height < full
+	return small, math.min(1, height / (if small then compact else full))
 end
 
 return Touch
@@ -31744,6 +31936,7 @@ function BattleSelect.show(cb: Callbacks, isCommander: boolean)
 	BattleSelect.destroy()
 	local sg = Kit.screen("EoEBattleSelect", 31)
 	local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+	Kit.fit(panel, 720, 640)
 	Kit.title(panel, "Choose a battle", { size = UDim2.new(1, -130, 0, 34), textSize = 28, spaced = true, colour = Kit.GILT, rule = true })
 	Kit.button(panel, "Back (Esc)", cb.back, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 	Kit.label(panel, "Enemy difficulty", { size = UDim2.new(0, 160, 0, 30), position = UDim2.new(0, 0, 0, 44), textSize = 15, colour = Kit.MUTED })
@@ -32611,7 +32804,7 @@ local ARROW_W = 18
 local PAD = 5
 local GAP = 3
 CardBar.HEIGHT = 96
-CardBar.SIDE_MARGIN = 276 -- clear of the command panel (left) and the minimap (right)
+CardBar.SIDE_MARGIN = 276 -- clear of the unit details (left) and the minimap (right)
 
 local AMBER = Color3.fromRGB(196, 140, 40)
 local MORALE_DEFAULT: { [string]: number } = { steady = 100, shaken = 45, routing = 15, shattered = 0 }
@@ -33457,6 +33650,7 @@ render = function(cb: Callbacks)
 	local sg = Kit.screen("EoECustomSelect", 31)
 	gui = sg
 	local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+	Kit.fit(panel, 720, 640)
 	Kit.title(panel, "Custom battle", { size = UDim2.new(1, -130, 0, 34), textSize = 28, spaced = true, colour = Kit.GILT, rule = true })
 	Kit.button(panel, "Back (Esc)", cb.back, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 	local function nationName(id: any): string
@@ -33643,7 +33837,11 @@ function Deployment.show(cb: Callbacks)
 	local cam = workspace.CurrentCamera
 	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y / Kit.scale() else 720) - (if touch then 16 else 96))
 	local d = math.clamp(math.floor((sheetH - 260) / 3), 56, 88)
-	Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
+	-- a phone's sheet is too short for it: below the notes or not at all
+	local marginH = sheetH - 2 * (if touch then 12 else 18) - 62
+	if marginH - d - 6 >= 50 + (#facts + 1) * 18 then
+		Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
+	end
 	local rule = Kit.rule(panel, UDim2.fromOffset(0, 66))
 	rule.Size = UDim2.new(1, -MARGIN - 12, 0, 1)
 	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
@@ -33917,13 +34115,22 @@ export type Callbacks = { settings: () -> (), help: () -> (), menu: () -> () }
 local EDGE = 8
 local CMD_W = 256
 local BOTTOM_H = CardBar.HEIGHT
--- Touch layout (docs/mobile-contract.md): the command panel, Settings / Menu / Select all and
--- the general's ability stack bottom-right; the minimap sits top-left under the bar; no inspector.
+-- Touch layout (docs/mobile-contract.md): Select all / Orders / Settings / Menu along the
+-- bottom-right corner with the general's ability above them; the command panel opens over the
+-- ability from Orders (a phone's landscape screen is ~500 x 250 units at the touch scale, so it
+-- starts closed: holding a unit opens the order wheel); the minimap sits top-left under the
+-- bar; no inspector.
 local touch = false
-local MINI_W = 110
+local MINI_W = 90
 local TOUCH_CELL_H = 34
 local CMD_ROWS = 4 -- COMMANDS, four to a row
 local TOUCH_CMD_H = CMD_ROWS * TOUCH_CELL_H + (CMD_ROWS - 1) * 3 + 18
+-- Desktop, Total War style: the orders sit in two rows of eight right on top of the unit cards,
+-- the unit's details in the bottom-left corner beneath its general's ability.
+local STRIP_COLS, STRIP_CELL_W, STRIP_CELL_H, STRIP_PAD = 8, 66, 22, 6
+local STRIP_W = STRIP_COLS * STRIP_CELL_W + (STRIP_COLS - 1) * 3 + 2 * STRIP_PAD
+local STRIP_H = 2 * STRIP_CELL_H + 3 + 2 * STRIP_PAD
+local STRIP_Y = -EDGE - BOTTOM_H - 4 -- the strip's foot, just above the card bar
 local TOUCH_ROW_H = 34
 local playersCollapsed = false
 
@@ -34008,7 +34215,7 @@ local function buildTopBar(sg: ScreenGui)
 		line.Parent = bar
 	end
 	local sc = BattleState.scenario
-	local name = Kit.title(bar, if sc then sc.name else "", { size = if touch then UDim2.new(0, 150, 1, 0) else UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
+	local name = Kit.title(bar, if sc then sc.name else "", { size = if touch then UDim2.new(0, 110, 1, 0) else UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 
 	-- centre: clock / limit, pause, speeds, weather
@@ -34099,12 +34306,14 @@ local function buildTopBar(sg: ScreenGui)
 
 	local strip = Instance.new("Frame") :: Frame
 	strip.Size = UDim2.new(0, 640, 0, 24)
-	strip.Position = UDim2.new(0.5, 0, 0, 60)
-	strip.AnchorPoint = Vector2.new(0.5, 0)
+	strip.Position = if touch then UDim2.new(1, -EDGE, 0, 42) else UDim2.new(0.5, 0, 0, 60)
+	strip.AnchorPoint = if touch then Vector2.new(1, 0) else Vector2.new(0.5, 0)
 	strip.BackgroundTransparency = 1
 	strip.Parent = sg
 	local sl = Kit.list(strip, 6, true)
-	sl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	sl.HorizontalAlignment = if touch then Enum.HorizontalAlignment.Right else Enum.HorizontalAlignment.Center
+	-- touch: the balance bar's numbers live in a hover tip, and its row now holds the objectives
+	bal.Visible = not touch
 	objectiveStrip = strip
 end
 
@@ -34155,7 +34364,7 @@ local function updateObjectives()
 	for i, o in BattleState.objectives do
 		local chip = objectiveChips[o.id]
 		if not chip then
-			local f = Kit.panel(strip, { size = UDim2.fromOffset(124, 24), position = UDim2.new(), transparency = 0.12, plain = true })
+			local f = Kit.panel(strip, { size = UDim2.fromOffset(if touch then 96 else 124, 24), position = UDim2.new(), transparency = 0.12, plain = true })
 			f.LayoutOrder = i
 			local pennant = Instance.new("Frame") :: Frame
 			pennant.Size = UDim2.new(0, 7, 1, 0)
@@ -34222,8 +34431,8 @@ end
 
 local function buildTicker(sg: ScreenGui)
 	local f = Instance.new("Frame") :: Frame
-	f.Size = UDim2.fromOffset(if touch then 300 else 440, 96)
-	f.Position = UDim2.new(0, tickerX(), 0, 44)
+	f.Size = UDim2.fromOffset(if touch then 300 else 440, if touch then 40 else 96)
+	f.Position = UDim2.new(0, tickerX(), 0, if touch then 72 else 44)
 	f.BackgroundTransparency = 1
 	f.Parent = sg
 	Kit.list(f, 3)
@@ -34392,7 +34601,7 @@ end
 local INSPECTOR_FIELDS = { "corps", "class", "strength", "morale", "fatigue", "ammo", "shape", "status" }
 
 local function buildInspector(sg: ScreenGui)
-	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
+	local p = Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, 190), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 10 })
 	inspectorFields.name = Kit.title(p, "", { size = UDim2.new(1, -40, 0, 26), textSize = 21, caps = false })
 	inspectorFields.name.TextTruncate = Enum.TextTruncate.AtEnd
 	inspectorFields.exp = Kit.label(p, "", { size = UDim2.new(0, 40, 0, 26), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0), textSize = 16, font = Enum.Font.GothamBold, align = Enum.TextXAlignment.Right, colour = Kit.GOLD })
@@ -34517,12 +34726,12 @@ local COMMANDS: { CommandDef } = {
 	{ key = "skirmish", text = "Skirmish", tip = "Light infantry and rifles: open order, fire on the move, hard to hit; cavalry rides it down" },
 	{ key = "wedge", text = "Wedge", tip = "Cavalry charge formation" },
 	{ key = "fire", text = "Fire at will", tip = "Toggle: fire at any target in range" },
-	{ key = "charge", text = "Charge", tip = "Then right-click a target or a point" },
+	{ key = "charge", text = "Charge", tip = "Charge (J): then right-click a target or a point" },
 	{ key = "run", text = "Run", tip = "Run / walk (R): faster, far more tiring. A double right-click runs one march" },
 	{ key = "attack", text = "Attack", tip = "Attack-move (M): then right-click; they fight their way there" },
 	{ key = "hold", text = "Hold", tip = "Stand and hold position" },
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
-	{ key = "retreat", text = "Retreat", tip = "Fall back toward your edge" },
+	{ key = "retreat", text = "Retreat", tip = "Retreat (N): fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
 	{ key = "ammo", text = "Auto", tip = "Ammunition, click to cycle: auto / round shot (long) / canister (short)" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
@@ -34616,16 +34825,16 @@ end
 
 local function buildCommandPanel(sg: ScreenGui)
 	local p = if touch
-		then Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, TOUCH_CMD_H), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.1, padding = 9 })
-		else Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, BOTTOM_H), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 9 })
+		then Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, TOUCH_CMD_H), position = UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4), anchor = Vector2.new(1, 1), transparency = 0.1, padding = 9 })
+		else Kit.panel(sg, { size = UDim2.fromOffset(STRIP_W, STRIP_H), position = UDim2.new(0.5, 0, 1, STRIP_Y), anchor = Vector2.new(0.5, 1), transparency = 0.1, padding = STRIP_PAD })
 	local grid = Instance.new("Frame") :: Frame
 	grid.Size = UDim2.fromScale(1, 1)
 	grid.BackgroundTransparency = 1
 	grid.Parent = p
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), if touch then TOUCH_CELL_H else math.floor((BOTTOM_H - 18 - (CMD_ROWS - 1) * 3) / CMD_ROWS))
+	g.CellSize = if touch then UDim2.fromOffset(math.floor((CMD_W - 18 - 9) / 4), TOUCH_CELL_H) else UDim2.fromOffset(STRIP_CELL_W, STRIP_CELL_H)
 	g.CellPadding = UDim2.fromOffset(3, 3)
-	g.FillDirectionMaxCells = 4
+	g.FillDirectionMaxCells = if touch then 4 else STRIP_COLS
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.Parent = grid
 	for i, c in COMMANDS do
@@ -34650,15 +34859,17 @@ local function buildCommandPanel(sg: ScreenGui)
 	bar.Parent = rb
 	rallyBar = bar
 
-	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, -EDGE - BOTTOM_H - 10), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
+	toast = Kit.label(sg, "", { size = UDim2.fromOffset(500, 24), position = UDim2.new(0.5, 0, 1, if touch then -EDGE - BOTTOM_H - 10 else STRIP_Y - STRIP_H - 6), anchor = Vector2.new(0.5, 1), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
 	if touch then
-		-- the row above the command panel: Select all / Settings / Menu (Help is keyboard talk)
+		p.Visible = false
+		p.ZIndex = 5 -- open, it covers the ability button
+		-- the corner row: Select all / Orders / Settings / Menu (Help is keyboard talk)
 		local row = Instance.new("Frame") :: Frame
 		row.Size = UDim2.fromOffset(CMD_W, TOUCH_ROW_H)
-		row.Position = UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_CMD_H - 4)
+		row.Position = UDim2.new(1, -EDGE, 1, -EDGE)
 		row.AnchorPoint = Vector2.new(1, 1)
 		row.BackgroundTransparency = 1
 		row.Parent = sg
@@ -34671,17 +34882,22 @@ local function buildCommandPanel(sg: ScreenGui)
 				end
 			end
 			Selection.set(ids)
-		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 1, textSize = 13 })
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 1, textSize = 13 })
+		local orders: TextButton
+		orders = Kit.button(row, "Orders", function()
+			p.Visible = not p.Visible
+			Kit.setActiveLook(orders, p.Visible)
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 2, textSize = 13 })
 		Kit.button(row, "Settings", function()
 			if cb then
 				cb.settings()
 			end
-		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 2, textSize = 13 })
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 3, textSize = 13 })
 		Kit.button(row, "Menu", function()
 			if cb then
 				cb.menu()
 			end
-		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 3, textSize = 13 })
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 4, textSize = 13 })
 	end
 end
 
@@ -34718,7 +34934,7 @@ local function buildAbility(sg: ScreenGui)
 		if f and g then
 			Input.sendOrder("Ability", { f.id }, { abilityId = g.ability.id })
 		end
-	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_CMD_H - 4 - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
+	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
 	b.RichText = true
 	b.Visible = false
 	b.ClipsDescendants = true
@@ -34907,8 +35123,18 @@ end
 
 local function buildMinimap(sg: ScreenGui)
 	local m = BattleState.map
-	local w = if touch then MINI_W else 200
-	local h = if m then math.round(w * m.depth / m.width) else 150
+	local w: number = if touch then MINI_W else 200
+	local h: number = if m then math.round(w * m.depth / m.width) else 150
+	if touch then
+		-- a phone's screen may be ~215 units tall: shrink the map to the room above the cards
+		local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale?
+		local room = sg.AbsoluteSize.Y / (if ui then ui.Scale else 1) - 42 - 12 - BOTTOM_H - EDGE - 6
+		if h > room then
+			local k = math.max(room, 40) / h
+			w = math.round(w * k)
+			h = math.round(h * k)
+		end
+	end
 	local frame = if touch
 		then Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(0, EDGE, 0, 42), transparency = 0.05, padding = 6 })
 		else Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.05, padding = 6 })
@@ -35062,13 +35288,13 @@ local CONTROLS = {
 	{ "Right drag", "Draw the line: formations spread along it and face its open side" },
 	{ "Alt + right click", "Turn in place to face that point" },
 	{ "Shift + order", "Queue the order after the current one (up to 4)" },
-	{ "WASD / arrows", "Pan the camera · Q / E rotate · wheel zoom · PgUp / PgDn pitch" },
+	{ "WASD / arrows", "Pan the camera · Q / E rotate · X / Z or the wheel: up / down · PgUp / PgDn pitch" },
 	{ "F / Home / V", "Focus the selection / return to the army / follow the selected formation" },
 	{ "Space · + / −", "Pause or resume · faster / slower (×1 ×2 ×4)" },
 	{ "Ctrl + 1…9 / 1…9", "Assign a control group / recall it (twice: centre on it) · Ctrl + A: everyone" },
 	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
-	{ "T Z M R", "Fire at will · charge · attack-move · run / walk" },
-	{ "H ⌫ X", "Hold · halt · retreat" },
+	{ "T J M R", "Fire at will · charge · attack-move · run / walk" },
+	{ "H ⌫ N", "Hold · halt · retreat" },
 	{ "U I P O", "Guns: limber · ammunition · HQ: rally · Occupy a village or farm (then right-click it)" },
 	{ "Esc", "Clear the selection, close panels" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
@@ -35103,6 +35329,7 @@ function Help.show()
 	if not gui then
 		local sg = Kit.screen("EoEHelp", 35)
 		local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 620), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
+		Kit.fit(panel, 720, 620)
 		Kit.title(panel, "How to Command", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
 		Kit.button(panel, "Close (Esc)", Help.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 		local scroll = Instance.new("ScrollingFrame") :: ScrollingFrame
@@ -35333,6 +35560,27 @@ end
 
 function Kit.touch(): boolean
 	return Settings.touch()
+end
+
+-- Keeps a centred panel designed w x h on its screen (Touch.fitPanel): scaled down to the
+-- screen's width and cut to its height, so on a phone the panel's scrolling body absorbs the
+-- height it loses instead of the header and buttons running off the edge.
+function Kit.fit(panel: GuiObject, w: number, h: number)
+	local sg = panel:FindFirstAncestorOfClass("ScreenGui") :: ScreenGui?
+	if not sg then
+		return
+	end
+	local u = Instance.new("UIScale") :: UIScale
+	u.Parent = panel
+	local function refit()
+		local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale?
+		local size = sg.AbsoluteSize / (if ui then ui.Scale else 1)
+		local k, fh = Touch.fitPanel(size.X, size.Y, w, h)
+		u.Scale = k
+		panel.Size = UDim2.fromOffset(w, math.floor(fh))
+	end
+	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	refit()
 end
 
 local screens: { ScreenGui } = {}
@@ -36558,6 +36806,7 @@ return Loading
 -- text entries) over the live battlefield. Entries call back into Main.
 
 local Kit = require(script.Parent.Kit)
+local Touch = require(script.Parent.Parent.Touch)
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Assets = require(Shared.Assets)
 
@@ -36574,7 +36823,7 @@ export type Callbacks = {
 local gui: ScreenGui? = nil
 
 -- Imperial badge: a gold laurel wreath (two branches of leaves open at the top) around an "N".
-local function badge(parent: Instance, centre: UDim2)
+local function badge(parent: Instance, centre: UDim2): Frame
 	local holder = Instance.new("Frame") :: Frame
 	holder.Size = UDim2.fromOffset(120, 120)
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -36618,7 +36867,12 @@ local function badge(parent: Instance, centre: UDim2)
 		d.BorderSizePixel = 0
 		d.Parent = holder
 	end
+	return holder
 end
+
+-- The column's design height with its painted header, and without it (title and entries only,
+-- no rules between them).
+local FULL_H, COMPACT_H = 640, 340
 local campaignBtn: TextButton? = nil
 local playBtn: TextButton? = nil
 local note: TextLabel? = nil
@@ -36635,6 +36889,13 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		col.Active = true
 		col.Parent = sg
 		Kit.gradient(col, Kit.BLUE, Kit.INSET)
+		-- everything but the gilt edges sits in a body that shrinks to fit a short screen
+		local body = Instance.new("Frame") :: Frame
+		body.Size = UDim2.fromOffset(400, FULL_H)
+		body.BackgroundTransparency = 1
+		body.Parent = col
+		local fit = Instance.new("UIScale") :: UIScale
+		fit.Parent = body
 		-- a painted sky over the badge and title (Philippoteaux), fading into the column
 		local pic = Instance.new("ImageLabel") :: ImageLabel
 		pic.Size = UDim2.new(1, 0, 0, 300)
@@ -36642,7 +36903,7 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		pic.ScaleType = Enum.ScaleType.Crop
 		pic.Image = Assets.paintingFor(nil)
 		pic.ImageTransparency = 0.5
-		pic.Parent = col
+		pic.Parent = body
 		local fadePic = Instance.new("UIGradient") :: UIGradient
 		fadePic.Rotation = 90
 		fadePic.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.55, 0.15), NumberSequenceKeypoint.new(1, 1) })
@@ -36655,22 +36916,23 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 			edge.BorderSizePixel = 0
 			edge.Parent = col
 		end
-		badge(col, UDim2.new(0.5, 0, 0, 96))
-		local t = Kit.title(col, "Eagles of Empire", { size = UDim2.new(1, -40, 0, 36), position = UDim2.new(0, 20, 0, 170), spaced = true, textSize = 30, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
+		local crest = badge(body, UDim2.new(0.5, 0, 0, 96))
+		local t = Kit.title(body, "Eagles of Empire", { size = UDim2.new(1, -40, 0, 36), position = UDim2.new(0, 20, 0, 170), spaced = true, textSize = 30, colour = Kit.GILT, align = Enum.TextXAlignment.Center })
 		t.TextScaled = true
 		local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
 		tc.MaxTextSize = 30
 		tc.Parent = t
-		Kit.tricolour(col, UDim2.fromOffset(150, 6), UDim2.new(0.5, 0, 0, 214), Vector2.new(0.5, 0))
-		local sub = Kit.label(col, "Napoleonic real-time tactics", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0, 226), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
+		local flag = Kit.tricolour(body, UDim2.fromOffset(150, 6), UDim2.new(0.5, 0, 0, 214), Vector2.new(0.5, 0))
+		local sub = Kit.label(body, "Napoleonic real-time tactics", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0, 226), textSize = 18, colour = Kit.MUTED, align = Enum.TextXAlignment.Center })
 		sub.FontFace = Kit.ITALIC
 		local list = Instance.new("Frame") :: Frame
 		list.Size = UDim2.new(1, -80, 0, 340)
 		list.Position = UDim2.new(0, 40, 0, 280)
 		list.BackgroundTransparency = 1
-		list.Parent = col
+		list.Parent = body
 		local ll = Kit.list(list, 6)
 		ll.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		local rules: { Frame } = {}
 		local function item(text: string, fn: () -> (), order: number): TextButton
 			if order > 1 then
 				local sep = Instance.new("Frame") :: Frame
@@ -36679,6 +36941,7 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 				sep.LayoutOrder = order * 2 - 1
 				sep.Parent = list
 				Kit.rule(sep, UDim2.fromScale(0, 0.5))
+				table.insert(rules, sep)
 			end
 			local b = Kit.button(list, Kit.spaced(text), fn, { size = UDim2.new(1, 0, 0, 40), flat = true, order = order * 2, textSize = 22 })
 			return b
@@ -36692,7 +36955,26 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 			item("Grand Campaign", grand, 5)
 		end
 		item("Tutorial", cb.tutorial, 6) -- the aide-de-camp's training ground (Tutorial.luau)
-		note = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
+		local hint = Kit.label(col, "", { size = UDim2.new(1, -48, 0, 40), position = UDim2.new(0, 24, 1, -56), wrap = true, colour = Kit.MUTED, textSize = 14, align = Enum.TextXAlignment.Center })
+		note = hint
+		-- a phone's landscape screen is ~290 units tall: drop the header, shrink the rest
+		local function refit()
+			local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale? -- the touch scale this screen was given
+			local compact, k = Touch.fitColumn(col.AbsoluteSize.Y / (if ui then ui.Scale else 1), FULL_H, COMPACT_H)
+			for _, g in { pic, crest, flag, sub } :: { GuiObject } do
+				g.Visible = not compact
+			end
+			for _, r in rules do
+				r.Visible = not compact
+			end
+			hint.Visible = not compact -- keyboard hints; a phone has none and no room
+			t.Position = UDim2.new(0, 20, 0, if compact then 10 else 170)
+			list.Position = UDim2.new(0, 40, 0, if compact then 54 else 280)
+			fit.Scale = k
+			col.Size = UDim2.new(0, math.ceil(400 * k), 1, 0)
+		end
+		col:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+		refit()
 		gui = sg
 	end
 	if campaignBtn then
@@ -37413,6 +37695,7 @@ function Results.show(results: any, cb: Callbacks)
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(760, 640)
 	cap.Parent = panel
+	Kit.fit(panel, 760, 640)
 	local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
 	local sides = results.sides or {}
 	local own, enemy = sides[BattleState.viewerFaction], sides[BattleState.enemyFaction]
@@ -37633,6 +37916,9 @@ function SettingsPanel.show()
 		-- on a phone the sheet takes the height it can get and the list scrolls inside it
 		-- desktop: 710 tall; rows past that scroll (the audio rows pushed AI difficulty out of sight)
 		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 710), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
+		if not touch then
+			Kit.fit(panel, 420, 710) -- a short window cuts the sheet, not its Close button
+		end
 		if touch then
 			local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 			cap.MaxSize = Vector2.new(420, 640)
@@ -38034,10 +38320,13 @@ type Grade = {
 	cloudDensity: number,
 	cloudColor: Color3,
 	rays: number,
-	fogStart: number, -- quality 1 (no Atmosphere) uses plain distance fog
+	fogStart: number, -- quality 1 only (no Atmosphere): plain distance fog, close enough to stand in for the haze
 	fogEnd: number,
 	fogColor: Color3,
 }
+
+-- Saturation taken off every grade at quality 1 (no Atmosphere); a third of it off contrast.
+local LOW_HAZE = 0.2
 
 local GRADES: { [string]: Grade } = {
 	-- Low sun from the south-west, long soft shadows, a golden but not orange cast; the horizon
@@ -38064,8 +38353,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.3,
 		cloudColor = c3(250, 244, 232),
 		rays = 0.04,
-		fogStart = 1400,
-		fogEnd = 3800,
+		fogStart = 280,
+		fogEnd = 2300,
 		fogColor = c3(206, 198, 180),
 	},
 	-- Dawn fog: pale, colourless, flat light; distance dissolves.
@@ -38094,8 +38383,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.4,
 		cloudColor = c3(232, 230, 224),
 		rays = 0,
-		fogStart = 300,
-		fogEnd = 1500,
+		fogStart = 60,
+		fogEnd = 900,
 		fogColor = c3(206, 202, 192),
 	},
 	-- The fog has burnt off: a bright, crisp morning sun from the south-east.
@@ -38121,8 +38410,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.25,
 		cloudColor = c3(252, 250, 244),
 		rays = 0.06,
-		fogStart = 1600,
-		fogEnd = 4200,
+		fogStart = 320,
+		fogEnd = 2500,
 		fogColor = c3(214, 210, 198),
 	},
 	-- Rain and sodden ground: low grey cloud, no hard shadows, cooler and less saturated.
@@ -38148,8 +38437,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.6,
 		cloudColor = c3(184, 184, 182),
 		rays = 0,
-		fogStart = 700,
-		fogEnd = 2600,
+		fogStart = 140,
+		fogEnd = 1560,
 		fogColor = c3(178, 178, 174),
 	},
 }
@@ -38266,7 +38555,9 @@ local function setGrade(name: string, seconds: number)
 		FogEnd = g.fogEnd,
 		FogColor = g.fogColor,
 	})
-	to(cc, { TintColor = g.tint, Contrast = g.contrast, Saturation = g.saturation })
+	-- Low has no Atmosphere, whose haze softens the painted ground; a duller grade stands in
+	local haze = if currentQuality < 2 then LOW_HAZE else 0
+	to(cc, { TintColor = g.tint, Contrast = g.contrast - haze / 3, Saturation = g.saturation - haze })
 	to(bloom, { Intensity = g.bloom })
 	to(rays, { Intensity = g.rays })
 	to(atmosphere, {
@@ -39378,6 +39669,14 @@ local KIT_LIFT = 0.42
 -- The kit musket is longer than the part-built one; it is held this far toward the muzzle from
 -- its middle, so the butt sits at the hip shouldered and in the shoulder levelled.
 local KIT_GRIP = 0.72
+
+-- Seconds between full re-placements of a battalion this far from the camera; 0 = every frame,
+-- with the men milling about in their ranks. Past 150 studs a man is a dozen pixels and past
+-- 500 a few, so moving him 30 or 15 times a second looks the same and costs a half or a
+-- quarter; off screen a few times a second keeps him close to where the camera will find him.
+function Soldiers.refreshInterval(dist: number, onScreen: boolean): number
+	return if not onScreen then 0.25 elseif dist < 150 then 0 elseif dist < 500 then 1 / 30 else 1 / 15
+end
 
 -- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets
 -- levelled. act = "reload" (firing infantry) or "thrust" (infantry in melee), at t in [0, 1) of
