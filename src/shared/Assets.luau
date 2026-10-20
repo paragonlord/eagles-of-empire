@@ -437,6 +437,16 @@ Assets.paintings = {
 	thuringia = "rbxassetid://115020031615909", -- the campaign map's parchment (tools/thuringia_map.py)
 }
 
+-- The rulers of 1805 for the grand campaign's nation picker (public-domain portraits, head and
+-- shoulders, 256²): David, Ramsay, Amerling, Gebauer, Dawe.
+Assets.rulers = {
+	france = "rbxassetid://108823540029358", -- Napoleon I
+	britain = "rbxassetid://89327521394091", -- George III
+	austria = "rbxassetid://139154612819980", -- Francis II
+	prussia = "rbxassetid://94214866043823", -- Frederick William III
+	russia = "rbxassetid://134911391128710", -- Alexander I
+} :: { [string]: string }
+
 -- The painting for a battle map: its battle's, or the menu's for maps without one.
 function Assets.paintingFor(mapId: string?): string
 	local id = mapId or ""

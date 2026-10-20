@@ -6,6 +6,8 @@
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Data = require(script.Parent.Data)
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Logic = require(script.Parent.Logic)
 
 local UI = {}
@@ -827,7 +829,7 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 	local grid = row(p, 4, 0)
 	grid.AutomaticSize = Enum.AutomaticSize.Y
 	local g = Instance.new("UIGridLayout") :: UIGridLayout
-	g.CellSize = UDim2.fromOffset(200, 44)
+	g.CellSize = UDim2.fromOffset(200, 96)
 	g.CellPadding = UDim2.fromOffset(8, 8)
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -848,7 +850,29 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 		end, { order = i :: number, textSize = 15, caps = false })
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		b.TextTruncate = Enum.TextTruncate.AtEnd
-		flag(b, id, 30, 20, UDim2.fromOffset(5, 7)) -- Kit.flag reserves the text padding itself
+		b.TextWrapped = true
+		local ruler = Assets.rulers[id]
+		if ruler then
+			-- the sovereign's portrait in a gilt frame, the flag under it
+			local pic = Instance.new("ImageLabel") :: ImageLabel
+			pic.Size = UDim2.fromOffset(72, 72)
+			pic.Position = UDim2.fromOffset(6, 6)
+			pic.Image = ruler
+			pic.BackgroundColor3 = Kit.WALNUT
+			pic.BorderSizePixel = 0
+			pic.Parent = b
+			local frame = Instance.new("UIStroke") :: UIStroke
+			frame.Color = Kit.GILT
+			frame.Thickness = 2
+			frame.Parent = pic
+			flag(b, id, 30, 20, UDim2.fromOffset(84, 66))
+			local pad = (b:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")) :: UIPadding
+			pad.PaddingLeft = UDim.new(0, 86)
+			pad.PaddingBottom = UDim.new(0, 24)
+			pad.Parent = b
+		else
+			flag(b, id, 30, 20, UDim2.fromOffset(5, 7)) -- Kit.flag reserves the text padding itself
+		end
 	end
 	Kit.button(p, "Main Menu", function()
 		if cb then

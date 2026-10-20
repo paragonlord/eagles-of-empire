@@ -133,6 +133,12 @@ the loading screen (per battle, `Assets.paintingFor`) and the results ribbon.
 | `jena` | Horace Vernet, *Bataille d'Iéna* (1836); also Auerstedt | `Bataille_d'Iéna,_14_octobre_1806_(Vernet).jpg` |
 | `waterloo` | William Sadler, *The Battle of Waterloo* (c. 1815) | `Battle_of_Waterloo_1815.PNG` |
 
+Rulers for the grand campaign's nation picker (`Assets.rulers`, head and shoulders, 256²):
+David, *The Emperor Napoleon in His Study at the Tuileries* (1812); Ramsay, *George III in
+coronation robes* (1761, cropped); Amerling, *Kaiser Franz I.* (1832); Gebauer, *Friedrich
+Wilhelm III.*; Dawe, *Alexander I* (1826, Peterhof). The Thuringian campaign's parchment map is
+drawn by `tools/thuringia_map.py` (`Assets.paintings.thuringia`).
+
 ## Generated assets (graphics pass, 2026-10-20)
 
 All made with Studio's generators through the MCP and published to Bartosz's account:
