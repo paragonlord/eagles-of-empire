@@ -66,10 +66,13 @@ type Grade = {
 	cloudDensity: number,
 	cloudColor: Color3,
 	rays: number,
-	fogStart: number, -- quality 1 (no Atmosphere) uses plain distance fog
+	fogStart: number, -- quality 1 only (no Atmosphere): plain distance fog, close enough to stand in for the haze
 	fogEnd: number,
 	fogColor: Color3,
 }
+
+-- Saturation taken off every grade at quality 1 (no Atmosphere); a third of it off contrast.
+local LOW_HAZE = 0.2
 
 local GRADES: { [string]: Grade } = {
 	-- Low sun from the south-west, long soft shadows, a golden but not orange cast; the horizon
@@ -96,8 +99,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.3,
 		cloudColor = c3(250, 244, 232),
 		rays = 0.04,
-		fogStart = 1400,
-		fogEnd = 3800,
+		fogStart = 280,
+		fogEnd = 2300,
 		fogColor = c3(206, 198, 180),
 	},
 	-- Dawn fog: pale, colourless, flat light; distance dissolves.
@@ -126,8 +129,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.4,
 		cloudColor = c3(232, 230, 224),
 		rays = 0,
-		fogStart = 300,
-		fogEnd = 1500,
+		fogStart = 60,
+		fogEnd = 900,
 		fogColor = c3(206, 202, 192),
 	},
 	-- The fog has burnt off: a bright, crisp morning sun from the south-east.
@@ -153,8 +156,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.25,
 		cloudColor = c3(252, 250, 244),
 		rays = 0.06,
-		fogStart = 1600,
-		fogEnd = 4200,
+		fogStart = 320,
+		fogEnd = 2500,
 		fogColor = c3(214, 210, 198),
 	},
 	-- Rain and sodden ground: low grey cloud, no hard shadows, cooler and less saturated.
@@ -180,8 +183,8 @@ local GRADES: { [string]: Grade } = {
 		cloudDensity = 0.6,
 		cloudColor = c3(184, 184, 182),
 		rays = 0,
-		fogStart = 700,
-		fogEnd = 2600,
+		fogStart = 140,
+		fogEnd = 1560,
 		fogColor = c3(178, 178, 174),
 	},
 }
@@ -298,7 +301,9 @@ local function setGrade(name: string, seconds: number)
 		FogEnd = g.fogEnd,
 		FogColor = g.fogColor,
 	})
-	to(cc, { TintColor = g.tint, Contrast = g.contrast, Saturation = g.saturation })
+	-- Low has no Atmosphere, whose haze softens the painted ground; a duller grade stands in
+	local haze = if currentQuality < 2 then LOW_HAZE else 0
+	to(cc, { TintColor = g.tint, Contrast = g.contrast - haze / 3, Saturation = g.saturation - haze })
 	to(bloom, { Intensity = g.bloom })
 	to(rays, { Intensity = g.rays })
 	to(atmosphere, {
