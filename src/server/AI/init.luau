@@ -21,6 +21,7 @@ local Formation = require(script.Parent.Sim.Formation)
 local Combat = require(script.Parent.Sim.Combat)
 local Nav = require(script.Parent.Sim.Nav)
 local Abilities = require(script.Parent.Sim.Abilities)
+local Objectives = require(script.Parent.Sim.Objectives)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -235,6 +236,13 @@ end
 
 -- Army plan ----------------------------------------------------------------------------------------
 
+-- An objective we hold, or a neutral one on our side of the field (defend walks onto it anyway).
+local function onOurSide(state: AIState, o: any): boolean
+	local sim = state.sim
+	local p = o.def.pos
+	return o.owner == state.faction or (o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, sim:homeEdge(state.faction)) < Vec.dist(p, sim:homeEdge(state.enemy))))
+end
+
 local function desiredPosture(state: AIState): string
 	local sim = state.sim
 	local ownStr, broken, total, seen = 0, 0, 0, 0
@@ -249,35 +257,32 @@ local function desiredPosture(state: AIState): string
 	for _, k in state.known do
 		seen += k.strength
 	end
-	local deployed = sim.deployed[state.faction] or 1
-	if total == 0 or broken >= total * 0.5 or ownStr < deployed * 0.45 then
+	if total == 0 or broken >= total * 0.5 or ownStr < Objectives.fieldDeployed(sim :: any, state.faction) * 0.45 then
 		return "withdraw"
+	end
+	-- The battle's roles (Scenario.attacker): the defender holds its ground, whatever part of the
+	-- attacker's army it sees; the attacker keeps coming while the enemy holds any objective.
+	local attacker = (sim.scenario :: any).attacker
+	if attacker == state.enemy then
+		return "defend"
 	end
 	if seen >= ownStr * 0.4 and ownStr > seen * 1.5 then
 		return "attack"
 	end
 	-- Holding no more objectives than the enemy loses (or draws) on the clock: go and take one.
 	-- Neutral objectives on our side of the field count as ours (defend walks onto them anyway).
-	local home, enemyHome = sim:homeEdge(state.faction), sim:homeEdge(state.enemy)
 	local mineN, theirs = 0, 0
 	for _, o in sim.objectives do
-		local p = o.def.pos
-		local ours = o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, home) < Vec.dist(p, enemyHome))
-		if o.owner == state.faction or ours then
+		if onOurSide(state, o) then
 			mineN += 1
 		else
 			theirs += 1
 		end
 	end
-	-- The battle's roles (Scenario.attacker): the attacker keeps coming while the enemy holds any
-	-- objective; the defender holds its ground (and counter-attacks only when it is overwhelming).
-	local attacker = (sim.scenario :: any).attacker
 	if attacker == state.faction and theirs > 0 then
 		return "advance"
-	elseif attacker == state.enemy then
-		return "defend"
 	end
-	local deployedEnemy = sim.deployed[state.enemy] or 0
+	local deployed, deployedEnemy = sim.deployed[state.faction] or 1, sim.deployed[state.enemy] or 0
 	if theirs > 0 and (mineN < theirs or (mineN == theirs and deployed >= deployedEnemy)) then
 		return "advance"
 	end
@@ -373,10 +378,8 @@ local function plan(state: AIState)
 	else
 		local objs: { Vec } = {}
 		for _, o in sim.objectives do
-			local p = o.def.pos
-			local ours = o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, home) < Vec.dist(p, enemyHome))
-			if o.owner == state.faction or ours then
-				objs[#objs + 1] = Vec.add(p, Vec.scale(forward, 25))
+			if onOurSide(state, o) then
+				objs[#objs + 1] = Vec.add(o.def.pos, Vec.scale(forward, 25))
 			end
 		end
 		-- A concentrated attack on one objective pulls the unthreatened wings halfway toward it.
@@ -400,6 +403,30 @@ local function plan(state: AIState)
 				end
 			end
 		end
+		-- Objectives with a building are outposts its garrison holds (garrisonBuildings): when the
+		-- army has an objective in the open as well, the line stands level with that, behind them.
+		local outpost: { boolean } = {}
+		local mainDepth, mainN = 0, 0
+		for i, p in objs do
+			for _, sp in sim.strongpoints do
+				if Vec.dist(sp.pos, Vec.sub(p, Vec.scale(forward, 25))) < 90 then
+					outpost[i] = true
+				end
+			end
+			if not outpost[i] then
+				mainDepth, mainN = mainDepth + Vec.dot(p, forward), mainN + 1
+			end
+		end
+		local spaced = mainN > 0 and mainN < #objs
+		if spaced then
+			mainDepth /= mainN
+			for i, p in objs do
+				local ahead = Vec.dot(p, forward) - mainDepth
+				if outpost[i] and ahead > 0 then
+					objs[i] = Vec.sub(p, Vec.scale(forward, ahead))
+				end
+			end
+		end
 		table.sort(objs, function(a, b)
 			return lateral(state, a) < lateral(state, b)
 		end)
@@ -411,6 +438,17 @@ local function plan(state: AIState)
 		else
 			local centre = objs[1] or base
 			wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(state.right, 140)), Vec.add(centre, Vec.scale(state.right, 140))
+		end
+		if spaced then
+			-- a line drawn back from its outposts keeps a frontage: wings at least 200 apart
+			local gap = lateral(state, wing.centre) - lateral(state, wing.left)
+			if gap < 200 then
+				wing.left = Vec.sub(wing.left, Vec.scale(state.right, 200 - gap))
+			end
+			gap = lateral(state, wing.right) - lateral(state, wing.centre)
+			if gap < 200 then
+				wing.right = Vec.add(wing.right, Vec.scale(state.right, 200 - gap))
+			end
 		end
 	end
 	local lineInf = 0
@@ -693,7 +731,7 @@ local function garrisonBuildings(state: AIState)
 	for _, sp in sim.strongpoints do
 		local wanted = false
 		for _, o in sim.objectives do
-			if o.owner == state.faction and Vec.dist(o.def.pos, sp.pos) < 90 then
+			if (o.owner == state.faction or (state.posture == "defend" and onOurSide(state, o))) and Vec.dist(o.def.pos, sp.pos) < 90 then
 				wanted = true
 			end
 		end

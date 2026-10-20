@@ -376,6 +376,22 @@ test("Battle roles: the attacking AI comes on while the enemy holds anything; th
 	assertEq(postureAs("france"), "defend", "the defender holds")
 end)
 
+test("Battle roles: the defending AI does not leave its ground for the part of the attacker it sees", function()
+	local sc = scenario({
+		unit("prussia", "infantry", "IR Nr. 29", 760, 760, -math.pi / 2),
+		unit("prussia", "infantry", "IR Nr. 49", 840, 760, -math.pi / 2),
+		unit("france", "infantry", "34e de Ligne", 800, 580, math.pi / 2),
+		FAR_FRIEND,
+	})
+	sc.attacker = "france"
+	local sim = Sim.new({ matchId = "m", scenario = sc, map = MAP, seed = 3 })
+	sim:start()
+	local st = attach(sim)
+	run(sim, 2)
+	assertTrue(#st.visible >= 1, "the French battalion is in sight")
+	assertEq(st.posture, "defend", "two to one on what it sees, the defender still holds")
+end)
+
 test("AI light infantry screens in skirmish order and closes up when horse appears", function()
 	-- the open Landgrafenberg plateau (as in the sim tests)
 	local sim = newSim({
