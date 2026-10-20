@@ -203,7 +203,8 @@ test("Figures: muskets are reloaded upright and fired levelled; bayonets thrust 
 	local levelled = Soldiers.partCFrame(3, origin, 0, 0, true)
 	-- reloading: most of the cycle the butt stands on the ground in front, the rest levelled to fire
 	local ram = Soldiers.partCFrame(3, origin, 0, 0, true, "reload", 0.2)
-	assertTrue(ram.Position.Y < 0.3 and ram.Position.X > 0.3, "butt grounded in front: " .. tostring(ram.Position))
+	local butt = ram * Vector3.new(0, -0.85, 0) -- the part-built musket is 1.7 long, posed at its middle
+	assertTrue(butt.Y > -0.1 and butt.Y < 0.3 and butt.X > 0.3, "butt grounded in front: " .. tostring(butt))
 	assertTrue((Soldiers.partCFrame(3, origin, 0, 0, true, "reload", 0.9).Position - levelled.Position).Magnitude < 1e-6, "then levelled")
 	-- the right arm works the ramrod: it moves through the cycle
 	local a1 = Soldiers.partCFrame(13, origin, 0, 0, true, "reload", 0.1)
@@ -215,4 +216,58 @@ test("Figures: muskets are reloaded upright and fired levelled; bayonets thrust 
 	assertTrue(out.Position.X > levelled.Position.X + 0.2, "a thrust")
 	assertTrue(math.abs(back.Position.X - levelled.Position.X) < 1e-6, "and back")
 	local _ = shouldered
+	-- the hands follow the musket: forward of the chest when levelled, at the muzzle when ramming
+	local leftHand, rightHand = CFrame.new(0.26, -0.9, 0), CFrame.new(0.42, -0.62, 0)
+	assertTrue(Soldiers.partCFrame(12, leftHand, 0, 0, true).Position.X > 0.4, "left hand forward under the barrel")
+	assertTrue(Soldiers.partCFrame(13, rightHand, 0, 0, true).Position.X > 0.3, "right hand forward at the lock")
+	local muzzle = ram * Vector3.new(0, 0.85, 0)
+	for _, beat in { 0.1, 0.16, 0.3 } do
+		local h = Soldiers.partCFrame(13, rightHand, 0, 0, true, "reload", beat).Position
+		assertTrue(h.X > 0.2 and math.abs(h.Y - muzzle.Y) < 0.6, "ramming hand at the muzzle: " .. tostring(h) .. " muzzle " .. tostring(muzzle))
+	end
+	assertTrue(Soldiers.partCFrame(12, leftHand, 0, 0, true, "reload", 0.2).Position.X > 0.3, "left hand on the barrel in front")
+end)
+
+test("Figures: a generated kit stands as generated at rest and moves on the part-built anim codes", function()
+	local Soldiers = require(Client.World.Soldiers)
+	local Assets = require(game:GetService("ReplicatedStorage").EoE.Assets)
+	local kit = Assets.kit("infantry_france") :: any
+	assertTrue(kit ~= nil, "the French kit is filled")
+	local layout = Soldiers.kitLayout(kit)
+	local seen = {}
+	for _, e in layout do
+		seen[e.key] = e
+		local p = kit[e.key].cf
+		local want = CFrame.new(p[1], p[2], p[3]) * CFrame.Angles(p[4], p[5], p[6])
+		local rest = Soldiers.partCFrame(e.anim, e.lc, e.pivot, 0, false)
+		if e.key ~= "musket" then
+			assertTrue((rest.Position - want.Position).Magnitude < 1e-4, e.key .. " at rest where generated: " .. tostring(rest.Position))
+			assertTrue((rest.LookVector - want.LookVector).Magnitude < 1e-4, e.key .. " faces as generated")
+		end
+	end
+	for _, k in { "torso", "head", "legL", "legR", "armL", "armR", "musket" } do
+		assertTrue(seen[k] ~= nil, "piece " .. k)
+	end
+	assertEq(seen.legL.anim, 1)
+	assertEq(seen.legR.anim, 2)
+	assertEq(seen.armL.anim, 12)
+	assertEq(seen.armR.anim, 13)
+	assertEq(seen.musket.anim, 3)
+	-- marching swings a leg about the hip and keeps the mesh turned the kit's way
+	local step = Soldiers.partCFrame(1, seen.legL.lc, seen.legL.pivot, 0.4, false)
+	assertTrue(math.abs(step.Position.X - seen.legL.lc.Position.X) > 0.1, "the leg swings")
+	assertTrue(math.abs(step.LookVector.Y) < 0.5, "and stays upright-facing")
+	-- levelled: the arms reach forward and the musket points ahead at shoulder height, butt at the shoulder
+	local arm = Soldiers.partCFrame(12, seen.armL.lc, seen.armL.pivot, 0, true)
+	local armRest = Soldiers.partCFrame(12, seen.armL.lc, seen.armL.pivot, 0, false)
+	assertTrue(arm.Position.X > armRest.Position.X + 0.2, "the left arm reaches forward")
+	local gun = Soldiers.partCFrame(3, seen.musket.lc, seen.musket.pivot, 0, true)
+	assertTrue(gun.Position.Y > 2.0 and gun.Position.Y < 2.6, "musket at shoulder height: " .. tostring(gun.Position))
+	local half = kit.musket.size[2] / 2
+	local butt = gun * Vector3.new(0, -half, 0)
+	assertTrue(butt.X > -0.4 and butt.X < 0.3, "butt in the shoulder: " .. tostring(butt))
+	-- reloading, the long kit musket also stands on its butt
+	local ram = Soldiers.partCFrame(3, seen.musket.lc, seen.musket.pivot, 0, true, "reload", 0.2)
+	local foot = ram * Vector3.new(0, -half, 0)
+	assertTrue(foot.Y > -0.1 and foot.Y < 0.3, "kit butt grounded while ramming: " .. tostring(foot))
 end)

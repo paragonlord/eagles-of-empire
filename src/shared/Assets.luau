@@ -15,6 +15,18 @@ export type Slot = {
 	-- then fitted to each object's box, so one oak mesh serves every oak size
 }
 
+-- A generated figure kit (tools/kit_import.luau): one textured mesh per body piece, placed in the
+-- figure frame (+X forward, +Y up, +Z right, ground at 0). Soldiers poses the pieces with the
+-- part-built figure's anim codes, so the kit marches, reloads and charges like it.
+export type Piece = {
+	mesh: string,
+	texture: string,
+	size: { number }, -- carrier part, studs
+	scale: { number }, -- SpecialMesh.Scale
+	cf: { number }, -- x, y, z, then XYZ Euler angles (radians)
+}
+export type Kit = { [string]: Piece }
+
 local function slot(texture: string?): Slot
 	return { mesh = "", texture = texture or "", scale = { 1, 1, 1 }, offset = { 0, 0, 0 } }
 end
@@ -161,6 +173,26 @@ Assets.sounds = {
 	battleMusicTense = sound(0.6, { 1, 1 }, 1, true),
 	campaignMusic = sound(0.5, { 1, 1 }, 1, true),
 }
+
+-- Infantry kits by nation (Look.nation), all from one generated figure retextured per uniform.
+-- Pieces: torso, head, headgear (a shako), armL, armR, legL, legR, musket. A nation with no kit
+-- keeps the part-built figure.
+Assets.kits = {
+	infantry_france = {
+		torso = { mesh = "rbxassetid://72447424433783", texture = "rbxassetid://76009995950013", size = { 0.910, 1.681, 0.760 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.023, 1.777, 0.011, 0, -1.571, 0 } },
+		head = { mesh = "rbxassetid://115740877823408", texture = "rbxassetid://73188983304116", size = { 0.385, 0.540, 0.481 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.075, 2.685, 0.014, 0, -1.571, 0 } },
+		headgear = { mesh = "rbxassetid://107169635745358", texture = "rbxassetid://138854108381670", size = { 0.450, 0.519, 0.520 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.073, 2.941, 0.009, 0, -1.571, 0 } },
+		armL = { mesh = "rbxassetid://121594989973603", texture = "rbxassetid://137137930547812", size = { 0.501, 1.454, 0.422 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.011, 1.884, -0.352, 0, -1.571, 0 } },
+		armR = { mesh = "rbxassetid://111440529891696", texture = "rbxassetid://100399824521086", size = { 0.580, 1.018, 0.781 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.187, 2.102, 0.383, 0, -1.571, 0 } },
+		legL = { mesh = "rbxassetid://96888915771832", texture = "rbxassetid://123963383821382", size = { 0.619, 1.769, 0.536 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.001, 0.886, -0.178, 0, -1.571, 0 } },
+		legR = { mesh = "rbxassetid://97071635557023", texture = "rbxassetid://87912861052007", size = { 0.622, 1.788, 0.527 }, scale = { 1.337, 1.337, 1.337 }, cf = { -0.001, 0.894, 0.178, 0, -1.571, 0 } },
+		musket = { mesh = "rbxassetid://130456209273865", texture = "rbxassetid://95977280465596", size = { 0.287, 3.136, 0.154 }, scale = { 1.337, 1.337, 1.337 }, cf = { 0.482, 1.592, 0.592, 0, -1.571, 0 } },
+	},
+} :: { [string]: Kit }
+
+function Assets.kit(key: string): Kit?
+	return Assets.kits[key]
+end
 
 -- A texture id for a slot, or nil when the slot has none.
 function Assets.textureOf(key: string): string?

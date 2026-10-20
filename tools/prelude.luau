@@ -310,6 +310,8 @@ CF.__index = function(self, k)
 	elseif k == "UpVector" or k == "YVector" then
 		local r = self.R
 		return v3(r[2], r[5], r[8])
+	elseif k == "Rotation" then
+		return cf(0, 0, 0, self.R)
 	end
 	return CF[k]
 end
@@ -319,6 +321,12 @@ end
 function CF.GetComponents(self)
 	local r = self.R
 	return self.X, self.Y, self.Z, r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]
+end
+function CF.Inverse(self)
+	local r = self.R
+	local t = { r[1], r[4], r[7], r[2], r[5], r[8], r[3], r[6], r[9] }
+	local p = rotVec(t, v3(self.X, self.Y, self.Z))
+	return cf(-p.X, -p.Y, -p.Z, t)
 end
 function CF.PointToWorldSpace(self, v)
 	return self * v

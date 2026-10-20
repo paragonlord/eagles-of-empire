@@ -22567,6 +22567,21 @@ function Camera.init()
 		cam.FieldOfView = 55
 	end
 	RunService:BindToRenderStep("EoECamera", Enum.RenderPriority.Camera.Value, step)
+	if RunService:IsStudio() then
+		-- Shot rig (docs/qa.md): workspace attribute EoECamera = "x,z,height,yawDeg,pitchDeg" jumps
+		-- the view there, so before/after screenshots share one camera.
+		table.insert(connections, workspace:GetAttributeChangedSignal("EoECamera"):Connect(function()
+			local v = string.split(tostring(workspace:GetAttribute("EoECamera") or ""), ",")
+			local x, z, h, yaw, pitch = tonumber(v[1]), tonumber(v[2]), tonumber(v[3]), tonumber(v[4]), tonumber(v[5])
+			if x and z and h and yaw and pitch then
+				finishIntro()
+				follow = nil
+				target.x, target.z, target.height, target.yaw, target.pitch = x, z, h, math.rad(yaw), math.rad(pitch)
+				clampTarget()
+				cur.x, cur.z, cur.height, cur.yaw, cur.pitch = target.x, target.z, target.height, target.yaw, target.pitch
+			end
+		end))
+	end
 	table.insert(connections, UserInputService.WindowFocused:Connect(function()
 		windowFocused = true
 	end))

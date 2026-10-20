@@ -37,31 +37,53 @@ triangle budgets below or the game stutters at the budgets it runs at (10–20k 
 - **One material per mesh**, one PNG texture 512² (props) or 1024² (hero objects), no transparency
   except tree canopies (alpha-cutout allowed).
 - **Triangle budgets** are per mesh. Roblox caps a MeshPart at 10k; aim far lower.
-- **Low poly, hand-painted or flat-shaded** reads better at our camera height than photo-real.
-  Reference look: Napoleon: Total War at mid zoom; Epic History TV's Jena maps for the palette
-  (olive-gold ground, dark-green woods, red-brown roofs, cobalt vs charcoal units).
+- **Look: painterly realistic** (art direction since the graphics pass, 2026-10-20). Napoleon:
+  Total War at mid zoom is the reference: real uniform colours and kit, muted natural ground
+  (olive-gold fields, dark woods, red-brown roofs), white powder smoke that hangs. Figures read
+  like painted 28 mm wargame miniatures: adult proportions, small heads, textures painted on.
+- **Triangle budgets** (whole object): infantry kit 2,000; mid-range figure 600; horse 3,000;
+  gun 2,500; building 4,000; tree 1,500.
 - Name files exactly as the slot keys so nothing gets mixed up.
 
-## Figures (slot keys in `Assets.slots`)
+## Figures: generated kits (`Assets.kits`)
 
-One mesh per figure, static pose, origin on the ground, facing +X. The game animates by
-swapping/offsetting whole figures, so no rig and no separate limbs are needed. Height of a man is
-**3.2 studs** (figures are 1 : 25 men).
+Soldiers are **kits**: one generated figure split into pieces (torso, head, headgear, left arm,
+right arm, left leg, right leg, musket), each a textured mesh. The game poses the pieces with
+the same animation codes as the part-built figure, so kits march, reload, level and thrust.
+
+How a kit is made (all in Studio through the MCP; the generator publishes every piece as an
+asset on Bartosz's account):
+1. `generate_mesh` with `segmentation = "explicit"` and those eight part names; prompt for a
+   "realistic 28mm historical wargame miniature", adult proportions, arms down, musket upright
+   in the right hand, **no base**, under 300 characters, at most 2,000 triangles.
+2. For another nation, `generate_texture` (Fast) on a copy of the chosen figure: the same shape
+   in that nation's uniform, so one layout fits every nation.
+3. Paste `tools/kit_import.luau` into Studio with the model's name: it prints the kit entry
+   (ids, sizes, places in the figure frame: +X forward, +Y up, ground at 0, 3.2 studs tall).
+   The generator turns each model toward the camera; the importer reads the facing from the
+   pieces, so no hand turning.
+4. The kit goes into `Assets.kits` as `infantry_<nation>`. A nation without one keeps the part
+   build. Headgear other than a shako is the part-built one on the kit's head until its own
+   mesh slot is filled.
+
+Height of a man is **3.2 studs** with his headgear (figures are 1 : 25 men).
+
+| kit | prompt base | status |
+| --- | --- | --- |
+| `infantry_france` | French line fusilier 1806, shako, blue coat, white crossbelts, knapsack | filled |
+
+## Figures: single-mesh slots (`Assets.slots`)
+
+Older one-mesh slots, still read for horses, guns and headgear swaps until their kits exist.
 
 | key | what | size W × H × D | tris |
 | --- | --- | --- | --- |
-| `soldierInfantry` | standing musketeer at the shoulder-arms carry, shako, pack | 1 × 3.2 × 1 | ≤ 900 |
 | `soldierCavalry` | horse and rider, sabre at the carry | 1.4 × 4 × 3.6 | ≤ 1500 |
 | `horse` | horse alone (limber teams) | 1.2 × 3.4 × 3.4 | ≤ 900 |
 | `gun` | 6-pdr on its carriage, muzzle toward +X, 8-spoke wheels | 2.4 × 2 × 4.4 | ≤ 1200 |
 | `limber` | limber with chest | 2 × 2 × 3 | ≤ 600 |
 | `shako` | headgear only, worn on the procedural head | 0.6 × 0.7 × 0.6 | ≤ 200 |
 | `bearskin`, `helmet` | same | 0.7 × 0.9 × 0.7 | ≤ 200 |
-
-Textures: one 1024² atlas per nation per figure (`soldierInfantry_fr.png` …); the game tints
-coats by faction when the texture is grey where the coat is, so paint the coat a mid-grey and the
-facings, belts, breeches and metal in their true colours. Separate nation meshes can come later as
-`soldierInfantry_pr` etc.; one French set first.
 
 ## World props (slot keys in `Assets.world`)
 

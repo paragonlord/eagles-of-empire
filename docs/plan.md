@@ -88,3 +88,49 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 ## Assets (Studio)
 - [~] Priority sounds from the Creator Store: candidates listed in `docs/assets-brief.md` ("Sound candidates") for Bartosz to audition; none wired in unheard
 - [ ] Soldier meshes (Bartosz picks)
+
+# Graphics pass (toward the TW:N look; plan approved 2026-10-20)
+
+Art: Studio AI meshes (generate_mesh / generate_texture, published to Bartosz's account),
+painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps the part build.
+
+## G0: foundations
+- [ ] Future lighting written into the place file
+- [x] Mesh pipeline spike: generated pieces publish as assets; one figure retextures per nation
+- [ ] Art direction rewritten in `docs/assets-brief.md`
+- [x] Shot rig: Studio-only `EoECamera` workspace attribute moves the battle camera
+
+## G1: soldiers, horses, guns
+- [ ] Infantry kit per nation (eight posed pieces; arms/musket/legs keep the anim codes)
+- [ ] Headgear set
+- [ ] Cavalry: horse and rider kits
+- [ ] Artillery: gun, howitzer, limber
+- [ ] Specials: officer, drummer, colour bearer, bodyguard
+- [ ] Men at the default view (far-slab switch pushed out, budget by piece count)
+
+## G2: battlefield
+- [ ] Ground MaterialVariants
+- [ ] Lighting regrade
+- [ ] Place names off the battle at low camera
+- [ ] Props: retints and new meshes (willow, hedge, wall, fence, cart, reeds, bridges, manor)
+- [ ] Powder smoke banks, muzzle light, shell bursts, burning buildings
+- [ ] Map edge hidden
+
+## G3: campaign map
+- [ ] Real coasts, lakes and rivers (Natural Earth), provinces clipped to land
+- [ ] 3D Europe terrain with water
+- [ ] Ownership by border ribbons; political overlay toggle
+- [ ] Settlements, forts, ports and token meshes
+- [ ] Labels: contrast and nation names at high zoom
+- [ ] Thuringian parchment map
+
+## G4: menus and UI art
+- [ ] Public-domain battle paintings (menu, loading, results)
+- [ ] Unit card portraits (ViewportFrame)
+- [ ] Ruler portraits in the nation picker
+- [ ] Ornaments: wax, stamp, eagle
+
+## G5: performance and phones
+- [ ] Frame time at High and Low on Waterloo; LOD and pools tuned
+- [ ] Phone check (Device Simulator)
+- [ ] Final QA round and handoff

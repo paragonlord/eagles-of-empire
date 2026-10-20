@@ -29,16 +29,15 @@ local function own<T>(i: T & Instance, parent: Instance): T
 	return i
 end
 
--- Technology is not writable from every context; try Future, then ShadowMap, else keep the place's.
-local function setTechnology()
-	local ok = pcall(function()
-		(LightingService :: any).Technology = Enum.Technology.Future
+-- Lighting.Technology is not writable by scripts; LightingStyle and PrioritizeLightingQuality
+-- replaced it and are. Realistic shading everywhere; at High the shadows keep their quality
+-- before the view distance does, lower settings keep the long view a general needs.
+local function setStyle(quality: number)
+	pcall(function()
+		local L = LightingService :: any
+		L.LightingStyle = Enum.LightingStyle.Realistic
+		L.PrioritizeLightingQuality = quality >= 3
 	end)
-	if not ok then
-		pcall(function()
-			(LightingService :: any).Technology = Enum.Technology.ShadowMap
-		end)
-	end
 end
 
 local function c3(r: number, g: number, b: number): Color3
@@ -344,7 +343,7 @@ function Lighting.apply(quality: number)
 	currentQuality = quality
 	clearOwned()
 	atmosphere, cc, bloom, rays, clouds = nil, nil, nil, nil, nil
-	setTechnology()
+	setStyle(quality)
 	local L = LightingService
 	-- Studio puts its own ColorGrading (Retro tonemapper) into Lighting; it turned the field teal
 	-- (round 18). The grade here is ours alone.

@@ -241,12 +241,12 @@ local POLE = Vector3.new(0.05, 0, 0.35)
 -- of the shouldered musket; levelled: both reach forward along the piece.
 local ARM_L_REST = CFrame.new(0.02, 2.08, -0.44) * CFrame.Angles(0, 0, math.rad(8))
 local ARM_R_REST = CFrame.new(0.02, 2.08, 0.44) * CFrame.Angles(0, 0, math.rad(-6))
-local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(20), math.rad(-78))
-local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-62))
+local ARM_L_LEVEL = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(-20), math.rad(78))
+local ARM_R_LEVEL = CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(62))
 -- Reloading: the musket stands upright in front, butt on the ground, the left hand on the barrel
 -- and the right working the ramrod; the last part of the cycle it is levelled and fired.
-local RAM = CFrame.new(0.55, 0.05, 0.12) * CFrame.Angles(0, 0, math.rad(6))
-local ARM_L_RAM = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(10), math.rad(-38))
+local RAM = CFrame.new(0.55, 0.9, 0.12) * CFrame.Angles(0, 0, math.rad(6)) -- the middle of the musket; its butt is on the ground
+local ARM_L_RAM = CFrame.new(0.02, 2.08, -0.4) * CFrame.Angles(0, math.rad(-10), math.rad(38))
 local RAMMING = 0.75 -- share of the reload cycle spent loading
 local THRUST = 0.35 -- studs a bayonet thrust drives forward
 
@@ -311,10 +311,47 @@ local function meshed(key: string, size: Vector3, colour: Color3): BasePart?
 	return p
 end
 
+-- ------------------------------------------------------------------ generated kits
+
+-- A kit piece as a part carrying its mesh, cloned from one template per piece.
+local templates: { [Assets.Piece]: BasePart } = {}
+local function piece(p: Assets.Piece): BasePart
+	local t = templates[p]
+	if not t then
+		local part = mk(Vector3.new(p.size[1], p.size[2], p.size[3]), Color3.new(1, 1, 1))
+		local m = Instance.new("SpecialMesh") :: SpecialMesh
+		m.MeshType = Enum.MeshType.FileMesh
+		m.MeshId = p.mesh
+		m.TextureId = p.texture
+		m.Scale = Vector3.new(p.scale[1], p.scale[2], p.scale[3])
+		m.Parent = part
+		templates[p] = part
+		t = part
+	end
+	return (t :: BasePart):Clone() :: BasePart
+end
+
+local function at(p: Assets.Piece): CFrame
+	local c = p.cf
+	return CFrame.new(c[1], c[2], c[3]) * CFrame.Angles(c[4], c[5], c[6])
+end
+
+-- The kit figure's shoulders stand this much above the part-built one's: arm and musket poses
+-- turn about the kit's own shoulder (partCFrame's `pivot` for anims 3, 12, 13).
+local KIT_LIFT = 0.42
+-- The kit musket is longer than the part-built one; it is held this far toward the muzzle from
+-- its middle, so the butt sits at the hip shouldered and in the shoulder levelled.
+local KIT_GRIP = 0.72
+
 -- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets
 -- levelled. act = "reload" (firing infantry) or "thrust" (infantry in melee), at t in [0, 1) of
 -- each man's own cycle, moves the musket and arms (3, 12, 13).
 function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: number, armed: boolean, act: string?, t: number?): CFrame
+	if pivot ~= 0 and (anim == 3 or anim == 12 or anim == 13) then
+		-- a kit's musket stands on its butt while ramming, so only the hands are lifted then
+		local grounded = anim == 3 and act == "reload" and (t or 0) < RAMMING
+		return CFrame.new(0, if grounded then 0 else pivot, 0) * Soldiers.partCFrame(anim, lc, 0, swing, armed, act, t)
+	end
 	local phase = t or 0
 	if act == "reload" and phase < RAMMING then
 		if anim == 3 then
@@ -323,7 +360,7 @@ function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: num
 			return ARM_L_RAM * lc
 		elseif anim == 13 then
 			local stroke = 0.5 + 0.5 * math.sin(phase * math.pi * 2 * 4) -- four strokes of the ramrod
-			return CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(-115 - 40 * stroke)) * lc
+			return CFrame.new(0.02, 2.08, 0.4) * CFrame.Angles(0, 0, math.rad(15 + 45 * stroke)) * lc
 		end
 	elseif act == "thrust" and (anim == 3 or anim == 12 or anim == 13) then
 		local drive = CFrame.new(THRUST * math.max(0, math.sin(phase * math.pi * 2)), 0, 0)
@@ -336,7 +373,7 @@ function Soldiers.partCFrame(anim: number, lc: CFrame, pivot: number, swing: num
 		end
 		local a = if anim == 1 or anim == 4 then swing else -swing
 		local p = lc.Position
-		return CFrame.new(p.X, pivot, p.Z) * CFrame.Angles(0, 0, a) * CFrame.new(0, p.Y - pivot, 0)
+		return CFrame.new(p.X, pivot, p.Z) * CFrame.Angles(0, 0, a) * CFrame.new(0, p.Y - pivot, 0) * lc.Rotation
 	elseif anim == 3 then
 		return (if armed then LEVEL else SHOULDER) * lc
 	elseif anim == 6 then
@@ -850,9 +887,53 @@ end
 
 export type InfantryRole = "line" | "colour" | "drummer"
 
+-- Where each kit piece goes on the part-built rig: legs swing from the hip (1/2), arms (12/13)
+-- and musket (3) pose about the kit's shoulder, so at rest every piece stands as generated.
+export type KitEntry = { key: string, lc: CFrame, anim: number, pivot: number }
+function Soldiers.kitLayout(kit: Assets.Kit): { KitEntry }
+	local hip = kit.legL.cf[2] + kit.legL.size[2] / 2 - 0.1
+	local lift = CFrame.new(0, KIT_LIFT, 0)
+	return {
+		{ key = "torso", lc = at(kit.torso), anim = 0, pivot = 0 },
+		{ key = "head", lc = at(kit.head), anim = 0, pivot = 0 },
+		{ key = "legL", lc = at(kit.legL), anim = 1, pivot = hip },
+		{ key = "legR", lc = at(kit.legR), anim = 2, pivot = hip },
+		{ key = "armL", lc = (lift * ARM_L_REST):Inverse() * at(kit.armL), anim = 12, pivot = KIT_LIFT },
+		{ key = "armR", lc = (lift * ARM_R_REST):Inverse() * at(kit.armR), anim = 13, pivot = KIT_LIFT },
+		{ key = "headgear", lc = at(kit.headgear), anim = 0, pivot = 0 },
+		{ key = "musket", lc = CFrame.new(0, KIT_GRIP, 0) * at(kit.musket).Rotation, anim = 3, pivot = KIT_LIFT },
+	}
+end
+
+-- The nation's generated kit. It wears a shako; other headgear is the part-built one on the
+-- kit's head. Colour bearers and drummers carry their pole or drum instead of the musket.
+local function infantryKit(add: Add, kit: Assets.Kit, L: Look, role: InfantryRole, seed: number)
+	for _, e in Soldiers.kitLayout(kit) do
+		if e.key == "headgear" and L.head ~= "shako" then
+			local h = kit.head.cf
+			headgear(add, L, CFrame.new(h[1], h[2] + kit.head.size[2] / 2 - 0.03, h[3]), false, seed)
+		elseif e.key ~= "musket" or role == "line" then
+			add(piece(kit[e.key]), e.lc, e.anim, e.pivot)
+		end
+	end
+	if role == "colour" then
+		add(mk(Vector3.new(0.07, 4.4, 0.07), DARK_WOOD), CFrame.new(POLE.X, 2.2 + KIT_LIFT, POLE.Z), 0, 0)
+		Soldiers.flag(add, L.nation, CFrame.new(POLE.X - 0.03, 3.65 + KIT_LIFT, POLE.Z), 1.7, 1.25, 6)
+	elseif role == "drummer" then
+		local drum = CFrame.new(0.38, 1.45, 0.14) * CFrame.Angles(0, 0, math.pi / 2)
+		add(cyl(0.44, 0.31, if L.nation == "france" then BRASS else WHITE), drum, 0, 0)
+		add(cyl(0.46, 0.27, L.facing), drum, 0, 0) -- hoops
+	end
+end
+
 -- Legs, coat with facings, belts, knapsack, head and headgear. `seed` varies company pompons.
 function Soldiers.infantry(add: Add, L: Look, detail: boolean, role: InfantryRole, seed: number?)
 	local s = seed or 0
+	local kit = Assets.kit("infantry_" .. L.nation)
+	if kit and L.kind ~= "gunner" then
+		infantryKit(add, kit, L, role, s)
+		return
+	end
 	local mesh = meshed("soldierInfantry", Vector3.new(0.9, 3.2, 0.9), L.coat)
 	if mesh then
 		add(mesh, CFrame.new(0, 1.6, 0), 0, 0)
