@@ -271,3 +271,58 @@ test("Figures: a generated kit stands as generated at rest and moves on the part
 	local foot = ram * Vector3.new(0, -half, 0)
 	assertTrue(foot.Y > -0.1 and foot.Y < 0.3, "kit butt grounded while ramming: " .. tostring(foot))
 end)
+
+test("Assets: every generated kit has all its pieces with ids, sizes and places", function()
+	local Assets = require(game:GetService("ReplicatedStorage").EoE.Assets)
+	local want = {
+		infantry = { "torso", "head", "headgear", "armL", "armR", "legL", "legR", "musket" },
+		cavalry = { "body", "neck", "rider", "riderHead", "legFL", "legFR", "legBL", "legBR" },
+		head = { "headgear" },
+		gun = { "barrel", "carriage", "wheelL", "wheelR" },
+	}
+	local count = 0
+	for name, kit in Assets.kits do
+		local kind = string.match(name, "^(%a+)_")
+		local keys = want[kind]
+		assertTrue(keys ~= nil, "known kit kind: " .. name)
+		for _, k in keys do
+			local p = kit[k]
+			assertTrue(p ~= nil, name .. " has " .. k)
+			assertTrue(string.match(p.mesh, "^rbxassetid://%d+$") ~= nil and string.match(p.texture, "^rbxassetid://%d+$") ~= nil, name .. "." .. k .. " ids")
+			assertEq(#p.size, 3, name .. "." .. k .. " size")
+			assertEq(#p.scale, 3, name .. "." .. k .. " scale")
+			assertEq(#p.cf, 6, name .. "." .. k .. " cf")
+		end
+		count += 1
+	end
+	for _, nation in { "france", "prussia", "austria", "russia", "britain", "saxony", "netherlands", "bavaria" } do
+		assertTrue(Assets.kit("infantry_" .. nation) ~= nil and Assets.kit("cavalry_" .. nation) ~= nil, "kits for " .. nation)
+	end
+	assertTrue(count >= 20, "kits: " .. count)
+end)
+
+test("Figures: the default camera sees men, not blocks, at every quality; farther at higher quality", function()
+	local Config = require(game:GetService("ReplicatedStorage").EoE.Config)
+	local far = Config.Visual.FarLodDistance
+	assertEq(typeof(far), "table", "one distance per quality level")
+	-- the default view: 420 high, pitched 52 degrees less the low-camera tilt (~48), sees the
+	-- ground it looks at ~565 studs away
+	local defaultDist = 420 / math.sin(math.rad(48))
+	for q = 1, 3 do
+		assertTrue(far[q] > defaultDist, "quality " .. q .. " shows men at the default view: " .. far[q])
+	end
+	assertTrue(far[1] < far[2] and far[2] < far[3], "higher quality draws men farther")
+end)
+
+test("Props: place names on the ground stay off the fighting up close and modest from above", function()
+	local Props = require(Client.World.Props)
+	local k, alpha = Props.groundLabelLook(120)
+	assertEq(alpha, 1, "hidden among the troops")
+	k, alpha = Props.groundLabelLook(260)
+	assertTrue(alpha > 0.12 and alpha < 1, "fading in: " .. alpha)
+	k, alpha = Props.groundLabelLook(420)
+	assertTrue(alpha <= 0.15, "readable at the default view")
+	assertTrue(k <= 1.0, "no bigger than before at the default view: " .. k)
+	local kTop = Props.groundLabelLook(900)
+	assertTrue(kTop <= 1.5, "capped from high up: " .. kTop)
+end)

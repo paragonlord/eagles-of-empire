@@ -4,6 +4,7 @@
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Config = require(Shared.Config)
 local Vec = require(Shared.Vec)
 local BattleState = require(script.Parent.BattleState)
@@ -890,6 +891,10 @@ local FIGURE_COST: { [string]: { near: number, mid: number } } = {
 	artillery = { near = 140, mid = 30 },
 }
 local SPECIALS_COST = { near = 155, mid = 60 } -- officer, colour and two drummers per battalion
+-- A nation with generated kits builds every tier from the same few meshes: eight a man or a
+-- horse and rider; a gun is four plus four gunners of seven.
+local KIT_COST: { [string]: number } = { infantry = 8, cavalry = 8, hq = 8, artillery = 32 }
+local KIT_SPECIALS_COST = 40
 
 local function budget(): number
 	local q = Settings.get().quality
@@ -898,6 +903,9 @@ local function budget(): number
 end
 
 local function groupCost(g: Group, f: any, near: boolean): number
+	if Assets.kit("infantry_" .. g.faction) then
+		return visualCount(f) * (KIT_COST[g.class] or 8) + (if g.class == "infantry" then KIT_SPECIALS_COST else 0)
+	end
 	local c = FIGURE_COST[g.class] or FIGURE_COST.infantry
 	return visualCount(f) * (if near then c.near else c.mid) + (if g.class == "infantry" then (if near then SPECIALS_COST.near else SPECIALS_COST.mid) else 0)
 end
@@ -1384,7 +1392,7 @@ function Figures.update(dt: number)
 	local hovered = Selection.hovered()
 	local coop = BattleState.coop()
 	local deploying = BattleState.state == "deployment"
-	local farD = Config.Visual.FarLodDistance
+	local farD = Config.Visual.FarLodDistance[math.clamp(Settings.get().quality, 1, 3)]
 
 	for id, g in groups do
 		local f: any = if g.ghost then BattleState.lastKnown[id] else BattleState.formations[id]

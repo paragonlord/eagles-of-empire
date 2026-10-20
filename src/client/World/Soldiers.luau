@@ -907,11 +907,29 @@ end
 
 -- The nation's generated kit. It wears a shako; other headgear is the part-built one on the
 -- kit's head. Colour bearers and drummers carry their pole or drum instead of the musket.
+-- Headgear on a kit's head: a generated hat for this kind when there is one, else the kit's
+-- own (it wears the nation's line headgear), else the part-built one.
+local function kitHeadgear(add: Add, kit: Assets.Kit, L: Look, seed: number): boolean
+	local hat = Assets.kit("head_" .. L.head)
+	local g = kit.headgear.cf
+	if hat then
+		local bottom = g[2] - kit.headgear.size[2] / 2 + 0.02
+		add(piece(hat.headgear), CFrame.new(g[1], bottom + hat.headgear.size[2] / 2, g[3]) * at(hat.headgear).Rotation, 0, 0)
+		return true
+	end
+	local N = NATIONS[L.nation]
+	if N and L.head == N.head then
+		return false -- the kit's own
+	end
+	local h = kit.head.cf
+	headgear(add, L, CFrame.new(h[1], h[2] + kit.head.size[2] / 2 - 0.03, h[3]), false, seed)
+	return true
+end
+
 local function infantryKit(add: Add, kit: Assets.Kit, L: Look, role: InfantryRole, seed: number)
 	for _, e in Soldiers.kitLayout(kit) do
-		if e.key == "headgear" and L.head ~= "shako" then
-			local h = kit.head.cf
-			headgear(add, L, CFrame.new(h[1], h[2] + kit.head.size[2] / 2 - 0.03, h[3]), false, seed)
+		if e.key == "headgear" and kitHeadgear(add, kit, L, seed) then
+			continue
 		elseif e.key ~= "musket" or role == "line" then
 			add(piece(kit[e.key]), e.lc, e.anim, e.pivot)
 		end
@@ -985,7 +1003,25 @@ end
 -- ------------------------------------------------------------------ cavalry
 
 -- Horse alone (also used for limber teams). `seed` picks a coat colour unless `hide` is given.
+-- A kit horse: body with saddle, neck and head, and four legs swinging in diagonal pairs from
+-- the shoulder (4/5), as the part-built horse's do.
+local function horseKit(add: Add, kit: Assets.Kit, origin: CFrame)
+	local shoulder = kit.legFL.cf[2] + kit.legFL.size[2] / 2 - 0.1
+	add(piece(kit.body), origin * at(kit.body), 0, 0)
+	add(piece(kit.neck), origin * at(kit.neck), 0, 0)
+	local legs: { [string]: number } = { legFL = 4, legFR = 5, legBL = 5, legBR = 4 }
+	for key, anim in legs do
+		add(piece(kit[key]), origin * at(kit[key]), anim, shoulder)
+	end
+end
+
+-- Horse alone (limber teams, gun teams): the French kit's bay when there is one.
 function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, hide: Color3?)
+	local kit = Assets.kit("cavalry_france")
+	if kit then
+		horseKit(add, kit, origin)
+		return
+	end
 	local coat = hide or HORSES[seed % #HORSES + 1]
 	local mesh = meshed("horse", Vector3.new(3.4, 3.0, 0.9), coat)
 	if mesh then
@@ -1004,7 +1040,33 @@ function Soldiers.horse(add: Add, origin: CFrame, seed: number, cloth: Color3?, 
 	end
 end
 
+-- Where a kit rider's head is, for a hat in place of the kit's helmet (officers' bicornes).
+local RIDER_HEAD = Vector3.new(0.12, 3.42, 0)
+
+-- The nation's horse-soldier kit: horse, rider, and the rider's helmet with his sabre. Officers
+-- and generals wear their hat instead; lancers carry the part-built lance and pennon.
+local function cavalryKit(add: Add, kit: Assets.Kit, L: Look)
+	horseKit(add, kit, CFrame.identity)
+	add(piece(kit.rider), at(kit.rider), 0, 0)
+	local hat = if L.head == "bicorne" then Assets.kit("head_bicorne") else nil
+	if hat then
+		add(piece(hat.headgear), CFrame.new(RIDER_HEAD + Vector3.new(0, hat.headgear.size[2] / 2, 0)) * at(hat.headgear).Rotation, 0, 0)
+	else
+		add(piece(kit.riderHead), at(kit.riderHead), 0, 0)
+	end
+	local pennon = L.pennon
+	if pennon then
+		add(mk(Vector3.new(0.06, 5.2, 0.06), DARK_WOOD), CFrame.new(0.3, 3.6, 0.42) * CFrame.Angles(0, 0, math.rad(-6)), 0, 0)
+		add(fabric(mk(Vector3.new(0.5, 0.14, 0.03), pennon[1])), CFrame.new(0.15, 6.0, 0.42), 0, 0)
+	end
+end
+
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
+	local kit = Assets.kit("cavalry_" .. L.nation)
+	if kit then
+		cavalryKit(add, kit, L)
+		return
+	end
 	local mesh = meshed("soldierCavalry", Vector3.new(3.6, 4.0, 1.0), L.coat)
 	if mesh then
 		add(mesh, CFrame.new(0, 2.0, 0), 0, 0)
@@ -1054,7 +1116,50 @@ end
 
 -- One gun on a two-wheeled carriage with trail, crew of 4; limbered: hooked to a limber
 -- with a two-horse team, crew walking alongside. Carriage paint follows the nation.
+-- Gun kits by carriage paint: French olive, Austrian ochre, the blue-grey of Britain and the
+-- German states.
+local GUN_KIT: { [string]: string } = { austria = "gun_austria", britain = "gun_britain", prussia = "gun_britain", saxony = "gun_britain", bavaria = "gun_britain" }
+
+-- A gunner from the nation's infantry kit, at rest without a musket; the whole man steps clear
+-- of the gun as it fires (anim 11, `side` = ±1).
+local function gunnerKit(add: Add, kit: Assets.Kit, foot: CFrame, side: number)
+	for _, key in { "torso", "head", "headgear", "armL", "armR", "legL", "legR" } do
+		add(piece(kit[key]), foot * at(kit[key]), 11, side)
+	end
+end
+
+local function gunKit(add: Add, kit: Assets.Kit, L: Look, limbered: boolean, seed: number)
+	local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()
+	for _, key in { "barrel", "carriage", "wheelL", "wheelR" } do
+		add(piece(kit[key]), g * at(kit[key]), 0, 0)
+	end
+	if limbered then
+		for side = -1, 1, 2 do
+			wheel(add, CFrame.new(1.0, 0.65, side * 0.65), 0.65, L.carriage)
+		end
+		add(mk(Vector3.new(1.0, 0.55, 1.0), L.carriage), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
+		add(mk(Vector3.new(2.6, 0.12, 0.12), L.carriage), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
+		Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
+		Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
+	end
+	local crew = Assets.kit("infantry_" .. L.nation)
+	local spots = if limbered then { { 0.2, -1.6 }, { 0.2, 1.6 }, { -1.8, -1.5 }, { -1.8, 1.5 } } else { { -1.7, -1.1 }, { -1.7, 1.1 }, { 0.3, -1.45 }, { 0.3, 1.45 } }
+	for _, p in spots do
+		local foot = CFrame.new(p[1], 0, p[2])
+		if crew then
+			gunnerKit(add, crew, foot, if p[2] < 0 then -1 else 1)
+		else
+			gunner(add, L, foot)
+		end
+	end
+end
+
 function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, seed: number)
+	local kit = Assets.kit(GUN_KIT[L.nation] or "gun_france")
+	if kit then
+		gunKit(add, kit, L, limbered, seed)
+		return
+	end
 	local gunMesh = meshed("gun", Vector3.new(4.4, 2.2, 2.6), L.carriage)
 	if gunMesh then
 		local g = if limbered then CFrame.new(-1.4, 0, 0) * CFrame.Angles(0, math.pi, 0) else CFrame.new()

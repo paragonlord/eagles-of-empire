@@ -95,23 +95,23 @@ Art: Studio AI meshes (generate_mesh / generate_texture, published to Bartosz's 
 painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps the part build.
 
 ## G0: foundations
-- [ ] Future lighting written into the place file
+- [x] Realistic lighting style (Technology is not script-writable; LightingStyle Realistic, quality-first shadows at High)
 - [x] Mesh pipeline spike: generated pieces publish as assets; one figure retextures per nation
-- [ ] Art direction rewritten in `docs/assets-brief.md`
+- [x] Art direction rewritten in `docs/assets-brief.md`
 - [x] Shot rig: Studio-only `EoECamera` workspace attribute moves the battle camera
 
 ## G1: soldiers, horses, guns
-- [ ] Infantry kit per nation (eight posed pieces; arms/musket/legs keep the anim codes)
-- [ ] Headgear set
-- [ ] Cavalry: horse and rider kits
-- [ ] Artillery: gun, howitzer, limber
+- [x] Infantry kit per nation (eight posed pieces; arms/musket/legs keep the anim codes)
+- [x] Headgear set: bearskin, bicorne, crested helmet, Highland bonnet (the Austrian kaskett failed twice: Austria wears its kit helmet)
+- [x] Cavalry: horse and rider kits for the eight nations; officers in bicornes
+- [~] Artillery: gun kits (French olive, Austrian ochre, blue-grey) with kit crews; limber still part-built
 - [ ] Specials: officer, drummer, colour bearer, bodyguard
-- [ ] Men at the default view (far-slab switch pushed out, budget by piece count)
+- [x] Men at the default view (far-slab switch 600/700/850 by quality, budget by piece count)
 
 ## G2: battlefield
 - [ ] Ground MaterialVariants
 - [ ] Lighting regrade
-- [ ] Place names off the battle at low camera
+- [x] Place names off the battle at low camera
 - [ ] Props: retints and new meshes (willow, hedge, wall, fence, cart, reeds, bridges, manor)
 - [ ] Powder smoke banks, muzzle light, shell bursts, burning buildings
 - [ ] Map edge hidden

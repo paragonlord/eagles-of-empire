@@ -60,7 +60,9 @@ Config.Vision = {
 Config.Visual = {
 	SoldiersPerFigure = 25,
 	CrewPerGun = 20,
-	FarLodDistance = 420, -- camera distance beyond which ranks become blocks
+	-- camera distance beyond which ranks become blocks, by quality (Low, Medium, High): the default
+	-- view (~565 away) shows men at every setting; the figure budget thins ranks past it
+	FarLodDistance = { 600, 700, 850 },
 	MaxFiguresHigh = 1200,
 	MaxFiguresLow = 400,
 	-- RGB 0-255 triples (plain tables so the sim/tests never need Roblox datatypes);

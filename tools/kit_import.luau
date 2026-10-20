@@ -4,9 +4,9 @@
 -- below set. The figure frame is the one Soldiers uses: +X forward, +Y up, +Z right, origin on
 -- the ground between the feet, HEIGHT studs tall.
 local MODEL = "Spike3" -- the generated model's name in Workspace
-local HEIGHT = 3.2
+local HEIGHT = 3.2 -- infantry with headgear; 3.9 for horse and rider
 
-local NAMES = { torso = "torso", head = "head", headgear = "headgear", ["left arm"] = "armL", ["right arm"] = "armR", ["left leg"] = "legL", ["right leg"] = "legR", musket = "musket", sabre = "sabre", body = "body", neck = "neck", tail = "tail", ["front left leg"] = "legFL", ["front right leg"] = "legFR", ["back left leg"] = "legBL", ["back right leg"] = "legBR" }
+local NAMES = { torso = "torso", head = "head", headgear = "headgear", ["left arm"] = "armL", ["right arm"] = "armR", ["left leg"] = "legL", ["right leg"] = "legR", musket = "musket", ["horse body with saddle and tail"] = "body", ["horse head and neck"] = "neck", rider = "rider", ["rider headgear"] = "riderHead", ["front left leg"] = "legFL", ["front right leg"] = "legFR", ["back left leg"] = "legBL", ["back right leg"] = "legBR" }
 
 local model = workspace:FindFirstChild(MODEL) :: Model
 assert(model, "no model " .. MODEL)
@@ -31,8 +31,8 @@ local fwd = Vector3.new(look.X, 0, look.Z).Unit
 local mid: Vector3
 if parts.legL and parts.legR then
 	mid = (parts.legL.Position + parts.legR.Position) / 2
-else
-	mid = box.Position
+else -- a horse stands between its four legs
+	mid = (parts.legFL.Position + parts.legFR.Position + parts.legBL.Position + parts.legBR.Position) / 4
 end
 local frame = CFrame.fromMatrix(Vector3.new(mid.X, bottom, mid.Z), fwd, up, fwd:Cross(up))
 
@@ -40,7 +40,7 @@ local function n(v: number): string
 	return string.format("%.3f", v)
 end
 local lines = {}
-local order = { "torso", "head", "headgear", "armL", "armR", "legL", "legR", "musket", "sabre", "body", "neck", "tail", "legFL", "legFR", "legBL", "legBR" }
+local order = { "torso", "head", "headgear", "armL", "armR", "legL", "legR", "musket", "body", "neck", "rider", "riderHead", "legFL", "legFR", "legBL", "legBR" }
 for _, key in order do
 	local p = parts[key]
 	if p then

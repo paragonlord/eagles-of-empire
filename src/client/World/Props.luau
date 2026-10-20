@@ -61,7 +61,7 @@ local function groundY(x: number, z: number): number
 	return Grid.heightAt(currentMap.grid, x, z)
 end
 
-local LABEL_MAX_K = 2.0 -- largest camera-height scale applied in updateLabels
+local LABEL_MAX_K = 1.4 -- largest camera-height scale applied in updateLabels
 local LABEL_MAX_RISE = 5 -- studs of terrain rise tolerated under a plate before it is shortened
 
 -- Highest ground under a plate of half-length `hl` (world X) and half-depth `hd` (world Z).
@@ -80,7 +80,7 @@ end
 local function buildLabel(parent: Instance, l: any, isVillage: boolean)
 	-- Villages are the names players navigate by: larger and steadier than terrain features,
 	-- which no longer dwarf them (Landgrafenberg vs Closewitz in Studio).
-	local size = if isVillage then 24 else math.clamp(17 * l.size, 13, 22)
+	local size = if isVillage then 16 else math.clamp(12 * l.size, 9, 15)
 	-- plate length follows the name so long names keep their letter height
 	local len = size * math.max(3, 0.56 * #l.text)
 	-- Shorten the plate on steep ground (it clipped at the ends on slopes in Studio), then lift it
@@ -323,22 +323,34 @@ end
 local HOVER_RADIUS = 70 -- studs around the cursor within which hover names show
 local NEAR_FADE = 160 -- camera this close to a floating name: it fades so as not to shout
 
+-- Ground names, as in TW, belong to the map view, not the fighting: hidden below LABEL_HIDE,
+-- faded in by LABEL_SHOW, and grown only modestly with height. Returns the plate scale and the
+-- text transparency for a camera height.
+local LABEL_HIDE, LABEL_SHOW = 200, 320
+function Props.groundLabelLook(cameraHeight: number): (number, number)
+	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
+	local t = math.clamp((cameraHeight - LABEL_HIDE) / (LABEL_SHOW - LABEL_HIDE), 0, 1)
+	return k, 1 - t * 0.88
+end
+
 -- Ground labels grow with camera height so they stay readable from any zoom. Floating and hover
 -- names are billboards that scale with height and fade in and out over a few frames.
-local lastLabelK = -1
+local lastLabelK, lastLabelAlpha = -1, -1
 function Props.updateLabels(cameraHeight: number)
-	local k = math.clamp(cameraHeight / 420, 0.7, LABEL_MAX_K)
+	local k, alpha = Props.groundLabelLook(cameraHeight)
 	if labelMode == "ground" or labelMode == "off" then
-		if math.abs(k - lastLabelK) < 0.05 then
+		if math.abs(k - lastLabelK) < 0.05 and math.abs(alpha - lastLabelAlpha) < 0.03 then
 			return
 		end
-		lastLabelK = k
+		lastLabelK, lastLabelAlpha = k, alpha
 		for _, l in labelParts do
 			l.part.Size = Vector3.new(l.size * k, 0.2, l.len * k)
+			l.text.TextTransparency = alpha
+			l.text.TextStrokeTransparency = 0.6 + 0.4 * (alpha - 0.12) / 0.88
 		end
 		return
 	end
-	lastLabelK = -1
+	lastLabelK, lastLabelAlpha = -1, -1
 	local cam = workspace.CurrentCamera
 	local camPos = if cam then cam.CFrame.Position else Vector3.zero
 	local cx, cz = nil, nil
@@ -436,7 +448,7 @@ function Props.clear()
 		zoneFolder = nil
 	end
 	table.clear(labelParts)
-	lastLabelK = -1
+	lastLabelK, lastLabelAlpha = -1, -1
 	table.clear(objectiveMarks)
 end
 
