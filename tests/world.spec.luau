@@ -279,6 +279,7 @@ test("Assets: every generated kit has all its pieces with ids, sizes and places"
 		cavalry = { "body", "neck", "rider", "riderHead", "legFL", "legFR", "legBL", "legBR" },
 		head = { "headgear" },
 		gun = { "barrel", "carriage", "wheelL", "wheelR" },
+		limber = { "limber" },
 	}
 	local count = 0
 	for name, kit in Assets.kits do

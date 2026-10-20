@@ -363,6 +363,17 @@ Assets.kits = {
 		wheelL = { mesh = "rbxassetid://73299283152527", texture = "rbxassetid://114631889756618", size = { 0.412, 1.410, 1.420 }, scale = { 1.000, 1.000, 1.000 }, cf = { -0.001, 0.705, -0.841, 0, -1.571, 0 } },
 		wheelR = { mesh = "rbxassetid://81450504410703", texture = "rbxassetid://80872205674537", size = { 0.420, 1.404, 1.421 }, scale = { 1.000, 1.000, 1.000 }, cf = { 0.001, 0.708, 0.841, 0, -1.571, 0 } },
 	},
+	cavalry_emperor = { -- Napoleon: the Guard chasseur coat on a grey
+		body = { mesh = "rbxassetid://129420610842126", texture = "rbxassetid://127466484525918", size = { 1.045, 1.804, 3.064 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.195, 1.553, -0.003, 0, -1.571, 0 } },
+		neck = { mesh = "rbxassetid://97810334031536", texture = "rbxassetid://84838549504166", size = { 0.602, 1.138, 1.323 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.254, 2.413, 0.003, 0, -1.571, 0 } },
+		rider = { mesh = "rbxassetid://136655313774729", texture = "rbxassetid://138865376002160", size = { 1.272, 2.563, 0.944 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.235, 2.618, 0.001, 0, -1.571, 0 } },
+		riderHead = { mesh = "rbxassetid://93646707869151", texture = "rbxassetid://115100213114456", size = { 0.716, 1.789, 1.182 }, scale = { 1.060, 1.060, 1.060 }, cf = { 1.105, 2.979, 0.039, 0, -1.571, 0 } },
+		legFL = { mesh = "rbxassetid://90666174572538", texture = "rbxassetid://84556248222313", size = { 0.442, 1.658, 0.503 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.901, 0.830, -0.210, 0, -1.571, 0 } },
+		legFR = { mesh = "rbxassetid://125265575406381", texture = "rbxassetid://120345732090340", size = { 0.435, 1.658, 0.496 }, scale = { 1.060, 1.060, 1.060 }, cf = { 0.903, 0.829, 0.220, 0, -1.571, 0 } },
+		legBL = { mesh = "rbxassetid://126705425320346", texture = "rbxassetid://87238983341073", size = { 0.449, 1.594, 0.690 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.798, -0.243, 0, -1.571, 0 } },
+		legBR = { mesh = "rbxassetid://107646498701188", texture = "rbxassetid://75819985288111", size = { 0.474, 1.585, 0.698 }, scale = { 1.060, 1.060, 1.060 }, cf = { -0.902, 0.793, 0.233, 0, -1.571, 0 } },
+	},
+	limber_france = { limber = { mesh = "rbxassetid://79895136778232", texture = "rbxassetid://104087580561513", size = { 2.168, 1.528, 2.600 }, scale = { 1.355, 1.355, 1.355 }, cf = { 1.6, 0.764, 0, 0, -1.571, 0 } } },
 } :: { [string]: Kit }
 
 function Assets.kit(key: string): Kit?

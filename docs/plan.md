@@ -104,8 +104,8 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 - [x] Infantry kit per nation (eight posed pieces; arms/musket/legs keep the anim codes)
 - [x] Headgear set: bearskin, bicorne, crested helmet, Highland bonnet (the Austrian kaskett failed twice: Austria wears its kit helmet)
 - [x] Cavalry: horse and rider kits for the eight nations; officers in bicornes
-- [~] Artillery: gun kits (French olive, Austrian ochre, blue-grey) with kit crews; limber still part-built
-- [ ] Specials: officer, drummer, colour bearer, bodyguard
+- [x] Artillery: gun kits (French olive, Austrian ochre, blue-grey) with kit crews and a generated limber
+- [x] Specials: Napoleon (Guard chasseur on a grey), officers in bicornes, kit drummers and colour bearers, bodyguards as kit riders
 - [x] Men at the default view (far-slab switch 600/700/850 by quality, budget by piece count)
 
 ## G2: battlefield

@@ -1062,7 +1062,7 @@ local function cavalryKit(add: Add, kit: Assets.Kit, L: Look)
 end
 
 function Soldiers.rider(add: Add, L: Look, detail: boolean, seed: number)
-	local kit = Assets.kit("cavalry_" .. L.nation)
+	local kit = (if L.kind == "emperor" then Assets.kit("cavalry_emperor") else nil) or Assets.kit("cavalry_" .. L.nation)
 	if kit then
 		cavalryKit(add, kit, L)
 		return
@@ -1134,11 +1134,16 @@ local function gunKit(add: Add, kit: Assets.Kit, L: Look, limbered: boolean, see
 		add(piece(kit[key]), g * at(kit[key]), 0, 0)
 	end
 	if limbered then
-		for side = -1, 1, 2 do
-			wheel(add, CFrame.new(1.0, 0.65, side * 0.65), 0.65, L.carriage)
+		local limber = Assets.kit("limber_france")
+		if limber then
+			add(piece(limber.limber), at(limber.limber), 0, 0)
+		else
+			for side = -1, 1, 2 do
+				wheel(add, CFrame.new(1.0, 0.65, side * 0.65), 0.65, L.carriage)
+			end
+			add(mk(Vector3.new(1.0, 0.55, 1.0), L.carriage), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
+			add(mk(Vector3.new(2.6, 0.12, 0.12), L.carriage), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
 		end
-		add(mk(Vector3.new(1.0, 0.55, 1.0), L.carriage), CFrame.new(1.0, 1.2, 0), 0, 0) -- ammunition chest
-		add(mk(Vector3.new(2.6, 0.12, 0.12), L.carriage), CFrame.new(2.6, 0.95, 0), 0, 0) -- pole
 		Soldiers.horse(add, CFrame.new(3.6, 0, -0.55), seed, nil, nil)
 		Soldiers.horse(add, CFrame.new(3.6, 0, 0.55), seed + 1, nil, nil)
 	end
