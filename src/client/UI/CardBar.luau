@@ -15,6 +15,8 @@ local Selection = require(script.Parent.Parent.Selection)
 local Input = require(script.Parent.Parent.Input)
 local Camera = require(script.Parent.Parent.Camera)
 local Factions = require(script.Parent.Parent.Factions)
+local Soldiers = require(script.Parent.Parent.World.Soldiers)
+local Assets = require(Shared.Assets)
 local Ledger = require(script.Parent.Ledger)
 
 local CardBar = {}
@@ -138,6 +140,47 @@ local function glyph(parent: Frame, class: string, unitType: string?)
 		rect(parent, 14, 14, cx, cy, 45, Kit.GOLD)
 		ring(parent, 5, cx, cy, Kit.INSET, 1.5)
 	end
+end
+
+-- A portrait of the unit's own soldier (its nation's generated kit in its uniform), as on a TW
+-- card: a bust for foot and horse, the piece for a battery. Static, built once per card. Nil
+-- when the nation has no kit, and the class glyph stands alone.
+local PORTRAIT_VIEW: { [string]: { eye: Vector3, at: Vector3, fov: number } } = {
+	infantry = { eye = Vector3.new(3.4, 2.75, 1.1), at = Vector3.new(0, 2.45, 0), fov = 30 },
+	cavalry = { eye = Vector3.new(5.6, 3.6, 2.4), at = Vector3.new(0.6, 2.9, 0), fov = 34 },
+	hq = { eye = Vector3.new(5.6, 3.6, 2.4), at = Vector3.new(0.6, 2.9, 0), fov = 34 },
+	artillery = { eye = Vector3.new(4.6, 2.6, 4.4), at = Vector3.new(0.2, 1.0, 0), fov = 40 },
+}
+local function portrait(parent: Frame, f: any): boolean
+	local view = PORTRAIT_VIEW[f.class]
+	local look = Soldiers.look(f.faction, f.colour, f.class, f.name)
+	if not view or not Assets.kit("infantry_" .. look.nation) then
+		return false
+	end
+	local vp = Instance.new("ViewportFrame") :: ViewportFrame
+	vp.Size = UDim2.fromScale(1, 1)
+	vp.BackgroundTransparency = 1
+	vp.Ambient = Color3.fromRGB(150, 146, 138)
+	vp.LightColor = Color3.fromRGB(255, 244, 226)
+	vp.LightDirection = Vector3.new(-1, -1.2, -0.6)
+	vp.Parent = parent
+	local add = function(p: BasePart, cf: CFrame, anim: number, pivot: number)
+		p.CFrame = Soldiers.partCFrame(anim, cf, pivot, 0, false)
+		p.Parent = vp
+	end
+	if f.class == "artillery" then
+		Soldiers.gun(add, look, false, true, 1)
+	elseif f.class == "infantry" then
+		Soldiers.infantry(add, look, true, "line", 1)
+	else
+		Soldiers.rider(add, look, true, 1)
+	end
+	local cam = Instance.new("Camera") :: Camera
+	cam.FieldOfView = view.fov
+	cam.CFrame = CFrame.lookAt(view.eye, view.at)
+	cam.Parent = vp
+	vp.CurrentCamera = cam
+	return true
 end
 
 local function iconSlot(parent: Instance, name: string, order: number): Frame
@@ -287,7 +330,20 @@ local function newCard(f: any): Card
 	g.Position = UDim2.fromOffset(0, 7)
 	g.BackgroundTransparency = 1
 	g.Parent = b
-	glyph(g, f.class, f.type)
+	if portrait(g, f) then
+		-- the class glyph shrinks to a badge in the corner of the portrait
+		local badge = Instance.new("Frame") :: Frame
+		badge.Size = UDim2.fromOffset(CARD_W, 26)
+		badge.Position = UDim2.fromOffset(CARD_W * 0.6, 13)
+		badge.BackgroundTransparency = 1
+		badge.Parent = g
+		local sc = Instance.new("UIScale") :: UIScale
+		sc.Scale = 0.42
+		sc.Parent = badge
+		glyph(badge, f.class, f.type)
+	else
+		glyph(g, f.class, f.type)
+	end
 	local name = Kit.label(b, abbreviate(tostring(f.name or id)), { size = UDim2.new(1, -6, 0, 12), position = UDim2.fromOffset(3, 34), textSize = 10, align = Enum.TextXAlignment.Center })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 	local count = Kit.label(b, "", { size = UDim2.new(0.6, 0, 0, 10), position = UDim2.fromOffset(4, 47), textSize = 9, font = Enum.Font.GothamBold })

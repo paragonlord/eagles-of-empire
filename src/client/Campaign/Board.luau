@@ -207,8 +207,8 @@ local function pier(parent: Instance, from: Vector3, dir: Vector3)
 end
 
 -- The land as terrain, written on this client only (the server never sees the board). Columns
--- of 4-stud voxels: sea bed and water off the coast and in the rivers, ground up to the
--- lowland or the hills elsewhere, with rock on the slopes and snow on the high chains.
+-- of 4-stud voxels: sea bed and water off the coast, ground up to the lowland or the hills
+-- elsewhere, with rock on the slopes and snow on the high chains.
 local function landMaterial(mx: number, mz: number, h: number): EnumMaterial
 	if Relief.snow(mx, mz) then
 		return Enum.Material.Snow
@@ -226,27 +226,9 @@ local function landMaterial(mx: number, mz: number, h: number): EnumMaterial
 	return if n > 0.18 then Enum.Material.LeafyGrass else Enum.Material.Grass
 end
 
-local function riverCells(): { [number]: boolean }
-	local wet: { [number]: boolean } = {}
-	for _, r in Relief.rivers() do
-		for i = 1, #r.pts - 1 do
-			local a, b = r.pts[i], r.pts[i + 1]
-			local len = math.sqrt((b.x - a.x) ^ 2 + (b.z - a.z) ^ 2)
-			for k = 0, math.ceil(len / 2) do
-				local t = k / math.max(1, math.ceil(len / 2))
-				local wx = ORIGIN.X + (a.x + (b.x - a.x) * t) * S
-				local wz = ORIGIN.Z - (a.z + (b.z - a.z) * t) * S
-				wet[math.floor(wx / VOX) * 100000 + math.floor(wz / VOX)] = true
-			end
-		end
-	end
-	return wet
-end
-
 local Y0, LAYERS = -8, 7 -- terrain floor and voxel layers (to y = 20)
 local function writeRelief()
 	local terrain = workspace.Terrain
-	local wet = riverCells()
 	local gx0 = math.floor(ORIGIN.X / VOX)
 	local gx1 = math.ceil((ORIGIN.X + W) / VOX) - 1
 	local gz0 = math.floor((ORIGIN.Z - D) / VOX)
@@ -270,7 +252,7 @@ local function writeRelief()
 			for k = 1, nz do
 				local gz = gz0 + k - 1
 				local mz = (ORIGIN.Z - (gz + 0.5) * VOX) / S
-				local land = Relief.isLand(mx, mz) and not wet[gx * 100000 + gz]
+				local land = Relief.isLand(mx, mz)
 				if land then
 					local h = Relief.height(mx, mz)
 					local top = LAND + h -- the surface, board y
@@ -286,8 +268,7 @@ local function writeRelief()
 						end
 					end
 				else
-					-- a river runs over a dark bed, the sea over sand
-					mi[1][k], oi[1][k] = if Relief.isLand(mx, mz) then Enum.Material.Mud else Enum.Material.Sand, 1
+					mi[1][k], oi[1][k] = Enum.Material.Sand, 1
 					mi[2][k], oi[2][k] = Enum.Material.Water, 1
 				end
 			end
@@ -412,6 +393,16 @@ function Board.build()
 		end
 	end
 	tintStrips(f)
+	-- rivers: thin blue lines over the tint, as on a campaign map
+	for _, r in Relief.rivers() do
+		for i = 1, #r.pts - 1 do
+			local a, b = r.pts[i], r.pts[i + 1]
+			local ra = segment(statics, Board.toWorld(a.x, a.z, TINT_Y + 0.08), Board.toWorld(b.x, b.z, TINT_Y + 0.08), 0.9, 0.12, Color3.fromRGB(78, 104, 150))
+			if ra then
+				ra.Transparency = 0.1
+			end
+		end
+	end
 	-- piers where each port's coast is nearest its centre
 	for _, p in Data.Provinces do
 		if p.isPort then
