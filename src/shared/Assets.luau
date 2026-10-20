@@ -144,6 +144,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 1.75, 2.88, 10 },
 	},
+	ship = { -- generated 74-gun ship of the line (campaign fleet token), keel along Z
+		mesh = "rbxassetid://123365547551398",
+		texture = "rbxassetid://82494823051177",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 3, 5.46, 6.53 },
+	},
 	cart = { -- generated two-wheeled farm cart, shafts along Z
 		mesh = "rbxassetid://112271944313587",
 		texture = "rbxassetid://121727660050649",
@@ -417,6 +424,26 @@ Assets.kits = {
 
 function Assets.kit(key: string): Kit?
 	return Assets.kits[key]
+end
+
+-- Public-domain battle paintings (Wikimedia Commons; the painters died over a century ago),
+-- cropped to sky, smoke and the lines above the fallen, 1024 wide, uploaded in Studio. Sources
+-- in docs/assets-brief.md ("Paintings").
+Assets.paintings = {
+	menu = "rbxassetid://71478981929025", -- Philippoteaux, the cuirassiers' charge at Waterloo (1874)
+	austerlitz = "rbxassetid://72324631406127", -- Gérard, La bataille d'Austerlitz (1810)
+	jena = "rbxassetid://77495645476448", -- Vernet, Bataille d'Iéna (1836)
+	waterloo = "rbxassetid://104564772834798", -- Sadler, The Battle of Waterloo (c. 1815)
+}
+
+-- The painting for a battle map: its battle's, or the menu's for maps without one.
+function Assets.paintingFor(mapId: string?): string
+	local id = mapId or ""
+	local battle = string.match(id, "^([a-z]+)") or ""
+	if battle == "auerstedt" then
+		battle = "jena" -- the same day, the same campaign
+	end
+	return (Assets.paintings :: { [string]: string })[battle] or Assets.paintings.menu
 end
 
 -- A texture id for a slot, or nil when the slot has none.

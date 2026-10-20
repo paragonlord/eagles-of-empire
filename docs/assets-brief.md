@@ -118,16 +118,40 @@ UI images live in `src/client/UI/Kit.luau` (`Kit.paperTextureId`, set). Planned:
 `ornament` (a horizontal rule ornament, 512 × 64 with alpha), `stamp` (circular dépôt stamp, 512²
 with alpha, red ink), `eagleEmblem` (imperial eagle, 512² alpha, for the menu).
 
-## Priority order
+## Paintings (`Assets.paintings`)
 
-1. `treeOak`, `treeBeech`, `treePine`, `treePoplar` (biggest visible change; textures are done)
-2. `houseA`, `houseB`, `barn`, `church`, `windmill`
-3. `soldierInfantry` (French) with its atlas
-4. `soldierCavalry`, `gun`, `limber`, `horse`
-5. everything else
+Public-domain battle paintings from Wikimedia Commons (the painters died more than a century
+ago; Commons treats faithful photos of 2D public-domain art as public domain). Each was cropped
+to its upper band (sky, smoke, the lines) to leave out the fallen in the foreground, resized to
+1024 wide with `sips`, and uploaded through Studio's `upload_image`. Used on the menu header,
+the loading screen (per battle, `Assets.paintingFor`) and the results ribbon.
 
-First test: import one oak, paste its mesh id into `Assets.slots.treeOak.mesh`, set `scale` so
-it is ~12 × 13 × 12, run `tools/check.sh`, play Jena. Every oak on the map becomes that mesh.
+| key | painting | Commons file |
+| --- | --- | --- |
+| `menu` | Félix Philippoteaux, the cuirassiers' charge at Waterloo (1874) | `Charge_of_the_French_Cuirassiers_at_Waterloo.jpg` |
+| `austerlitz` | François Gérard, *La bataille d'Austerlitz* (1810) | `La_bataille_d'Austerlitz._2_decembre_1805_(François_Gérard).jpg` |
+| `jena` | Horace Vernet, *Bataille d'Iéna* (1836); also Auerstedt | `Bataille_d'Iéna,_14_octobre_1806_(Vernet).jpg` |
+| `waterloo` | William Sadler, *The Battle of Waterloo* (c. 1815) | `Battle_of_Waterloo_1815.PNG` |
+
+## Generated assets (graphics pass, 2026-10-20)
+
+All made with Studio's generators through the MCP and published to Bartosz's account:
+- Figures: eight-piece infantry kits and cavalry kits for the eight nations, Napoleon's own
+  kit, gun kits in three carriage colours, a limber, hats (bearskin, bicorne, crested helmet,
+  Highland bonnet). Ids in `Assets.kits`.
+- World: hedgerow, weeping willow, stone arch and trestle bridges, farm cart (`Assets.slots`);
+  a ship of the line for the campaign fleets (`ship`).
+- Ground: seven MaterialVariants (meadow, pasture, stubble, plough, track, cobbles, rock) in
+  `default.project.json` under MaterialService, chosen from four candidates each.
+- Tried and dropped: the Austrian kaskett (two attempts came out as a box), a dry-stone wall and
+  a post-and-rail fence (both came out a fraction of the asked size); those stay part-built.
+
+## Priority order (what is left)
+
+1. A kaskett for Austria; a dry-stone wall and a fence section.
+2. Separate kit layouts for light infantry (no knapsack) and grenadiers if the hats are not
+   enough to tell them apart.
+3. `church` and `windmill` regenerated in the painterly look (today's are the earlier meshes).
 
 ## Sound candidates (to audition; none wired in yet)
 

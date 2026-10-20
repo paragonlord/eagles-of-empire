@@ -12,6 +12,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Relief = require(Shared.Relief)
 local Data = require(script.Parent.Data)
 local Soldiers = require(script.Parent.Parent.World.Soldiers)
+local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Parent.UI.Kit)
 
 local Board = {}
@@ -133,10 +134,35 @@ local function groundLabel(parent: Instance, text: string, pos: Vector3, height:
 	return p
 end
 
-local function house(parent: Instance, pos: Vector3, w: number, d: number, h: number, yaw: number)
+-- A house: one of the battlefield's generated house meshes fitted to the box, or two parts.
+local HOUSE_KEYS = { "houseA", "houseB", "barn" }
+local function house(parent: Instance, pos: Vector3, w: number, d: number, h: number, yaw: number, key: string?)
+	local slot = Assets.get(key or HOUSE_KEYS[math.floor(pos.X * 7 + pos.Z * 3) % #HOUSE_KEYS + 1])
+	local native = if slot then slot.native else nil
+	if slot and native then
+		local hh = h * 1.6 -- the meshes carry their roof inside the box
+		local p = part(parent, Vector3.new(w, hh, d), CFrame.new(pos + Vector3.new(0, hh / 2, 0)) * CFrame.Angles(0, yaw, 0), Color3.new(1, 1, 1))
+		local m = Instance.new("SpecialMesh") :: SpecialMesh
+		m.MeshType = Enum.MeshType.FileMesh
+		m.MeshId = slot.mesh
+		m.TextureId = slot.texture
+		m.Scale = Vector3.new(w / native[1], hh / native[2], d / native[3])
+		m.Parent = p
+		return
+	end
 	local base = part(parent, Vector3.new(w, h, d), CFrame.new(pos + Vector3.new(0, h / 2, 0)) * CFrame.Angles(0, yaw, 0), WALL)
 	base.CastShadow = true
 	ridge(parent, pos + Vector3.new(0, h, 0), yaw, w + 0.3, d * 0.72, ROOF)
+end
+
+-- A market town: a few houses round a point, so every province shows where its people live.
+local function town(parent: Instance, c: Vector3, n: number)
+	local rng = Random.new(math.floor(c.X * 17 + c.Z * 5))
+	for i = 1, n do
+		local a = i / n * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		local r = if i == 1 then 0 else rng:NextNumber(2.2, 3.6)
+		house(parent, c + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r), rng:NextNumber(2.2, 3.2), rng:NextNumber(1.6, 2.2), rng:NextNumber(1.2, 1.8), rng:NextInteger(0, 3) * math.pi / 2)
+	end
 end
 
 local function capital(parent: Instance, c: Vector3)
@@ -287,7 +313,7 @@ local function tintStrips(parent: Instance)
 				local rp = runProv
 				if rp then
 					local x0, x1 = (runStart - 1) * CELL, (c - 1) * CELL
-					local strip = part(parent, Vector3.new((x1 - x0) * S, 0.1, CELL * S), CFrame.new(Board.toWorld((x0 + x1) / 2, zc, TINT_Y)), baseColour[rp] or PARCH)
+					local strip = part(parent, Vector3.new((x1 - x0) * S, 0.03, CELL * S), CFrame.new(Board.toWorld((x0 + x1) / 2, zc, TINT_Y)), baseColour[rp] or PARCH)
 					strip.Transparency = TINT
 					strip.CastShadow = false
 					strip.CanQuery = true
@@ -378,6 +404,8 @@ function Board.build()
 		table.insert(labels, { part = groundLabel(statics, p.name, at + Vector3.new(0, 0, 14 + base * 0.5), base), base = base, at = at })
 		if p.isCapital then
 			capital(statics, Board.toWorld(p.centre.x - 17 / S, p.centre.z + 15 / S))
+		else
+			town(statics, Board.toWorld(p.centre.x - 17 / S, p.centre.z + 15 / S), 3)
 		end
 		if (p.fort or 0) > 0 then
 			bastion(statics, Board.toWorld(p.centre.x + 17 / S, p.centre.z + 15 / S), p.fort)
@@ -552,14 +580,31 @@ local function shipFigure(parent: Instance, fl: any, pos: Vector3): Model
 		p.CanQuery = true
 		return p
 	end
-	local hull = piece(Vector3.new(9, 1.6, 3), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
-	piece(Vector3.new(9.05, 0.35, 3.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
-	piece(Vector3.new(2, 1.2, 2.4), Vector3.new(3.6, 1.8, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
-	for _, x in { -2.4, 1 } do
-		piece(Vector3.new(0.35, 7, 0.35), Vector3.new(x, 4.8, 0), Color3.fromRGB(60, 44, 30))
-		piece(Vector3.new(3.4, 3.6, 0.2), Vector3.new(x, 5.2, 0.3), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+	local hull: Part
+	local slot = Assets.get("ship")
+	local native = if slot then slot.native else nil
+	if slot and native then
+		-- the generated ship of the line, broadside to the board camera, with the nation's pennant
+		local k = 9 / native[3] -- nine studs from bow to stern
+		hull = piece(Vector3.new(native[1], native[2], native[3]) * k, Vector3.new(0, native[2] * k / 2 - 0.4, 0), Color3.new(1, 1, 1))
+		hull.CFrame *= CFrame.Angles(0, math.pi / 2, 0) -- the keel (the mesh's Z) along the board's east-west
+		local mesh = Instance.new("SpecialMesh") :: SpecialMesh
+		mesh.MeshType = Enum.MeshType.FileMesh
+		mesh.MeshId = slot.mesh
+		mesh.TextureId = slot.texture
+		mesh.Scale = Vector3.one * k
+		mesh.Parent = hull
+		piece(Vector3.new(1.6, 1, 0.15), Vector3.new(0, native[2] * k + 0.2, 0), Data.colour(fl.nation))
+	else
+		hull = piece(Vector3.new(9, 1.6, 3), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+		piece(Vector3.new(9.05, 0.35, 3.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
+		piece(Vector3.new(2, 1.2, 2.4), Vector3.new(3.6, 1.8, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+		for _, x in { -2.4, 1 } do
+			piece(Vector3.new(0.35, 7, 0.35), Vector3.new(x, 4.8, 0), Color3.fromRGB(60, 44, 30))
+			piece(Vector3.new(3.4, 3.6, 0.2), Vector3.new(x, 5.2, 0.3), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+		end
+		piece(Vector3.new(1.6, 1, 0.15), Vector3.new(-1.6, 8.6, 0), Data.colour(fl.nation))
 	end
-	piece(Vector3.new(1.6, 1, 0.15), Vector3.new(-1.6, 8.6, 0), Data.colour(fl.nation))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
 	bb.Size = UDim2.new(6, 52, 1.2, 14)
 	bb.StudsOffset = Vector3.new(0, 1.5, 0) -- above the waterline, or the sea hides it

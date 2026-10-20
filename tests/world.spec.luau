@@ -338,3 +338,14 @@ test("WorldGen: every season tints the painted ground (meadow, pasture, wheat, p
 		end
 	end
 end)
+
+test("Assets: every battle map has a painting for its loading screen; others get the menu's", function()
+	local Assets = require(game:GetService("ReplicatedStorage").EoE.Assets)
+	local menu = Assets.paintingFor(nil)
+	assertTrue(string.match(menu, "^rbxassetid://%d+$") ~= nil, "menu painting")
+	assertTrue(Assets.paintingFor("austerlitz_pratzen") == Assets.paintingFor("austerlitz") and Assets.paintingFor("austerlitz") ~= menu, "Austerlitz by Gérard")
+	assertTrue(Assets.paintingFor("jena_landgrafenberg") == Assets.paintingFor("jena") and Assets.paintingFor("auerstedt") == Assets.paintingFor("jena"), "the twin battles share Vernet's Jena")
+	assertTrue(Assets.paintingFor("waterloo_hougoumont") == Assets.paintingFor("waterloo"), "Waterloo by Sadler")
+	assertEq(Assets.paintingFor("province:tyrol"), menu, "campaign provinces: the menu's")
+	assertEq(Assets.paintingFor("tutorial"), menu)
+end)

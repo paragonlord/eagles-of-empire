@@ -5,6 +5,7 @@
 local TweenService = game:GetService("TweenService") :: TweenService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Tips = require(Shared.Tips)
+local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Kit)
 
 local Loading = {}
@@ -15,6 +16,7 @@ local fill: Frame? = nil
 local caption: TextLabel? = nil
 local fade: Tween? = nil
 local tip: TextLabel? = nil
+local painting: ImageLabel? = nil
 local tipAt = Random.new():NextInteger(1, #Tips)
 local tipRun = 0 -- the rotation thread of the current show
 local TIP_SECONDS = 9
@@ -38,6 +40,23 @@ local function build()
 	paint.ZIndex = 0
 	Kit.gradient(paint, Kit.BLUE, Kit.INSET)
 	paint.Parent = bg
+	-- the battle's painting across the screen, as in TW, darkened under the title and tips
+	local pic = Instance.new("ImageLabel") :: ImageLabel
+	pic.Size = UDim2.fromScale(1, 1)
+	pic.BackgroundTransparency = 1
+	pic.ScaleType = Enum.ScaleType.Crop
+	pic.Image = Assets.paintingFor(nil)
+	pic.ZIndex = 0
+	pic.Parent = bg
+	local veil = Instance.new("Frame") :: Frame
+	veil.Size = UDim2.fromScale(1, 1)
+	veil.BackgroundColor3 = Color3.new(1, 1, 1)
+	veil.BorderSizePixel = 0
+	veil.ZIndex = 0
+	veil.Parent = bg
+	local shade = Kit.gradient(veil, Kit.INSET, Kit.INSET, 90)
+	shade.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.75), NumberSequenceKeypoint.new(0.35, 0.35), NumberSequenceKeypoint.new(0.65, 0.2), NumberSequenceKeypoint.new(1, 0.55) })
+	painting = pic
 	Kit.title(bg, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 60), position = UDim2.new(0, 0, 0.38, -10), textSize = 48, align = Enum.TextXAlignment.Center, spaced = true, colour = Kit.GILT, rule = true })
 	local c = Kit.label(bg, "Surveying the ground…", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0.38, 64), align = Enum.TextXAlignment.Center, colour = Kit.MUTED })
 	local track = Instance.new("Frame") :: Frame
@@ -69,9 +88,14 @@ local function stopFade()
 	end
 end
 
-function Loading.show(text: string?)
+-- `mapId` picks the battle's painting (Assets.paintingFor); nil keeps the one showing.
+function Loading.show(text: string?, mapId: string?)
 	build()
 	stopFade()
+	local pic = painting
+	if pic and mapId then
+		pic.Image = Assets.paintingFor(mapId)
+	end
 	if back then
 		back.GroupTransparency = 0
 	end

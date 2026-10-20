@@ -3,6 +3,8 @@
 -- text entries) over the live battlefield. Entries call back into Main.
 
 local Kit = require(script.Parent.Kit)
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 
 local Menu = {}
 
@@ -78,6 +80,18 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		col.Active = true
 		col.Parent = sg
 		Kit.gradient(col, Kit.BLUE, Kit.INSET)
+		-- a painted sky over the badge and title (Philippoteaux), fading into the column
+		local pic = Instance.new("ImageLabel") :: ImageLabel
+		pic.Size = UDim2.new(1, 0, 0, 300)
+		pic.BackgroundTransparency = 1
+		pic.ScaleType = Enum.ScaleType.Crop
+		pic.Image = Assets.paintingFor(nil)
+		pic.ImageTransparency = 0.5
+		pic.Parent = col
+		local fadePic = Instance.new("UIGradient") :: UIGradient
+		fadePic.Rotation = 90
+		fadePic.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.55, 0.15), NumberSequenceKeypoint.new(1, 1) })
+		fadePic.Parent = pic
 		for _, e in { { 2, 0, Kit.GILT }, { 1, 3, Kit.CRIMSON }, { 1, 5, Kit.GILT_DARK } } do
 			local edge = Instance.new("Frame") :: Frame
 			edge.Size = UDim2.new(0, e[1] :: number, 1, 0)

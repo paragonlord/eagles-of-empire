@@ -4,6 +4,7 @@
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Scenarios = require(Shared.Scenarios)
+local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 
@@ -216,6 +217,14 @@ function Results.show(results: any, cb: Callbacks)
 	ribbon.Parent = panel
 	ribbon:SetAttribute("parchment", false)
 	Kit.gradient(ribbon, Color3.new(1, 1, 1), Color3.fromRGB(170, 170, 170))
+	-- the battle's painting shows through the ribbon's colour
+	local pic = Instance.new("ImageLabel") :: ImageLabel
+	pic.Size = UDim2.fromScale(1, 1)
+	pic.BackgroundTransparency = 1
+	pic.ScaleType = Enum.ScaleType.Crop
+	pic.Image = Assets.paintingFor(if BattleState.map then BattleState.map.id else nil)
+	pic.ImageTransparency = 0.62
+	pic.Parent = ribbon
 	local rs = Instance.new("UIStroke") :: UIStroke
 	rs.Color = Kit.GILT
 	rs.Thickness = 2

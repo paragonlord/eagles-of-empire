@@ -144,6 +144,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 1.75, 2.88, 10 },
 	},
+	ship = { -- generated 74-gun ship of the line (campaign fleet token), keel along Z
+		mesh = "rbxassetid://123365547551398",
+		texture = "rbxassetid://82494823051177",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 3, 5.46, 6.53 },
+	},
 	cart = { -- generated two-wheeled farm cart, shafts along Z
 		mesh = "rbxassetid://112271944313587",
 		texture = "rbxassetid://121727660050649",
@@ -417,6 +424,26 @@ Assets.kits = {
 
 function Assets.kit(key: string): Kit?
 	return Assets.kits[key]
+end
+
+-- Public-domain battle paintings (Wikimedia Commons; the painters died over a century ago),
+-- cropped to sky, smoke and the lines above the fallen, 1024 wide, uploaded in Studio. Sources
+-- in docs/assets-brief.md ("Paintings").
+Assets.paintings = {
+	menu = "rbxassetid://71478981929025", -- Philippoteaux, the cuirassiers' charge at Waterloo (1874)
+	austerlitz = "rbxassetid://72324631406127", -- Gérard, La bataille d'Austerlitz (1810)
+	jena = "rbxassetid://77495645476448", -- Vernet, Bataille d'Iéna (1836)
+	waterloo = "rbxassetid://104564772834798", -- Sadler, The Battle of Waterloo (c. 1815)
+}
+
+-- The painting for a battle map: its battle's, or the menu's for maps without one.
+function Assets.paintingFor(mapId: string?): string
+	local id = mapId or ""
+	local battle = string.match(id, "^([a-z]+)") or ""
+	if battle == "auerstedt" then
+		battle = "jena" -- the same day, the same campaign
+	end
+	return (Assets.paintings :: { [string]: string })[battle] or Assets.paintings.menu
 end
 
 -- A texture id for a slot, or nil when the slot has none.
@@ -23774,13 +23801,16 @@ local UserInputService = game:GetService("UserInputService") :: UserInputService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Relief = require(Shared.Relief)
 local Data = require(script.Parent.Data)
+local Soldiers = require(script.Parent.Parent.World.Soldiers)
+local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Parent.UI.Kit)
 
 local Board = {}
 
 local ORIGIN = Vector3.new(8000, 0, 0) -- the battlefield spans 0..1600 × 0..1200
 local S = 0.55 -- studs per map unit
-local LAND = 2 -- the province tint's height; the lowland lies just under it, hills rise through
+local LAND = 2 -- the lowland's surface; hills rise from it
+local TINT_Y = LAND + 0.35 -- the owner tint lies just over the lowland, so hills rise through it
 local SEA_Y = 0 -- water surface
 local CELL = 8 -- map units per land cell (EuropeGeo.Cell)
 local VOX = 4 -- terrain voxel, studs
@@ -23811,7 +23841,7 @@ local FIG = 1.6 -- figure scale
 
 -- A map point on the board; without `y` it stands on the ground (the tint, or a hill above it).
 function Board.toWorld(x: number, z: number, y: number?): Vector3
-	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or (LAND + math.max(0, Relief.height(x, z) - 0.1))), ORIGIN.Z - z * S)
+	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or (TINT_Y + 0.1 + math.max(0, Relief.height(x, z) - 0.45))), ORIGIN.Z - z * S)
 end
 
 -- World-space rectangle of the board (x0 < x1, z0 < z1) and the base height.
@@ -23894,10 +23924,35 @@ local function groundLabel(parent: Instance, text: string, pos: Vector3, height:
 	return p
 end
 
-local function house(parent: Instance, pos: Vector3, w: number, d: number, h: number, yaw: number)
+-- A house: one of the battlefield's generated house meshes fitted to the box, or two parts.
+local HOUSE_KEYS = { "houseA", "houseB", "barn" }
+local function house(parent: Instance, pos: Vector3, w: number, d: number, h: number, yaw: number, key: string?)
+	local slot = Assets.get(key or HOUSE_KEYS[math.floor(pos.X * 7 + pos.Z * 3) % #HOUSE_KEYS + 1])
+	local native = if slot then slot.native else nil
+	if slot and native then
+		local hh = h * 1.6 -- the meshes carry their roof inside the box
+		local p = part(parent, Vector3.new(w, hh, d), CFrame.new(pos + Vector3.new(0, hh / 2, 0)) * CFrame.Angles(0, yaw, 0), Color3.new(1, 1, 1))
+		local m = Instance.new("SpecialMesh") :: SpecialMesh
+		m.MeshType = Enum.MeshType.FileMesh
+		m.MeshId = slot.mesh
+		m.TextureId = slot.texture
+		m.Scale = Vector3.new(w / native[1], hh / native[2], d / native[3])
+		m.Parent = p
+		return
+	end
 	local base = part(parent, Vector3.new(w, h, d), CFrame.new(pos + Vector3.new(0, h / 2, 0)) * CFrame.Angles(0, yaw, 0), WALL)
 	base.CastShadow = true
 	ridge(parent, pos + Vector3.new(0, h, 0), yaw, w + 0.3, d * 0.72, ROOF)
+end
+
+-- A market town: a few houses round a point, so every province shows where its people live.
+local function town(parent: Instance, c: Vector3, n: number)
+	local rng = Random.new(math.floor(c.X * 17 + c.Z * 5))
+	for i = 1, n do
+		local a = i / n * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		local r = if i == 1 then 0 else rng:NextNumber(2.2, 3.6)
+		house(parent, c + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r), rng:NextNumber(2.2, 3.2), rng:NextNumber(1.6, 2.2), rng:NextNumber(1.2, 1.8), rng:NextInteger(0, 3) * math.pi / 2)
+	end
 end
 
 local function capital(parent: Instance, c: Vector3)
@@ -24008,18 +24063,21 @@ local function writeRelief()
 				local land = Relief.isLand(mx, mz) and not wet[gx * 100000 + gz]
 				if land then
 					local h = Relief.height(mx, mz)
-					local top = LAND - 0.15 + h -- the surface, board y
+					local top = LAND + h -- the surface, board y
 					local m = landMaterial(mx, mz, h)
 					for j = 1, LAYERS do
 						local lo = Y0 + (j - 1) * VOX
 						if top >= lo + VOX then
 							mi[j][k], oi[j][k] = if j <= 2 or top - (lo + VOX) > VOX then Enum.Material.Rock else m, 1
 						elseif top > lo then
-							mi[j][k], oi[j][k] = m, (top - lo) / VOX
+							-- smooth terrain draws a part-full voxel's surface between its middle
+							-- (nearly empty) and its top (full), measured in Studio
+							mi[j][k], oi[j][k] = m, math.clamp((top - lo - VOX / 2) / (VOX / 2), 0.02, 1)
 						end
 					end
 				else
-					mi[1][k], oi[1][k] = Enum.Material.Sand, 1
+					-- a river runs over a dark bed, the sea over sand
+					mi[1][k], oi[1][k] = if Relief.isLand(mx, mz) then Enum.Material.Mud else Enum.Material.Sand, 1
 					mi[2][k], oi[2][k] = Enum.Material.Water, 1
 				end
 			end
@@ -24045,7 +24103,7 @@ local function tintStrips(parent: Instance)
 				local rp = runProv
 				if rp then
 					local x0, x1 = (runStart - 1) * CELL, (c - 1) * CELL
-					local strip = part(parent, Vector3.new((x1 - x0) * S, 0.1, CELL * S), CFrame.new(Board.toWorld((x0 + x1) / 2, zc, LAND + 0.05)), baseColour[rp] or PARCH)
+					local strip = part(parent, Vector3.new((x1 - x0) * S, 0.03, CELL * S), CFrame.new(Board.toWorld((x0 + x1) / 2, zc, TINT_Y)), baseColour[rp] or PARCH)
 					strip.Transparency = TINT
 					strip.CastShadow = false
 					strip.CanQuery = true
@@ -24084,8 +24142,21 @@ local function coastOf(p: any): (Vector3?, Vector3?)
 	return Board.toWorld(b.x, b.z), Vector3.new(b.dx, 0, -b.dz)
 end
 
+-- The server clears all terrain when it builds a battle map, the board's local relief with it;
+-- reopening the board writes it again.
+local function reliefMissing(): boolean
+	local c = Data.Provinces[1].centre
+	local at = Board.toWorld(c.x, c.z, LAND - 1)
+	local lo = Vector3.new(math.floor(at.X / VOX) * VOX, math.floor(at.Y / VOX) * VOX, math.floor(at.Z / VOX) * VOX)
+	local mats = workspace.Terrain:ReadVoxels(Region3.new(lo, lo + Vector3.one * VOX), VOX)
+	return mats[1][1][1] == Enum.Material.Air
+end
+
 function Board.build()
 	if folder then
+		if reliefMissing() then
+			writeRelief()
+		end
 		return
 	end
 	local f = Instance.new("Folder") :: Folder
@@ -24123,6 +24194,8 @@ function Board.build()
 		table.insert(labels, { part = groundLabel(statics, p.name, at + Vector3.new(0, 0, 14 + base * 0.5), base), base = base, at = at })
 		if p.isCapital then
 			capital(statics, Board.toWorld(p.centre.x - 17 / S, p.centre.z + 15 / S))
+		else
+			town(statics, Board.toWorld(p.centre.x - 17 / S, p.centre.z + 15 / S), 3)
 		end
 		if (p.fort or 0) > 0 then
 			bastion(statics, Board.toWorld(p.centre.x + 17 / S, p.centre.z + 15 / S), p.fort)
@@ -24188,7 +24261,7 @@ local function hatch(parent: Instance, pts: { Pt }, colour: Color3)
 				local t1 = ts[i] + (ts[i + 1] - ts[i]) * (k + 1) / n
 				local tm = (t0 + t1) / 2
 				if Relief.isLand(ox + dx * tm, oz + dz * tm) then
-					local st = segment(parent, Board.toWorld(ox + dx * t0, oz + dz * t0, LAND + 0.15), Board.toWorld(ox + dx * t1, oz + dz * t1, LAND + 0.15), 2.2, 0.12, colour)
+					local st = segment(parent, Board.toWorld(ox + dx * t0, oz + dz * t0, TINT_Y + 0.1), Board.toWorld(ox + dx * t1, oz + dz * t1, TINT_Y + 0.1), 2.2, 0.12, colour)
 					if st then
 						st.Transparency = 0.15
 					end
@@ -24237,16 +24310,32 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	plinth.CanQuery = true
 	cylinder(m, pos + Vector3.new(0, 1.15, 0), 0.25, 7.3, Kit.GILT, Enum.Material.Foil)
 	local top = 1.2
-	piece(Vector3.new(4.4, 1.9, 1.8), Vector3.new(0, top + 3.1, 0), horse)
-	for _, l in { { 1.6, 0.6 }, { 1.6, -0.6 }, { -1.6, 0.6 }, { -1.6, -0.6 } } do
-		piece(Vector3.new(0.5, 2.3, 0.5), Vector3.new(l[1], top + 1.15, l[2]), horse)
+	local kit = Soldiers.mountedKit(a.nation)
+	if kit then
+		-- the nation's generated horse and rider, twice battle size, as a painted token
+		for _, k in kit do
+			local p = k.part
+			p.CFrame = CFrame.new(pos + Vector3.new(0, top, 0)) * CFrame.new(k.cf.Position * 2) * k.cf.Rotation
+			p.Size *= 2
+			local m2 = p:FindFirstChildOfClass("SpecialMesh") :: SpecialMesh?
+			if m2 then
+				m2.Scale *= 2
+			end
+			p.CanQuery = true
+			p.Parent = m
+		end
+	else
+		piece(Vector3.new(4.4, 1.9, 1.8), Vector3.new(0, top + 3.1, 0), horse)
+		for _, l in { { 1.6, 0.6 }, { 1.6, -0.6 }, { -1.6, 0.6 }, { -1.6, -0.6 } } do
+			piece(Vector3.new(0.5, 2.3, 0.5), Vector3.new(l[1], top + 1.15, l[2]), horse)
+		end
+		piece(Vector3.new(1, 2.2, 1), Vector3.new(2.3, top + 4.4, 0), horse, CFrame.Angles(0, 0, math.rad(-30)))
+		piece(Vector3.new(1.8, 0.9, 0.9), Vector3.new(3.1, top + 5.4, 0), horse)
+		piece(Vector3.new(1.3, 2.2, 1.2), Vector3.new(-0.2, top + 5.1, 0), coat)
+		local head = piece(Vector3.new(0.95, 0.95, 0.95), Vector3.new(-0.2, top + 6.7, 0), Color3.fromRGB(226, 190, 160))
+		head.Shape = Enum.PartType.Ball
+		piece(Vector3.new(2, 0.6, 0.8), Vector3.new(-0.2, top + 7.3, 0), INK)
 	end
-	piece(Vector3.new(1, 2.2, 1), Vector3.new(2.3, top + 4.4, 0), horse, CFrame.Angles(0, 0, math.rad(-30)))
-	piece(Vector3.new(1.8, 0.9, 0.9), Vector3.new(3.1, top + 5.4, 0), horse)
-	piece(Vector3.new(1.3, 2.2, 1.2), Vector3.new(-0.2, top + 5.1, 0), coat)
-	local head = piece(Vector3.new(0.95, 0.95, 0.95), Vector3.new(-0.2, top + 6.7, 0), Color3.fromRGB(226, 190, 160))
-	head.Shape = Enum.PartType.Ball
-	piece(Vector3.new(2, 0.6, 0.8), Vector3.new(-0.2, top + 7.3, 0), INK)
 	local poleX = -2.9
 	cylinder(m, pos + Vector3.new(poleX, top + 5, 0), 10, 0.25, Kit.GILT_DARK)
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
@@ -24281,14 +24370,31 @@ local function shipFigure(parent: Instance, fl: any, pos: Vector3): Model
 		p.CanQuery = true
 		return p
 	end
-	local hull = piece(Vector3.new(9, 1.6, 3), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
-	piece(Vector3.new(9.05, 0.35, 3.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
-	piece(Vector3.new(2, 1.2, 2.4), Vector3.new(3.6, 1.8, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
-	for _, x in { -2.4, 1 } do
-		piece(Vector3.new(0.35, 7, 0.35), Vector3.new(x, 4.8, 0), Color3.fromRGB(60, 44, 30))
-		piece(Vector3.new(3.4, 3.6, 0.2), Vector3.new(x, 5.2, 0.3), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+	local hull: Part
+	local slot = Assets.get("ship")
+	local native = if slot then slot.native else nil
+	if slot and native then
+		-- the generated ship of the line, broadside to the board camera, with the nation's pennant
+		local k = 9 / native[3] -- nine studs from bow to stern
+		hull = piece(Vector3.new(native[1], native[2], native[3]) * k, Vector3.new(0, native[2] * k / 2 - 0.4, 0), Color3.new(1, 1, 1))
+		hull.CFrame *= CFrame.Angles(0, math.pi / 2, 0) -- the keel (the mesh's Z) along the board's east-west
+		local mesh = Instance.new("SpecialMesh") :: SpecialMesh
+		mesh.MeshType = Enum.MeshType.FileMesh
+		mesh.MeshId = slot.mesh
+		mesh.TextureId = slot.texture
+		mesh.Scale = Vector3.one * k
+		mesh.Parent = hull
+		piece(Vector3.new(1.6, 1, 0.15), Vector3.new(0, native[2] * k + 0.2, 0), Data.colour(fl.nation))
+	else
+		hull = piece(Vector3.new(9, 1.6, 3), Vector3.new(0, 0.6, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+		piece(Vector3.new(9.05, 0.35, 3.05), Vector3.new(0, 1.1, 0), Color3.fromRGB(196, 160, 72))
+		piece(Vector3.new(2, 1.2, 2.4), Vector3.new(3.6, 1.8, 0), Color3.fromRGB(70, 48, 32), Enum.Material.Wood)
+		for _, x in { -2.4, 1 } do
+			piece(Vector3.new(0.35, 7, 0.35), Vector3.new(x, 4.8, 0), Color3.fromRGB(60, 44, 30))
+			piece(Vector3.new(3.4, 3.6, 0.2), Vector3.new(x, 5.2, 0.3), Color3.fromRGB(236, 228, 208), Enum.Material.Fabric)
+		end
+		piece(Vector3.new(1.6, 1, 0.15), Vector3.new(-1.6, 8.6, 0), Data.colour(fl.nation))
 	end
-	piece(Vector3.new(1.6, 1, 0.15), Vector3.new(-1.6, 8.6, 0), Data.colour(fl.nation))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
 	bb.Size = UDim2.new(6, 52, 1.2, 14)
 	bb.StudsOffset = Vector3.new(0, 1.5, 0) -- above the waterline, or the sea hides it
@@ -24357,7 +24463,7 @@ function Board.setView(view: any?)
 				local ax, az = e.a.x + (e.b.x - e.a.x) * t0, e.a.z + (e.b.z - e.a.z) * t0
 				local bx, bz = e.a.x + (e.b.x - e.a.x) * t1, e.a.z + (e.b.z - e.a.z) * t1
 				if Relief.isLand((ax + bx) / 2, (az + bz) / 2) then
-					local y = LAND + 0.2
+					local y = TINT_Y + 0.15
 					if foreign then
 						segment(d, Board.toWorld(ax, az, y + 0.1), Board.toWorld(bx, bz, y + 0.1), 1.3, 0.45, Kit.GILT)
 					else
@@ -24458,13 +24564,13 @@ function Board.setPath(fromId: string?, steps: { Step }?)
 	if not start or not steps or #steps == 0 then
 		return
 	end
-	local prev = Board.toWorld(start.centre.x, start.centre.z, LAND + 0.3)
+	local prev = Board.toWorld(start.centre.x, start.centre.z, TINT_Y + 0.3)
 	for i, s in steps do
 		local p = Data.byId[s.id]
 		if not p then
 			return
 		end
-		local here = Board.toWorld(p.centre.x, p.centre.z, LAND + 0.3)
+		local here = Board.toWorld(p.centre.x, p.centre.z, TINT_Y + 0.3)
 		local colour = if s.stop then RED elseif s.turn == 1 then Kit.IVORY else Kit.MUTED
 		local len = (here - prev).Magnitude
 		local n = math.max(1, math.floor(len / 4))
@@ -29870,7 +29976,7 @@ local function ensureWorld(mapId: string): boolean
 	end
 	buildToken += 1
 	local token = buildToken
-	Loading.show("Surveying the ground…")
+	Loading.show("Surveying the ground…", mapId)
 	local map = mapCache[mapId]
 	if not map then
 		map = MapGen.generate(mapId)
@@ -36103,6 +36209,7 @@ return Ledger
 local TweenService = game:GetService("TweenService") :: TweenService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Tips = require(Shared.Tips)
+local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Kit)
 
 local Loading = {}
@@ -36113,6 +36220,7 @@ local fill: Frame? = nil
 local caption: TextLabel? = nil
 local fade: Tween? = nil
 local tip: TextLabel? = nil
+local painting: ImageLabel? = nil
 local tipAt = Random.new():NextInteger(1, #Tips)
 local tipRun = 0 -- the rotation thread of the current show
 local TIP_SECONDS = 9
@@ -36136,6 +36244,23 @@ local function build()
 	paint.ZIndex = 0
 	Kit.gradient(paint, Kit.BLUE, Kit.INSET)
 	paint.Parent = bg
+	-- the battle's painting across the screen, as in TW, darkened under the title and tips
+	local pic = Instance.new("ImageLabel") :: ImageLabel
+	pic.Size = UDim2.fromScale(1, 1)
+	pic.BackgroundTransparency = 1
+	pic.ScaleType = Enum.ScaleType.Crop
+	pic.Image = Assets.paintingFor(nil)
+	pic.ZIndex = 0
+	pic.Parent = bg
+	local veil = Instance.new("Frame") :: Frame
+	veil.Size = UDim2.fromScale(1, 1)
+	veil.BackgroundColor3 = Color3.new(1, 1, 1)
+	veil.BorderSizePixel = 0
+	veil.ZIndex = 0
+	veil.Parent = bg
+	local shade = Kit.gradient(veil, Kit.INSET, Kit.INSET, 90)
+	shade.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.75), NumberSequenceKeypoint.new(0.35, 0.35), NumberSequenceKeypoint.new(0.65, 0.2), NumberSequenceKeypoint.new(1, 0.55) })
+	painting = pic
 	Kit.title(bg, "Eagles of Empire", { size = UDim2.new(1, 0, 0, 60), position = UDim2.new(0, 0, 0.38, -10), textSize = 48, align = Enum.TextXAlignment.Center, spaced = true, colour = Kit.GILT, rule = true })
 	local c = Kit.label(bg, "Surveying the ground…", { size = UDim2.new(1, 0, 0, 22), position = UDim2.new(0, 0, 0.38, 64), align = Enum.TextXAlignment.Center, colour = Kit.MUTED })
 	local track = Instance.new("Frame") :: Frame
@@ -36167,9 +36292,14 @@ local function stopFade()
 	end
 end
 
-function Loading.show(text: string?)
+-- `mapId` picks the battle's painting (Assets.paintingFor); nil keeps the one showing.
+function Loading.show(text: string?, mapId: string?)
 	build()
 	stopFade()
+	local pic = painting
+	if pic and mapId then
+		pic.Image = Assets.paintingFor(mapId)
+	end
 	if back then
 		back.GroupTransparency = 0
 	end
@@ -36245,6 +36375,8 @@ return Loading
 -- text entries) over the live battlefield. Entries call back into Main.
 
 local Kit = require(script.Parent.Kit)
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 
 local Menu = {}
 
@@ -36320,6 +36452,18 @@ function Menu.show(cb: Callbacks, isCommander: boolean, campaignAvailable: boole
 		col.Active = true
 		col.Parent = sg
 		Kit.gradient(col, Kit.BLUE, Kit.INSET)
+		-- a painted sky over the badge and title (Philippoteaux), fading into the column
+		local pic = Instance.new("ImageLabel") :: ImageLabel
+		pic.Size = UDim2.new(1, 0, 0, 300)
+		pic.BackgroundTransparency = 1
+		pic.ScaleType = Enum.ScaleType.Crop
+		pic.Image = Assets.paintingFor(nil)
+		pic.ImageTransparency = 0.5
+		pic.Parent = col
+		local fadePic = Instance.new("UIGradient") :: UIGradient
+		fadePic.Rotation = 90
+		fadePic.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.55, 0.15), NumberSequenceKeypoint.new(1, 1) })
+		fadePic.Parent = pic
 		for _, e in { { 2, 0, Kit.GILT }, { 1, 3, Kit.CRIMSON }, { 1, 5, Kit.GILT_DARK } } do
 			local edge = Instance.new("Frame") :: Frame
 			edge.Size = UDim2.new(0, e[1] :: number, 1, 0)
@@ -36887,6 +37031,7 @@ return PaperLayout
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Scenarios = require(Shared.Scenarios)
+local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Kit)
 local BattleState = require(script.Parent.Parent.BattleState)
 
@@ -37099,6 +37244,14 @@ function Results.show(results: any, cb: Callbacks)
 	ribbon.Parent = panel
 	ribbon:SetAttribute("parchment", false)
 	Kit.gradient(ribbon, Color3.new(1, 1, 1), Color3.fromRGB(170, 170, 170))
+	-- the battle's painting shows through the ribbon's colour
+	local pic = Instance.new("ImageLabel") :: ImageLabel
+	pic.Size = UDim2.fromScale(1, 1)
+	pic.BackgroundTransparency = 1
+	pic.ScaleType = Enum.ScaleType.Crop
+	pic.Image = Assets.paintingFor(if BattleState.map then BattleState.map.id else nil)
+	pic.ImageTransparency = 0.62
+	pic.Parent = ribbon
 	local rs = Instance.new("UIStroke") :: UIStroke
 	rs.Color = Kit.GILT
 	rs.Thickness = 2
@@ -39021,6 +39174,19 @@ end
 local function at(p: Assets.Piece): CFrame
 	local c = p.cf
 	return CFrame.new(c[1], c[2], c[3]) * CFrame.Angles(c[4], c[5], c[6])
+end
+
+-- The nation's horse and rider as static parts in the figure frame (campaign board tokens).
+function Soldiers.mountedKit(nation: string): { { part: BasePart, cf: CFrame } }?
+	local kit = Assets.kit("cavalry_" .. nation) or Assets.kit("cavalry_france")
+	if not kit then
+		return nil
+	end
+	local out = {}
+	for _, key in { "body", "neck", "legFL", "legFR", "legBL", "legBR", "rider", "riderHead" } do
+		table.insert(out, { part = piece(kit[key]), cf = at(kit[key]) })
+	end
+	return out
 end
 
 -- The kit figure's shoulders stand this much above the part-built one's: arm and musket poses

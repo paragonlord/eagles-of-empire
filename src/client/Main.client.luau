@@ -60,7 +60,7 @@ local function ensureWorld(mapId: string): boolean
 	end
 	buildToken += 1
 	local token = buildToken
-	Loading.show("Surveying the ground…")
+	Loading.show("Surveying the ground…", mapId)
 	local map = mapCache[mapId]
 	if not map then
 		map = MapGen.generate(mapId)
