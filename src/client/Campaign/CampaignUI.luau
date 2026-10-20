@@ -853,23 +853,26 @@ local function pickerDoc(sg: ScreenGui, reason: string)
 		b.TextWrapped = true
 		local ruler = Assets.rulers[id]
 		if ruler then
-			-- the sovereign's portrait in a gilt frame, the flag under it
+			-- the sovereign's portrait in a gilt frame on the left, the name and flag beside it;
+			-- the button's text moves into its own label so the picture never covers it
+			local label = b.Text
+			b.Text = ""
 			local pic = Instance.new("ImageLabel") :: ImageLabel
-			pic.Size = UDim2.fromOffset(72, 72)
-			pic.Position = UDim2.fromOffset(6, 6)
+			pic.Size = UDim2.fromOffset(78, 78)
+			pic.Position = UDim2.new(0, 9, 0.5, 0)
+			pic.AnchorPoint = Vector2.new(0, 0.5)
 			pic.Image = ruler
 			pic.BackgroundColor3 = Kit.WALNUT
 			pic.BorderSizePixel = 0
 			pic.Parent = b
 			local frame = Instance.new("UIStroke") :: UIStroke
-			frame.Color = Kit.GILT
+			frame.Color = Kit.GILT_DARK
 			frame.Thickness = 2
 			frame.Parent = pic
-			flag(b, id, 30, 20, UDim2.fromOffset(84, 66))
-			local pad = (b:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")) :: UIPadding
-			pad.PaddingLeft = UDim.new(0, 86)
-			pad.PaddingBottom = UDim.new(0, 24)
-			pad.Parent = b
+			local name = Kit.label(b, label, { size = UDim2.new(1, -104, 0, 44), position = UDim2.fromOffset(98, 12), textSize = 16, wrap = true, colour = Kit.INK })
+			name.Font = Enum.Font.Garamond
+			name.TextYAlignment = Enum.TextYAlignment.Top
+			Kit.flag(b, id, Vector2.new(30, 20), UDim2.fromOffset(98, 62))
 		else
 			flag(b, id, 30, 20, UDim2.fromOffset(5, 7)) -- Kit.flag reserves the text padding itself
 		end

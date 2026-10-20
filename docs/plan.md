@@ -109,25 +109,25 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 - [x] Men at the default view (far-slab switch 600/700/850 by quality, budget by piece count)
 
 ## G2: battlefield
-- [ ] Ground MaterialVariants
+- [x] Ground MaterialVariants (seven generated, in the place file; lighter season tints over them)
 - [ ] Lighting regrade
 - [x] Place names off the battle at low camera
-- [ ] Props: retints and new meshes (willow, hedge, wall, fence, cart, reeds, bridges, manor)
-- [ ] Powder smoke banks, muzzle light, shell bursts, burning buildings
+- [~] Props: olive tree tint, full-size cottage; generated hedgerow, willow, stone and trestle bridges, cart (wall and fence generations failed: part-built; no reeds or manor mesh)
+- [x] Powder smoke banks, muzzle light (High), howitzer shell bursts, burning roofs on 'ablaze' moments
 - [ ] Map edge hidden
 
 ## G3: campaign map
-- [ ] Real coasts, lakes and rivers (Natural Earth), provinces clipped to land
-- [ ] 3D Europe terrain with water
-- [ ] Ownership by border ribbons; political overlay toggle
-- [ ] Settlements, forts, ports and token meshes
-- [ ] Labels: contrast and nation names at high zoom
-- [ ] Thuringian parchment map
+- [x] Real coasts, lakes and rivers (Natural Earth), province tint clipped to the shore
+- [x] 3D Europe terrain with water, snow on the high chains
+- [~] Ownership: gilt borders over land and the translucent owner tint (no separate overlay toggle: the tint is always on)
+- [x] Settlements (mesh houses, a town in every province), piers on the real coast, army tokens on the nation's cavalry kit, fleets as a generated ship of the line
+- [x] Labels: dark ink names; nation names across their lands at high zoom
+- [x] Thuringian parchment map
 
 ## G4: menus and UI art
-- [ ] Public-domain battle paintings (menu, loading, results)
-- [ ] Unit card portraits (ViewportFrame)
-- [ ] Ruler portraits in the nation picker
+- [x] Public-domain battle paintings (menu, loading, results)
+- [x] Unit card portraits (ViewportFrame)
+- [x] Ruler portraits in the nation picker
 - [ ] Ornaments: wax, stamp, eagle
 
 ## G5: performance and phones
