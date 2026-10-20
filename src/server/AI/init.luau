@@ -404,7 +404,8 @@ local function plan(state: AIState)
 			end
 		end
 		-- Objectives with a building are outposts its garrison holds (garrisonBuildings): when the
-		-- army has an objective in the open as well, the line stands level with that, behind them.
+		-- army has an objective in the open as well, the line stands level with that, behind them,
+		-- but no more than 150 back (in support, not on a bridge far in the rear).
 		local outpost: { boolean } = {}
 		local mainDepth, mainN = 0, 0
 		for i, p in objs do
@@ -423,7 +424,7 @@ local function plan(state: AIState)
 			for i, p in objs do
 				local ahead = Vec.dot(p, forward) - mainDepth
 				if outpost[i] and ahead > 0 then
-					objs[i] = Vec.sub(p, Vec.scale(forward, ahead))
+					objs[i] = Vec.sub(p, Vec.scale(forward, math.min(ahead, 150)))
 				end
 			end
 		end
@@ -751,8 +752,11 @@ local function garrisonBuildings(state: AIState)
 			end
 		end
 		if wanted and not holder and not enRoute then
+			-- a battalion still marching to its wing will do: it is not engaged
 			local best, bd = nearestOwn(state, sp.pos, function(f)
-				return availableInfantry(state, f) and f.garrison == nil
+				local u = unitOf(state, f.id)
+				local marching = f.class == "infantry" and f.state == "moving" and healthy(f) and f.shape ~= "square" and (u.goal == "reserve" or string.sub(u.goal, 1, 4) == "line")
+				return (availableInfantry(state, f) or marching) and f.garrison == nil
 			end)
 			if best and bd <= 250 and issue(state, "Garrison", { best.id }, { strongpoint = sp.id }) then
 				setGoal(state, best.id, "garrison", "holding " .. sp.name, 600)
