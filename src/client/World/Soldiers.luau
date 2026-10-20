@@ -356,6 +356,14 @@ local KIT_LIFT = 0.42
 -- its middle, so the butt sits at the hip shouldered and in the shoulder levelled.
 local KIT_GRIP = 0.72
 
+-- Seconds between full re-placements of a battalion this far from the camera; 0 = every frame,
+-- with the men milling about in their ranks. Past 150 studs a man is a dozen pixels and past
+-- 500 a few, so moving him 30 or 15 times a second looks the same and costs a half or a
+-- quarter; off screen a few times a second keeps him close to where the camera will find him.
+function Soldiers.refreshInterval(dist: number, onScreen: boolean): number
+	return if not onScreen then 0.25 elseif dist < 150 then 0 elseif dist < 500 then 1 / 30 else 1 / 15
+end
+
 -- Pose for an animated part. swing in radians (anim 6: the flag's sway angle); armed = muskets
 -- levelled. act = "reload" (firing infantry) or "thrust" (infantry in melee), at t in [0, 1) of
 -- each man's own cycle, moves the musket and arms (3, 12, 13).

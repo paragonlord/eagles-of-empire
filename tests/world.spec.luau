@@ -315,6 +315,15 @@ test("Figures: the default camera sees men, not blocks, at every quality; farthe
 	assertTrue(far[1] < far[2] and far[2] < far[3], "higher quality draws men farther")
 end)
 
+test("Figures: men near the camera move every frame, distant ones refresh less often", function()
+	local Soldiers = require(Client.World.Soldiers)
+	assertEq(Soldiers.refreshInterval(100, true), 0, "close up: every frame (and they mill about)")
+	local mid, far = Soldiers.refreshInterval(250, true), Soldiers.refreshInterval(700, true)
+	assertTrue(mid > 0 and mid <= 1 / 30, "mid range: at least 30 a second: " .. mid)
+	assertTrue(far >= mid and far <= 1 / 15, "the default view's distance: at least 15 a second: " .. far)
+	assertTrue(Soldiers.refreshInterval(100, false) > far, "off screen: slower still")
+end)
+
 test("Props: place names on the ground stay off the fighting up close and modest from above", function()
 	local Props = require(Client.World.Props)
 	local k, alpha = Props.groundLabelLook(120)

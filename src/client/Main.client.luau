@@ -583,11 +583,18 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
 	end
 end)
 
+-- Each step is labelled for the MicroProfiler (Ctrl+F6), so a slow frame names its culprit.
+local function step(label: string, fn: (number) -> (), dt: number)
+	debug.profilebegin(label)
+	fn(dt)
+	debug.profileend()
+end
+
 RunService.RenderStepped:Connect(function(dt: number)
-	Figures.update(dt)
-	Effects.update(dt)
-	Audio.update(dt)
-	HUD.update(dt)
+	step("EoE figures", Figures.update, dt)
+	step("EoE effects", Effects.update, dt)
+	step("EoE audio", Audio.update, dt)
+	step("EoE hud", HUD.update, dt)
 	Props.updateLabels(Camera.height())
 	Props.setLabelYaw(Camera.getYaw())
 	pendingClock += dt

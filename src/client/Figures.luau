@@ -88,6 +88,7 @@ type Group = {
 	rz: number,
 	rh: number,
 	dirty: boolean,
+	wait: number, -- seconds until a dirty group may be re-placed (Soldiers.refreshInterval)
 	phase: number,
 	marker: Marker,
 	ring: { BasePart }?,
@@ -815,6 +816,7 @@ local function rebuildBody(g: Group, f: any)
 		buildFar(g, f)
 	end
 	g.dirty = true
+	g.wait = 0 -- new parts are placed at once
 end
 
 local function layoutKeyOf(g: Group, f: any): string
@@ -856,6 +858,7 @@ local function newGroup(id: number, f: any, ghost: boolean): Group
 		rz = f.z,
 		rh = f.heading,
 		dirty = true,
+		wait = 0,
 		phase = 0,
 		marker = nil :: any,
 		ring = nil,
@@ -1393,6 +1396,9 @@ function Figures.update(dt: number)
 	local coop = BattleState.coop()
 	local deploying = BattleState.state == "deployment"
 	local farD = Config.Visual.FarLodDistance[math.clamp(Settings.get().quality, 1, 3)]
+	-- the view, widened by a third each way so a line half in shot counts as in it
+	local view = cam.ViewportSize
+	local mx, my = view.X / 3, view.Y / 3
 
 	for id, g in groups do
 		local f: any = if g.ghost then BattleState.lastKnown[id] else BattleState.formations[id]
@@ -1413,8 +1419,13 @@ function Figures.update(dt: number)
 				end
 			end
 			-- LOD with hysteresis
-			local dist = (camPos - Vector3.new(g.rx, groundY(g.rx, g.rz), g.rz)).Magnitude
+			local centre = Vector3.new(g.rx, groundY(g.rx, g.rz), g.rz)
+			local dist = (camPos - centre).Magnitude
 			g.dist = dist
+			local vp = cam:WorldToViewportPoint(centre)
+			local onScreen = dist < 150 or (vp.Z > 0 and vp.X > -mx and vp.X < view.X + mx and vp.Y > -my and vp.Y < view.Y + my)
+			local every = Soldiers.refreshInterval(dist, onScreen)
+			g.wait = math.min(g.wait - dt, every) -- coming into shot (or closer) cuts the wait short
 			local wantLod = if g.ghost then "far" elseif g.lod == "near" then (if dist > farD * 1.1 then "far" else "near") else (if dist < farD then "near" else "far")
 			if wantLod ~= g.lod then
 				g.lod = wantLod
@@ -1439,15 +1450,16 @@ function Figures.update(dt: number)
 			if action and not g.ghost and g.lod == "near" then
 				g.dirty = true
 			end
-			-- flocking layer: near LOD only, infantry/cavalry, quality 2+
-			if flockOn and not g.ghost and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
+			-- flocking layer: near LOD close to the camera only, infantry/cavalry, quality 2+
+			if flockOn and every == 0 and not g.ghost and g.lod == "near" and (g.class == "infantry" or g.class == "cavalry") then
 				local bound = if f.shape == "line" and not animating then 0.6 else 1.2
 				if stepFlock(g, math.min(dt, 0.05), animating and state ~= "routing", bound, now) then
 					g.dirty = true
 				end
 			end
-			if g.dirty then
+			if g.dirty and g.wait <= 0 then
 				g.dirty = false
+				g.wait = every
 				local baseY = groundY(g.rx, g.rz)
 				local cf = frame(g.rx, baseY, g.rz, g.rh) -- figures stand upright; slots sample their own ground
 				local tilted = groundFrame(g.rx, g.rz, 0, g.rh, f.width, f.depth) -- blocks and rings follow the slope
@@ -1567,6 +1579,7 @@ function Figures.update(dt: number)
 			if wasSelected ~= selected then
 				prevSelected[id] = selected
 				g.dirty = true
+				g.wait = 0
 			end
 			local showStatus = selected or id == hovered
 			local m = g.marker
@@ -1589,13 +1602,17 @@ function Figures.update(dt: number)
 		end
 	end
 	placeBodies(now, moveParts, moveCfs)
+	debug.profilebegin("EoE figures move")
 	if #moveParts > 0 then
 		workspace:BulkMoveTo(moveParts, moveCfs, Enum.BulkMoveMode.FireCFrameChanged)
 	end
+	debug.profileend()
 	labelClock += dt
 	if labelClock >= LABEL_INTERVAL then
 		labelClock = 0
+		debug.profilebegin("EoE figures labels")
 		deconflictLabels(cam)
+		debug.profileend()
 	end
 end
 
