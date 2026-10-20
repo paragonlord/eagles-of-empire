@@ -22,7 +22,7 @@ local CONTROLS = {
 	{ "T J M R", "Fire at will · charge · attack-move · run / walk" },
 	{ "H ⌫ N", "Hold · halt · retreat" },
 	{ "U I P O", "Guns: limber · ammunition · HQ: rally · Occupy a village or farm (then right-click it)" },
-	{ "Esc", "Clear the selection, close panels" },
+	{ "Left click ground", "Clear the selection · an order's key or button again cancels it (Esc is Roblox's own menu)" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
 }
 
@@ -57,7 +57,7 @@ function Help.show()
 		local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 620), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
 		Kit.fit(panel, 720, 620)
 		Kit.title(panel, "How to Command", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
-		Kit.button(panel, "Close (Esc)", Help.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
+		Kit.button(panel, "Close", Help.hide, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 		local scroll = Instance.new("ScrollingFrame") :: ScrollingFrame
 		scroll.Size = UDim2.new(1, 0, 1, -48)
 		scroll.Position = UDim2.new(0, 0, 0, 44)

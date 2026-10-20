@@ -43,7 +43,7 @@ function SettingsPanel.show()
 			cap.Parent = panel
 		end
 		Kit.title(panel, "Settings", { size = UDim2.new(1, 0, 0, 36), textSize = 30 })
-		Kit.button(panel, if touch then "Close" else "Close (Esc)", SettingsPanel.hide, { size = UDim2.fromOffset(110, if touch then 34 else 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
+		Kit.button(panel, "Close", SettingsPanel.hide, { size = UDim2.fromOffset(110, if touch then 34 else 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 		local list = Instance.new("ScrollingFrame") :: ScrollingFrame
 		list.Size = UDim2.new(1, 0, 1, -48)
 		list.Position = UDim2.new(0, 0, 0, 44)

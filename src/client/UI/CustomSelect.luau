@@ -66,7 +66,7 @@ render = function(cb: Callbacks)
 	local panel = Kit.panel(sg, { size = UDim2.fromOffset(720, 640), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 20 })
 	Kit.fit(panel, 720, 640)
 	Kit.title(panel, "Custom battle", { size = UDim2.new(1, -130, 0, 34), textSize = 28, spaced = true, colour = Kit.GILT, rule = true })
-	Kit.button(panel, "Back (Esc)", cb.back, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
+	Kit.button(panel, "Back", cb.back, { size = UDim2.fromOffset(110, 28), position = UDim2.new(1, 0, 0, 0), anchor = Vector2.new(1, 0) })
 	local function nationName(id: any): string
 		return EuropeData.Nations[id].adjective
 	end
