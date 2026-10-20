@@ -28,7 +28,7 @@ Resume from here; do not recap. Updated 2026-10-20.
   blockades); either side in the listed battles,
   custom battles, kills and an In history section in the results, loading tips, visible round
   shot, reload and bayonet animations.
-- Studio QA log: `docs/qa.md` (rounds 1–37). Balance table: `docs/balance.md`.
+- Studio QA log: `docs/qa.md` (rounds 1–38). Balance table: `docs/balance.md`.
 
 ## Workflow
 
@@ -81,9 +81,9 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 
 ## Open items
 
-0. Studio checklist from QA round 37 (rendering stopped during the scripted round): the picker's
-   tab row and Command toggle, the custom battle screen, round shot in flight, reload and
-   bayonet animations, the results' Kills column and In history section.
+0. Studio checklist, what is left after QA round 38: the reload and bayonet beats in motion (stills
+   cannot show them), and whether the round-shot trail is bold enough from the normal camera
+   height (`docs/shots/r38-round-shot.jpg`; one line in `src/client/Effects.luau`).
 
 1. Two-player Studio test (Test → Clients and Servers → 2 Players, by hand): co-op wings, pause
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.

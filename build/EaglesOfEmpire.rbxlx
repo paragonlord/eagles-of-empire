@@ -7844,6 +7844,7 @@ local Formation = require(script.Parent.Sim.Formation)
 local Combat = require(script.Parent.Sim.Combat)
 local Nav = require(script.Parent.Sim.Nav)
 local Abilities = require(script.Parent.Sim.Abilities)
+local Objectives = require(script.Parent.Sim.Objectives)
 
 type Vec = Vec.Vec
 type Formation = Formation.Formation
@@ -8058,6 +8059,13 @@ end
 
 -- Army plan ----------------------------------------------------------------------------------------
 
+-- An objective we hold, or a neutral one on our side of the field (defend walks onto it anyway).
+local function onOurSide(state: AIState, o: any): boolean
+	local sim = state.sim
+	local p = o.def.pos
+	return o.owner == state.faction or (o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, sim:homeEdge(state.faction)) < Vec.dist(p, sim:homeEdge(state.enemy))))
+end
+
 local function desiredPosture(state: AIState): string
 	local sim = state.sim
 	local ownStr, broken, total, seen = 0, 0, 0, 0
@@ -8072,35 +8080,32 @@ local function desiredPosture(state: AIState): string
 	for _, k in state.known do
 		seen += k.strength
 	end
-	local deployed = sim.deployed[state.faction] or 1
-	if total == 0 or broken >= total * 0.5 or ownStr < deployed * 0.45 then
+	if total == 0 or broken >= total * 0.5 or ownStr < Objectives.fieldDeployed(sim :: any, state.faction) * 0.45 then
 		return "withdraw"
+	end
+	-- The battle's roles (Scenario.attacker): the defender holds its ground, whatever part of the
+	-- attacker's army it sees; the attacker keeps coming while the enemy holds any objective.
+	local attacker = (sim.scenario :: any).attacker
+	if attacker == state.enemy then
+		return "defend"
 	end
 	if seen >= ownStr * 0.4 and ownStr > seen * 1.5 then
 		return "attack"
 	end
 	-- Holding no more objectives than the enemy loses (or draws) on the clock: go and take one.
 	-- Neutral objectives on our side of the field count as ours (defend walks onto them anyway).
-	local home, enemyHome = sim:homeEdge(state.faction), sim:homeEdge(state.enemy)
 	local mineN, theirs = 0, 0
 	for _, o in sim.objectives do
-		local p = o.def.pos
-		local ours = o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, home) < Vec.dist(p, enemyHome))
-		if o.owner == state.faction or ours then
+		if onOurSide(state, o) then
 			mineN += 1
 		else
 			theirs += 1
 		end
 	end
-	-- The battle's roles (Scenario.attacker): the attacker keeps coming while the enemy holds any
-	-- objective; the defender holds its ground (and counter-attacks only when it is overwhelming).
-	local attacker = (sim.scenario :: any).attacker
 	if attacker == state.faction and theirs > 0 then
 		return "advance"
-	elseif attacker == state.enemy then
-		return "defend"
 	end
-	local deployedEnemy = sim.deployed[state.enemy] or 0
+	local deployed, deployedEnemy = sim.deployed[state.faction] or 1, sim.deployed[state.enemy] or 0
 	if theirs > 0 and (mineN < theirs or (mineN == theirs and deployed >= deployedEnemy)) then
 		return "advance"
 	end
@@ -8196,10 +8201,8 @@ local function plan(state: AIState)
 	else
 		local objs: { Vec } = {}
 		for _, o in sim.objectives do
-			local p = o.def.pos
-			local ours = o.owner == nil and (MapGen.inZone((sim :: any).map, state.faction, p) or Vec.dist(p, home) < Vec.dist(p, enemyHome))
-			if o.owner == state.faction or ours then
-				objs[#objs + 1] = Vec.add(p, Vec.scale(forward, 25))
+			if onOurSide(state, o) then
+				objs[#objs + 1] = Vec.add(o.def.pos, Vec.scale(forward, 25))
 			end
 		end
 		-- A concentrated attack on one objective pulls the unthreatened wings halfway toward it.
@@ -8223,6 +8226,31 @@ local function plan(state: AIState)
 				end
 			end
 		end
+		-- Objectives with a building are outposts its garrison holds (garrisonBuildings): when the
+		-- army has an objective in the open as well, the line stands level with that, behind them,
+		-- but no more than 150 back (in support, not on a bridge far in the rear).
+		local outpost: { boolean } = {}
+		local mainDepth, mainN = 0, 0
+		for i, p in objs do
+			for _, sp in sim.strongpoints do
+				if Vec.dist(sp.pos, Vec.sub(p, Vec.scale(forward, 25))) < 90 then
+					outpost[i] = true
+				end
+			end
+			if not outpost[i] then
+				mainDepth, mainN = mainDepth + Vec.dot(p, forward), mainN + 1
+			end
+		end
+		local spaced = mainN > 0 and mainN < #objs
+		if spaced then
+			mainDepth /= mainN
+			for i, p in objs do
+				local ahead = Vec.dot(p, forward) - mainDepth
+				if outpost[i] and ahead > 0 then
+					objs[i] = Vec.sub(p, Vec.scale(forward, math.min(ahead, 150)))
+				end
+			end
+		end
 		table.sort(objs, function(a, b)
 			return lateral(state, a) < lateral(state, b)
 		end)
@@ -8234,6 +8262,17 @@ local function plan(state: AIState)
 		else
 			local centre = objs[1] or base
 			wing.centre, wing.left, wing.right = centre, Vec.sub(centre, Vec.scale(state.right, 140)), Vec.add(centre, Vec.scale(state.right, 140))
+		end
+		if spaced then
+			-- a line drawn back from its outposts keeps a frontage: wings at least 200 apart
+			local gap = lateral(state, wing.centre) - lateral(state, wing.left)
+			if gap < 200 then
+				wing.left = Vec.sub(wing.left, Vec.scale(state.right, 200 - gap))
+			end
+			gap = lateral(state, wing.right) - lateral(state, wing.centre)
+			if gap < 200 then
+				wing.right = Vec.add(wing.right, Vec.scale(state.right, 200 - gap))
+			end
 		end
 	end
 	local lineInf = 0
@@ -8516,7 +8555,7 @@ local function garrisonBuildings(state: AIState)
 	for _, sp in sim.strongpoints do
 		local wanted = false
 		for _, o in sim.objectives do
-			if o.owner == state.faction and Vec.dist(o.def.pos, sp.pos) < 90 then
+			if (o.owner == state.faction or (state.posture == "defend" and onOurSide(state, o))) and Vec.dist(o.def.pos, sp.pos) < 90 then
 				wanted = true
 			end
 		end
@@ -8536,8 +8575,11 @@ local function garrisonBuildings(state: AIState)
 			end
 		end
 		if wanted and not holder and not enRoute then
+			-- a battalion still marching to its wing will do: it is not engaged
 			local best, bd = nearestOwn(state, sp.pos, function(f)
-				return availableInfantry(state, f) and f.garrison == nil
+				local u = unitOf(state, f.id)
+				local marching = f.class == "infantry" and f.state == "moving" and healthy(f) and f.shape ~= "square" and (u.goal == "reserve" or string.sub(u.goal, 1, 4) == "line")
+				return (availableInfantry(state, f) or marching) and f.garrison == nil
 			end)
 			if best and bd <= 250 and issue(state, "Garrison", { best.id }, { strongpoint = sp.id }) then
 				setGoal(state, best.id, "garrison", "holding " .. sp.name, 600)
@@ -11801,6 +11843,7 @@ local State = require(script.Parent.State)
 local Movement = require(script.Parent.Movement)
 local Diplomacy = require(script.Parent.Diplomacy)
 local Economy = require(script.Parent.Economy)
+local Navy = require(script.Parent.Navy)
 
 type State = State.State
 type Army = State.Army
@@ -12103,6 +12146,61 @@ local function recruit(s: State, nation: string)
 	end
 end
 
+-- The Royal Navy after Trafalgar: fleets not lying at home for the ferries (England, Ireland)
+-- sail on the nearest enemy port within a turn that they outgun 1.5 : 1, fight what is there and
+-- blockade it. Before Trafalgar the fleets keep station; other navies stay in port.
+local NAVY_HOME = { england = true, ireland = true }
+local function fleetPower(s: State, provinceId: string, side: string): number
+	local p = 0
+	for _, f in s.fleets do
+		if f.provinceId == provinceId and State.friendly(s, side, f.nation) then
+			p += (f.line * EuropeData.ShipClasses.line.power + f.frigates * EuropeData.ShipClasses.frigate.power) * (Navy.QUALITY[f.nation] or 1)
+		end
+	end
+	return p
+end
+local function navy(s: State, nation: string)
+	if nation ~= "britain" or not s.flags.navalSupremacy or #State.enemiesOf(s, nation) == 0 then
+		return
+	end
+	for _, f in s.fleets do
+		if f.nation == nation and f.movesLeft > 0 and not NAVY_HOME[f.provinceId] and not State.atWar(s, nation, State.controller(s, f.provinceId)) then
+			local mine = (f.line * EuropeData.ShipClasses.line.power + f.frigates * EuropeData.ShipClasses.frigate.power) * (Navy.QUALITY[nation] or 1)
+			-- breadth-first over the fleet lanes, nearest first, ports in lane order
+			local parent: { [string]: string } = {}
+			local dist: { [string]: number } = { [f.provinceId] = 0 }
+			local queue = { f.provinceId }
+			local head = 1
+			local target: string? = nil
+			while head <= #queue and not target do
+				local id = queue[head]
+				head += 1
+				for _, l in EuropeData.FleetLanes do
+					local n = if l[1] == id then l[2] elseif l[2] == id then l[1] else nil
+					if n and dist[n] == nil and dist[id] < f.movesLeft then
+						dist[n] = dist[id] + 1
+						parent[n] = id
+						table.insert(queue, n)
+						local c = State.controller(s, n)
+						if not target and State.atWar(s, nation, c) and mine >= 1.5 * fleetPower(s, n, c) then
+							target = n
+						end
+					end
+				end
+			end
+			if target then
+				local path: { string } = {}
+				local at = target :: string
+				while at ~= f.provinceId do
+					table.insert(path, 1, at)
+					at = parent[at]
+				end
+				Navy.move(s, nation, f.id, path)
+			end
+		end
+	end
+end
+
 function AI.turn(s: State, nation: string, autoplay: boolean?)
 	if not State.alive(s, nation) then
 		return
@@ -12182,6 +12280,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 	recruit(s, nation)
 	build(s, nation)
 	chooseResearch(s, nation)
+	navy(s, nation)
 end
 
 return AI
@@ -18580,6 +18679,15 @@ function Combat.pickFireTarget(sim: SimLike, f: Formation): Formation?
 	return best
 end
 
+-- The side of `target` an attack from `from` strikes. A square, or men holding a building, face
+-- every way: fire, charges and melee on them are all frontal (and so is the morale shock).
+function Combat.sideOf(target: Formation, from: Vec): string
+	if target.shape == "square" or target.shape == "garrison" then
+		return "front"
+	end
+	return Vec.attackSide(target.pos, target.heading, from)
+end
+
 local function uphill(sim: SimLike, a: Vec, b: Vec): boolean
 	return Grid.heightAt(sim.grid, a.x, a.z) > Grid.heightAt(sim.grid, b.x, b.z) + 3
 end
@@ -18607,7 +18715,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 		end
 	end
 	cover = math.min(0.9, cover)
-	local side = Vec.attackSide(target.pos, target.heading, f.pos)
+	local side = Combat.sideOf(target, f.pos)
 	local sideF = if side == "front" then 1 elseif side == "flank" then C.FlankFireFactor else C.RearFireFactor
 	local hit = musket.accuracy * rangeF * (1 - cover) * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
 	hit *= (C.TargetShapeFactor :: any)[target.shape] or 1
@@ -18649,7 +18757,7 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	f.ammo -= 1
 	f.lastShotTick = sim.tick
 	f.state = if f.state == "idle" then "firing" else f.state
-	local side = Vec.attackSide(target.pos, target.heading, f.pos)
+	local side = Combat.sideOf(target, f.pos)
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = ammo.morale, kind = "cannon" }
 	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = if gun.indirect and mode == "roundShot" then "shell" else mode })
 	if ammo.splash then
@@ -18660,7 +18768,7 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 				local d = Vec.dist(o.pos, target.pos) - o.halfRadius * 0.5
 				if d < ammo.splash then
 					local n = rollCasualties(sim, expected / shapeF * 0.5 * (1 - math.max(0, d) / ammo.splash) * (Config.Shapes :: any)[o.shape].artillery)
-					attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+					attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Combat.sideOf(o, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
 				end
 			end
 		end
@@ -18686,7 +18794,7 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 		for i = 1, math.min(R.maxHits, #inLane) do
 			local o, t = inLane[i].o, inLane[i].t
 			local n = rollCasualties(sim, strike * R.factor * (1 - 0.5 * t) * (Config.Shapes :: any)[o.shape].artillery)
-			attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+			attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Combat.sideOf(o, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
 		end
 	end
 end
@@ -18701,11 +18809,8 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	local unitA = Formation.unitConfig(att)
 	local unitD = Formation.unitConfig(def)
 	local shapeA = (Config.Shapes :: any)[att.shape]
-	local side = Vec.attackSide(def.pos, def.heading, att.pos)
+	local side = Combat.sideOf(def, att.pos)
 	local dirF = (C.MeleeDirFactor :: any)[side]
-	if def.shape == "square" then
-		dirF = 1 -- a square has no flank
-	end
 	local rate = att.strength * C.MeleeRatePerSecond * unitA.melee.attack * shapeA.melee * dirF
 	rate *= Formation.fatigueFactor(att, C.FatigueMeleePenalty) * (1 + C.ExperienceMelee * att.experience) * att.mods.melee
 	if att.timers.bayonet > 0 then
@@ -18746,14 +18851,11 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 	if Formation.mounted(att) then
 		local ch = unit.charge
 		local runUpF = math.clamp(att.runUp / ch.runUp, C.MinRunUpFactor, 1)
-		local side = Vec.attackSide(def.pos, def.heading, att.pos)
+		local side = Combat.sideOf(def, att.pos)
 		local dirF = if side == "front" then ch.frontFactor elseif side == "flank" then ch.flankFactor else ch.rearFactor
 		local shapeF = (C.ChargeShapeFactor :: any)[def.shape] or 1
 		if def.state == "reforming" then
 			shapeF *= 1.5
-		end
-		if def.shape == "square" then
-			dirF = 1
 		end
 		if def.state == "routing" then
 			shapeF *= C.ChargeRoutingFactor * (unit.pursuit or 1) -- light cavalry rides down fugitives
@@ -18772,7 +18874,7 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 		sim.emit(sim, { kind = "charge", tick = sim.tick, id = att.id, targetId = def.id, faction = att.faction, x = att.pos.x, z = att.pos.z, tx = def.pos.x, tz = def.pos.z, n = casualties, text = if def.shape == "square" then "square" else side })
 	else
 		-- bayonet assault
-		local side = Vec.attackSide(def.pos, def.heading, att.pos)
+		local side = Combat.sideOf(def, att.pos)
 		local shock = if side == "front" then C.BayonetMoraleShock.front else C.BayonetMoraleShock.flank
 		att.timers.bayonet = C.BayonetBonusSeconds
 		attacks[#attacks + 1] = { attackerId = att.id, targetId = def.id, casualties = 0, side = side, moraleExtra = shock, kind = "charge" }
@@ -20189,7 +20291,7 @@ local function arrive(sim: SimLike, f: Formation)
 end
 
 -- Advance along the path by one tick.
-local function followPath(sim: SimLike, f: Formation, speedScale: number)
+local function followPath(sim: SimLike, f: Formation, speedScale: number, crowded: boolean?)
 	local path = f.path
 	if not path then
 		return
@@ -20243,7 +20345,11 @@ local function followPath(sim: SimLike, f: Formation, speedScale: number)
 		f.timers.stuck += DT
 		if f.timers.stuck > Config.Match.StuckSeconds then
 			local dest = orderDestination(sim, f)
-			if not dest or not Movement.plan(sim, f, dest) then
+			local o = f.order
+			if crowded and dest and o and (o.kind == "Move" or o.kind == "AttackMove") and Vec.dist(f.pos, dest) < f.halfRadius * 4 then
+				-- the spot is taken by friends: halt beside it
+				arrive(sim, f)
+			elseif not dest or not Movement.plan(sim, f, dest) then
 				sim.emit(sim, { kind = "message", tick = sim.tick, id = f.id, faction = f.faction, text = f.name .. ": route blocked" })
 				Formation.clearOrder(f)
 			end
@@ -20285,14 +20391,19 @@ local function updateTravelShape(sim: SimLike, f: Formation)
 	end
 end
 
--- Separation between friendly footprints; the lower id has priority at choke points.
-local function avoid(sim: SimLike, f: Formation): number
-	local scale = 1
+-- Separation between friendly footprints; the lower id has priority at choke points. On the march
+-- idle friends are passed through, as through the intervals of a line (pushed back by them all
+-- the way, a battalion never got past an army's idle reserve); near the end of the march they
+-- push, so arrivals spread out beside them (`crowded`: pushed by one this tick).
+local function avoid(sim: SimLike, f: Formation): (number, boolean)
+	local scale, crowded = 1, false
+	local path = f.path
+	local dest = path and path[#path]
 	for _, otherId in sim.order do
 		if otherId ~= f.id then
 			local o = sim.formations[otherId]
-			if o and o.faction == f.faction and Formation.isActive(o) and o.state ~= "melee" and f.state ~= "melee" then
-				local minDist = f.halfRadius + o.halfRadius
+			local minDist = if o then f.halfRadius + o.halfRadius else 0
+			if o and o.faction == f.faction and Formation.isActive(o) and o.state ~= "melee" and f.state ~= "melee" and (o.state ~= "idle" or (dest ~= nil and Vec.dist(f.pos, dest) < minDist * 2)) then
 				local d2 = Vec.dist2(f.pos, o.pos)
 				if d2 < minDist * minDist and d2 > 0.01 then
 					local d = math.sqrt(d2)
@@ -20302,6 +20413,7 @@ local function avoid(sim: SimLike, f: Formation): number
 						if o.state == "moving" and o.id < f.id and Grid.clearanceAt(sim.grid, f.pos.x, f.pos.z) < 24 then
 							scale = 0.5 -- yield at the choke point
 						end
+						crowded = crowded or o.state == "idle"
 						local np = Vec.add(f.pos, Vec.scale(dir, math.min(push, 2) * DT * 10))
 						if Nav.isWalkable(sim.nav, np) then
 							f.pos = np
@@ -20311,7 +20423,7 @@ local function avoid(sim: SimLike, f: Formation): number
 			end
 		end
 	end
-	return scale
+	return scale, crowded
 end
 
 local function routeToHome(sim: SimLike, f: Formation)
@@ -20420,8 +20532,8 @@ function Movement.update(sim: SimLike, f: Formation)
 			end
 		end
 		updateTravelShape(sim, f)
-		local scale = avoid(sim, f)
-		followPath(sim, f, scale)
+		local scale, crowded = avoid(sim, f)
+		followPath(sim, f, scale, crowded)
 	end
 end
 
@@ -20883,10 +20995,12 @@ function Objectives.view(sim: SimLike): { Types.ObjectiveView }
 end
 
 local function sideStats(sim: SimLike, faction: string)
-	local total, broken, strength = 0, 0, 0
+	local total, broken, strength, waiting = 0, 0, 0, 0
 	for _, id in sim.order do
 		local f = sim.formations[id]
-		if f and f.faction == faction and f.state ~= "offmap" then
+		if f and f.faction == faction and f.state == "offmap" then
+			waiting += f.strength
+		elseif f and f.faction == faction then
 			total += 1
 			if f.state == "routing" or f.state == "rallying" or f.shattered or not Formation.isActive(f) then
 				broken += 1
@@ -20896,9 +21010,16 @@ local function sideStats(sim: SimLike, faction: string)
 			end
 		end
 	end
-	return total, broken, strength
+	return total, broken, strength, waiting
 end
 
+-- Strength a side has brought onto the field: deployed less reinforcements still off the map.
+function Objectives.fieldDeployed(sim: SimLike, faction: string): number
+	local _, _, _, waiting = sideStats(sim, faction)
+	return (sim.deployed[faction] or 1) - waiting
+end
+
+-- Reinforcements still off the map count toward neither test.
 function Objectives.collapsed(sim: SimLike, faction: string): boolean
 	local total, broken, strength = sideStats(sim, faction)
 	if total == 0 then
@@ -20907,8 +21028,7 @@ function Objectives.collapsed(sim: SimLike, faction: string): boolean
 	if broken / total >= Config.Victory.CollapseFraction then
 		return true
 	end
-	local deployed = sim.deployed[faction] or 1
-	return strength < deployed * Config.Victory.CollapseStrengthFraction
+	return strength < Objectives.fieldDeployed(sim, faction) * Config.Victory.CollapseStrengthFraction
 end
 
 function Objectives.heldAll(sim: SimLike, faction: string): boolean
@@ -22743,6 +22863,11 @@ local function render()
 	local fleet = fleetById(selFleet)
 	if not fleet then
 		selFleet = nil
+	end
+	-- the province panel follows a selected army, spy or fleet when it moves
+	local token = a or spy or fleet
+	if token then
+		selProv = token.provinceId
 	end
 	UI.render({ view = view, player = player(), sessionOnly = sessionOnly, army = a, spy = spy, fleet = fleet, province = selProv, others = others, canAct = ok, actReason = why })
 	Board.setSelection(selArmy or selSpy or selFleet, selProv, if own and ok then Logic.reachable(view, a) else nil)

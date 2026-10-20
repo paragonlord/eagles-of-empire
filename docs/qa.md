@@ -944,6 +944,32 @@ remotes and the client's GUI tree instead of screenshots.
   grazes, firing lines loading and levelling on their own beats and bayonet thrusts in melee, the
   results' Kills column, "Most enemy casualties" and the In history section.
 
+**2026-10-20 round 38 (whole-game balance pass; round 37's checklist by eye), Studio MCP.** No
+EoE errors. Studio rendered again; synced 6 scripts and played by mouse and keyboard.
+- Pass: the loading screen shows a tip; a map takes ~36 s to build (7,551 parts), so "Raising the
+  hills…" at 30 % is the build in progress, not a hang (last round's stall was the display asleep).
+- Pass: the picker's tab row reads Quick · Full · Custom battle · "Command: history's army"; a
+  click flips it to "Command: the other army" with its tooltip (`r38-picker-command.jpg`).
+- Pass: the custom battle screen (nation, enemy, eight fields, three budgets, the unit list)
+  counts "Spent 2950 of 8000 gold · 8 of 20 regiments"; Fight opens the custom briefing and the
+  battle starts with the army bought (`r38-custom-battle.jpg`).
+- Pass: lines of figures in two ranks, flags and mounted officers read well up close; a firing
+  line stands in its own smoke and "3e de Ligne is blooded: experience 2" appears
+  (`r38-line-firing.jpg`); the 1er de Ligne in melee in Closewitz stands round the houses
+  (`r38-melee-closewitz.jpg`). Follow camera (V) and Ctrl+A work. The reload and thrust beats
+  cannot be judged from stills.
+- Pass, faint: the round-shot effect, fired by script at the view's centre, draws the iron ball
+  and its grey grazing trail (`r38-round-shot.jpg`); from the normal camera height the ball is a
+  few pixels and the trail a thin line. A thicker trail is a one-line change in `Effects.luau`
+  if Bartosz wants it bolder.
+- Pass: the results' order of battle has the Kills column, and the kills add up to the enemy's
+  casualties (620); "Most enemy casualties: 3e de Ligne, 464" (`r38-results-kills.jpg`). After a
+  listed episode (Landgrafenberg) the In history section gives the summary and "History went
+  otherwise: France carried the day." (`r38-in-history.jpg`).
+- Seen: a player battery ordered across a hedge stopped short once ("Holding · Limbered");
+  re-ordered, it went. Not reproduced.
+- Not checked by eye: Waterloo after the balance pass (covered by `tools/balance.py`).
+
 ## Known failures
 
 None recorded yet.
