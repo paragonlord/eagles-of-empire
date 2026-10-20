@@ -1,14 +1,14 @@
 # Handoff / checkpoint
 
-Resume from here; do not recap. Updated 2026-10-19.
+Resume from here; do not recap. Updated 2026-10-20.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 95 files, 217 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 95 files, 221 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
-- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–11 done; next:
-  the whole-game balance and AI pass, then the open items below).
+- Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–11 and the
+  whole-game balance and AI pass done; next: the open items below).
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
@@ -24,7 +24,8 @@ Resume from here; do not recap. Updated 2026-10-19.
   refill and winter attrition, a research tree, national rosters, a battle map per province,
   reinforcing armies, forced march, general careers and appointments, siege assaults, trade
   agreements, military access, gifts, spies, a navy (fleets, escorts, naval battles, blockades,
-  shipbuilding; Trafalgar sinks the Franco-Spanish fleets); either side in the listed battles,
+  shipbuilding; Trafalgar sinks the Franco-Spanish fleets, after which the Royal Navy AI
+  blockades); either side in the listed battles,
   custom battles, kills and an In history section in the results, loading tips, visible round
   shot, reload and bayonet animations.
 - Studio QA log: `docs/qa.md` (rounds 1–37). Balance table: `docs/balance.md`.
@@ -88,9 +89,9 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.
 2. Sound check once ids land: Settings → debug audio, every event fires, volleys from many
    battalions do not stack into a wall.
-3. Balance: 13–14 flags remain in `docs/balance.md` (Waterloo still falls to France, Auerstedt
-   and Hassenhausen lean Prussian, Spielberg draws, La Haye Sainte flips). Deferred to the
-   whole-game pass after Phase 11.
+3. Balance: 15 flags in `docs/balance.md`, 4 against history (Auerstedt goes to Prussia against
+   an AI Davout; Waterloo normal/hard lean French, the allies win ~40 % overall). Next lever:
+   the defending line meeting attacks in its flank (see the whole-game pass notes).
 4. Real phone: pinch/twist direction and pan speed knobs in `src/client/Camera.luau`.
 5. A human playthrough of the grand campaign to a peace.
 6. Willow, hedge, wall, fence, cart and reed meshes have no slots yet; add when assets exist.
