@@ -203,6 +203,7 @@ function Results.show(results: any, cb: Callbacks)
 	local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 	cap.MaxSize = Vector2.new(760, 640)
 	cap.Parent = panel
+	Kit.fit(panel, 760, 640)
 	local names = if BattleState.scenario and BattleState.scenario.factionNames then BattleState.scenario.factionNames else {}
 	local sides = results.sides or {}
 	local own, enemy = sides[BattleState.viewerFaction], sides[BattleState.enemyFaction]

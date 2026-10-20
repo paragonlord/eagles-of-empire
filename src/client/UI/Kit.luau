@@ -177,6 +177,27 @@ function Kit.touch(): boolean
 	return Settings.touch()
 end
 
+-- Keeps a centred panel designed w x h on its screen (Touch.fitPanel): scaled down to the
+-- screen's width and cut to its height, so on a phone the panel's scrolling body absorbs the
+-- height it loses instead of the header and buttons running off the edge.
+function Kit.fit(panel: GuiObject, w: number, h: number)
+	local sg = panel:FindFirstAncestorOfClass("ScreenGui") :: ScreenGui?
+	if not sg then
+		return
+	end
+	local u = Instance.new("UIScale") :: UIScale
+	u.Parent = panel
+	local function refit()
+		local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale?
+		local size = sg.AbsoluteSize / (if ui then ui.Scale else 1)
+		local k, fh = Touch.fitPanel(size.X, size.Y, w, h)
+		u.Scale = k
+		panel.Size = UDim2.fromOffset(w, math.floor(fh))
+	end
+	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	refit()
+end
+
 local screens: { ScreenGui } = {}
 local function rescale()
 	local s = Kit.scale()

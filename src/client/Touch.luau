@@ -47,4 +47,20 @@ function Touch.scale(viewportX: number, viewportY: number, touch: boolean): numb
 	return if math.min(viewportX, viewportY) < 600 then 1.5 else 1.15
 end
 
+-- A centred panel designed w x h on a screen availW x availH units (pixels over the UI scale),
+-- 8 units clear of each edge: the scale that fits its width, and the height (design units) to
+-- give it so it fits too; its scrolling body takes up the difference.
+function Touch.fitPanel(availW: number, availH: number, w: number, h: number): (number, number)
+	local k = math.min(1, (availW - 16) / w)
+	return k, math.min(h, (availH - 16) / k)
+end
+
+-- A column laid out for `full` units of height (or `compact` without its header) on a screen
+-- `height` units tall (pixels over the UI scale): compact when the full one does not fit, and
+-- the scale that fits whichever is shown.
+function Touch.fitColumn(height: number, full: number, compact: number): (boolean, number)
+	local small = height < full
+	return small, math.min(1, height / (if small then compact else full))
+end
+
 return Touch

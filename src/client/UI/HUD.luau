@@ -24,10 +24,13 @@ export type Callbacks = { settings: () -> (), help: () -> (), menu: () -> () }
 local EDGE = 8
 local CMD_W = 256
 local BOTTOM_H = CardBar.HEIGHT
--- Touch layout (docs/mobile-contract.md): the command panel, Settings / Menu / Select all and
--- the general's ability stack bottom-right; the minimap sits top-left under the bar; no inspector.
+-- Touch layout (docs/mobile-contract.md): Select all / Orders / Settings / Menu along the
+-- bottom-right corner with the general's ability above them; the command panel opens over the
+-- ability from Orders (a phone's landscape screen is ~500 x 250 units at the touch scale, so it
+-- starts closed: holding a unit opens the order wheel); the minimap sits top-left under the
+-- bar; no inspector.
 local touch = false
-local MINI_W = 110
+local MINI_W = 90
 local TOUCH_CELL_H = 34
 local CMD_ROWS = 4 -- COMMANDS, four to a row
 local TOUCH_CMD_H = CMD_ROWS * TOUCH_CELL_H + (CMD_ROWS - 1) * 3 + 18
@@ -115,7 +118,7 @@ local function buildTopBar(sg: ScreenGui)
 		line.Parent = bar
 	end
 	local sc = BattleState.scenario
-	local name = Kit.title(bar, if sc then sc.name else "", { size = if touch then UDim2.new(0, 150, 1, 0) else UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
+	local name = Kit.title(bar, if sc then sc.name else "", { size = if touch then UDim2.new(0, 110, 1, 0) else UDim2.new(0.5, -230, 1, 0), position = UDim2.new(0, 12, 0, 0), textSize = 20 })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
 
 	-- centre: clock / limit, pause, speeds, weather
@@ -206,12 +209,14 @@ local function buildTopBar(sg: ScreenGui)
 
 	local strip = Instance.new("Frame") :: Frame
 	strip.Size = UDim2.new(0, 640, 0, 24)
-	strip.Position = UDim2.new(0.5, 0, 0, 60)
-	strip.AnchorPoint = Vector2.new(0.5, 0)
+	strip.Position = if touch then UDim2.new(1, -EDGE, 0, 42) else UDim2.new(0.5, 0, 0, 60)
+	strip.AnchorPoint = if touch then Vector2.new(1, 0) else Vector2.new(0.5, 0)
 	strip.BackgroundTransparency = 1
 	strip.Parent = sg
 	local sl = Kit.list(strip, 6, true)
-	sl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	sl.HorizontalAlignment = if touch then Enum.HorizontalAlignment.Right else Enum.HorizontalAlignment.Center
+	-- touch: the balance bar's numbers live in a hover tip, and its row now holds the objectives
+	bal.Visible = not touch
 	objectiveStrip = strip
 end
 
@@ -262,7 +267,7 @@ local function updateObjectives()
 	for i, o in BattleState.objectives do
 		local chip = objectiveChips[o.id]
 		if not chip then
-			local f = Kit.panel(strip, { size = UDim2.fromOffset(124, 24), position = UDim2.new(), transparency = 0.12, plain = true })
+			local f = Kit.panel(strip, { size = UDim2.fromOffset(if touch then 96 else 124, 24), position = UDim2.new(), transparency = 0.12, plain = true })
 			f.LayoutOrder = i
 			local pennant = Instance.new("Frame") :: Frame
 			pennant.Size = UDim2.new(0, 7, 1, 0)
@@ -329,8 +334,8 @@ end
 
 local function buildTicker(sg: ScreenGui)
 	local f = Instance.new("Frame") :: Frame
-	f.Size = UDim2.fromOffset(if touch then 300 else 440, 96)
-	f.Position = UDim2.new(0, tickerX(), 0, 44)
+	f.Size = UDim2.fromOffset(if touch then 300 else 440, if touch then 40 else 96)
+	f.Position = UDim2.new(0, tickerX(), 0, if touch then 72 else 44)
 	f.BackgroundTransparency = 1
 	f.Parent = sg
 	Kit.list(f, 3)
@@ -723,7 +728,7 @@ end
 
 local function buildCommandPanel(sg: ScreenGui)
 	local p = if touch
-		then Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, TOUCH_CMD_H), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.1, padding = 9 })
+		then Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, TOUCH_CMD_H), position = UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4), anchor = Vector2.new(1, 1), transparency = 0.1, padding = 9 })
 		else Kit.panel(sg, { size = UDim2.fromOffset(CMD_W, BOTTOM_H), position = UDim2.new(0, EDGE, 1, -EDGE), anchor = Vector2.new(0, 1), transparency = 0.1, padding = 9 })
 	local grid = Instance.new("Frame") :: Frame
 	grid.Size = UDim2.fromScale(1, 1)
@@ -762,10 +767,12 @@ local function buildCommandPanel(sg: ScreenGui)
 	toast.TextStrokeColor3 = Kit.INK
 	toast.Visible = false
 	if touch then
-		-- the row above the command panel: Select all / Settings / Menu (Help is keyboard talk)
+		p.Visible = false
+		p.ZIndex = 5 -- open, it covers the ability button
+		-- the corner row: Select all / Orders / Settings / Menu (Help is keyboard talk)
 		local row = Instance.new("Frame") :: Frame
 		row.Size = UDim2.fromOffset(CMD_W, TOUCH_ROW_H)
-		row.Position = UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_CMD_H - 4)
+		row.Position = UDim2.new(1, -EDGE, 1, -EDGE)
 		row.AnchorPoint = Vector2.new(1, 1)
 		row.BackgroundTransparency = 1
 		row.Parent = sg
@@ -778,17 +785,22 @@ local function buildCommandPanel(sg: ScreenGui)
 				end
 			end
 			Selection.set(ids)
-		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 1, textSize = 13 })
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 1, textSize = 13 })
+		local orders: TextButton
+		orders = Kit.button(row, "Orders", function()
+			p.Visible = not p.Visible
+			Kit.setActiveLook(orders, p.Visible)
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 2, textSize = 13 })
 		Kit.button(row, "Settings", function()
 			if cb then
 				cb.settings()
 			end
-		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 2, textSize = 13 })
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 3, textSize = 13 })
 		Kit.button(row, "Menu", function()
 			if cb then
 				cb.menu()
 			end
-		end, { size = UDim2.new(1 / 3, -3, 1, 0), order = 3, textSize = 13 })
+		end, { size = UDim2.new(1 / 4, -3, 1, 0), order = 4, textSize = 13 })
 	end
 end
 
@@ -825,7 +837,7 @@ local function buildAbility(sg: ScreenGui)
 		if f and g then
 			Input.sendOrder("Ability", { f.id }, { abilityId = g.ability.id })
 		end
-	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_CMD_H - 4 - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
+	end, { size = UDim2.fromOffset(CMD_W, 46), position = if touch then UDim2.new(1, -EDGE, 1, -EDGE - TOUCH_ROW_H - 4) else UDim2.new(0, EDGE, 1, -EDGE - BOTTOM_H - 6 - 190 - 6), anchor = if touch then Vector2.new(1, 1) else Vector2.new(0, 1), textSize = 17, caps = false, primary = true })
 	b.RichText = true
 	b.Visible = false
 	b.ClipsDescendants = true
@@ -1014,8 +1026,18 @@ end
 
 local function buildMinimap(sg: ScreenGui)
 	local m = BattleState.map
-	local w = if touch then MINI_W else 200
-	local h = if m then math.round(w * m.depth / m.width) else 150
+	local w: number = if touch then MINI_W else 200
+	local h: number = if m then math.round(w * m.depth / m.width) else 150
+	if touch then
+		-- a phone's screen may be ~215 units tall: shrink the map to the room above the cards
+		local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale?
+		local room = sg.AbsoluteSize.Y / (if ui then ui.Scale else 1) - 42 - 12 - BOTTOM_H - EDGE - 6
+		if h > room then
+			local k = math.max(room, 40) / h
+			w = math.round(w * k)
+			h = math.round(h * k)
+		end
+	end
 	local frame = if touch
 		then Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(0, EDGE, 0, 42), transparency = 0.05, padding = 6 })
 		else Kit.panel(sg, { size = UDim2.fromOffset(w + 12, h + 12), position = UDim2.new(1, -EDGE, 1, -EDGE), anchor = Vector2.new(1, 1), transparency = 0.05, padding = 6 })

@@ -46,11 +46,17 @@ Desktop 1. Touch: short side under 600 px (phones) 1.5, otherwise (tablets) 1.15
 plaques then meet the 44 px tap target. Code that compares `AbsoluteSize` against offsets
 divides by `Kit.scale()`.
 
-Touch HUD: minimap top-left under the bar, ticker beside it, player list collapsible, no Help
-plaque (its text is keyboard talk; F1 still works with a keyboard), Select all / Settings / Menu
-and the command panel grouped bottom-right with the general's ability above them, no inspector
-(the card and its tooltip carry the numbers), card bar from the left edge, scrolled by finger.
-Panels (Settings, Deployment) scroll inside a sheet sized to the viewport.
+Touch HUD (a phone in landscape is ~500 x 215 units at scale 1.5 under Roblox's top bar):
+minimap top-left under the bar, shrunk to the room above the card bar; objectives right-aligned
+under the bar (no balance bar: its numbers were a hover tip); ticker beside the minimap, two
+lines; player list collapsible; no Help plaque (its text is keyboard talk; F1 still works with
+a keyboard); Select all / Orders / Settings / Menu along the bottom-right corner with the
+general's ability above them; the command panel opens over the ability from Orders and starts
+closed (holding a unit opens the order wheel); no inspector (the card and its tooltip carry the
+numbers); card bar from the left edge, scrolled by finger. Panels (Settings, Deployment) scroll
+inside a sheet sized to the viewport; the centred panels (battle picker, custom battle, help,
+results) are scaled to the screen's width and cut to its height (`Kit.fit`), their lists
+scrolling; the main menu drops its painted header and shrinks on a short screen.
 
 ## Tests
 

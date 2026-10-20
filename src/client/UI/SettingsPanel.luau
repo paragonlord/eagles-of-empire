@@ -34,6 +34,9 @@ function SettingsPanel.show()
 		-- on a phone the sheet takes the height it can get and the list scrolls inside it
 		-- desktop: 710 tall; rows past that scroll (the audio rows pushed AI difficulty out of sight)
 		local panel = Kit.panel(sg, { size = if touch then UDim2.new(0, 420, 1, -16) else UDim2.fromOffset(420, 710), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = if touch then 12 else 20 })
+		if not touch then
+			Kit.fit(panel, 420, 710) -- a short window cuts the sheet, not its Close button
+		end
 		if touch then
 			local cap = Instance.new("UISizeConstraint") :: UISizeConstraint
 			cap.MaxSize = Vector2.new(420, 640)

@@ -83,7 +83,11 @@ function Deployment.show(cb: Callbacks)
 	local cam = workspace.CurrentCamera
 	local sheetH = math.min(660, (if cam then cam.ViewportSize.Y / Kit.scale() else 720) - (if touch then 16 else 96))
 	local d = math.clamp(math.floor((sheetH - 260) / 3), 56, 88)
-	Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
+	-- a phone's sheet is too short for it: below the notes or not at all
+	local marginH = sheetH - 2 * (if touch then 12 else 18) - 62
+	if marginH - d - 6 >= 50 + (#facts + 1) * 18 then
+		Kit.stamp(margin, "Dépôt de la Guerre", UDim2.new(0.5, 0, 1, -d / 2 - 6), d)
+	end
 	local rule = Kit.rule(panel, UDim2.fromOffset(0, 66))
 	rule.Size = UDim2.new(1, -MARGIN - 12, 0, 1)
 	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
