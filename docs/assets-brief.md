@@ -159,7 +159,32 @@ All made with Studio's generators through the MCP and published to Bartosz's acc
    enough to tell them apart.
 3. `church` and `windmill` regenerated in the painterly look (today's are the earlier meshes).
 
-## Sound candidates (to audition; none wired in yet)
+## Sounds wired in (2026-10-20, measured, not yet heard by a person)
+
+Each id was played in Studio through an AudioAnalyzer (muted output): length, loudness peak and
+decay, and the share of energy in the lowest bins, to match the slot (a volley is a 1 s crack, a
+cannon a 4 s boom with ~90 % low end). Listen once and swap any that sound wrong.
+
+| Slot | Ids | Measured | Source |
+| --- | --- | --- | --- |
+| `musketVolley` | 9103981709, 9103982167, 9103982507 ("Musket Fire 1-3") | 1.0-1.1 s, sharp peak, gone by 0.2-0.7 s | Community (TheBritishEmpire1) |
+| `musketScatter` | 129944384098631 ("Musket Single Shot Distant"), 9104013729 ("Musket Fire 4") | 1.3-3.4 s, quiet | Community |
+| `cannonFire` | 3149249837 ("Cannon_Explode"), 138726661215326, 72411732778781 | 3.8-4.7 s, 87-95 % low end | Roblox; community |
+| `cannonBounce` | 136353799660868 ("Cannon Impact") | 2.0 s thud, 98 % low end | Community |
+| `canister` | 72411732778781 pitched ×1.18-1.3 | a sharper blast | Community |
+| `cavalryCharge` | 113726319971995, 108771044697744 ("Horse Gallop") | 4.4-4.6 s | Community |
+| `drumsMarch*` | 1842279455 ("Tenor Drum Sounds (b)"), all nations | 21 s loop | Licensed (APM) |
+| `ambienceField` | 9112832288 ("Mountain Birds 1"), slot volume 1 (a quiet recording) | 31 s loop | Licensed (PSE) |
+| `menuMusic` | 1847601287 ("War History") | 68 s | Licensed (APM) |
+| `battleMusicCalm` | 1840899246 ("Military Approach") | 62 s | Licensed (APM) |
+| `battleMusicTense` | 1840899338 ("The Regiment") | 63 s | Licensed (APM) |
+| `campaignMusic` | 9046678026 ("Army Soldiers March") | 30 s | Licensed (APM) |
+| `victory` | 1838608860 ("Homecoming Of The Victorious (30s)") | 30 s | Licensed (APM) |
+
+Still empty: bugles, the defeat sting, rout cries, melee, the interface clicks (the PSE wooden
+click measured near silent), rain and fog ambience. An empty slot plays nothing.
+
+## Sound candidates (to audition)
 
 Found with the Studio Creator Store search on 2026-10-19. Not one has been listened to: open the
 link, play it, and put the id you like into `Assets.sounds` (one commit per slot, then Settings →

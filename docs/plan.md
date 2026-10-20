@@ -87,7 +87,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Reload and melee animations
 
 ## Assets (Studio)
-- [~] Priority sounds from the Creator Store: candidates listed in `docs/assets-brief.md` ("Sound candidates") for Bartosz to audition; none wired in unheard
+- [~] Priority sounds from the Creator Store: 13 slots filled with measured ids (volleys, cannon, hooves, drums, ambience, four music tracks, victory) and checked playing in a battle; not yet listened to by a person (`docs/assets-brief.md`); bugles, melee, clicks, rain still empty
 - [ ] Soldier meshes (Bartosz picks)
 
 # Graphics pass (toward the TW:N look; plan approved 2026-10-20)

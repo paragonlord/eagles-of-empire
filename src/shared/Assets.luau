@@ -220,6 +220,38 @@ Assets.sounds = {
 	campaignMusic = sound(0.5, { 1, 1 }, 1, true),
 }
 
+-- The first ids (2026-10-20), picked without listening: each one measured in Studio through an
+-- AudioAnalyzer (length, loudness envelope, low-frequency share) to match its slot. Licensed
+-- (APM, Pro Sound Effects) where the libraries had one; the gunfire, cannon and hooves are public
+-- Creator Store uploads (Cannon_Explode is Roblox's own). docs/assets-brief.md lists each.
+local function ids(list: { number }): { string }
+	local out = {}
+	for _, n in list do
+		table.insert(out, "rbxassetid://" .. n)
+	end
+	return out
+end
+local S = Assets.sounds
+S.musketVolley.id = ids({ 9103981709, 9103982167, 9103982507 }) -- "Musket Fire 1-3": 1 s cracks
+S.musketScatter.id = ids({ 129944384098631, 9104013729 }) -- a distant single shot, a quieter one
+S.cannonFire.id = ids({ 3149249837, 138726661215326, 72411732778781 }) -- 4 s booms, 90 % low end
+S.cannonBounce.id = ids({ 136353799660868 }) -- "Cannon Impact": a 2 s thud
+S.canister.id = ids({ 72411732778781 }) -- a cannon shot pitched up into a sharper blast
+S.canister.pitch = { 1.18, 1.3 }
+S.cavalryCharge.id = ids({ 113726319971995, 108771044697744 }) -- 4-5 s of gallop
+S.drumsMarchFr.id = ids({ 1842279455 }) -- APM "Tenor Drum Sounds (b)", every nation for now
+S.drumsMarchPr.id = S.drumsMarchFr.id
+S.drumsMarchAt.id = S.drumsMarchFr.id
+S.drumsMarchRu.id = S.drumsMarchFr.id
+S.drumsMarchGb.id = S.drumsMarchFr.id
+S.ambienceField.id = ids({ 9112832288 }) -- Pro Sound Effects "Mountain Birds 1", a quiet recording
+S.ambienceField.volume = 1
+S.menuMusic.id = ids({ 1847601287 }) -- APM "War History"
+S.battleMusicCalm.id = ids({ 1840899246 }) -- APM "Military Approach"
+S.battleMusicTense.id = ids({ 1840899338 }) -- APM "The Regiment"
+S.campaignMusic.id = ids({ 9046678026 }) -- APM "Army Soldiers March"
+S.victory.id = ids({ 1838608860 }) -- APM "Homecoming Of The Victorious (30s)"
+
 -- Kits by nation (Look.nation), each kind from one generated figure retextured per uniform.
 -- infantry_*: torso, head, headgear (the nation's line headgear), armL, armR, legL, legR, musket.
 -- cavalry_*: horse body, neck, four legs (legFL ...), rider and riderHead (helmet and sabre),

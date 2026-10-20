@@ -48,14 +48,21 @@ test("Audio: roll-off reaches further, quieter and duller from a high camera", f
 	assert(Audio.nearLevel(200) > 0 and Audio.nearLevel(200) < 1, "fading between")
 end)
 
-test("Audio: every slot starts empty, so the layer is silent and creates nothing", function()
-	assert(Audio.isSilent(), "no ids checked in")
+test("Audio: every slot is well formed, the battle sounds are in, an empty slot plays nothing", function()
+	assert(not Audio.isSilent(), "ids checked in")
 	for key, slot in Assets.sounds do
-		assertEq(slot.id, "", key .. " id")
+		local list = if type(slot.id) == "table" then slot.id else { slot.id }
+		for _, id in list :: { string } do
+			assert(id == "" or string.match(id, "^rbxassetid://%d+$") ~= nil, key .. " id " .. tostring(id))
+		end
 		assert(slot.volume > 0 and slot.volume <= 1, key .. " volume")
 		assert(slot.pitch[1] <= slot.pitch[2], key .. " pitch range")
 		assert(slot.variants >= 1, key .. " variants")
 	end
-	Audio.play("musketVolley", 100, 100) -- no init, no id: a no-op
+	for _, key in { "musketVolley", "cannonFire", "cavalryCharge", "menuMusic", "battleMusicCalm" } do
+		assert(type(Assets.sounds[key].id) == "table" and #(Assets.sounds[key].id :: { string }) > 0, key .. " has a sound")
+	end
+	assertEq(Assets.sounds.bugleCharge.id, "", "a slot still waiting for its sound")
+	Audio.play("bugleCharge", 100, 100) -- no init, no id: a no-op
 	Audio.onEvent({ kind = "volley", x = 1, z = 1 })
 end)

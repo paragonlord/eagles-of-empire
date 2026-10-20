@@ -100,8 +100,10 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 
 1. Two-player Studio test (Test → Clients and Servers → 2 Players, by hand): co-op wings, pause
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.
-2. Sound check once ids land: Settings → debug audio, every event fires, volleys from many
-   battalions do not stack into a wall.
+2. Sound: 13 slots now have ids, chosen by measurement (length, envelope, bass share) and seen
+   playing in a battle, but nobody has listened yet. Play one battle with sound on: swap any id
+   that sounds wrong (`src/shared/Assets.luau`, bottom), check volleys from many battalions do not
+   stack into a wall, and fill bugles, melee and clicks (`docs/assets-brief.md`).
 3. Balance: 17 flags in `docs/balance.md`, 3 against history, all Auerstedt (the Prussian horse
    pins Davout's battalions in square and the infantry shoots the squares). Waterloo now goes to
    the allies in 23 of 30 AI-vs-AI battles; the Hougoumont episode is about even (14 of 30).
