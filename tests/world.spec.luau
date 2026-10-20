@@ -131,6 +131,33 @@ test("WorldGen: filled tree and house slots turn each object into one mesh part 
 	end
 end)
 
+test("WorldGen: the countryside beyond the map is mesh trees that cast no shadow, not balls", function()
+	setMeshes(true) -- the slots as they ship
+	local map = MapGen.generate("jena")
+	local t = WorldGen.terrain(map)
+	local ok, specs = pcall(WorldGen.props, map, t)
+	setMeshes(false)
+	assertTrue(ok, tostring(specs))
+	local trees, shadowed, balls = 0, 0, 0
+	for _, s in specs do
+		local p = s.cframe.Position
+		local outside = p.X < -20 or p.Z < -20 or p.X > map.width + 20 or p.Z > map.depth + 20
+		if outside and s.group == "Country" then
+			if s.fileMesh == "treeOak" or s.fileMesh == "treeBeech" then
+				trees += 1
+				if s.castShadow ~= false then
+					shadowed += 1
+				end
+			elseif s.shape == Enum.PartType.Ball and s.size.X >= 13 then
+				balls += 1
+			end
+		end
+	end
+	assertTrue(trees > 100, "countryside trees: " .. trees)
+	assertEq(shadowed, 0, "far trees cast no shadow")
+	assertEq(balls, 0, "no smooth balls on the horizon")
+end)
+
 local function run(samples, settleCap, replicateCap)
 	local st = Ready.new(settleCap, replicateCap)
 	local ready = false
