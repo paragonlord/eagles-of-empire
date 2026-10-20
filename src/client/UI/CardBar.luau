@@ -146,10 +146,10 @@ end
 -- card: a bust for foot and horse, the piece for a battery. Static, built once per card. Nil
 -- when the nation has no kit, and the class glyph stands alone.
 local PORTRAIT_VIEW: { [string]: { eye: Vector3, at: Vector3, fov: number } } = {
-	infantry = { eye = Vector3.new(3.4, 2.75, 1.1), at = Vector3.new(0, 2.45, 0), fov = 30 },
-	cavalry = { eye = Vector3.new(5.6, 3.6, 2.4), at = Vector3.new(0.6, 2.9, 0), fov = 34 },
-	hq = { eye = Vector3.new(5.6, 3.6, 2.4), at = Vector3.new(0.6, 2.9, 0), fov = 34 },
-	artillery = { eye = Vector3.new(4.6, 2.6, 4.4), at = Vector3.new(0.2, 1.0, 0), fov = 40 },
+	infantry = { eye = Vector3.new(2.6, 2.75, 0.8), at = Vector3.new(0, 2.6, 0), fov = 20 },
+	cavalry = { eye = Vector3.new(3.4, 3.4, 1.4), at = Vector3.new(0.4, 3.0, 0), fov = 26 },
+	hq = { eye = Vector3.new(3.4, 3.4, 1.4), at = Vector3.new(0.4, 3.0, 0), fov = 26 },
+	artillery = { eye = Vector3.new(3.4, 2.2, 3.2), at = Vector3.new(0.3, 1.1, 0), fov = 32 },
 }
 local function portrait(parent: Frame, f: any): boolean
 	local view = PORTRAIT_VIEW[f.class]

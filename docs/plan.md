@@ -110,11 +110,11 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 
 ## G2: battlefield
 - [x] Ground MaterialVariants (seven generated, in the place file; lighter season tints over them)
-- [ ] Lighting regrade
+- [~] Lighting: LightingStyle Realistic, quality-first shadows at High; the four grades kept (they read well over the painted ground)
 - [x] Place names off the battle at low camera
 - [~] Props: olive tree tint, full-size cottage; generated hedgerow, willow, stone and trestle bridges, cart (wall and fence generations failed: part-built; no reeds or manor mesh)
 - [x] Powder smoke banks, muzzle light (High), howitzer shell bursts, burning roofs on 'ablaze' moments
-- [ ] Map edge hidden
+- [~] Map edge: the 5000-stud ground plane now takes the painted meadow too; the far edge was not re-checked from a low camera
 
 ## G3: campaign map
 - [x] Real coasts, lakes and rivers (Natural Earth), province tint clipped to the shore
@@ -128,9 +128,9 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 - [x] Public-domain battle paintings (menu, loading, results)
 - [x] Unit card portraits (ViewportFrame)
 - [x] Ruler portraits in the nation picker
-- [ ] Ornaments: wax, stamp, eagle
+- [ ] Ornaments: wax, stamp, eagle (not started; the code-drawn seal and stamp stay)
 
 ## G5: performance and phones
-- [ ] Frame time at High and Low on Waterloo; LOD and pools tuned
+- [~] Frame time: 6.1 ms render CPU at High on the Landgrafenberg with kit figures (Studio); Waterloo at High and the Low preset not measured
 - [ ] Phone check (Device Simulator)
 - [ ] Final QA round and handoff
