@@ -82,3 +82,21 @@ test("Camera: D pans to the screen's right and A to its left, at any heading", f
 	assertEq(Camera.HEIGHT_KEYS.up, Enum.KeyCode.X, "X raises the camera (Total War)")
 	assertEq(Camera.HEIGHT_KEYS.down, Enum.KeyCode.Z, "Z lowers it")
 end)
+
+test("Touch: a screen too small for its layout shrinks to its minimum, never grows", function()
+	assertEq(Touch.fitScreen(1920, 1022, 600, 260), 1, "a desktop keeps its size")
+	local k = Touch.fitScreen(500, 215, 600, 260)
+	assertTrue(k < 1 and 500 / k >= 600 - 1e-6 and 215 / k >= 260 - 1e-6, "a phone gets the minimum: " .. k)
+end)
+
+test("Touch: the campaign map takes the height it can use, the side panel the rest", function()
+	-- desktop: the side panel at its widest, the map everything else
+	local map, side = Touch.campaignSplit(1920, 1022, 1.15, 280, 380)
+	assertEq(side, 380, "desktop side panel")
+	assertEq(map + side + 40, 1920, "the two fill the screen")
+	-- a phone after fitScreen (600 x 258): the map as wide as its height allows
+	map, side = Touch.campaignSplit(600, 258, 1.15, 280, 380)
+	assertTrue(side >= 280 and side <= 380, "side panel within its limits: " .. side)
+	assertTrue(math.abs(map - (258 - 32) * 1.15) < 1 or side == 280, "the map uses its height: " .. map)
+	assertEq(map + side + 40, 600, "the two fill the screen")
+end)

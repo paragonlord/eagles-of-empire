@@ -198,6 +198,81 @@ function Kit.fit(panel: GuiObject, w: number, h: number)
 	refit()
 end
 
+-- A screen's size in layout units: pixels over the touch scale it was given.
+function Kit.screenUnits(sg: ScreenGui): Vector2
+	local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale?
+	return sg.AbsoluteSize / (if ui then ui.Scale else 1)
+end
+
+-- The combined UIScale over a gui object: its own and every ancestor's. Pixels measured from
+-- AbsoluteSize divided by this are layout units again.
+function Kit.scaleOf(g: Instance): number
+	local k = 1
+	local node: Instance? = g
+	while node do
+		local u = node:FindFirstChildOfClass("UIScale") :: UIScale?
+		if u then
+			k *= u.Scale
+		end
+		node = node.Parent
+	end
+	return k
+end
+
+-- A full-screen root for a layout that needs at least minW x minH units (Touch.fitScreen):
+-- on a phone it is laid out at that size and scaled down to the screen. `onResize` gets the
+-- root's size in its own units whenever the screen changes.
+function Kit.fitScreen(sg: ScreenGui, minW: number, minH: number, onResize: ((Vector2) -> ())?): Frame
+	local root = Instance.new("Frame") :: Frame
+	root.Name = "Root"
+	root.BackgroundTransparency = 1
+	root.Parent = sg
+	local u = Instance.new("UIScale") :: UIScale
+	u.Parent = root
+	local function refit()
+		local size = Kit.screenUnits(sg)
+		local k = Touch.fitScreen(size.X, size.Y, minW, minH)
+		u.Scale = k
+		root.Size = UDim2.fromScale(1 / k, 1 / k)
+		if onResize then
+			onResize(size / k)
+		end
+	end
+	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	refit()
+	return root
+end
+
+-- A modal whose height grows with its content: shrunk (never grown) so all of it, buttons
+-- included, stays on the screen.
+function Kit.fitModal(panel: GuiObject)
+	local sg = panel:FindFirstAncestorOfClass("ScreenGui") :: ScreenGui?
+	if not sg then
+		return
+	end
+	local u = Instance.new("UIScale") :: UIScale
+	u.Parent = panel
+	local busy = false
+	local function refit()
+		if busy then
+			return
+		end
+		busy = true
+		local parent = panel.Parent
+		local outer = if parent then Kit.scaleOf(parent) else 1 -- every scale above the panel's own
+		local natural = panel.AbsoluteSize / (outer * u.Scale)
+		local screen = sg.AbsoluteSize / outer
+		local k = math.min(1, (screen.Y - 16) / math.max(natural.Y, 1), (screen.X - 16) / math.max(natural.X, 1))
+		if math.abs(k - u.Scale) > 0.01 then
+			u.Scale = k
+		end
+		busy = false
+	end
+	panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	refit()
+end
+
 local screens: { ScreenGui } = {}
 local function rescale()
 	local s = Kit.scale()

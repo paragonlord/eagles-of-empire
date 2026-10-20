@@ -4,6 +4,7 @@
 -- The server view is the only state; every action goes back through `callbacks.send`.
 
 local Kit = require(script.Parent.Kit)
+local Touch = require(script.Parent.Parent.Touch)
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Assets = require(Shared.Assets)
 local Factions = require(script.Parent.Parent.Factions)
@@ -45,6 +46,9 @@ local confirmNew = false
 local mapFrame: Frame? = nil
 local roadLayer: Frame? = nil
 local nodeLayer: Frame? = nil
+-- Map width (units) the markers and labels are drawn for; a smaller map draws them smaller,
+-- down to MARKER_MIN, so a phone's map is not buried under its own labels.
+local MARKER_MAP_W, MARKER_MIN = 720, 0.6
 local side: ScrollingFrame? = nil
 local toast: TextLabel? = nil
 local dialog: Frame? = nil
@@ -134,7 +138,7 @@ local function drawRoads()
 		return
 	end
 	layer:ClearAllChildren()
-	local size = mf.AbsoluteSize
+	local size = mf.AbsoluteSize / Kit.scaleOf(mf)
 	local done: { [string]: boolean } = {}
 	for _, r in view.regions do
 		for _, otherId in r.adjacent do
@@ -216,7 +220,11 @@ local function drawNodes()
 	if not layer or not view then
 		return
 	end
-	layer:ClearAllChildren()
+	for _, c in layer:GetChildren() do
+		if not c:IsA("UIScale") then -- the layer's own scale stays (fitMap)
+			c:Destroy()
+		end
+	end
 	local sel = armyById(selectedArmy)
 	local canMove = sel ~= nil and sel.faction == PLAYER and sel.movesLeft > 0 and playerPhase()
 	local from = if sel then regionById(sel.regionId) else nil
@@ -270,7 +278,10 @@ local function drawNodes()
 		if #r.armies > 0 then
 			local stack = Instance.new("Frame") :: Frame
 			stack.Size = UDim2.fromOffset(92, 20 * #r.armies)
-			stack.Position = nodePos(r) + UDim2.fromOffset(d / 2 + 6, -10)
+			-- east of the node, or west of it near the map's east edge so the tags stay on the map
+			local east = r.pos.x > 760
+			stack.Position = nodePos(r) + UDim2.fromOffset(if east then -d / 2 - 6 else d / 2 + 6, -10)
+			stack.AnchorPoint = Vector2.new(if east then 1 else 0, 0)
 			stack.BackgroundTransparency = 1
 			stack.ZIndex = 6
 			stack.Parent = layer
@@ -552,14 +563,29 @@ local function build()
 		return
 	end
 	local sg = Kit.screen("EoECampaign", 32)
+	-- a phone lays this out at 600 x 260 units and shrinks it; the map takes the width its
+	-- height allows and the orders panel the rest (Touch.campaignSplit)
+	local panels: { Frame } = {} -- map, orders: sized once they exist
+	local function relayout(size: Vector2)
+		local mapW, sideW = Touch.campaignSplit(size.X, size.Y, 1.15, 280, 380)
+		if #panels == 2 then
+			panels[1].Size = UDim2.new(0, mapW, 1, -32)
+			panels[2].Size = UDim2.new(0, sideW, 1, -32)
+		end
+		local t = toast
+		if t then
+			t.Size = UDim2.new(0, mapW, 0, 24)
+		end
+	end
+	local root = Kit.fitScreen(sg, 600, 260, relayout)
 	local back = Instance.new("Frame") :: Frame
 	back.Size = UDim2.fromScale(1, 1)
 	back.BackgroundColor3 = Color3.fromRGB(28, 26, 22)
 	back.BackgroundTransparency = 0.35
 	back.BorderSizePixel = 0
 	back.Active = true
-	back.Parent = sg
-	local mapPanel = Kit.panel(sg, { size = UDim2.new(1, -420, 1, -32), position = UDim2.new(0, 16, 0, 16), transparency = 0 })
+	back.Parent = root
+	local mapPanel = Kit.panel(root, { size = UDim2.new(1, -420, 1, -32), position = UDim2.new(0, 16, 0, 16), transparency = 0 })
 	mapPanel.BackgroundColor3 = OLIVE
 	local grad = (mapPanel:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")) :: UIGradient
 	mapPanel.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -590,11 +616,18 @@ local function build()
 	nl.BackgroundTransparency = 1
 	nl.ZIndex = 5
 	nl.Parent = mf
-	local t = Kit.title(mapPanel, "Thuringia, October 1806", { size = UDim2.new(1, -20, 0, 30), position = UDim2.new(0, 12, 0, 6), textSize = 24, colour = Kit.CREAM })
+	local ns = Instance.new("UIScale") :: UIScale
+	ns.Parent = nl
+	local t = Kit.title(mapPanel, "Thuringia, October 1806", { size = UDim2.new(1, -84, 0, 30), position = UDim2.new(0, 12, 0, 6), textSize = 24, colour = Kit.CREAM })
+	t.TextScaled = true -- a phone's narrow map: smaller, clear of the compass
+	local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+	tc.MaxTextSize = 24
+	tc.Parent = t
 	t.ZIndex = 8
 	local compass = Kit.label(mapPanel, "N ▲", { size = UDim2.fromOffset(60, 20), position = UDim2.new(1, -12, 0, 10), anchor = Vector2.new(1, 0), textSize = 12, colour = Kit.CREAM, align = Enum.TextXAlignment.Right })
 	compass.ZIndex = 8
-	local sidePanel = Kit.panel(sg, { size = UDim2.new(0, 380, 1, -32), position = UDim2.new(1, -16, 0, 16), anchor = Vector2.new(1, 0), padding = 14 })
+	local sidePanel = Kit.panel(root, { size = UDim2.new(0, 380, 1, -32), position = UDim2.new(1, -16, 0, 16), anchor = Vector2.new(1, 0), padding = 14 })
+	panels = { mapPanel, sidePanel }
 	local sc = Instance.new("ScrollingFrame") :: ScrollingFrame
 	sc.Size = UDim2.fromScale(1, 1)
 	sc.BackgroundTransparency = 1
@@ -604,7 +637,7 @@ local function build()
 	sc.CanvasSize = UDim2.new()
 	sc.Active = true
 	sc.Parent = sidePanel
-	toast = Kit.label(sg, "", { size = UDim2.new(1, -420, 0, 24), position = UDim2.new(0, 16, 1, -40), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
+	toast = Kit.label(root, "", { size = UDim2.new(1, -420, 0, 24), position = UDim2.new(0, 16, 1, -40), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.ZIndex = 9
@@ -614,7 +647,17 @@ local function build()
 	roadLayer = rl
 	nodeLayer = nl
 	side = sc
-	sizeConn = mf:GetPropertyChangedSignal("AbsoluteSize"):Connect(drawRoads)
+	relayout(root.AbsoluteSize / Kit.scaleOf(root)) -- the root's own units, now the panels exist
+	-- the markers shrink with the map (never grow); the roads are redrawn at its new size
+	local function fitMap()
+		local w = mf.AbsoluteSize.X / Kit.scaleOf(mf)
+		local k = math.clamp(w / MARKER_MAP_W, MARKER_MIN, 1)
+		ns.Scale = k
+		nl.Size = UDim2.fromScale(1 / k, 1 / k)
+		drawRoads()
+	end
+	sizeConn = mf:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitMap)
+	fitMap()
 end
 
 function CampaignScreen.render()

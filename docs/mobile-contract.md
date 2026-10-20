@@ -58,6 +58,16 @@ inside a sheet sized to the viewport; the centred panels (battle picker, custom 
 results) are scaled to the screen's width and cut to its height (`Kit.fit`), their lists
 scrolling; the main menu drops its painted header and shrinks on a short screen.
 
+Campaign screens on a phone: the Thuringian map is laid out at 600 x 260 units and shrunk
+(`Kit.fitScreen`); the map takes the width its height allows and the orders panel the rest
+(`Touch.campaignSplit`), its markers drawn for a 720-unit map and shrunk with it (to 0.6), the
+roads in the frame's own units. The grand campaign under 1,100 units across takes a two-row top
+bar (nation and resources, then the buttons), its army and province column scaled to half the
+width and the diplomacy / research / objectives column to three fifths, the first hidden while
+the second is open where they would overlap; its documents (events, battles, the nation picker)
+shrink to the screen's height (`Kit.fitModal`). Taps on the 3D board were not tested in the
+simulator (it sends mouse clicks, and the board selects by touch there).
+
 ## Tests
 
 `tests/touch.spec.luau`: gesture phases by time and distance, detection and the scale function.

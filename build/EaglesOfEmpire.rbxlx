@@ -251,6 +251,10 @@ S.battleMusicCalm.id = ids({ 1840899246 }) -- APM "Military Approach"
 S.battleMusicTense.id = ids({ 1840899338 }) -- APM "The Regiment"
 S.campaignMusic.id = ids({ 9046678026 }) -- APM "Army Soldiers March"
 S.victory.id = ids({ 1838608860 }) -- APM "Homecoming Of The Victorious (30s)"
+S.uiClick.id = ids({ 9125655352 }) -- PSE "Mechanism Wooden Jerks Single Clicks": a dry 0.6 s click
+S.uiPaper.id = ids({ 9125723307 }) -- PSE "Paper Movement ... Flips": a sheet handled, quiet
+S.uiPaper.volume = 0.9
+S.ambienceRain.id = ids({ 9112853422 }) -- PSE "Rain Heavy Rainfall Grass Wooden Roof 1", 46 s loop
 
 -- Kits by nation (Look.nation), each kind from one generated figure retextured per uniform.
 -- infantry_*: torso, head, headgear (the nation's line headgear), armL, armR, legL, legR, musket.
@@ -25073,6 +25077,11 @@ local split: { [any]: boolean } = {}
 local splitArmy: any = nil
 local toastLabel: TextLabel? = nil
 
+-- Under this many units across (phones, small tablets) the top bar takes two rows and the side
+-- columns are scaled to share the width (one row there would shrink to unreadable).
+local COMPACT_W = 1100
+local COL_W, RIGHT_W = 350, 380
+
 -- ------------------------------------------------------------------ helpers
 
 local function fmt(n: any): string
@@ -25167,14 +25176,16 @@ end
 
 -- ------------------------------------------------------------------ top bar
 
-local function topBar(sg: ScreenGui, ctx: Ctx)
+local function topBar(sg: ScreenGui, ctx: Ctx): number
 	local view = ctx.view
-	local bar = Kit.panel(sg, { size = UDim2.new(1, -24, 0, 54), position = UDim2.new(0.5, 0, 0, 8), anchor = Vector2.new(0.5, 0), padding = 8, plain = true })
+	local compact = Kit.screenUnits(sg).X < COMPACT_W
+	local barH = if compact then 94 else 54
+	local bar = Kit.panel(sg, { size = UDim2.new(1, -24, 0, barH), position = UDim2.new(0.5, 0, 0, 8), anchor = Vector2.new(0.5, 0), padding = 8, plain = true })
 	local inner = Instance.new("Frame") :: Frame
-	inner.Size = UDim2.fromScale(1, 1)
+	inner.Size = if compact then UDim2.new(1, 0, 0, 40) else UDim2.fromScale(1, 1)
 	inner.BackgroundTransparency = 1
 	inner.Parent = bar
-	local l = Kit.list(inner, 14, true)
+	local l = Kit.list(inner, if compact then 10 else 14, true)
 	l.VerticalAlignment = Enum.VerticalAlignment.Center
 	local function item(order: number, w: number): Frame
 		local f = row(inner, order, 38)
@@ -25182,19 +25193,24 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 		return f
 	end
 	local me = if view then nationOf(view, ctx.player) else {}
-	local fl = flag(item(1, 44), ctx.player, 36, 24, UDim2.fromOffset(0, 2))
+	local fl = flag(item(1, if compact then 36 else 44), ctx.player, 36, 24, UDim2.fromOffset(0, 2))
 	fl.Name = "Flag"
-	local who = item(2, 220)
-	Kit.title(who, Data.name(ctx.player), { size = UDim2.new(1, 0, 0, 22), textSize = 22, colour = Kit.GILT_BRIGHT })
+	local who = item(2, if compact then 170 else 220)
+	local name = Kit.title(who, Data.name(ctx.player), { size = UDim2.new(1, 0, 0, 22), textSize = 22, colour = Kit.GILT_BRIGHT })
+	name.TextScaled = compact -- "United Kingdom" in 170 units
+	local nc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+	nc.MaxTextSize = 22
+	nc.Parent = name
 	local date = Kit.label(who, if view then string.format("%s · turn %s of %s%s", tostring(view.date or "?"), tostring(view.turn or "?"), tostring(view.endTurn or "?"), if view.phase and view.phase ~= "player" then " · " .. (if view.phase == "battle" then "battle pending" else tostring(view.phase)) else "") else "", { size = UDim2.new(1, 0, 0, 16), position = UDim2.fromOffset(0, 22), textSize = 14, colour = Kit.MUTED })
 	date.FontFace = Kit.ITALIC
-	local money = item(3, 150)
+	local statW = if compact then 96 else 150
+	local money = item(3, statW)
 	Kit.label(money, "TREASURY", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
 	Kit.label(money, fmt(me.treasury), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond })
-	local men = item(4, 150)
+	local men = item(4, statW)
 	Kit.label(men, "MANPOWER", { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
 	Kit.label(men, fmt(me.manpower), { size = UDim2.new(1, 0, 0, 22), position = UDim2.fromOffset(0, 14), textSize = 20, font = Enum.Font.Garamond })
-	local flow = item(5, 150)
+	local flow = item(5, if compact then 120 else 150)
 	local TAX_NAMES = { "Low", "Normal", "High", "Very high" }
 	local taxLevel = math.clamp(tonumber(me.tax) or 2, 1, 4)
 	Kit.label(flow, "PER TURN · TAX " .. string.upper(TAX_NAMES[taxLevel]), { size = UDim2.new(1, 0, 0, 14), textSize = 11, colour = Kit.MUTED })
@@ -25215,54 +25231,58 @@ local function topBar(sg: ScreenGui, ctx: Ctx)
 	Kit.hoverTip(flow, function(): string
 		return string.format("Income %s, upkeep %s, recruits +%s men\nTaxes %s: click for the next level (Low, Normal, High, Very high): more gold, more unrest", fmt(me.income), fmt(me.upkeep), fmt(me.manpowerIncome), string.lower(TAX_NAMES[taxLevel]))
 	end)
-	if ctx.sessionOnly then
+	if ctx.sessionOnly and not compact then
 		local warn = item(6, 200)
 		Kit.label(warn, "Saving unavailable: this campaign lasts the session only.", { size = UDim2.fromScale(1, 1), textSize = 12, wrap = true, colour = Kit.HOSTILE })
 	end
-	-- right-hand group
+	-- right-hand group (compact: the second row)
 	local right = Instance.new("Frame") :: Frame
-	right.Size = UDim2.new(0, 730, 1, 0)
-	right.Position = UDim2.fromScale(1, 0)
-	right.AnchorPoint = Vector2.new(1, 0)
+	right.Size = if compact then UDim2.new(1, 0, 0, 34) else UDim2.new(0, 730, 1, 0)
+	right.Position = if compact then UDim2.fromScale(0, 1) else UDim2.fromScale(1, 0)
+	right.AnchorPoint = if compact then Vector2.new(0, 1) else Vector2.new(1, 0)
 	right.BackgroundTransparency = 1
 	right.Parent = bar
 	local rl = Kit.list(right, 8, true)
-	rl.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	rl.HorizontalAlignment = if compact then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Right
 	rl.VerticalAlignment = Enum.VerticalAlignment.Center
 	local dip = Kit.button(right, "Diplomacy", function()
 		diplomacyOpen = not diplomacyOpen
 		rerender()
-	end, { size = UDim2.fromOffset(120, 34), order = 1, tooltip = "Relations, wars and offers" })
+	end, { size = UDim2.fromOffset(if compact then 96 else 120, if compact then 30 else 34), order = 1, tooltip = "Relations, wars and offers" })
 	Kit.setActiveLook(dip, diplomacyOpen)
 	local obj = Kit.button(right, "Objectives", function()
 		objectivesOpen = not objectivesOpen
 		rerender()
-	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "What wins the campaign" })
+	end, { size = UDim2.fromOffset(if compact then 96 else 120, if compact then 30 else 34), order = 0, tooltip = "What wins the campaign" })
 	Kit.setActiveLook(obj, objectivesOpen)
 	local res = Kit.button(right, "Research", function()
 		researchOpen = not researchOpen
 		rerender()
-	end, { size = UDim2.fromOffset(120, 34), order = 0, tooltip = "Technology: what your schools are studying" })
+	end, { size = UDim2.fromOffset(if compact then 96 else 120, if compact then 30 else 34), order = 0, tooltip = "Technology: what your schools are studying" })
 	Kit.setActiveLook(res, researchOpen)
 	Kit.button(right, "Main Menu", function()
 		if cb then
 			cb.menu()
 		end
-	end, { size = UDim2.fromOffset(120, 34), order = 2 })
+	end, { size = UDim2.fromOffset(if compact then 96 else 120, if compact then 30 else 34), order = 2 })
 	local endTurn = Kit.button(right, "End Turn", function()
 		send("endTurn")
-	end, { size = UDim2.fromOffset(150, 38), primary = true, order = 3, textSize = 16, tooltip = "End the turn (E)" })
+	end, { size = UDim2.fromOffset(if compact then 120 else 150, if compact then 32 else 38), primary = true, order = 3, textSize = 16, tooltip = "End the turn (E)" })
 	Kit.setEnabled(endTurn, ctx.canAct, ctx.actReason)
 	-- narrow screens: shrink the whole bar rather than let the buttons cover the figures
-	local natural = 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 662 + 24
-	local cam = workspace.CurrentCamera
-	local avail = (if cam then cam.ViewportSize.X else 1280) / Kit.scale() - 24
+	local natural = if compact
+		then 16 + 36 + 170 + 96 * 2 + 120 + 10 * 4
+		else 16 + 44 + 220 + 150 * 3 + 14 * 4 + (if ctx.sessionOnly then 214 else 0) + 662 + 24
+	local avail = Kit.screenUnits(sg).X - 24
+	local k = 1
 	if avail < natural then
-		bar.Size = UDim2.fromOffset(natural, 54)
+		k = avail / natural
+		bar.Size = UDim2.fromOffset(natural, barH)
 		local fit = Instance.new("UIScale") :: UIScale
-		fit.Scale = avail / natural
+		fit.Scale = k
 		fit.Parent = bar
 	end
+	return barH * k
 end
 
 -- ------------------------------------------------------------------ left: army and province
@@ -25738,6 +25758,7 @@ local function modal(sg: ScreenGui, w: number, parchment: boolean?): Frame
 	p.AutomaticSize = Enum.AutomaticSize.Y
 	local l = Kit.list(p, 10)
 	l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	Kit.fitModal(p) -- a phone's short screen: the whole document, buttons included, stays on it
 	return p
 end
 
@@ -25940,10 +25961,22 @@ function UI.render(ctx: Ctx)
 	end
 	Kit.hideTooltip()
 	local view = ctx.view
-	topBar(sg, ctx)
+	local barH = topBar(sg, ctx)
+	local units = Kit.screenUnits(sg)
+	local compact = units.X < COMPACT_W
+	local top = 8 + barH + 10
+	local rightOpen = (diplomacyOpen or objectivesOpen or researchOpen) and view ~= nil
+	-- compact: the columns scaled to half and three fifths of the width; an open right column
+	-- replaces the left where the two would overlap
+	local colK = if compact then math.min(1, units.X * 0.5 / COL_W) else 1
+	local rightK = if compact then math.min(1, units.X * 0.6 / RIGHT_W) else 1
 	local left = Instance.new("ScrollingFrame") :: ScrollingFrame
-	left.Size = UDim2.new(0, 350, 1, -84)
-	left.Position = UDim2.fromOffset(12, 72)
+	left.Size = UDim2.new(0, COL_W, 0, (units.Y - top - 12) / colK)
+	left.Position = UDim2.fromOffset(12, top)
+	left.Visible = not (rightOpen and COL_W * colK + RIGHT_W * rightK + 36 > units.X)
+	local lk = Instance.new("UIScale") :: UIScale
+	lk.Scale = colK
+	lk.Parent = left
 	left.BackgroundTransparency = 1
 	left.BorderSizePixel = 0
 	left.ScrollBarThickness = 0
@@ -25955,21 +25988,37 @@ function UI.render(ctx: Ctx)
 	spyPanel(left, ctx, 1)
 	fleetPanel(left, ctx, 1)
 	provincePanel(left, ctx, 2)
-	-- only as tall as its panels: below them the map takes the clicks
+	-- only as tall as its panels: below them the map takes the clicks (sizes in the column's
+	-- own units: AbsoluteContentSize carries the touch and column scales)
 	local function fitLeft()
-		left.Size = UDim2.new(0, 350, 0, math.min(leftList.AbsoluteContentSize.Y, sg.AbsoluteSize.Y - 84))
+		local content = leftList.AbsoluteContentSize.Y / Kit.scaleOf(left)
+		left.Size = UDim2.new(0, COL_W, 0, math.min(content, (Kit.screenUnits(sg).Y - top - 12) / colK))
 	end
 	leftList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitLeft)
 	fitLeft()
-	if (diplomacyOpen or objectivesOpen or researchOpen) and view then
-		local right = Instance.new("Frame") :: Frame
-		right.Size = UDim2.new(0, 380, 0, 0)
-		right.Position = UDim2.new(1, -12, 0, 72)
+	if rightOpen and view then
+		-- a scrolling column: Diplomacy and Research outgrow a short screen
+		local right = Instance.new("ScrollingFrame") :: ScrollingFrame
+		right.Size = UDim2.new(0, RIGHT_W, 0, (units.Y - top - 12) / rightK)
+		right.Position = UDim2.new(1, -12, 0, top)
 		right.AnchorPoint = Vector2.new(1, 0)
-		right.AutomaticSize = Enum.AutomaticSize.Y
 		right.BackgroundTransparency = 1
+		right.BorderSizePixel = 0
+		right.ScrollBarThickness = 4
+		right.ScrollBarImageColor3 = Kit.GILT
+		right.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		right.CanvasSize = UDim2.new()
 		right.Parent = sg
-		Kit.list(right, 8)
+		local rk = Instance.new("UIScale") :: UIScale
+		rk.Scale = rightK
+		rk.Parent = right
+		local rightList = Kit.list(right, 8)
+		-- as tall as its panels, so the map below takes the clicks
+		local function fitRight()
+			local content = rightList.AbsoluteContentSize.Y / Kit.scaleOf(right)
+			right.Size = UDim2.new(0, RIGHT_W, 0, math.min(content, (Kit.screenUnits(sg).Y - top - 12) / rightK))
+		end
+		rightList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitRight)
 		if objectivesOpen then
 			local op = panel(right, 0)
 			Kit.title(op, "Objectives", { size = UDim2.new(1, 0, 0, 28), textSize = 24, rule = true }).LayoutOrder = 0
@@ -25983,6 +26032,7 @@ function UI.render(ctx: Ctx)
 		if researchOpen then
 			research(right, ctx)
 		end
+		fitRight()
 	end
 	-- one document at a time, most pressing first
 	local ev = nil
@@ -31337,6 +31387,19 @@ function Touch.fitPanel(availW: number, availH: number, w: number, h: number): (
 	return k, math.min(h, (availH - 16) / k)
 end
 
+-- The scale (at most 1) that gives a screen of w x h units at least minW x minH to lay out in.
+function Touch.fitScreen(w: number, h: number, minW: number, minH: number): number
+	return math.min(1, w / minW, h / minH)
+end
+
+-- A campaign screen w x h units: a map of `aspect` (width over height) on the left as wide as
+-- its height allows, a side panel of sideMin..sideMax on the right; 16-unit margins and an
+-- 8-unit gap, the map panel 32 shorter than the screen. Returns (map width, side width).
+function Touch.campaignSplit(w: number, h: number, aspect: number, sideMin: number, sideMax: number): (number, number)
+	local side = math.clamp(w - 40 - (h - 32) * aspect, sideMin, sideMax)
+	return w - 40 - side, side
+end
+
 -- A column laid out for `full` units of height (or `compact` without its header) on a screen
 -- `height` units tall (pixels over the UI scale): compact when the full one does not fit, and
 -- the scale that fits whichever is shown.
@@ -32112,6 +32175,7 @@ return BattleSelect
 -- The server view is the only state; every action goes back through `callbacks.send`.
 
 local Kit = require(script.Parent.Kit)
+local Touch = require(script.Parent.Parent.Touch)
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Assets = require(Shared.Assets)
 local Factions = require(script.Parent.Parent.Factions)
@@ -32153,6 +32217,9 @@ local confirmNew = false
 local mapFrame: Frame? = nil
 local roadLayer: Frame? = nil
 local nodeLayer: Frame? = nil
+-- Map width (units) the markers and labels are drawn for; a smaller map draws them smaller,
+-- down to MARKER_MIN, so a phone's map is not buried under its own labels.
+local MARKER_MAP_W, MARKER_MIN = 720, 0.6
 local side: ScrollingFrame? = nil
 local toast: TextLabel? = nil
 local dialog: Frame? = nil
@@ -32242,7 +32309,7 @@ local function drawRoads()
 		return
 	end
 	layer:ClearAllChildren()
-	local size = mf.AbsoluteSize
+	local size = mf.AbsoluteSize / Kit.scaleOf(mf)
 	local done: { [string]: boolean } = {}
 	for _, r in view.regions do
 		for _, otherId in r.adjacent do
@@ -32324,7 +32391,11 @@ local function drawNodes()
 	if not layer or not view then
 		return
 	end
-	layer:ClearAllChildren()
+	for _, c in layer:GetChildren() do
+		if not c:IsA("UIScale") then -- the layer's own scale stays (fitMap)
+			c:Destroy()
+		end
+	end
 	local sel = armyById(selectedArmy)
 	local canMove = sel ~= nil and sel.faction == PLAYER and sel.movesLeft > 0 and playerPhase()
 	local from = if sel then regionById(sel.regionId) else nil
@@ -32378,7 +32449,10 @@ local function drawNodes()
 		if #r.armies > 0 then
 			local stack = Instance.new("Frame") :: Frame
 			stack.Size = UDim2.fromOffset(92, 20 * #r.armies)
-			stack.Position = nodePos(r) + UDim2.fromOffset(d / 2 + 6, -10)
+			-- east of the node, or west of it near the map's east edge so the tags stay on the map
+			local east = r.pos.x > 760
+			stack.Position = nodePos(r) + UDim2.fromOffset(if east then -d / 2 - 6 else d / 2 + 6, -10)
+			stack.AnchorPoint = Vector2.new(if east then 1 else 0, 0)
 			stack.BackgroundTransparency = 1
 			stack.ZIndex = 6
 			stack.Parent = layer
@@ -32660,14 +32734,29 @@ local function build()
 		return
 	end
 	local sg = Kit.screen("EoECampaign", 32)
+	-- a phone lays this out at 600 x 260 units and shrinks it; the map takes the width its
+	-- height allows and the orders panel the rest (Touch.campaignSplit)
+	local panels: { Frame } = {} -- map, orders: sized once they exist
+	local function relayout(size: Vector2)
+		local mapW, sideW = Touch.campaignSplit(size.X, size.Y, 1.15, 280, 380)
+		if #panels == 2 then
+			panels[1].Size = UDim2.new(0, mapW, 1, -32)
+			panels[2].Size = UDim2.new(0, sideW, 1, -32)
+		end
+		local t = toast
+		if t then
+			t.Size = UDim2.new(0, mapW, 0, 24)
+		end
+	end
+	local root = Kit.fitScreen(sg, 600, 260, relayout)
 	local back = Instance.new("Frame") :: Frame
 	back.Size = UDim2.fromScale(1, 1)
 	back.BackgroundColor3 = Color3.fromRGB(28, 26, 22)
 	back.BackgroundTransparency = 0.35
 	back.BorderSizePixel = 0
 	back.Active = true
-	back.Parent = sg
-	local mapPanel = Kit.panel(sg, { size = UDim2.new(1, -420, 1, -32), position = UDim2.new(0, 16, 0, 16), transparency = 0 })
+	back.Parent = root
+	local mapPanel = Kit.panel(root, { size = UDim2.new(1, -420, 1, -32), position = UDim2.new(0, 16, 0, 16), transparency = 0 })
 	mapPanel.BackgroundColor3 = OLIVE
 	local grad = (mapPanel:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")) :: UIGradient
 	mapPanel.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -32698,11 +32787,18 @@ local function build()
 	nl.BackgroundTransparency = 1
 	nl.ZIndex = 5
 	nl.Parent = mf
-	local t = Kit.title(mapPanel, "Thuringia, October 1806", { size = UDim2.new(1, -20, 0, 30), position = UDim2.new(0, 12, 0, 6), textSize = 24, colour = Kit.CREAM })
+	local ns = Instance.new("UIScale") :: UIScale
+	ns.Parent = nl
+	local t = Kit.title(mapPanel, "Thuringia, October 1806", { size = UDim2.new(1, -84, 0, 30), position = UDim2.new(0, 12, 0, 6), textSize = 24, colour = Kit.CREAM })
+	t.TextScaled = true -- a phone's narrow map: smaller, clear of the compass
+	local tc = Instance.new("UITextSizeConstraint") :: UITextSizeConstraint
+	tc.MaxTextSize = 24
+	tc.Parent = t
 	t.ZIndex = 8
 	local compass = Kit.label(mapPanel, "N ▲", { size = UDim2.fromOffset(60, 20), position = UDim2.new(1, -12, 0, 10), anchor = Vector2.new(1, 0), textSize = 12, colour = Kit.CREAM, align = Enum.TextXAlignment.Right })
 	compass.ZIndex = 8
-	local sidePanel = Kit.panel(sg, { size = UDim2.new(0, 380, 1, -32), position = UDim2.new(1, -16, 0, 16), anchor = Vector2.new(1, 0), padding = 14 })
+	local sidePanel = Kit.panel(root, { size = UDim2.new(0, 380, 1, -32), position = UDim2.new(1, -16, 0, 16), anchor = Vector2.new(1, 0), padding = 14 })
+	panels = { mapPanel, sidePanel }
 	local sc = Instance.new("ScrollingFrame") :: ScrollingFrame
 	sc.Size = UDim2.fromScale(1, 1)
 	sc.BackgroundTransparency = 1
@@ -32712,7 +32808,7 @@ local function build()
 	sc.CanvasSize = UDim2.new()
 	sc.Active = true
 	sc.Parent = sidePanel
-	toast = Kit.label(sg, "", { size = UDim2.new(1, -420, 0, 24), position = UDim2.new(0, 16, 1, -40), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
+	toast = Kit.label(root, "", { size = UDim2.new(1, -420, 0, 24), position = UDim2.new(0, 16, 1, -40), textSize = 13, align = Enum.TextXAlignment.Center, colour = Kit.CREAM })
 	toast.TextStrokeTransparency = 0.3
 	toast.TextStrokeColor3 = Kit.INK
 	toast.ZIndex = 9
@@ -32722,7 +32818,17 @@ local function build()
 	roadLayer = rl
 	nodeLayer = nl
 	side = sc
-	sizeConn = mf:GetPropertyChangedSignal("AbsoluteSize"):Connect(drawRoads)
+	relayout(root.AbsoluteSize / Kit.scaleOf(root)) -- the root's own units, now the panels exist
+	-- the markers shrink with the map (never grow); the roads are redrawn at its new size
+	local function fitMap()
+		local w = mf.AbsoluteSize.X / Kit.scaleOf(mf)
+		local k = math.clamp(w / MARKER_MAP_W, MARKER_MIN, 1)
+		ns.Scale = k
+		nl.Size = UDim2.fromScale(1 / k, 1 / k)
+		drawRoads()
+	end
+	sizeConn = mf:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitMap)
+	fitMap()
 end
 
 function CampaignScreen.render()
@@ -35611,6 +35717,81 @@ function Kit.fit(panel: GuiObject, w: number, h: number)
 		u.Scale = k
 		panel.Size = UDim2.fromOffset(w, math.floor(fh))
 	end
+	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	refit()
+end
+
+-- A screen's size in layout units: pixels over the touch scale it was given.
+function Kit.screenUnits(sg: ScreenGui): Vector2
+	local ui = sg:FindFirstChildOfClass("UIScale") :: UIScale?
+	return sg.AbsoluteSize / (if ui then ui.Scale else 1)
+end
+
+-- The combined UIScale over a gui object: its own and every ancestor's. Pixels measured from
+-- AbsoluteSize divided by this are layout units again.
+function Kit.scaleOf(g: Instance): number
+	local k = 1
+	local node: Instance? = g
+	while node do
+		local u = node:FindFirstChildOfClass("UIScale") :: UIScale?
+		if u then
+			k *= u.Scale
+		end
+		node = node.Parent
+	end
+	return k
+end
+
+-- A full-screen root for a layout that needs at least minW x minH units (Touch.fitScreen):
+-- on a phone it is laid out at that size and scaled down to the screen. `onResize` gets the
+-- root's size in its own units whenever the screen changes.
+function Kit.fitScreen(sg: ScreenGui, minW: number, minH: number, onResize: ((Vector2) -> ())?): Frame
+	local root = Instance.new("Frame") :: Frame
+	root.Name = "Root"
+	root.BackgroundTransparency = 1
+	root.Parent = sg
+	local u = Instance.new("UIScale") :: UIScale
+	u.Parent = root
+	local function refit()
+		local size = Kit.screenUnits(sg)
+		local k = Touch.fitScreen(size.X, size.Y, minW, minH)
+		u.Scale = k
+		root.Size = UDim2.fromScale(1 / k, 1 / k)
+		if onResize then
+			onResize(size / k)
+		end
+	end
+	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	refit()
+	return root
+end
+
+-- A modal whose height grows with its content: shrunk (never grown) so all of it, buttons
+-- included, stays on the screen.
+function Kit.fitModal(panel: GuiObject)
+	local sg = panel:FindFirstAncestorOfClass("ScreenGui") :: ScreenGui?
+	if not sg then
+		return
+	end
+	local u = Instance.new("UIScale") :: UIScale
+	u.Parent = panel
+	local busy = false
+	local function refit()
+		if busy then
+			return
+		end
+		busy = true
+		local parent = panel.Parent
+		local outer = if parent then Kit.scaleOf(parent) else 1 -- every scale above the panel's own
+		local natural = panel.AbsoluteSize / (outer * u.Scale)
+		local screen = sg.AbsoluteSize / outer
+		local k = math.min(1, (screen.Y - 16) / math.max(natural.Y, 1), (screen.X - 16) / math.max(natural.X, 1))
+		if math.abs(k - u.Scale) > 0.01 then
+			u.Scale = k
+		end
+		busy = false
+	end
+	panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
 	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
 	refit()
 end

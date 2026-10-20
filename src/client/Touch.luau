@@ -55,6 +55,19 @@ function Touch.fitPanel(availW: number, availH: number, w: number, h: number): (
 	return k, math.min(h, (availH - 16) / k)
 end
 
+-- The scale (at most 1) that gives a screen of w x h units at least minW x minH to lay out in.
+function Touch.fitScreen(w: number, h: number, minW: number, minH: number): number
+	return math.min(1, w / minW, h / minH)
+end
+
+-- A campaign screen w x h units: a map of `aspect` (width over height) on the left as wide as
+-- its height allows, a side panel of sideMin..sideMax on the right; 16-unit margins and an
+-- 8-unit gap, the map panel 32 shorter than the screen. Returns (map width, side width).
+function Touch.campaignSplit(w: number, h: number, aspect: number, sideMin: number, sideMax: number): (number, number)
+	local side = math.clamp(w - 40 - (h - 32) * aspect, sideMin, sideMax)
+	return w - 40 - side, side
+end
+
 -- A column laid out for `full` units of height (or `compact` without its header) on a screen
 -- `height` units tall (pixels over the UI scale): compact when the full one does not fit, and
 -- the scale that fits whichever is shown.
