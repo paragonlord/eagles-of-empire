@@ -180,9 +180,13 @@ cannon a 4 s boom with ~90 % low end). Listen once and swap any that sound wrong
 | `battleMusicTense` | 1840899338 ("The Regiment") | 63 s | Licensed (APM) |
 | `campaignMusic` | 9046678026 ("Army Soldiers March") | 30 s | Licensed (APM) |
 | `victory` | 1838608860 ("Homecoming Of The Victorious (30s)") | 30 s | Licensed (APM) |
+| `uiClick` | 9125655352 ("Mechanism Wooden Jerks Single Clicks Smacks 2") | 0.6 s, no low end | Licensed (PSE) |
+| `uiPaper` | 9125723307 ("Paper Movement Cu Handling Grabs Flips Waving 8"), slot volume 0.9 | 1.4 s, quiet | Licensed (PSE) |
+| `ambienceRain` | 9112853422 ("Rain Heavy Rainfall Grass Wooden Roof 1") | 46 s loop | Licensed (PSE) |
 
-Still empty: bugles, the defeat sting, rout cries, melee, the interface clicks (the PSE wooden
-click measured near silent), rain and fog ambience. An empty slot plays nothing.
+Still empty: bugles (the libraries' only short one is a Chinese bugle), the defeat sting, rout
+cries, melee (only single sword clashes, which loop badly), fog ambience, the wax seal. An empty
+slot plays nothing.
 
 ## Sound candidates (to audition)
 

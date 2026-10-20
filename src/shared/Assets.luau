@@ -251,6 +251,10 @@ S.battleMusicCalm.id = ids({ 1840899246 }) -- APM "Military Approach"
 S.battleMusicTense.id = ids({ 1840899338 }) -- APM "The Regiment"
 S.campaignMusic.id = ids({ 9046678026 }) -- APM "Army Soldiers March"
 S.victory.id = ids({ 1838608860 }) -- APM "Homecoming Of The Victorious (30s)"
+S.uiClick.id = ids({ 9125655352 }) -- PSE "Mechanism Wooden Jerks Single Clicks": a dry 0.6 s click
+S.uiPaper.id = ids({ 9125723307 }) -- PSE "Paper Movement ... Flips": a sheet handled, quiet
+S.uiPaper.volume = 0.9
+S.ambienceRain.id = ids({ 9112853422 }) -- PSE "Rain Heavy Rainfall Grass Wooden Roof 1", 46 s loop
 
 -- Kits by nation (Look.nation), each kind from one generated figure retextured per uniform.
 -- infantry_*: torso, head, headgear (the nation's line headgear), armL, armR, legL, legR, musket.
