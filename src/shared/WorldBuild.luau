@@ -25,10 +25,14 @@ function WorldBuild.applyPalette(map: any)
 	local t = workspace.Terrain
 	local season = WorldGen.season(map.id)
 	-- Grass stays olive-gold with green (Studio: 162,150,58 read orange/desert under a low warm sun).
-	t:SetMaterialColor(Enum.Material.Grass, rgb(season.grass))
-	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(season.leafy))
-	t:SetMaterialColor(Enum.Material.Limestone, rgb(season.wheat))
-	t:SetMaterialColor(Enum.Material.Mud, rgb(season.plough))
+	-- The painted ground (the place's MaterialVariants) brings its own colour, so it takes lighter
+	-- tints; a place without it keeps the stock materials' tints.
+	local painted = game:GetService("MaterialService"):FindFirstChild("EoEMeadow") ~= nil
+	local pt = season.painted
+	t:SetMaterialColor(Enum.Material.Grass, rgb(if painted then pt[1] else season.grass))
+	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(if painted then pt[2] else season.leafy))
+	t:SetMaterialColor(Enum.Material.Limestone, rgb(if painted then pt[3] else season.wheat))
+	t:SetMaterialColor(Enum.Material.Mud, rgb(if painted then pt[4] else season.plough))
 	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads, tracks, yards
 	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(122, 112, 98)) -- village streets
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
@@ -184,6 +188,10 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 		local fit = if n then Vector3.new(s.size.X / n[1], s.size.Y / n[2], s.size.Z / n[3]) else Vector3.one
 		m.Scale = fit * Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
 		m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
+		local tint = slot.tint
+		if tint then
+			m.VertexColor = Vector3.new(tint[1], tint[2], tint[3])
+		end
 		m.Parent = p
 	end
 	local tex = if s.texture then Assets.textureOf(s.texture) else nil

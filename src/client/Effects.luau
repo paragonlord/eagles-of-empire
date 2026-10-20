@@ -7,6 +7,7 @@
 local TweenService = game:GetService("TweenService") :: TweenService
 local Debris = game:GetService("Debris") :: Debris
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Settings = require(script.Parent.Settings)
 local BattleState = require(script.Parent.BattleState)
 local Camera = require(script.Parent.Camera)
@@ -46,7 +47,7 @@ end
 -- builds up over a sustained firefight · dust: hooves, feet, routs · spurt: earth thrown up by
 -- roundshot grazes and canister
 type EmitterKind = "smoke" | "plume" | "haze" | "dust" | "spurt"
-local EMITTERS: { [EmitterKind]: number } = { smoke = 10, plume = 4, haze = 3, dust = 6, spurt = 6 }
+local EMITTERS: { [EmitterKind]: number } = { smoke = 14, plume = 4, haze = 3, dust = 6, spurt = 6 }
 local emitters: { [EmitterKind]: { { part: Part, pe: ParticleEmitter } } } = { smoke = {}, plume = {}, haze = {}, dust = {}, spurt = {} }
 local cursor: { [EmitterKind]: number } = { smoke = 0, plume = 0, haze = 0, dust = 0, spurt = 0 }
 local qualityScale = 1
@@ -114,11 +115,11 @@ local function makeEmitter(kind: EmitterKind, parent: Instance): { part: Part, p
 		-- billows a few studs forward off the muzzles, then hangs and drifts downwind
 		pe.Drag = 1.4
 		pe.Acceleration = wind(1.4, 0.25)
-		pe.Lifetime = NumberRange.new(9, 14)
+		pe.Lifetime = NumberRange.new(12, 18)
 		pe.Speed = NumberRange.new(3, 8)
 		pe.SpreadAngle = Vector2.new(22, 8)
-		pe.Size = seq({ { 0, 1.4 }, { 0.15, 4.5 }, { 1, 10 } })
-		pe.Transparency = seq({ { 0, 0.3 }, { 0.2, 0.45 }, { 0.7, 0.76 }, { 1, 1 } })
+		pe.Size = seq({ { 0, 1.4 }, { 0.15, 5 }, { 1, 12 } })
+		pe.Transparency = seq({ { 0, 0.25 }, { 0.2, 0.4 }, { 0.7, 0.72 }, { 1, 1 } })
 		pe.Color = ColorSequence.new(Color3.fromRGB(240, 238, 232), Color3.fromRGB(196, 194, 188))
 	elseif kind == "plume" then
 		pe.Drag = 1.8
@@ -400,12 +401,76 @@ local function charge(ev: any)
 	end
 end
 
+-- Burning buildings: a moment whose id ends in "ablaze" sets the houses nearest its spot alight
+-- for the rest of the battle, flames on the roofs under a dark column of smoke.
+local HOUSE_MESHES: { [string]: boolean } = {}
+for _, key in { "houseA", "houseB", "houseC", "barn", "church", "windmill" } do
+	local slot = Assets.get(key)
+	if slot then
+		HOUSE_MESHES[slot.mesh] = true
+	end
+end
+local function setAblaze(x: number, z: number)
+	local root = workspace:FindFirstChild("EoEWorld")
+	local f = folder
+	if not root or not f then
+		return
+	end
+	local found: { { p: BasePart, d: number } } = {}
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") then
+			local bp = d :: BasePart
+			local m = bp:FindFirstChildOfClass("SpecialMesh") :: SpecialMesh?
+			if bp:IsA("WedgePart") or (m and HOUSE_MESHES[m.MeshId]) then
+				local dist = Vector2.new(bp.Position.X - x, bp.Position.Z - z).Magnitude
+				if dist < 90 then
+					table.insert(found, { p = bp, d = dist })
+				end
+			end
+		end
+	end
+	table.sort(found, function(a: { p: BasePart, d: number }, b: { p: BasePart, d: number }): boolean
+		return a.d < b.d
+	end)
+	for i = 1, math.min(4, #found) do
+		local house = found[i].p
+		local anchor = Instance.new("Part") :: Part
+		anchor.Anchored, anchor.CanCollide, anchor.CanQuery, anchor.CanTouch = true, false, false, false
+		anchor.Transparency = 1
+		anchor.Size = Vector3.new(house.Size.X * 0.6, 1, house.Size.Z * 0.6)
+		anchor.CFrame = CFrame.new(house.Position + Vector3.new(0, house.Size.Y / 2, 0))
+		anchor.Parent = f
+		local fire = Instance.new("Fire") :: Fire
+		fire.Size = math.clamp(house.Size.X * 0.8, 6, 18)
+		fire.Heat = 14
+		fire.Parent = anchor
+		local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+		pe.Texture = SMOKE_TEXTURE
+		pe.Rate = 5 * qualityScale
+		pe.Lifetime = NumberRange.new(10, 16)
+		pe.Speed = NumberRange.new(4, 7)
+		pe.EmissionDirection = Enum.NormalId.Top
+		pe.SpreadAngle = Vector2.new(12, 12)
+		pe.Drag = 0.5
+		pe.Acceleration = wind(0.5, 1.2)
+		pe.Rotation = NumberRange.new(0, 360)
+		pe.RotSpeed = NumberRange.new(-8, 8)
+		pe.Size = seq({ { 0, 5 }, { 1, 28 } })
+		pe.Transparency = seq({ { 0, 0.35 }, { 0.6, 0.6 }, { 1, 1 } })
+		pe.Color = ColorSequence.new(Color3.fromRGB(70, 64, 58), Color3.fromRGB(150, 146, 140))
+		pe.LightInfluence = 1
+		pe.Parent = anchor
+	end
+end
+
 function Effects.onEvent(ev: any)
 	if not folder then
 		return
 	end
 	local kind = ev.kind
-	if kind == "volley" then
+	if kind == "moment" and type(ev.momentId) == "string" and string.sub(ev.momentId, -6) == "ablaze" and ev.x and ev.z then
+		setAblaze(ev.x, ev.z)
+	elseif kind == "volley" then
 		volley(ev)
 	elseif kind == "cannon" then
 		cannon(ev)

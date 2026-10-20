@@ -327,3 +327,14 @@ test("Props: place names on the ground stay off the fighting up close and modest
 	local kTop = Props.groundLabelLook(900)
 	assertTrue(kTop <= 1.5, "capped from high up: " .. kTop)
 end)
+
+test("WorldGen: every season tints the painted ground (meadow, pasture, wheat, plough)", function()
+	local WorldGen = require(game:GetService("ReplicatedStorage").EoE.WorldGen)
+	for _, id in { "jena", "austerlitz", "waterloo" } do
+		local s = WorldGen.season(id)
+		assertEq(#s.painted, 4, id)
+		for _, c in s.painted do
+			assertEq(#c, 3, id .. " rgb")
+		end
+	end
+end)

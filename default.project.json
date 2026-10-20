@@ -4,27 +4,40 @@
     "$className": "DataModel",
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
-      "EoE": { "$path": "src/shared" }
+      "EoE": {
+        "$path": "src/shared"
+      }
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "EoE": { "$path": "src/server" }
+      "EoE": {
+        "$path": "src/server"
+      }
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
-      "$properties": { "EnableMouseLockOption": false, "CameraMaxZoomDistance": 2000 },
+      "$properties": {
+        "EnableMouseLockOption": false,
+        "CameraMaxZoomDistance": 2000
+      },
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
-        "EoEClient": { "$path": "src/client" }
+        "EoEClient": {
+          "$path": "src/client"
+        }
       }
     },
     "Players": {
       "$className": "Players",
-      "$properties": { "CharacterAutoLoads": false }
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
     },
     "Workspace": {
       "$className": "Workspace",
-      "$properties": { "StreamingEnabled": false }
+      "$properties": {
+        "StreamingEnabled": false
+      }
     },
     "Lighting": {
       "$className": "Lighting",
@@ -34,6 +47,177 @@
         "GlobalShadows": true,
         "EnvironmentDiffuseScale": 0.6,
         "EnvironmentSpecularScale": 0.4
+      }
+    },
+    "MaterialService": {
+      "$className": "MaterialService",
+      "EoECobble": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 880
+          },
+          "MaterialPattern": {
+            "Enum": 0
+          },
+          "StudsPerTile": 6,
+          "ColorMap": {
+            "Content": "rbxassetid://79736977436140"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://113484690303056"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://119432424787435"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://134483936862056"
+          }
+        }
+      },
+      "EoEMeadow": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 1280
+          },
+          "MaterialPattern": {
+            "Enum": 1
+          },
+          "StudsPerTile": 16,
+          "ColorMap": {
+            "Content": "rbxassetid://78932914441511"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://81780368344271"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://113158174693874"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://122977018905764"
+          }
+        }
+      },
+      "EoEPasture": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 1284
+          },
+          "MaterialPattern": {
+            "Enum": 1
+          },
+          "StudsPerTile": 16,
+          "ColorMap": {
+            "Content": "rbxassetid://115647152528133"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://93935057440567"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://103132240653576"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://97900847873380"
+          }
+        }
+      },
+      "EoEPlough": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 1344
+          },
+          "MaterialPattern": {
+            "Enum": 0
+          },
+          "StudsPerTile": 12,
+          "ColorMap": {
+            "Content": "rbxassetid://96559109836885"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://139572798572594"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://137053200521316"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://84338619181484"
+          }
+        }
+      },
+      "EoERock": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 896
+          },
+          "MaterialPattern": {
+            "Enum": 1
+          },
+          "StudsPerTile": 16,
+          "ColorMap": {
+            "Content": "rbxassetid://84667174225819"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://75534608631731"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://132248790045498"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://100376469784147"
+          }
+        }
+      },
+      "EoEStubble": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 820
+          },
+          "MaterialPattern": {
+            "Enum": 0
+          },
+          "StudsPerTile": 12,
+          "ColorMap": {
+            "Content": "rbxassetid://101412108847914"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://128583329948941"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://75057153088692"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://113543384398088"
+          }
+        }
+      },
+      "EoETrack": {
+        "$className": "MaterialVariant",
+        "$properties": {
+          "BaseMaterial": {
+            "Enum": 1360
+          },
+          "MaterialPattern": {
+            "Enum": 1
+          },
+          "StudsPerTile": 10,
+          "ColorMap": {
+            "Content": "rbxassetid://121103934617408"
+          },
+          "NormalMap": {
+            "Content": "rbxassetid://80805631795827"
+          },
+          "RoughnessMap": {
+            "Content": "rbxassetid://89046260325359"
+          },
+          "MetalnessMap": {
+            "Content": "rbxassetid://92732721869428"
+          }
+        }
       }
     }
   }

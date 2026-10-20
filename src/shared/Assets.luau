@@ -13,6 +13,7 @@ export type Slot = {
 	offset: { number }, -- SpecialMesh.Offset (x, y, z), studs
 	native: { number }?, -- the mesh's own size in studs (Studio shows it on import); world meshes are
 	-- then fitted to each object's box, so one oak mesh serves every oak size
+	tint: { number }?, -- SpecialMesh.VertexColor over the texture (r, g, b multipliers)
 }
 
 -- A generated figure kit (tools/kit_import.luau): one textured mesh per body piece, placed in the
@@ -51,6 +52,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 12, 13, 12 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treeBeech = { -- original 600-triangle beech; native bounds confirmed in Studio
 		mesh = "rbxassetid://112134639390683",
@@ -58,6 +60,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 10, 16, 10 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treePine = { -- original 444-triangle pine; native bounds confirmed in Studio
 		mesh = "rbxassetid://82857667018871",
@@ -65,6 +68,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 8, 18, 8 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treePoplar = { -- original 200-triangle poplar; native bounds confirmed in Studio
 		mesh = "rbxassetid://140076983958671",
@@ -72,6 +76,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 4, 16, 4 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treeWillow = slot(),
 	houseA = { -- original 788-triangle whitewashed cottage; ridge along +X
@@ -79,7 +84,8 @@ Assets.slots = {
 		texture = "rbxassetid://84033137999917",
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
-		native = { 7, 6, 5 },
+		native = { 5.6, 5.4, 4.5 }, -- measured in Studio (round 29): it now fills its plot like its neighbours
+		tint = { 0.9, 0.84, 0.8 }, -- tones the bright orange roof down to the tinted part-built roofs
 	},
 	houseB = { -- original 1652-triangle timber-framed house; ridge along +X
 		mesh = "rbxassetid://106845158633872",

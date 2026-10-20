@@ -108,6 +108,9 @@ export type Season = {
 	leafy: { number },
 	wheat: { number },
 	plough: { number },
+	-- tints over the painted ground (MaterialService variants), whose maps carry their own colour:
+	-- grass, leafy, wheat, plough (tuned by eye in Studio, round 40)
+	painted: { { number } },
 }
 -- Jena/Auerstedt mid-October: stubble and fresh plough; Austerlitz December: plough and pale
 -- winter grass, few hedges (open Moravian fields); Waterloo June: tall rye, green, hedged.
@@ -119,6 +122,7 @@ local SEASONS: { [string]: Season } = {
 		leafy = { 84, 106, 44 },
 		wheat = { 150, 132, 86 }, -- Limestone renders far brighter: 178,162,104 read neon lime
 		plough = { 98, 76, 54 },
+		painted = { { 180, 172, 112 }, { 136, 150, 92 }, { 168, 148, 104 }, { 104, 98, 96 } },
 	},
 	winter = {
 		crops = { 0.36, 0.50, 0.60, 1.0 },
@@ -127,6 +131,7 @@ local SEASONS: { [string]: Season } = {
 		leafy = { 86, 102, 52 },
 		wheat = { 141, 133, 99 }, -- 0.84x: Limestone renders bright
 		plough = { 90, 72, 56 },
+		painted = { { 174, 159, 126 }, { 139, 144, 109 }, { 158, 149, 120 }, { 95, 93, 100 } },
 	},
 	summer = {
 		crops = { 0.24, 0.44, 0.84, 1.0 },
@@ -135,6 +140,7 @@ local SEASONS: { [string]: Season } = {
 		leafy = { 76, 108, 42 },
 		wheat = { 143, 134, 76 }, -- 0.84x: Limestone renders bright
 		plough = { 104, 82, 58 },
+		painted = { { 166, 172, 105 }, { 123, 153, 88 }, { 160, 150, 92 }, { 110, 106, 103 } },
 	},
 }
 local MAP_SEASON: { [string]: string } = { austerlitz = "winter", waterloo = "summer" }

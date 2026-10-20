@@ -71,6 +71,7 @@ local function ensureWorld(mapId: string): boolean
 	builtMapId = nil
 	local t0 = os.clock()
 	local q = Settings.get().quality
+	Terrain.paintGround()
 	Terrain.setDecoration(q >= 2)
 	local ok = Props.build(map, q, function(p: number)
 		Loading.setProgress(p * 0.3, "Planting woods and villages…")

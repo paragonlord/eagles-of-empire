@@ -663,8 +663,8 @@ local function buildMarker(g: Group, f: any): Marker
 		p.Parent = folder
 	end
 
-	local pxW = if g.ghost then 56 elseif hq then 230 else 168
-	local pxH = if g.ghost then 34 elseif hq then 58 else 44
+	local pxW = if g.ghost then 56 elseif hq then 184 else 136
+	local pxH = if g.ghost then 34 elseif hq then 46 else 36
 	local gui = Instance.new("BillboardGui") :: BillboardGui
 	gui.Size = UDim2.fromOffset(pxW, pxH + 16)
 	gui.SizeOffset = Vector2.new(0, 0.1)
@@ -1145,8 +1145,8 @@ end
 -- Plates scale with distance between a floor and their design size (so they never cover the
 -- field at the deployment zoom). Far away, only HQs, the selection and the hovered unit keep a
 -- full plate; the rest shrink to a small banner in the unit's colour.
-local PLATE_STUDS = 24 -- world width a plate represents before clamping
-local PLATE_MIN_W = 84
+local PLATE_STUDS = 15 -- world width a plate represents before clamping (TW-sized: the men, not the plates, fill the view)
+local PLATE_MIN_W = 72
 local BANNER_W, BANNER_H = 34, 10
 local FULL_PLATE_DEPTH = 560 -- camera depth beyond which ordinary plates become banners
 

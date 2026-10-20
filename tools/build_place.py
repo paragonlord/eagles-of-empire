@@ -2,7 +2,8 @@
 """Build build/EaglesOfEmpire.rbxlx from default.project.json without Rojo.
 
 Supports the subset of the Rojo project format this repo uses: $className, $path,
-$properties (bool / number / string / Color3 as [r,g,b]), nested folders, and the
+$properties (bool / number / string / Color3 as [r,g,b] / {"Enum": n} / {"Content": url}),
+nested folders, and the
 .server.luau / .client.luau / init.luau naming rules. Output is a real XML place file that
 Roblox Studio opens directly (File > Open from file).
 """
@@ -37,6 +38,10 @@ def prop_xml(name: str, value) -> str:
         return f'<float name="{name}">{value}</float>' if name not in ("CameraMaxZoomDistance",) else f'<float name="{name}">{value}</float>'
     if isinstance(value, str):
         return f'<string name="{name}">{escape(value)}</string>'
+    if isinstance(value, dict) and "Enum" in value:  # Rojo's explicit form: {"Enum": 1280}
+        return f'<token name="{name}">{int(value["Enum"])}</token>'
+    if isinstance(value, dict) and "Content" in value:  # {"Content": "rbxassetid://..."}
+        return f'<Content name="{name}"><url>{escape(value["Content"])}</url></Content>'
     if isinstance(value, list) and len(value) == 3:
         r, g, b = value
         return f'<Color3 name="{name}"><R>{r/255}</R><G>{g/255}</G><B>{b/255}</B></Color3>'
