@@ -82,8 +82,8 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 ## Open items
 
 0. Studio checklist, what is left after QA round 38: the reload and bayonet beats in motion (stills
-   cannot show them), and whether the round-shot trail is bold enough from the normal camera
-   height (`docs/shots/r38-round-shot.jpg`; one line in `src/client/Effects.luau`).
+   cannot show them), and the round shot in motion now that the ball is 1.3 studs and its
+   trail 0.4 (`src/client/Effects.luau`, `roundShot`).
 
 1. Two-player Studio test (Test → Clients and Servers → 2 Players, by hand): co-op wings, pause
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.

@@ -960,8 +960,9 @@ EoE errors. Studio rendered again; synced 6 scripts and played by mouse and keyb
   cannot be judged from stills.
 - Pass, faint: the round-shot effect, fired by script at the view's centre, draws the iron ball
   and its grey grazing trail (`r38-round-shot.jpg`); from the normal camera height the ball is a
-  few pixels and the trail a thin line. A thicker trail is a one-line change in `Effects.luau`
-  if Bartosz wants it bolder.
+  few pixels and the trail a thin line. Fixed: static probes at a normal command zoom (134 studs
+  away) show a 0.7-stud ball as a speck, 1.3 as a clear dot, 3 as a big ball
+  (`r38-ball-sizes.jpg`); the ball is now 1.3 and its trail 0.4 thick (was 0.18).
 - Pass: the results' order of battle has the Kills column, and the kills add up to the enemy's
   casualties (620); "Most enemy casualties: 3e de Ligne, 464" (`r38-results-kills.jpg`). After a
   listed episode (Landgrafenberg) the In history section gives the summary and "History went

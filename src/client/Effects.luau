@@ -243,7 +243,7 @@ local function roundShot(points: { Vector3 })
 	end
 	local ball = Instance.new("Part") :: Part
 	ball.Shape = Enum.PartType.Ball
-	ball.Size = Vector3.new(0.7, 0.7, 0.7)
+	ball.Size = Vector3.new(1.3, 1.3, 1.3) -- larger than life, so it reads from the command height
 	ball.Color = Color3.fromRGB(38, 36, 34)
 	ball.Material = Enum.Material.Metal
 	ball.Anchored, ball.CanCollide, ball.CanQuery, ball.CanTouch, ball.CastShadow = true, false, false, false, false
@@ -259,7 +259,7 @@ local function roundShot(points: { Vector3 })
 			end
 			TweenService:Create(ball, TweenInfo.new(leg, Enum.EasingStyle.Linear), { CFrame = CFrame.new(b) }):Play()
 			local streak = Instance.new("Part") :: Part
-			streak.Size = Vector3.new(0.18, 0.18, (b - a).Magnitude)
+			streak.Size = Vector3.new(0.4, 0.4, (b - a).Magnitude)
 			streak.CFrame = CFrame.lookAt((a + b) / 2, b)
 			streak.Color = Color3.fromRGB(150, 146, 138)
 			streak.Material = Enum.Material.SmoothPlastic
