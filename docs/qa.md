@@ -36,10 +36,10 @@ Roblox Studio; not run in this environment). Source checks are not in-engine che
 | Launch → menu → deployment → battle → results → restart without duplicate HUD/connections | pass (Studio run log, round 2) |
 | Second Studio client cannot control or pause the commander's battle | blocked |
 | Reconnect receives complete state without duplicate units/effects | blocked |
-| Group selection, queued march, formation change, volley, artillery, cavalry charge, rout, full battle, one victory and one defeat | partial: volley, cannon, charge, rout, rally, capture, full battle, one defeat pass; victory and UI-driven orders not yet run |
-| Campaign turn → battle → casualties return → save → continue | blocked |
+| Group selection, queued march, formation change, volley, artillery, cavalry charge, rout, full battle, one victory and one defeat | pass: victory at Austerlitz (round 4), defeats (rounds 37–38), UI-driven orders by mouse and keyboard (Ctrl+A, right-click march, limber/unlimber, follow camera; round 38) |
+| Campaign turn → battle → casualties return → save → continue | pass (round 38, grand campaign: Tyrol, every battalion's strength returned exactly); the save is session-only in Studio without DataStore access, store paths covered by `tests/grand.spec.luau` |
 | 1920×1080, 1366×768, ultrawide layouts; label overlap; click-through; camera clipping | blocked |
-| Frame rate with normal roster and stress fixture; instance counts; restart leak check | blocked |
+| Frame rate with normal roster and stress fixture; instance counts; restart leak check | partial: 60 fps in Jena and Waterloo battles on this Mac (rounds 11–12); stress fixture and leak check not run |
 | Terrain visual vs reference image (image not supplied) | blocked |
 
 ## Studio run log
@@ -969,6 +969,18 @@ EoE errors. Studio rendered again; synced 6 scripts and played by mouse and keyb
 - Seen: a player battery ordered across a hedge stopped short once ("Holding · Limbered");
   re-ordered, it went. Not reproduced.
 - Not checked by eye: Waterloo after the balance pass (covered by `tools/balance.py`).
+- Pass, the grand campaign loop end to end: a new campaign as France (session-only save in
+  Studio), war on Austria, Masséna's Army of Italy (3,520) into Tyrol against Archduke Charles
+  (7,040), with the three Austrian armies next door in Vienna joining as reinforcements (34
+  formations). Fought on the Tyrol map (Innsbruck, Brixen, Wörgl): a defeat on objectives,
+  France 1,005 of 3,640 lost (`r38-tyrol-defeat.jpg`). Back on the board, July 1805: Masséna
+  retreated to Lombardy with 2,515 men (3,520 − 1,005), the battery gone and each battalion at
+  its battle strength (25e 299/600, 26e 280/600, 27e 462/600…), and his career reads "0 won,
+  1 lost" (`r38-massena-after-tyrol.jpg`); the log has "Battle of Tyrol: Austrian Empire defeats
+  French Empire".
+- Harness note: driving the campaign by remotes skips the client's "in the grand campaign" flag,
+  so that battle's Return to Campaign opened the Thuringian map; opening Grand Campaign from the
+  menu showed the same session. Through the UI the flag is set.
 
 ## Known failures
 
