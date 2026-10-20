@@ -1362,7 +1362,7 @@ local function clipCheck(dt: number)
 		end
 	end
 	for _, g in groups do
-		if g.lod == "near" then
+		if g.lod == "near" and Soldiers.refreshInterval(g.dist, true) == 0 then -- farther men skip the lift
 			for _, p in g.parts do
 				check(p)
 			end
@@ -1457,7 +1457,7 @@ function Figures.update(dt: number)
 					g.dirty = true
 				end
 			end
-			if g.dirty and g.wait <= 0 then
+			if g.dirty and g.wait <= dt / 2 then -- due within half a frame: now, not a frame late
 				g.dirty = false
 				g.wait = every
 				local baseY = groundY(g.rx, g.rz)
@@ -1491,8 +1491,11 @@ function Figures.update(dt: number)
 						local fx, fz = math.cos(h), math.sin(h)
 						pitch = (groundY(wp.X + fx, wp.Z + fz) - groundY(wp.X - fx, wp.Z - fz)) / 2
 					end
-					-- every corner of the footprint clears the surface
-					y += Ground.liftAt(wp.X, wp.Z, y, h, foot[1], foot[2], if pitched then pitch else nil)
+					-- every corner of the footprint clears the surface; close up only, since past
+					-- 150 studs a sunk heel is under a pixel and the four extra samples a man cost most
+					if every == 0 then
+						y += Ground.liftAt(wp.X, wp.Z, y, h, foot[1], foot[2], if pitched then pitch else nil)
+					end
 					local sw = 0
 					if animating then
 						local ph = g.phase + s.phase
