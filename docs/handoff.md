@@ -112,7 +112,8 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
    drags were mirrored sideways like A/D, fixed). The Device Simulator keeps a keyboard: pick
    Touch in Settings before judging the touch layout.
 5. A human playthrough of the grand campaign to a peace.
-6. Reeds have no mesh slot; the wall and fence generations failed (part-built for now).
+6. Reeds have no mesh slot (the bank reeds read as flat green cards); the fence generation failed
+   three times (part-built); the stone wall is a generated mesh now.
 
 ## Where things live
 

@@ -144,6 +144,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 1.75, 2.88, 10 },
 	},
+	stoneWall = { -- generated dry-stone field wall with an end pillar each side, long along Z
+		mesh = "rbxassetid://127916614194194",
+		texture = "rbxassetid://85059598017560",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 0.81, 1.6, 4.98 },
+	},
 	ship = { -- generated 74-gun ship of the line (campaign fleet token), keel along Z
 		mesh = "rbxassetid://123365547551398",
 		texture = "rbxassetid://82494823051177",

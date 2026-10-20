@@ -229,3 +229,9 @@ their reserves) and 5/5 wins for the historical winner in episodes.
   (French 64 % casualties, Prussian 41 %). Rating Davout's corps elite (experience 3) changed
   nothing measurable and was dropped. A human Davout has what the AI does not use: the ridge,
   the fog and Morand's arrival.
+- **Tried and dropped: holding the line against distant horse.** Traces put most of the French
+  loss at Auerstedt on squares in melee with Prussian infantry (1,277 men in one battle; French
+  foot spent 26 % of its time in square). Keeping the line while enemy foot stood within musket
+  range and the horse was not yet charging (or within 70) halved those losses and cut the flags
+  17 to 13, but Auerstedt stayed Prussian and the allies' wins at Waterloo fell from 12 to 6 of
+  15: Wellington's squares against Ney's cavalry were the battle. Reverted.

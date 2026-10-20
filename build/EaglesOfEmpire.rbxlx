@@ -144,6 +144,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 1.75, 2.88, 10 },
 	},
+	stoneWall = { -- generated dry-stone field wall with an end pillar each side, long along Z
+		mesh = "rbxassetid://127916614194194",
+		texture = "rbxassetid://85059598017560",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 0.81, 1.6, 4.98 },
+	},
 	ship = { -- generated 74-gun ship of the line (campaign fleet token), keel along Z
 		mesh = "rbxassetid://123365547551398",
 		texture = "rbxassetid://82494823051177",
@@ -8076,9 +8083,13 @@ local function borderPiece(group: string, kind: number, ax: number, az: number, 
 		end
 	elseif kind == 2 then
 		obj("linear", function()
-			along(1.5, 1.0, 0.75, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
-			-- a squared pillar at the join hides the step between tilted pieces
-			part(group, nil, Vector3.new(1.2, 1.8, 1.2), CFrame.new(ax, ay + 0.9, az), STONE:Lerp(c3(100, 94, 82), 0.3), Enum.Material.Cobblestone)
+			local wall = along(1.5, 1.0, 0.75, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
+			if Assets.get("stoneWall") then
+				wall.fileMesh = "stoneWall" -- the generated dry-stone wall, its own end pillars hiding the joins
+			else
+				-- a squared pillar at the join hides the step between tilted pieces
+				part(group, nil, Vector3.new(1.2, 1.8, 1.2), CFrame.new(ax, ay + 0.9, az), STONE:Lerp(c3(100, 94, 82), 0.3), Enum.Material.Cobblestone)
+			end
 		end)
 	elseif kind == 3 then
 		withQ(2, function()
@@ -8616,6 +8627,7 @@ local PATH_CMDS = { Move = true, AttackMove = true, Engage = true, Charge = true
 local MAX_PATH_CMDS = 8
 local WINGS = { "centre", "left", "right" }
 local MUSKET = Config.Units.infantry.musket.range
+local SQUARE_NOW = 70 -- cavalry this close (or charging) puts a line into square whatever else is near
 
 -- Helpers ------------------------------------------------------------------------------------
 
@@ -9537,7 +9549,13 @@ local function infantry(state: AIState, f: Formation)
 		end
 		return
 	end
-	-- Cavalry threat: form square unless friendly cavalry screens.
+	-- Cavalry threat: form square unless friendly cavalry screens. With enemy foot in musket
+	-- range a square is shot and bayoneted to pieces (Auerstedt: Gudin's squares lost more men in
+	-- melee with Prussian foot than to Blücher's horse), so there the line holds until the horse
+	-- is on it: charging, or within SQUARE_NOW.
+	local foot = nearestVisible(state, f.pos, MUSKET + 20, function(e)
+		return e.class == "infantry" and e.state ~= "routing"
+	end)
 	local threat, td = nearestVisible(state, f.pos, 140, function(e)
 		if not isCav(e) then
 			return false
@@ -9546,7 +9564,8 @@ local function infantry(state: AIState, f: Formation)
 		local approaching = Vec.dot(Vec.fromHeading(e.heading), Vec.normalize(Vec.sub(f.pos, e.pos))) > 0.3 and (e.state == "charging" or e.state == "moving")
 		return d < 90 or approaching
 	end)
-	if threat and not friendlyCavScreens(state, f, threat) then
+	local imminent = threat ~= nil and (td < SQUARE_NOW or threat.state == "charging")
+	if threat and not friendlyCavScreens(state, f, threat) and (foot == nil or imminent) then
 		if f.shape ~= "square" and f.pendingShape ~= "square" then
 			issue(state, "Shape", { f.id }, { shape = "square" })
 		end
@@ -9556,7 +9575,10 @@ local function infantry(state: AIState, f: Formation)
 	end
 	if f.shape == "square" or f.pendingShape == "square" then
 		local cav = nearestVisible(state, f.pos, 200, isCav)
-		if not cav and clock >= u.squareUntil and f.state ~= "reforming" then
+		-- the horse gone, or drawn off while enemy foot comes on: back to line
+		local close = nearestVisible(state, f.pos, SQUARE_NOW + 40, isCav)
+		local drawnOff = foot ~= nil and close == nil and not (cav ~= nil and cav.state == "charging")
+		if ((not cav and clock >= u.squareUntil) or drawnOff) and f.state ~= "reforming" then
 			if issue(state, "Shape", { f.id }, { shape = "line" }) then
 				setGoal(state, f.id, "reform", "cavalry gone, back to line", 5)
 			end

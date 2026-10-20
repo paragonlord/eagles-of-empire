@@ -149,12 +149,16 @@ All made with Studio's generators through the MCP and published to Bartosz's acc
   a ship of the line for the campaign fleets (`ship`).
 - Ground: seven MaterialVariants (meadow, pasture, stubble, plough, track, cobbles, rock) in
   `default.project.json` under MaterialService, chosen from four candidates each.
-- Tried and dropped: the Austrian kaskett (two attempts came out as a box), a dry-stone wall and
-  a post-and-rail fence (both came out a fraction of the asked size); those stay part-built.
+- Tried and dropped: the Austrian kaskett (two attempts came out as a box) and a post-and-rail
+  fence (three attempts, the last as a single bay, each came out a flat sliver a fraction of the
+  asked size); those stay part-built.
+- `stoneWall` (2026-10-20, third attempt): mesh 127916614194194, texture 85059598017560, native
+  0.81 × 1.6 × 4.98, a dry-stone section with a pillar at each end. Fitted to the 8.4-stud border
+  pieces it stretches 1.7× along the wall; its pillars replace the part-built join pillars.
 
 ## Priority order (what is left)
 
-1. A kaskett for Austria; a dry-stone wall and a fence section.
+1. A kaskett for Austria and a fence section (both failed in generation; see above).
 2. Separate kit layouts for light infantry (no knapsack) and grenadiers if the hats are not
    enough to tell them apart.
 3. `church` and `windmill` regenerated in the painterly look (today's are the earlier meshes).

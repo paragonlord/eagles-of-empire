@@ -1777,9 +1777,13 @@ local function borderPiece(group: string, kind: number, ax: number, az: number, 
 		end
 	elseif kind == 2 then
 		obj("linear", function()
-			along(1.5, 1.0, 0.75, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
-			-- a squared pillar at the join hides the step between tilted pieces
-			part(group, nil, Vector3.new(1.2, 1.8, 1.2), CFrame.new(ax, ay + 0.9, az), STONE:Lerp(c3(100, 94, 82), 0.3), Enum.Material.Cobblestone)
+			local wall = along(1.5, 1.0, 0.75, STONE:Lerp(c3(120, 112, 96), h01(mx, mz, 94)), Enum.Material.Cobblestone, 0.4)
+			if Assets.get("stoneWall") then
+				wall.fileMesh = "stoneWall" -- the generated dry-stone wall, its own end pillars hiding the joins
+			else
+				-- a squared pillar at the join hides the step between tilted pieces
+				part(group, nil, Vector3.new(1.2, 1.8, 1.2), CFrame.new(ax, ay + 0.9, az), STONE:Lerp(c3(100, 94, 82), 0.3), Enum.Material.Cobblestone)
+			end
 		end)
 	elseif kind == 3 then
 		withQ(2, function()
