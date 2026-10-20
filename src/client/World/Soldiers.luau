@@ -336,6 +336,19 @@ local function at(p: Assets.Piece): CFrame
 	return CFrame.new(c[1], c[2], c[3]) * CFrame.Angles(c[4], c[5], c[6])
 end
 
+-- The nation's horse and rider as static parts in the figure frame (campaign board tokens).
+function Soldiers.mountedKit(nation: string): { { part: BasePart, cf: CFrame } }?
+	local kit = Assets.kit("cavalry_" .. nation) or Assets.kit("cavalry_france")
+	if not kit then
+		return nil
+	end
+	local out = {}
+	for _, key in { "body", "neck", "legFL", "legFR", "legBL", "legBR", "rider", "riderHead" } do
+		table.insert(out, { part = piece(kit[key]), cf = at(kit[key]) })
+	end
+	return out
+end
+
 -- The kit figure's shoulders stand this much above the part-built one's: arm and musket poses
 -- turn about the kit's own shoulder (partCFrame's `pivot` for anims 3, 12, 13).
 local KIT_LIFT = 0.42

@@ -216,7 +216,7 @@ EuropeData.Provinces = {
 	prov("sicily", "Sicily", 14.2, 37.6, "naples", "waterloo", 50, 300, { "naples" }, { port = true }),
 	-- North and east
 	prov("stockholm", "Sweden", 16.5, 59.0, "sweden", "waterloo", 80, 400, { "stpetersburg", "denmark", "eastprussia" }, { capital = true, port = true, fort = 1 }),
-	prov("denmark", "Denmark & Holstein", 10.3, 55.6, "denmark", "waterloo", 90, 400, { "hanover", "stockholm", "england" }, { capital = true, port = true, fort = 1 }),
+	prov("denmark", "Denmark & Holstein", 10.3, 55.45, "denmark", "waterloo", 90, 400, { "hanover", "stockholm", "england" }, { capital = true, port = true, fort = 1 }),
 	prov("constantinople", "Rumelia", 26.5, 41.6, "ottoman", "austerlitz", 140, 1000, { "serbia" }, { capital = true, port = true, fort = 2 }),
 	prov("serbia", "Serbia & the Danube", 21.5, 44.3, "ottoman", "bridge", 50, 600, { "dalmatia", "hungary", "constantinople", "ukraine" }),
 }

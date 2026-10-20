@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Meta name="ExplicitAutoJoints">true</Meta><External>null</External><External>nil</External><Item class="ReplicatedStorage" referent="RBX00000019"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX00000018"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000001"><Properties><bool name="Disabled">false</bool><string name="Name">Assets</string><ProtectedString name="Source"><![CDATA[--!strict
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><Meta name="ExplicitAutoJoints">true</Meta><External>null</External><External>nil</External><Item class="ReplicatedStorage" referent="RBX00000021"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX00000020"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000001"><Properties><bool name="Disabled">false</bool><string name="Name">Assets</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Named slots for Creator Store assets (no ids are checked in). A slot with a mesh id makes
 -- the client build that object as one Part with a SpecialMesh (FileMesh) instead of the part
 -- assembly; an empty slot keeps the procedural build. Fill `mesh`/`texture` with
@@ -13,6 +13,7 @@ export type Slot = {
 	offset: { number }, -- SpecialMesh.Offset (x, y, z), studs
 	native: { number }?, -- the mesh's own size in studs (Studio shows it on import); world meshes are
 	-- then fitted to each object's box, so one oak mesh serves every oak size
+	tint: { number }?, -- SpecialMesh.VertexColor over the texture (r, g, b multipliers)
 }
 
 -- A generated figure kit (tools/kit_import.luau): one textured mesh per body piece, placed in the
@@ -51,6 +52,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 12, 13, 12 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treeBeech = { -- original 600-triangle beech; native bounds confirmed in Studio
 		mesh = "rbxassetid://112134639390683",
@@ -58,6 +60,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 10, 16, 10 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treePine = { -- original 444-triangle pine; native bounds confirmed in Studio
 		mesh = "rbxassetid://82857667018871",
@@ -65,6 +68,7 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 8, 18, 8 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
 	treePoplar = { -- original 200-triangle poplar; native bounds confirmed in Studio
 		mesh = "rbxassetid://140076983958671",
@@ -72,14 +76,23 @@ Assets.slots = {
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
 		native = { 4, 16, 4 },
+		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
-	treeWillow = slot(),
+	treeWillow = { -- generated weeping willow (graphics pass); native bounds read in Studio
+		mesh = "rbxassetid://122959187552284",
+		texture = "rbxassetid://109222457137290",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 9.71, 11, 8.97 },
+		tint = { 0.85, 0.88, 0.8 },
+	},
 	houseA = { -- original 788-triangle whitewashed cottage; ridge along +X
 		mesh = "rbxassetid://91534964288834",
 		texture = "rbxassetid://84033137999917",
 		scale = { 1, 1, 1 },
 		offset = { 0, 0, 0 },
-		native = { 7, 6, 5 },
+		native = { 5.6, 5.4, 4.5 }, -- measured in Studio (round 29): it now fills its plot like its neighbours
+		tint = { 0.9, 0.84, 0.8 }, -- tones the bright orange roof down to the tinted part-built roofs
 	},
 	houseB = { -- original 1652-triangle timber-framed house; ridge along +X
 		mesh = "rbxassetid://106845158633872",
@@ -110,8 +123,34 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 20, 20, 20 },
 	},
-	bridgeStone = slot(), -- deck along +X, length = the span given
-	bridgeTimber = slot(),
+	bridgeStone = { -- generated stone arch bridge; deck along +X, length = the span given
+		mesh = "rbxassetid://75690320300014",
+		texture = "rbxassetid://85086594158546",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 12.4, 6, 4.77 },
+	},
+	bridgeTimber = { -- generated trestle bridge; deck along +X
+		mesh = "rbxassetid://116235833337035",
+		texture = "rbxassetid://77191135426847",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 5.6, 4, 3.32 },
+	},
+	hedge = { -- generated hedgerow section, long along Z (the border's length)
+		mesh = "rbxassetid://109481830924513",
+		texture = "rbxassetid://91535360470320",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 1.75, 2.88, 10 },
+	},
+	cart = { -- generated two-wheeled farm cart, shafts along Z
+		mesh = "rbxassetid://112271944313587",
+		texture = "rbxassetid://121727660050649",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 2.15, 2.2, 2.99 },
+	},
 	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
 	-- image ids (not the store's decal ids), free on the Creator Store, picked in Studio (qa round 22)
 	bark = slot("rbxassetid://6490108541"), -- "TexturesCom_PineBark2_512_albedo", DarthRevan404
@@ -1251,7 +1290,7 @@ EuropeData.Provinces = {
 	prov("sicily", "Sicily", 14.2, 37.6, "naples", "waterloo", 50, 300, { "naples" }, { port = true }),
 	-- North and east
 	prov("stockholm", "Sweden", 16.5, 59.0, "sweden", "waterloo", 80, 400, { "stpetersburg", "denmark", "eastprussia" }, { capital = true, port = true, fort = 1 }),
-	prov("denmark", "Denmark & Holstein", 10.3, 55.6, "denmark", "waterloo", 90, 400, { "hanover", "stockholm", "england" }, { capital = true, port = true, fort = 1 }),
+	prov("denmark", "Denmark & Holstein", 10.3, 55.45, "denmark", "waterloo", 90, 400, { "hanover", "stockholm", "england" }, { capital = true, port = true, fort = 1 }),
 	prov("constantinople", "Rumelia", 26.5, 41.6, "ottoman", "austerlitz", 140, 1000, { "serbia" }, { capital = true, port = true, fort = 2 }),
 	prov("serbia", "Serbia & the Danube", 21.5, 44.3, "ottoman", "bridge", 50, 600, { "dalmatia", "hungary", "constantinople", "ukraine" }),
 }
@@ -1994,7 +2033,247 @@ EuropeData.SetPieces = {
 } :: { SetPiece }
 
 return EuropeData
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000006"><Properties><bool name="Disabled">false</bool><string name="Name">Generals</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000006"><Properties><bool name="Disabled">false</bool><string name="Name">EuropeGeo</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GENERATED by tools/geo.py from Natural Earth 1:50m (public domain); do not edit by hand.
+-- Real coasts, lakes and rivers for the grand campaign board, in EuropeData's map units
+-- (2000 x 1500; x = (lon + 10) * 40, z = (lat - 36) * 62.5). `land` is one string per
+-- 8-unit row from z = 0: comma-separated run lengths, alternating water and land,
+-- starting with water. `rivers` are polylines { name, x1, z1, x2, z2, ... }.
+
+local EuropeGeo = {}
+EuropeGeo.Cell = 8
+EuropeGeo.Cols = 250
+EuropeGeo.Rows = 187
+EuropeGeo.land = {
+	"21,2,28,51,87,1,23,1,16,20",
+	"20,3,29,50,87,2,7,1,13,7,10,21",
+	"19,5,29,50,86,2,5,6,9,9,9,21",
+	"19,6,30,49,92,7,8,10,9,20",
+	"19,8,33,44,77,1,13,8,6,12,9,20",
+	"18,10,36,12,1,28,20,1,36,1,1,1,7,1,14,2,1,1,3,9,5,14,3,3,3,19",
+	"18,22,28,7,4,23,1,2,17,4,33,1,1,4,14,1,5,1,4,13,3,23,2,19",
+	"17,23,41,3,2,2,5,8,3,1,17,4,32,2,1,4,8,1,3,1,13,59",
+	"5,2,1,4,4,25,54,6,20,5,32,7,12,1,8,64",
+	"5,10,1,25,55,5,17,8,32,6,24,62",
+	"6,36,75,9,32,6,23,63",
+	"6,37,73,10,32,6,1,2,7,1,11,64",
+	"6,40,67,13,31,9,5,1,3,1,4,1,5,64",
+	"6,40,66,14,28,1,2,9,17,2,1,64",
+	"6,40,66,14,27,1,2,9,4,1,4,1,11,64",
+	"6,41,66,14,1,2,26,8,1,5,2,1,13,64",
+	"6,41,66,1,1,2,6,8,22,1,3,6,3,4,1,2,11,66",
+	"6,41,80,4,21,2,5,2,3,6,9,2,1,68",
+	"6,42,81,3,21,1,3,2,2,1,1,5,2,1,9,1,1,68",
+	"4,1,1,43,81,3,22,16,8,2,1,1,1,66",
+	"4,46,79,4,20,1,1,11,1,4,11,1,1,33,1,32",
+	"3,1,1,46,80,2,20,12,2,2,15,32,2,32",
+	"3,47,6,1,74,3,20,9,1,3,5,1,12,31,1,33",
+	"3,46,8,1,35,2,36,5,20,9,1,1,14,2,1,66",
+	"3,46,43,3,35,6,17,12,3,1,11,3,1,66",
+	"3,46,43,6,32,6,16,12,15,3,2,66",
+	"3,45,16,2,26,6,32,6,15,15,18,66",
+	"4,44,14,1,1,3,25,6,32,5,14,1,1,14,15,2,3,65",
+	"5,44,13,5,25,6,31,4,17,15,16,69",
+	"5,44,14,3,27,5,31,4,15,16,17,69",
+	"5,45,14,2,4,2,20,6,31,4,8,1,8,14,11,2,4,69",
+	"6,44,19,2,21,7,29,5,7,2,7,14,4,1,1,1,12,68",
+	"6,45,41,6,28,7,7,2,6,15,6,1,8,2,1,69",
+	"6,46,40,6,27,9,5,3,5,16,3,3,12,69",
+	"6,46,40,7,26,9,2,5,6,16,1,5,13,1,2,2,2,1,5,55",
+	"6,47,39,7,26,15,7,17,1,4,15,1,9,56",
+	"6,48,37,8,23,18,7,22,4,1,6,6,10,54",
+	"7,47,37,7,24,16,9,24,9,7,10,53",
+	"7,47,40,4,22,17,10,25,1,2,2,10,9,54",
+	"7,48,36,1,3,3,22,16,11,43,2,47,7,2,2",
+	"7,51,38,1,22,15,13,48,1,2,3,1,5,28,15",
+	"6,55,54,17,15,47,13,25,1,2,15",
+	"6,55,34,1,18,16,17,45,17,22,19",
+	"6,57,31,3,16,17,18,43,19,21,19",
+	"6,58,30,3,15,18,18,42,21,16,2,1,20",
+	"6,59,29,3,14,20,17,42,23,13,24",
+	"6,60,27,4,13,16,20,44,26,10,24",
+	"6,60,28,4,11,15,21,45,60",
+	"6,60,27,5,11,14,22,1,1,42,61",
+	"6,60,27,5,10,14,22,45,61",
+	"6,60,27,5,8,15,21,45,63",
+	"6,59,29,4,8,15,20,47,62",
+	"5,60,40,15,18,1,1,49,61",
+	"5,60,39,16,18,51,61",
+	"4,61,38,16,14,1,2,1,1,51,61",
+	"4,62,13,2,22,16,18,53,60",
+	"5,62,10,6,20,16,17,54,60",
+	"8,30,2,28,7,9,18,17,13,2,1,56,59",
+	"9,16,5,3,9,27,2,14,17,16,15,60,56,1",
+	"9,5,6,1,22,43,15,16,13,63,55,2",
+	"11,1,31,44,14,15,13,64,54,3",
+	"43,47,11,14,13,65,54,3",
+	"43,48,9,13,14,66,53,4",
+	"43,48,7,14,12,69,52,5",
+	"43,49,5,15,14,67,51,6",
+	"44,49,2,17,13,69,47,9",
+	"44,67,15,68,24,3,19,10",
+	"44,67,14,69,24,4,18,10",
+	"44,67,12,71,1,1,22,5,14,13",
+	"44,68,7,1,4,70,1,3,20,8,10,14",
+	"44,68,7,2,2,75,20,9,2,1,5,15",
+	"44,2,1,65,6,3,3,74,19,15,1,17",
+	"44,67,7,3,2,76,16,17,3,15",
+	"44,67,7,81,14,12,1,1,3,3,1,1,3,12",
+	"46,66,1,1,4,80,16,11,13,12",
+	"44,71,4,79,17,10,13,12",
+	"45,155,17,5,1,1,15,11",
+	"43,158,17,4,17,11",
+	"44,158,16,2,2,1,18,9",
+	"44,159,8,8,1,1,1,2,18,8",
+	"44,159,6,16,1,1,14,9",
+	"42,40,2,120,6,17,12,11",
+	"41,163,8,17,10,11",
+	"40,167,1,1,1,22,10,8",
+	"40,98,1,96,7,8",
+	"40,99,1,78,1,18,8,5",
+	"40,198,8,4",
+	"39,180,1,25,1,4",
+	"37,183,1,29",
+	"38,182,2,2,2,24",
+	"36,60,2,124,1,2,1,24",
+	"33,192,1,24",
+	"28,1,1,220",
+	"28,222",
+	"27,223",
+	"28,222",
+	"28,222",
+	"26,224",
+	"27,9,1,213",
+	"32,3,7,208",
+	"42,208",
+	"42,208",
+	"42,172,2,34",
+	"39,1,2,171,2,35",
+	"41,5,4,161,3,36",
+	"41,3,7,159,1,2,1,36",
+	"41,3,7,199",
+	"52,198",
+	"54,196",
+	"56,194",
+	"22,3,32,193",
+	"23,3,5,1,26,192",
+	"24,8,26,192",
+	"25,8,25,192",
+	"26,8,3,3,3,1,14,192",
+	"27,16,2,2,3,2,6,192",
+	"27,27,5,191",
+	"29,26,6,189",
+	"29,28,7,186",
+	"35,22,8,185",
+	"32,2,2,17,16,181",
+	"1,4,26,4,2,17,13,183",
+	"0,7,18,1,3,26,14,1,1,179",
+	"1,7,16,32,14,180",
+	"0,11,13,32,14,180",
+	"0,12,14,32,13,179",
+	"0,16,12,30,14,178",
+	"1,17,11,29,14,4,1,173",
+	"1,17,12,29,14,2,1,174",
+	"0,1,2,16,11,29,14,2,3,172",
+	"2,3,1,13,11,28,15,3,2,172",
+	"3,16,10,22,1,6,15,3,2,172",
+	"3,17,7,24,2,2,20,1,1,173",
+	"3,17,8,24,25,173",
+	"5,15,7,25,25,173",
+	"1,18,8,2,5,1,1,15,28,6,1,164",
+	"0,19,16,16,27,1,6,7,1,157",
+	"1,18,16,14,34,1,2,5,2,157",
+	"1,18,16,13,1,1,43,28,2,127",
+	"2,17,16,15,43,1,3,22,3,128",
+	"1,17,18,13,46,11,1,12,1,1,2,127",
+	"0,20,6,1,9,14,45,9,4,11,7,124",
+	"0,4,1,16,6,1,5,15,47,10,6,5,13,121",
+	"7,15,5,1,5,15,45,10,9,3,1,3,12,13,2,1,1,102",
+	"9,14,9,15,48,5,5,1,10,2,14,11,5,102",
+	"7,1,1,8,2,3,10,13,49,6,16,1,18,8,6,1,1,99",
+	"7,14,4,1,7,11,48,1,1,6,3,1,1,4,28,6,7,100",
+	"8,13,3,7,2,10,48,8,4,1,1,2,2,1,40,100",
+	"8,12,5,18,50,5,1,1,9,1,1,1,44,94",
+	"9,3,1,1,1,5,5,18,50,5,2,4,4,2,13,3,30,94",
+	"13,2,11,16,51,5,2,4,2,6,42,1,1,94",
+	"21,1,4,16,51,5,1,5,2,6,3,3,38,94",
+	"21,4,2,15,50,6,1,5,2,5,4,7,33,95",
+	"22,2,2,15,50,8,6,8,2,6,35,94",
+	"19,1,2,1,3,14,51,9,7,1,1,4,2,6,34,95",
+	"20,1,1,1,3,13,52,10,6,1,2,3,1,7,34,95",
+	"20,1,1,1,1,1,1,6,59,10,9,14,31,95",
+	"22,13,56,10,12,11,2,1,2,1,25,95",
+	"22,15,54,13,8,1,1,16,2,1,22,95",
+	"19,2,2,11,57,14,8,18,1,1,22,95",
+	"19,1,1,1,1,14,54,2,1,8,13,16,1,1,22,95",
+	"20,3,1,14,56,7,13,20,21,95",
+	"21,17,53,3,2,5,12,19,1,1,21,95",
+	"21,18,53,3,1,5,11,20,24,94",
+	"22,17,54,9,9,22,1,1,6,1,15,10,3,80",
+	"13,1,6,1,1,18,57,5,9,21,9,2,14,9,5,79",
+	"13,1,4,1,3,18,58,5,2,1,5,22,2,1,5,3,13,9,6,78",
+	"16,3,2,20,58,4,7,23,8,3,14,7,7,78",
+	"13,1,3,2,3,19,59,2,8,23,8,3,15,5,8,78",
+	"21,9,3,1,5,1,62,1,6,24,9,2,18,1,9,78",
+	"15,1,6,9,78,24,10,2,27,78",
+	"15,2,7,6,79,12,1,11,12,1,14,1,11,17,2,59",
+	"15,3,5,8,52,6,18,14,1,11,39,16,2,51,1,8",
+	"16,2,5,10,50,8,16,14,2,11,26,2,10,8,1,6,1,17,2,34,3,6",
+	"17,2,6,9,47,12,14,15,1,11,26,5,4,2,2,7,1,6,1,17,3,31,5,6",
+	"18,1,6,9,45,15,12,6,2,8,2,10,25,8,1,18,3,17,1,31,7,5",
+	"31,4,43,17,11,7,2,1,1,6,1,10,28,3,1,1,1,18,3,48,2,1,3,7",
+	"78,18,10,7,6,5,1,11,26,1,5,17,4,47,1,3,2,8",
+	"33,1,44,19,9,6,8,17,25,3,2,18,4,48,1,2,1,9",
+	"33,3,42,1,1,18,1,1,6,7,2,1,4,19,23,3,2,19,2,50,2,10",
+	"33,2,44,22,6,9,4,21,27,70,4,8",
+	"76,1,3,22,2,12,4,8,2,12,26,82",
+	"76,3,1,22,1,14,2,17,5,2,27,80",
+	"76,26,1,28,8,3,32,10,6,60",
+	"76,67,35,2,10,57,2,1",
+	"76,1,3,65,45,1,1,54,1,3",
+	"76,2,1,66,20,1,29,55",
+}
+EuropeGeo.rivers = {
+	{ "Dnipro", 1742, 677, 1766, 718, 1804, 720, 1804, 740 },
+	{ "Danube", 1088, 754, 1110, 736, 1164, 736, 1155, 697, 1159, 671, 1155, 662, 1157, 642, 1149, 626, 1157, 600, 1163, 595, 1160, 587, 1171, 580, 1195, 579, 1210, 572, 1214, 557, 1225, 552, 1229, 543, 1254, 552, 1284, 534, 1300, 544, 1306, 541, 1309, 536, 1302, 534, 1300, 527, 1321, 505, 1315, 497, 1317, 490, 1329, 492, 1406, 480, 1427, 482, 1460, 505, 1483, 510, 1496, 509, 1521, 521, 1523, 530, 1513, 550, 1520, 585, 1528, 591, 1538, 581, 1550, 577 },
+	{ "Daugava", 1683, 1307, 1693, 1297, 1683, 1262, 1679, 1256, 1656, 1249, 1657, 1228, 1616, 1211, 1606, 1200, 1593, 1200, 1580, 1192, 1557, 1216, 1523, 1226, 1515, 1239, 1460, 1244, 1447, 1271, 1430, 1287, 1402, 1288, 1369, 1306, 1362, 1317 },
+	{ "Dnepre", 1749, 1242, 1756, 1232, 1743, 1219, 1736, 1182 },
+	{ "Dniester", 1314, 829, 1323, 841, 1344, 848, 1366, 840, 1374, 828, 1436, 788, 1464, 779, 1472, 786, 1497, 786, 1557, 744, 1565, 696, 1573, 695, 1572, 685, 1585, 676, 1591, 663, 1609, 652, 1611, 645 },
+	{ "Dnipro", 1804, 740, 1803, 755, 1808, 762, 1805, 775, 1728, 818 },
+	{ "Dnipro", 1736, 1182, 1719, 1188, 1710, 1182, 1700, 1168, 1680, 1174, 1629, 1163, 1617, 1156, 1612, 1145, 1616, 1119, 1610, 1104, 1615, 1081, 1610, 1070, 1602, 1066, 1601, 1060, 1614, 1026, 1632, 1000, 1622, 979, 1624, 958, 1620, 951 },
+	{ "Don", 1997, 909, 1990, 921, 1991, 935, 1966, 939, 1970, 948, 1960, 975, 1965, 1001 },
+	{ "Don", 1965, 1001, 1956, 1027, 1956, 1044, 1966, 1070, 1964, 1091, 1960, 1099, 1941, 1110, 1932, 1129 },
+	{ "Donau", 729, 753, 740, 746, 748, 746, 777, 757, 828, 792, 867, 800, 881, 814, 900, 808 },
+	{ "Donau", 1088, 754, 1081, 760, 1059, 763, 1048, 774, 1023, 776, 1006, 762, 983, 764, 928, 790, 916, 802, 900, 808 },
+	{ "Drava", 953, 693, 990, 701, 1006, 713, 1012, 712, 1013, 698, 1025, 671, 1070, 651, 1092, 625, 1112, 612, 1131, 610, 1148, 598, 1158, 597 },
+	{ "Duero", 287, 371, 302, 362, 306, 350, 295, 344, 242, 356, 188, 341, 153, 347, 125, 316, 110, 324, 63, 318, 53, 322 },
+	{ "Ebro", 232, 438, 241, 427, 250, 426, 255, 431, 280, 422, 294, 407, 320, 399, 388, 332, 396, 330, 411, 337, 415, 328, 425, 323, 422, 300, 436, 295 },
+	{ "Elbe", 1023, 918, 1035, 898, 1033, 882, 1009, 877, 1004, 885, 985, 889, 976, 902, 962, 910, 968, 922, 965, 932, 941, 946, 927, 967 },
+	{ "Elbe", 928, 967, 910, 990, 886, 992, 868, 1004, 868, 1013, 879, 1027, 881, 1048, 877, 1057, 844, 1072, 827, 1086, 803, 1090 },
+	{ "Firat", 1951, 176, 1938, 170, 1935, 159, 1963, 146, 1970, 131, 1953, 103, 1917, 87, 1914, 70, 1921, 52 },
+	{ "Firat", 1998, 225, 1977, 230, 1940, 215, 1937, 209, 1950, 192 },
+	{ "Oder", 1105, 859, 1118, 852, 1132, 868, 1130, 889, 1115, 920, 1075, 952, 1059, 953, 1056, 975, 1034, 984, 1027, 1001, 988, 1007, 982, 1022, 985, 1033, 965, 1055, 983, 1090, 983, 1102 },
+	{ "Po", 684, 544, 697, 543, 705, 553, 709, 571, 719, 576, 734, 575, 746, 566, 769, 571, 793, 567, 798, 571, 822, 558, 835, 567, 848, 567, 863, 557, 883, 564, 901, 560 },
+	{ "Rhin", 755, 729, 717, 723, 703, 725, 701, 730, 714, 790, 729, 810 },
+	{ "Rhine", 729, 810, 740, 837, 734, 869, 730, 876, 712, 878, 704, 889, 704, 898, 690, 910, 670, 949, 664, 977, 643, 992, 599, 989 },
+	{ "Rhône", 645, 638, 636, 633, 627, 605, 614, 615, 598, 613, 593, 607, 595, 557, 587, 522, 594, 501, 585, 482, 591, 463 },
+	{ "Rhône", 730, 655, 718, 646, 706, 645, 684, 634, 675, 650 },
+	{ "Seine", 588, 724, 576, 755, 554, 782, 513, 776, 500, 786, 490, 807, 469, 812, 431, 842, 418, 842 },
+	{ "Tajo", 291, 283, 271, 255, 227, 240, 210, 249, 197, 238, 191, 238 },
+	{ "Tejo", 115, 230, 102, 230, 81, 218, 65, 217, 48, 192 },
+	{ "Thames", 319, 980, 327, 978, 349, 985, 357, 968, 370, 973, 383, 962, 398, 969, 417, 967 },
+	{ "Tisa", 1207, 641, 1203, 634, 1203, 602, 1211, 570 },
+	{ "Tisza", 1254, 752, 1247, 750, 1207, 695, 1209, 690, 1203, 680, 1208, 666, 1207, 641 },
+	{ "Tisza", 1370, 770, 1373, 765, 1367, 747, 1360, 746, 1326, 760, 1297, 756, 1289, 776, 1275, 764, 1261, 761, 1254, 752 },
+	{ "Vistula", 1157, 871, 1168, 878, 1194, 875, 1221, 884, 1260, 905, 1271, 918, 1271, 949, 1278, 962, 1273, 971, 1258, 982, 1249, 1004, 1234, 1024, 1199, 1026, 1168, 1040, 1142, 1065, 1131, 1068, 1128, 1073, 1133, 1081, 1150, 1095, 1159, 1147 },
+	{ "Volga", 1704, 1328, 1709, 1309, 1741, 1302, 1758, 1285, 1754, 1276, 1787, 1263, 1796, 1271, 1797, 1284, 1827, 1302, 1843, 1303, 1855, 1294 },
+	{ "Garonne", 458, 463, 443, 502, 413, 518, 400, 535, 386, 540, 378, 552, 378, 563 },
+	{ "Loire", 523, 687, 512, 724, 479, 743, 471, 742, 446, 717, 403, 701, 383, 713, 358, 711, 330, 701 },
+	{ "Loire", 523, 687, 540, 677, 550, 660, 559, 654, 564, 635, 561, 624, 570, 592, 558, 575, 556, 561, 557, 554, 567, 548, 568, 551 },
+}
+
+return EuropeGeo
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000007"><Properties><bool name="Disabled">false</bool><string name="Name">Generals</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical commanders: two traits (small, always-on number changes) and one active ability.
 -- Pure data plus name lookups; the sim applies it in src/server/Sim/Abilities.luau and
 -- docs/rules.md ("Generals") is the contract. Every effect is described in its `text`, which the
@@ -2260,7 +2539,7 @@ function Generals.trait(id: string): Trait?
 end
 
 return Generals
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000007"><Properties><bool name="Disabled">false</bool><string name="Name">Grid</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000008"><Properties><bool name="Disabled">false</bool><string name="Name">Grid</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Authoritative terrain grid: heights, terrain classes and clearance at Config.Map.CellSize.
 -- Used by the server for navigation / LOS / placement and by the client to build visuals.
 -- Flat arrays, 0-based cell coordinates, index = cz * cols + cx + 1.
@@ -2482,7 +2761,7 @@ end
 Grid.Ids = IDS
 
 return Grid
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000008"><Properties><bool name="Disabled">false</bool><string name="Name">MapGen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><bool name="Disabled">false</bool><string name="Name">MapGen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deterministic battlefield generator. The same call on server and client yields identical
 -- grids and feature lists; the server treats the grid as the only terrain truth, the client
 -- renders it. Authored feature lists live in MAPS below; everything else is derived.
@@ -3463,7 +3742,7 @@ function MapGen.inZone(map: MapData, faction: string, p: Vec): boolean
 end
 
 return MapGen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments: scripted, condition-driven beats of a battle (docs/vision.md pillar 3).
 -- Data lives on each scenario (`Scenarios.<id>.moments`); the server evaluates them in
 -- src/server/Sim/Moments.luau and the client presents them in src/client/Cinematic.luau.
@@ -3538,7 +3817,7 @@ function Moments.matches(sel: Selector, f: { faction: string, name: string, corp
 end
 
 return Moments
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><bool name="Disabled">false</bool><string name="Name">Protocol</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000011"><Properties><bool name="Disabled">false</bool><string name="Name">Protocol</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client ↔ server protocol: remote names, command kinds, limits and the pure validator.
 -- The server is the only authority; the client may run the same validator for early feedback.
 
@@ -3911,7 +4190,7 @@ function Protocol.validateControl(msg: any, ctx: { matchId: string }): (boolean,
 end
 
 return Protocol
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000011"><Properties><bool name="Disabled">false</bool><string name="Name">RNG</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000012"><Properties><bool name="Disabled">false</bool><string name="Name">RNG</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deterministic xorshift32 RNG with a serializable integer state. All simulation randomness
 -- goes through one instance owned by the sim; cosmetic randomness uses separate instances.
 
@@ -3984,7 +4263,125 @@ function RNG.hash(a: number, b: number, c: number): number
 end
 
 return RNG
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000012"><Properties><bool name="Disabled">false</bool><string name="Name">Scenarios</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000013"><Properties><bool name="Disabled">false</bool><string name="Name">Relief</string><ProtectedString name="Source"><![CDATA[--!strict
+-- The grand campaign board's geography over EuropeGeo (tools/geo.py, Natural Earth): land or
+-- water at a point, the relief raised by the mountain chains, the province a piece of land
+-- belongs to, and the rivers. Map units throughout (0..2000 × 0..1500, +z north); heights are
+-- studs above the board's lowland. Pure, so the board and the tests agree.
+
+local Geo = require(script.Parent.EuropeGeo)
+local Europe = require(script.Parent.EuropeData)
+
+local Relief = {}
+
+-- Mountain chains in map units (x = (lon + 10) * 40, z = (lat - 36) * 62.5): Alps, Pyrenees,
+-- Carpathians, Balkans, Apennines, Norway. Snowy chains stand higher and carry snow.
+Relief.CHAINS = {
+	{ snow = true, pts = { { 660, 560 }, { 700, 625 }, { 760, 650 }, { 840, 675 }, { 920, 690 }, { 990, 705 } } },
+	{ snow = true, pts = { { 340, 420 }, { 400, 415 }, { 460, 418 }, { 520, 415 } } },
+	{ snow = false, pts = { { 1120, 844 }, { 1240, 831 }, { 1360, 769 }, { 1420, 688 }, { 1420, 594 }, { 1320, 588 } } },
+	{ snow = false, pts = { { 1320, 425 }, { 1400, 420 }, { 1480, 425 } } },
+	{ snow = false, pts = { { 800, 519 }, { 870, 460 }, { 920, 406 }, { 1020, 281 } } },
+	{ snow = true, pts = { { 660, 1380 }, { 700, 1430 }, { 740, 1480 } } },
+} :: { { snow: boolean, pts: { { number } } } }
+
+local PEAK_SNOW, PEAK = 12, 7 -- studs at a chain's spine
+local SPREAD = 24 -- map units: a chain's half-width
+local SNOW_LINE = 6.5
+
+-- the land raster, decoded once: rows[r][c] is true on land
+local rows: { { boolean } } = {}
+for r, s in Geo.land do
+	local row: { boolean } = table.create(Geo.Cols, false)
+	local c, land = 1, false
+	for _, n in string.split(s, ",") do
+		local k = tonumber(n) or 0
+		if land then
+			for i = c, c + k - 1 do
+				row[i] = true
+			end
+		end
+		c += k
+		land = not land
+	end
+	rows[r] = row
+end
+
+function Relief.isLand(x: number, z: number): boolean
+	local r, c = math.floor(z / Geo.Cell) + 1, math.floor(x / Geo.Cell) + 1
+	local row = rows[r]
+	return row ~= nil and row[c] == true
+end
+
+-- Distance from (x, z) to segment a-b.
+local function segDist(x: number, z: number, a: { number }, b: { number }): number
+	local dx, dz = b[1] - a[1], b[2] - a[2]
+	local t = math.clamp(((x - a[1]) * dx + (z - a[2]) * dz) / (dx * dx + dz * dz), 0, 1)
+	local px, pz = a[1] + dx * t, a[2] + dz * t
+	return math.sqrt((x - px) ^ 2 + (z - pz) ^ 2)
+end
+
+-- Height of the land (studs over the lowland) and whether the nearest chain is a snowy one.
+local function relief(x: number, z: number): (number, boolean)
+	local best, snowy = 0, false
+	for _, chain in Relief.CHAINS do
+		local d = math.huge
+		for i = 1, #chain.pts - 1 do
+			d = math.min(d, segDist(x, z, chain.pts[i], chain.pts[i + 1]))
+		end
+		local peak = if chain.snow then PEAK_SNOW else PEAK
+		local h = peak * math.exp(-(d / SPREAD) ^ 2) * (0.75 + 0.5 * math.noise(x / 37, z / 37, 3.7))
+		if h > best then
+			best, snowy = h, chain.snow
+		end
+	end
+	-- the lowland rolls a little, never above the province tint laid over it
+	return math.max(best, 0.06 * (1 + math.noise(x / 53, z / 53, 1.3))), snowy
+end
+
+function Relief.height(x: number, z: number): number
+	return (relief(x, z))
+end
+
+function Relief.snow(x: number, z: number): boolean
+	local h, snowy = relief(x, z)
+	return snowy and h > SNOW_LINE
+end
+
+-- The province a point of land belongs to: the nearest province centre (the same bisectors as
+-- EuropeData's Voronoi outlines, without the sea sites that only shape the old coasts).
+function Relief.provinceAt(x: number, z: number): string
+	local best, bestD = Europe.Provinces[1].id, math.huge
+	for _, p in Europe.Provinces do
+		local d = (p.centre.x - x) ^ 2 + (p.centre.z - z) ^ 2
+		if d < bestD then
+			best, bestD = p.id, d
+		end
+	end
+	return best
+end
+
+export type River = { name: string, pts: { { x: number, z: number } } }
+local riverList: { River }? = nil
+function Relief.rivers(): { River }
+	local list = riverList
+	if list then
+		return list
+	end
+	local out: { River } = {}
+	for _, r in Geo.rivers do
+		local pts = {}
+		for i = 2, #r - 1, 2 do
+			table.insert(pts, { x = r[i] :: number, z = r[i + 1] :: number })
+		end
+		table.insert(out, { name = r[1] :: string, pts = pts })
+	end
+	riverList = out
+	return out
+end
+
+return Relief
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000014"><Properties><bool name="Disabled">false</bool><string name="Name">Scenarios</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Orders of battle. Condensed and partly representative: regiment names are drawn from
 -- formations present at each battle where known (docs/battles.md says which names are attested
 -- and which are representative), strengths are balance choices (docs/rules.md), not returns.
@@ -5205,7 +5602,7 @@ function Scenarios.get(id: string): Scenario?
 end
 
 return Scenarios
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000013"><Properties><bool name="Disabled">false</bool><string name="Name">Tips</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">Tips</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Loading-screen tips: history first, then how the game plays it. Short enough for one line or two.
 
 return {
@@ -5230,7 +5627,7 @@ return {
 	"Winter in Russia, Poland and the Alps costs armies men every turn they stay.",
 	"Trade agreements pay both sides a tenth of the other's provincial income; war ends them.",
 } :: { string }
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000014"><Properties><bool name="Disabled">false</bool><string name="Name">Types</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000016"><Properties><bool name="Disabled">false</bool><string name="Name">Types</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Shared type definitions. Runtime-free; `require` for types only.
 
 local Vec = require(script.Parent.Vec)
@@ -5405,7 +5802,7 @@ export type Results = {
 }
 
 return {}
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000015"><Properties><bool name="Disabled">false</bool><string name="Name">Vec</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000017"><Properties><bool name="Disabled">false</bool><string name="Name">Vec</string><ProtectedString name="Source"><![CDATA[--!strict
 -- 2D vectors on the battlefield plane. Pure Luau; no Roblox datatypes.
 -- Heading: radians, 0 along +x, increasing toward +z. right(f) = f rotated +90° (toward +z when f = +x).
 
@@ -5546,7 +5943,7 @@ function Vec.distToSegment(p: Vec, a: Vec, b: Vec): number
 end
 
 return Vec
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000016"><Properties><bool name="Disabled">false</bool><string name="Name">WorldBuild</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000018"><Properties><bool name="Disabled">false</bool><string name="Name">WorldBuild</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Engine side of the world pipeline: writes WorldGen's terrain model into workspace.Terrain
 -- and instantiates WorldGen part specs. Server (structure tier, voxels) and client (detail
 -- tier) share it. Every part is fully set up before it is parented, and parts are parented in
@@ -5573,10 +5970,14 @@ function WorldBuild.applyPalette(map: any)
 	local t = workspace.Terrain
 	local season = WorldGen.season(map.id)
 	-- Grass stays olive-gold with green (Studio: 162,150,58 read orange/desert under a low warm sun).
-	t:SetMaterialColor(Enum.Material.Grass, rgb(season.grass))
-	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(season.leafy))
-	t:SetMaterialColor(Enum.Material.Limestone, rgb(season.wheat))
-	t:SetMaterialColor(Enum.Material.Mud, rgb(season.plough))
+	-- The painted ground (the place's MaterialVariants) brings its own colour, so it takes lighter
+	-- tints; a place without it keeps the stock materials' tints.
+	local painted = game:GetService("MaterialService"):FindFirstChild("EoEMeadow") ~= nil
+	local pt = season.painted
+	t:SetMaterialColor(Enum.Material.Grass, rgb(if painted then pt[1] else season.grass))
+	t:SetMaterialColor(Enum.Material.LeafyGrass, rgb(if painted then pt[2] else season.leafy))
+	t:SetMaterialColor(Enum.Material.Limestone, rgb(if painted then pt[3] else season.wheat))
+	t:SetMaterialColor(Enum.Material.Mud, rgb(if painted then pt[4] else season.plough))
 	t:SetMaterialColor(Enum.Material.Ground, Color3.fromRGB(112, 92, 58)) -- dirt: roads, tracks, yards
 	t:SetMaterialColor(Enum.Material.Cobblestone, Color3.fromRGB(122, 112, 98)) -- village streets
 	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(98, 88, 68))
@@ -5732,6 +6133,10 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 		local fit = if n then Vector3.new(s.size.X / n[1], s.size.Y / n[2], s.size.Z / n[3]) else Vector3.one
 		m.Scale = fit * Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
 		m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
+		local tint = slot.tint
+		if tint then
+			m.VertexColor = Vector3.new(tint[1], tint[2], tint[3])
+		end
 		m.Parent = p
 	end
 	local tex = if s.texture then Assets.textureOf(s.texture) else nil
@@ -5815,7 +6220,7 @@ function WorldBuild.spawn(specs: { WorldGen.Spec }, root: Instance, alive: () ->
 end
 
 return WorldBuild
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000017"><Properties><bool name="Disabled">false</bool><string name="Name">WorldGen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000019"><Properties><bool name="Disabled">false</bool><string name="Name">WorldGen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure world generation: from MapData to (a) a terrain column sampler the voxel writer reads
 -- and (b) a list of part specs. No instances are made here; WorldBuild instantiates specs,
 -- the server the "s" (structure) tier once per match, the client the "d" (detail) tier.
@@ -5925,6 +6330,9 @@ export type Season = {
 	leafy: { number },
 	wheat: { number },
 	plough: { number },
+	-- tints over the painted ground (MaterialService variants), whose maps carry their own colour:
+	-- grass, leafy, wheat, plough (tuned by eye in Studio, round 40)
+	painted: { { number } },
 }
 -- Jena/Auerstedt mid-October: stubble and fresh plough; Austerlitz December: plough and pale
 -- winter grass, few hedges (open Moravian fields); Waterloo June: tall rye, green, hedged.
@@ -5936,6 +6344,7 @@ local SEASONS: { [string]: Season } = {
 		leafy = { 84, 106, 44 },
 		wheat = { 150, 132, 86 }, -- Limestone renders far brighter: 178,162,104 read neon lime
 		plough = { 98, 76, 54 },
+		painted = { { 180, 172, 112 }, { 136, 150, 92 }, { 168, 148, 104 }, { 104, 98, 96 } },
 	},
 	winter = {
 		crops = { 0.36, 0.50, 0.60, 1.0 },
@@ -5944,6 +6353,7 @@ local SEASONS: { [string]: Season } = {
 		leafy = { 86, 102, 52 },
 		wheat = { 141, 133, 99 }, -- 0.84x: Limestone renders bright
 		plough = { 90, 72, 56 },
+		painted = { { 174, 159, 126 }, { 139, 144, 109 }, { 158, 149, 120 }, { 95, 93, 100 } },
 	},
 	summer = {
 		crops = { 0.24, 0.44, 0.84, 1.0 },
@@ -5952,6 +6362,7 @@ local SEASONS: { [string]: Season } = {
 		leafy = { 76, 108, 42 },
 		wheat = { 143, 134, 76 }, -- 0.84x: Limestone renders bright
 		plough = { 104, 82, 58 },
+		painted = { { 166, 172, 105 }, { 123, 153, 88 }, { 160, 150, 92 }, { 110, 106, 103 } },
 	},
 }
 local MAP_SEASON: { [string]: string } = { austerlitz = "winter", waterloo = "summer" }
@@ -7033,6 +7444,10 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 end
 
 local function cart(group: string, x: number, z: number, heading: number)
+	-- the generated cart's shafts run along its Z, so it is turned a quarter to the heading
+	if meshObject(group, "cart", x, z, heading + math.pi / 2, 2.4, 2.2, 5.6) then
+		return
+	end
 	obj("point", function()
 		local y = groundY(x, z)
 		local base = yaw(x, y, z, heading)
@@ -7574,7 +7989,10 @@ local function borderPiece(group: string, kind: number, ax: number, az: number, 
 	if kind == 1 then
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
 		obj("linear", function()
-			along(hh, 2.6, hh / 2 - 0.3, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+			local hedge = along(hh, 2.6, hh / 2 - 0.3, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+			if Assets.get("hedge") then
+				hedge.fileMesh = "hedge" -- the generated hedgerow, fitted to this piece's box
+			end
 		end)
 		if h01(mx, mz, 92) < 0.13 then
 			tree(group, "oak", mx, mz, 4 + h01(mz, mx, 93) * 2, true)
@@ -8041,7 +8459,7 @@ function WorldGen.tally(specs: { Spec }): { [string]: number }
 end
 
 return WorldGen
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000056"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000055"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000020"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX00000058"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Folder" referent="RBX00000057"><Properties><string name="Name">EoE</string></Properties><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Enemy commander. Pure Luau, deterministic: reads its own formations fully, the enemy only
 -- through sim.views[faction] (visible ids + last-known memory), randomness only via sim.rng.
 -- Orders go through sim:queueCommand with the same command kinds the player uses.
@@ -9365,7 +9783,7 @@ function AI.debugView(state: AIState): { { id: number, goal: string, reason: str
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Operational campaign (Release B). Pure Luau, deterministic through `state.rng`; no wall clock,
 -- no Roblox APIs. The tactical battle is delegated to the Sim through `battleScenario` and the
 -- outcome returns through `applyBattleResult` (idempotent by battle id).
@@ -10482,7 +10900,7 @@ function Campaign.commitBattle(store: Store, userId: number, sessionId: string, 
 end
 
 return Campaign
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000022"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign session for the commander: profile load/continue, turns, battle hand-off to the
 -- tactical match and exactly-once result commits. Talks to clients over the Campaign remote.
 --
@@ -10925,7 +11343,7 @@ function CampaignService.sessionOnly(): boolean
 end
 
 return CampaignService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000023"><Properties><bool name="Disabled">false</bool><string name="Name">Coop</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">Coop</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Co-op (2–4 players vs AI) and PvP (two human sides): roster roles, slots and sides, the wing
 -- split, AI side and vote thresholds.
 -- Pure Luau; MatchService adapts it to Roblox players. Contract: docs/coop-contract.md.
@@ -11208,7 +11626,7 @@ function Coop.vote(votes: { [number]: boolean }, userId: number, n: number, deci
 end
 
 return Coop
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">GrandCampaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign, Europe 1805–1815 (docs/campaign.md, docs/grand-campaign-contract.md). Pure Luau,
 -- deterministic through `state.rng`; no wall clock, no Roblox APIs.
 --
@@ -12036,7 +12454,7 @@ function GrandCampaign.commitBattle(store: Store, userId: number, sessionId: str
 end
 
 return GrandCampaign
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000024"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">AI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-nation AI. Same rules as the player (Movement.move, Economy.recruit, Diplomacy). Each army
 -- scores every province it can reach within three hops and marches toward the best:
 --   hold          20 (+50 at an own capital threatened beyond the other troops there, +35 while besieging, home guard +40)
@@ -12504,7 +12922,7 @@ function AI.turn(s: State, nation: string, autoplay: boolean?)
 end
 
 return AI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000025"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">Battles</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Contacts, battles, sieges and occupation.
 --
 -- After every nation has moved, each province holding armies at war with each other produces one
@@ -13476,7 +13894,7 @@ function Battles.scenario(s: State, battleId: string): Scenarios.Scenario?
 end
 
 return Battles
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000026"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">Diplomacy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- War, peace, alliances, offers and coalitions.
 --
 -- War score per pair (-100..100): battle won +8 (+4 if an enemy army is destroyed), province
@@ -13945,7 +14363,7 @@ function Diplomacy.aiTurn(s: State, nation: string, autoplay: boolean?)
 end
 
 return Diplomacy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000027"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">Economy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Income, manpower, upkeep, recruitment and replenishment. Owners collect the full income and
 -- manpower of provinces they hold; an occupier requisitions half the income and no manpower; the
 -- dispossessed owner gets nothing. Upkeep is paid every turn; a shortfall empties the treasury and
@@ -14529,7 +14947,7 @@ end
 
 -- Unrest 0..5: turns under occupation (+2 under the guerrilla).
 return Economy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">Events</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scripted events (EuropeData.Events): each fires once, at the first turn of its window whose
 -- conditions hold. Base effects apply at once; a chooser picks one of the choices: the player
 -- through a pop-up (default = the first choice, applied at the end of the turn if unanswered), an
@@ -14730,7 +15148,7 @@ function Events.closeTurn(s: State)
 end
 
 return Events
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000029"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Army movement by province path. Movement points per turn: 2, 3 under a general rated 4+.
 -- Entering a province costs 1, +1 inside an enemy zone of control (a neighbouring province holds
 -- an army at war with the mover). Movement ends on entering a province that holds a hostile army
@@ -14978,7 +15396,7 @@ function Movement.relocateStrays(s: State)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><bool name="Disabled">false</bool><string name="Name">Navy</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">Navy</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Fleets (docs/campaign.md "Navy"): sailing port to port along EuropeData.FleetLanes, naval
 -- battles where fleets at war meet (auto-resolved at the end of the turn), and shipbuilding.
 
@@ -15179,7 +15597,7 @@ function Navy.build(s: State, nation: string, provinceId: string, ship: string):
 end
 
 return Navy
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000031"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000033"><Properties><bool name="Disabled">false</bool><string name="Name">Serialize</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Profile format for the grand campaign (DataStore-safe: string keys, arrays, finite numbers).
 -- `deserialize` validates everything it reads and returns nil rather than a half-valid state.
 
@@ -15500,7 +15918,7 @@ function Serialize.deserialize(p: any): State?
 end
 
 return Serialize
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000032"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">State</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign state: types, construction from EuropeData and the small helpers every rules
 -- module shares. Pure Luau; all randomness through `state.rng`; every loop whose order matters
 -- walks an array (NationOrder, ProvinceIds, armies by id), never `pairs` of a dictionary.
@@ -16033,10 +16451,10 @@ function State.new(seed: number, playerNation: string?): State
 end
 
 return State
-]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000034"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Script" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><token name="RunContext">0</token><ProtectedString name="Source"><![CDATA[--!strict
 -- Server entry point.
 require(script.Parent.MatchService).start()
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000035"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Match lifecycle, co-op / PvP roles, sides and wings (Coop, docs/coop-contract.md), request handling, the server loop and replication.
 -- One match per server. Everything the sim decides stays in Sim; this file only adapts it to
 -- Roblox services and players.
@@ -17054,7 +17472,7 @@ MatchService._internal = { createMatch = createMatch, destroyMatch = destroyMatc
 end }
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000039"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000036"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000041"><Properties><string name="Name">Net</string></Properties><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">CommandGate</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-player request gate: rate limiting and request-id de-duplication. Pure Luau; the
 -- caller injects real elapsed time (never the paused battle clock).
 
@@ -17119,7 +17537,7 @@ function CommandGate.forget(gate: Gate, key: any)
 end
 
 return CommandGate
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000037"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000039"><Properties><bool name="Disabled">false</bool><string name="Name">MatchClock</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Real time → logical ticks. Speed scales the accumulator, never the step. Work per frame is
 -- bounded; sustained overload shows up as simLag instead of a giant step.
 
@@ -17176,7 +17594,7 @@ function MatchClock.advance(clock: Clock, realDt: number, step: () -> ()): numbe
 end
 
 return MatchClock
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000038"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">Remotes</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Creates the RemoteEvents under ReplicatedStorage/EoE/Remotes (server only).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -17209,7 +17627,7 @@ function Remotes.create(): { [string]: RemoteEvent }
 end
 
 return Remotes
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000041"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000040"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000043"><Properties><string name="Name">Persist</string></Properties><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">ProfileStore</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Versioned profile store on top of DataStoreService.UpdateAsync. Pure Luau; the DataStore
 -- service is injected so tests run in the CLI with the memory adapter.
 --
@@ -17418,7 +17836,7 @@ function ProfileStore.releaseSession(self: Store, userId: number, sessionId: str
 end
 
 return ProfileStore
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000055"><Properties><bool name="Disabled">false</bool><string name="Name">Sim</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The authoritative battle simulation. Pure Luau: no Roblox APIs, no wall-clock time.
 -- Owns formations, commands, the fixed tick, visibility, objectives, victory and snapshots.
 -- Tick order is documented in docs/architecture.md and implemented in Sim:step().
@@ -18302,7 +18720,7 @@ function Sim.buildResults(self: Sim, winner: string, reason: string, viewer: str
 end
 
 return Sim
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000042"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Abilities</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Generals in battle: trait modifiers recomputed every tick (bounded) and the HQ's active ability.
 -- Data and plain-text descriptions live in src/shared/Generals.luau; docs/rules.md ("Generals")
 -- is the contract. Pure Luau, deterministic, no randomness.
@@ -18719,7 +19137,7 @@ function Abilities.view(sim: SimLike, f: Formation, v: any)
 end
 
 return Abilities
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000043"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Combat</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Fire, artillery, melee and charge resolution. Step 6 gathers attacks from a frozen view of
 -- the tick (positions/states as they are after movement); step 7 applies them. Both sides
 -- resolve simultaneously; ordering is ascending formation id for determinism.
@@ -19296,7 +19714,7 @@ function Combat.apply(sim: SimLike, attacks: { Attack })
 end
 
 return Combat
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000044"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Edges</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Map edges as a faction's "home" (where routers flee, where rallied units turn back from).
 -- A home is one of four sides, chosen as the side facing away from the enemy's deployment.
 -- Edges are identified from the home point, which always lies just beyond its edge.
@@ -19371,7 +19789,7 @@ function Edges.home(own: Point, enemy: Point?, w: number, d: number, margin: num
 end
 
 return Edges
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000045"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Formation</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation records: creation from scenario definitions, footprint geometry, shape changes,
 -- legality helpers. Pure Luau; no Roblox APIs.
 
@@ -19718,7 +20136,7 @@ function Formation.frontCentre(f: Formation): Vec
 end
 
 return Formation
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000046"><Properties><bool name="Disabled">false</bool><string name="Name">Garrison</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Garrison</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Buildings (docs/rules.md "Buildings"): the heart of every village or farm (MapGen strongpoints)
 -- holds one infantry battalion. A Garrison order marches it there and, if the building is free,
 -- moves it in (shape "garrison", Config.Shapes). Any shape change away from "garrison" — a new
@@ -19823,7 +20241,7 @@ function Garrison.update(sim: SimLike)
 end
 
 return Garrison
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000047"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Moments</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Evaluates the scenario's historical moments (src/shared/Moments.luau) every
 -- Moments.EveryTicks ticks, after objectives. Pure and deterministic: reads sim state only,
 -- fires each moment at most once, in list order.
@@ -19990,7 +20408,7 @@ function Moments.update(sim: any)
 end
 
 return Moments
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000048"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Morale</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Morale, fatigue effects, rout / rally / shatter transitions, destruction. Step 8.
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -20276,7 +20694,7 @@ function Morale.hqRally(sim: SimLike, hq: Formation): (boolean, string?)
 end
 
 return Morale
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000049"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Movement</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Timed transitions (shape/limber/rally/charge recovery), navigation, movement, facing,
 -- choke-point travel columns, avoidance, stuck detection and routing flight.
 -- Runs in tick steps 3 and 4. Formations are processed in ascending id order.
@@ -20758,7 +21176,7 @@ function Movement.update(sim: SimLike, f: Formation)
 end
 
 return Movement
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000050"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Nav</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation navigation on a coarse grid derived from the terrain grid.
 -- Nodes are Config.Map.NavCellSize studs; a node is walkable when its clearance allows at
 -- least a travel column (half-width 8). Cost = distance / infantry terrain speed.
@@ -21080,7 +21498,7 @@ function Nav.segmentMinClearance(nav: NavGrid, a: Vec, b: Vec): number
 end
 
 return Nav
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000051"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000053"><Properties><bool name="Disabled">false</bool><string name="Name">Objectives</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Objective capture (step 9) and the single victory evaluator (step 10).
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
@@ -21313,7 +21731,7 @@ function Objectives.evaluate(sim: SimLike): (string?, string?)
 end
 
 return Objectives
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000052"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">Visibility</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Per-faction visibility: which enemy formations are currently seen, and last-known memory.
 -- Recomputed every Config.Sim.VisibilityEveryTicks ticks (step 5). The AI and the snapshot
 -- filter both read this; nothing else decides what a faction knows.
@@ -21452,7 +21870,7 @@ function Visibility.isVisibleTo(sim: SimLike, viewer: string, id: number): boole
 end
 
 return Visibility
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000054"><Properties><bool name="Disabled">false</bool><string name="Name">World</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000056"><Properties><bool name="Disabled">false</bool><string name="Name">World</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Builds the battlefield once per map on the server: terrain voxels and the structure tier of
 -- WorldGen's props (ground, fields, bridges, houses, trees, walls, hedges) under
 -- workspace.EoEWorld, which replicates to every client. The root folder carries attributes:
@@ -21584,7 +22002,7 @@ function World.clear()
 end
 
 return World
-]]></ProtectedString></Properties></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000106"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000105"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000104"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000057"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item></Item><Item class="StarterPlayer" referent="RBX00000108"><Properties><string name="Name">StarterPlayer</string><bool name="EnableMouseLockOption">false</bool><float name="CameraMaxZoomDistance">2000</float></Properties><Item class="StarterPlayerScripts" referent="RBX00000107"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="Folder" referent="RBX00000106"><Properties><string name="Name">EoEClient</string></Properties><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Audio</string><ProtectedString name="Source"><![CDATA[--!strict
 -- The audio layer: a mixer of buses (master → sfx / music / ambience / ui, each a SoundGroup
 -- bound live to Settings), positional one-shots anchored at the event with a roll-off scaled
 -- by camera height (loud and crisp from low, quieter and muffled from high), per-key cooldowns
@@ -22110,7 +22528,7 @@ function Audio.destroy()
 end
 
 return Audio
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000058"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">BattleState</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side mirror of the match: merged snapshot data, pending orders, match metadata.
 -- Every other client module reads from here; nothing reads cosmetic parts for gameplay.
 
@@ -22550,7 +22968,7 @@ function BattleState.validateContext(): any
 end
 
 return BattleState
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000059"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">Camera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Scriptable RTS camera: bounded pan, rotate, zoom, pitch; never clips into hills.
 -- Height is measured above the terrain under the focus point.
 
@@ -22991,7 +23409,7 @@ function Camera.destroy()
 end
 
 return Camera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Campaign</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand campaign client: the server's grandView is the only state. Owns the board, the
 -- camera, the panels and the board input while open; `close()` removes all of it (Main calls
 -- it on every lifecycle change) and `request()` asks for the view again (menu, back from battle).
@@ -23343,14 +23761,18 @@ function Grand.close()
 end
 
 return Grand
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000060"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
--- Grand-campaign tabletop: Europe as a painted relief board on a walnut table, far from the
--- battlefield. Static geometry (land, sea, mountains, towns, forts, piers, names) builds once;
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">Board</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Grand-campaign tabletop: Europe as a painted relief on a walnut table, far from the
+-- battlefield. The land is terrain (real coasts, rivers and mountains from Relief/EuropeGeo,
+-- written locally on this client) under a tint of owner colours clipped to the coast. Static
+-- geometry (terrain, tint strips, towns, forts, piers, names) builds once;
 -- owner colours, borders, occupation hatching, armies, highlights and the path preview follow
 -- each view. Map units (0..2000 × 0..1500, +z north) map to world X east, world -Z north, so
 -- the default camera looking along -Z sees north at the top and east on the right.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Relief = require(Shared.Relief)
 local Data = require(script.Parent.Data)
 local Kit = require(script.Parent.Parent.UI.Kit)
 
@@ -23358,8 +23780,11 @@ local Board = {}
 
 local ORIGIN = Vector3.new(8000, 0, 0) -- the battlefield spans 0..1600 × 0..1200
 local S = 0.55 -- studs per map unit
-local LAND = 2 -- land top above the table base
-local SEA_Y = 0.6
+local LAND = 2 -- the province tint's height; the lowland lies just under it, hills rise through
+local SEA_Y = 0 -- water surface
+local CELL = 8 -- map units per land cell (EuropeGeo.Cell)
+local VOX = 4 -- terrain voxel, studs
+local TINT = 0.45 -- transparency of the owner tint over the land
 local W, D = 2000 * S, 1500 * S
 
 local PARCH = Color3.fromRGB(226, 212, 176)
@@ -23368,17 +23793,6 @@ local STONE = Color3.fromRGB(150, 144, 134)
 local WALL = Color3.fromRGB(196, 178, 146)
 local ROOF = Color3.fromRGB(122, 66, 46)
 local RED = Color3.fromRGB(196, 58, 44)
-
--- Mountain chains in map units, from EuropeData's projection x = (lon + 10) * 40,
--- z = (lat - 36) * 62.5: Alps, Pyrenees, Carpathians, Balkans, Apennines, Norway.
-local CHAINS: { { snow: boolean, pts: { { number } } } } = {
-	{ snow = true, pts = { { 660, 560 }, { 700, 625 }, { 760, 650 }, { 840, 675 }, { 920, 690 }, { 990, 705 } } },
-	{ snow = true, pts = { { 340, 420 }, { 400, 415 }, { 460, 418 }, { 520, 415 } } },
-	{ snow = false, pts = { { 1120, 844 }, { 1240, 831 }, { 1360, 769 }, { 1420, 688 }, { 1420, 594 }, { 1320, 588 } } },
-	{ snow = false, pts = { { 1320, 425 }, { 1400, 420 }, { 1480, 425 } } },
-	{ snow = false, pts = { { 800, 519 }, { 870, 460 }, { 920, 406 }, { 1020, 281 } } },
-	{ snow = true, pts = { { 660, 1380 }, { 700, 1430 }, { 740, 1480 } } },
-}
 
 local folder: Folder? = nil
 local dyn: Folder? = nil -- borders, hatching, armies (rebuilt per view)
@@ -23395,8 +23809,9 @@ local labels: { Label } = {}
 local labelK = 0
 local FIG = 1.6 -- figure scale
 
+-- A map point on the board; without `y` it stands on the ground (the tint, or a hill above it).
 function Board.toWorld(x: number, z: number, y: number?): Vector3
-	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or LAND), ORIGIN.Z - z * S)
+	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or (LAND + math.max(0, Relief.height(x, z) - 0.1))), ORIGIN.Z - z * S)
 end
 
 -- World-space rectangle of the board (x0 < x1, z0 < z1) and the base height.
@@ -23444,111 +23859,7 @@ local function ridge(parent: Instance, pos: Vector3, yaw: number, len: number, s
 	return part(parent, Vector3.new(len, s, s), CFrame.new(pos) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(math.rad(45), 0, 0), colour, material)
 end
 
--- Flat triangle a,b,c (centre plane) of thickness t as two wedges (the standard split at the
--- foot of the altitude onto the longest edge).
-local function triangle(parent: Instance, a: Vector3, b: Vector3, c: Vector3, t: number, colour: Color3, out: { BasePart })
-	local ab, ac, bc = b - a, c - a, c - b
-	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
-	if abd > acd and abd > bcd then
-		c, a = a, c
-	elseif acd > bcd and acd > abd then
-		a, b = b, a
-	end
-	ab, ac, bc = b - a, c - a, c - b
-	local n = ac:Cross(ab)
-	if n.Magnitude < 1e-4 then
-		return
-	end
-	local right = n.Unit
-	local up = bc:Cross(right).Unit
-	local back = bc.Unit
-	local height = math.abs(ab:Dot(up))
-	if height < 0.05 then
-		return
-	end
-	for _, w in { { (a + b) / 2, right, back, math.abs(ab:Dot(back)) }, { (a + c) / 2, -right, -back, math.abs(ac:Dot(back)) } } do
-		local depth = w[4] :: number
-		if depth > 0.01 then
-			local p = Instance.new("WedgePart") :: WedgePart
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanTouch = false
-			p.Size = Vector3.new(t, height, depth)
-			p.CFrame = CFrame.fromMatrix(w[1] :: Vector3, w[2] :: Vector3, up, w[3] :: Vector3)
-			p.Color = colour
-			p.Material = Enum.Material.SmoothPlastic
-			p.Parent = parent
-			table.insert(out, p)
-		end
-	end
-end
-
 type Pt = { x: number, z: number }
-
-local function cross(o: Pt, a: Pt, b: Pt): number
-	return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x)
-end
-
--- Ear clipping for a simple polygon; returns index triples.
-function Board.triangulate(pts: { Pt }): { { number } }
-	local n = #pts
-	local area = 0
-	for i = 1, n do
-		local p, q = pts[i], pts[i % n + 1]
-		area += p.x * q.z - q.x * p.z
-	end
-	local sign = if area >= 0 then 1 else -1
-	local idx = {}
-	for i = 1, n do
-		idx[i] = i
-	end
-	local tris = {}
-	while #idx > 3 do
-		local m = #idx
-		local cut = false
-		for i = 1, m do
-			local i0, i1, i2 = idx[(i - 2) % m + 1], idx[i], idx[i % m + 1]
-			local a, b, c = pts[i0], pts[i1], pts[i2]
-			local cr = cross(a, b, c) * sign
-			if cr > 1e-9 then
-				local ear = true
-				for _, j in idx do
-					if j ~= i0 and j ~= i1 and j ~= i2 then
-						local p = pts[j]
-						if cross(a, b, p) * sign >= 0 and cross(b, c, p) * sign >= 0 and cross(c, a, p) * sign >= 0 then
-							ear = false
-							break
-						end
-					end
-				end
-				if ear then
-					table.insert(tris, { i0, i1, i2 })
-					table.remove(idx, i)
-					cut = true
-					break
-				end
-			end
-		end
-		if not cut then
-			-- only collinear or degenerate corners left: drop a flat one, else give up
-			local flat = nil
-			for i = 1, m do
-				if math.abs(cross(pts[idx[(i - 2) % m + 1]], pts[idx[i]], pts[idx[i % m + 1]])) <= 1e-9 then
-					flat = i
-					break
-				end
-			end
-			if not flat then
-				break
-			end
-			table.remove(idx, flat)
-		end
-	end
-	if #idx == 3 then
-		table.insert(tris, { idx[1], idx[2], idx[3] })
-	end
-	return tris
-end
 
 local function key(p: Pt): string
 	return string.format("%d,%d", math.round(p.x), math.round(p.z))
@@ -23574,10 +23885,11 @@ local function groundLabel(parent: Instance, text: string, pos: Vector3, height:
 	l.Font = Enum.Font.Garamond
 	l.TextScaled = true
 	l.Text = text
-	l.TextColor3 = Kit.IVORY
-	l.TextStrokeColor3 = INK
-	l.TextStrokeTransparency = 0.55
-	l.TextTransparency = 0.1
+	-- dark ink with a pale halo reads on every owner tint and on the terrain (ivory did not)
+	l.TextColor3 = INK
+	l.TextStrokeColor3 = Kit.IVORY
+	l.TextStrokeTransparency = 0.45
+	l.TextTransparency = 0.05
 	l.Parent = gui
 	return p
 end
@@ -23629,28 +23941,147 @@ local function pier(parent: Instance, from: Vector3, dir: Vector3)
 	end
 end
 
-local function mountains(parent: Instance)
-	local rng = Random.new(1805)
-	for _, chain in CHAINS do
-		for i = 1, #chain.pts - 1 do
-			local p0, p1 = chain.pts[i], chain.pts[i + 1]
-			local steps = math.max(1, math.floor(math.sqrt((p1[1] - p0[1]) ^ 2 + (p1[2] - p0[2]) ^ 2) / 22))
-			for k = 0, steps - 1 do
-				local t = (k + rng:NextNumber()) / steps
-				local x = p0[1] + (p1[1] - p0[1]) * t + rng:NextNumber(-14, 14)
-				local z = p0[2] + (p1[2] - p0[2]) * t + rng:NextNumber(-14, 14)
-				local s = rng:NextNumber(5, 9)
-				local yaw = math.atan2(-(p1[2] - p0[2]), p1[1] - p0[1]) + rng:NextNumber(-0.5, 0.5)
-				local pos = Board.toWorld(x, z)
-				local len = rng:NextNumber(7, 14)
-				ridge(parent, pos, yaw, len, s, Color3.fromRGB(128, 122, 114), Enum.Material.Slate)
-				if chain.snow and s > 6.5 then
-					local s2 = s * 0.42
-					ridge(parent, pos + Vector3.new(0, (s - s2) * 0.707, 0), yaw, len * 0.6, s2, Color3.fromRGB(236, 234, 228), Enum.Material.Snow)
-				end
+-- The land as terrain, written on this client only (the server never sees the board). Columns
+-- of 4-stud voxels: sea bed and water off the coast and in the rivers, ground up to the
+-- lowland or the hills elsewhere, with rock on the slopes and snow on the high chains.
+local function landMaterial(mx: number, mz: number, h: number): EnumMaterial
+	if Relief.snow(mx, mz) then
+		return Enum.Material.Snow
+	elseif h > 2.5 then
+		return Enum.Material.Rock
+	end
+	local coast = not (Relief.isLand(mx + CELL, mz) and Relief.isLand(mx - CELL, mz) and Relief.isLand(mx, mz + CELL) and Relief.isLand(mx, mz - CELL))
+	if coast then
+		return Enum.Material.Sand
+	end
+	local n = math.noise(mx / 61, mz / 61, 7.1)
+	if mz < 300 and n > -0.15 then
+		return Enum.Material.Ground -- the dry south: Iberia, southern Italy, Greece, Anatolia
+	end
+	return if n > 0.18 then Enum.Material.LeafyGrass else Enum.Material.Grass
+end
+
+local function riverCells(): { [number]: boolean }
+	local wet: { [number]: boolean } = {}
+	for _, r in Relief.rivers() do
+		for i = 1, #r.pts - 1 do
+			local a, b = r.pts[i], r.pts[i + 1]
+			local len = math.sqrt((b.x - a.x) ^ 2 + (b.z - a.z) ^ 2)
+			for k = 0, math.ceil(len / 2) do
+				local t = k / math.max(1, math.ceil(len / 2))
+				local wx = ORIGIN.X + (a.x + (b.x - a.x) * t) * S
+				local wz = ORIGIN.Z - (a.z + (b.z - a.z) * t) * S
+				wet[math.floor(wx / VOX) * 100000 + math.floor(wz / VOX)] = true
 			end
 		end
 	end
+	return wet
+end
+
+local Y0, LAYERS = -8, 7 -- terrain floor and voxel layers (to y = 20)
+local function writeRelief()
+	local terrain = workspace.Terrain
+	local wet = riverCells()
+	local gx0 = math.floor(ORIGIN.X / VOX)
+	local gx1 = math.ceil((ORIGIN.X + W) / VOX) - 1
+	local gz0 = math.floor((ORIGIN.Z - D) / VOX)
+	local gz1 = math.ceil(ORIGIN.Z / VOX) - 1
+	local CHUNK = 24
+	for cx = gx0, gx1, CHUNK do
+		local nx = math.min(CHUNK, gx1 - cx + 1)
+		local nz = gz1 - gz0 + 1
+		local mats: { { { EnumMaterial } } } = {}
+		local occ: { { { number } } } = {}
+		for i = 1, nx do
+			local mi: { { EnumMaterial } } = {}
+			local oi: { { number } } = {}
+			for j = 1, LAYERS do
+				mi[j] = table.create(nz, Enum.Material.Air)
+				oi[j] = table.create(nz, 0)
+			end
+			mats[i], occ[i] = mi, oi
+			local gx = cx + i - 1
+			local mx = ((gx + 0.5) * VOX - ORIGIN.X) / S
+			for k = 1, nz do
+				local gz = gz0 + k - 1
+				local mz = (ORIGIN.Z - (gz + 0.5) * VOX) / S
+				local land = Relief.isLand(mx, mz) and not wet[gx * 100000 + gz]
+				if land then
+					local h = Relief.height(mx, mz)
+					local top = LAND - 0.15 + h -- the surface, board y
+					local m = landMaterial(mx, mz, h)
+					for j = 1, LAYERS do
+						local lo = Y0 + (j - 1) * VOX
+						if top >= lo + VOX then
+							mi[j][k], oi[j][k] = if j <= 2 or top - (lo + VOX) > VOX then Enum.Material.Rock else m, 1
+						elseif top > lo then
+							mi[j][k], oi[j][k] = m, (top - lo) / VOX
+						end
+					end
+				else
+					mi[1][k], oi[1][k] = Enum.Material.Sand, 1
+					mi[2][k], oi[2][k] = Enum.Material.Water, 1
+				end
+			end
+		end
+		local lo = Vector3.new(cx * VOX, ORIGIN.Y + Y0, gz0 * VOX)
+		local region = Region3.new(lo, lo + Vector3.new(nx * VOX, LAYERS * VOX, nz * VOX))
+		terrain:WriteVoxels(region, VOX, mats, occ)
+		task.wait()
+	end
+end
+
+-- Owner tint over the land: one thin strip per row run of a province, clipped to the coast,
+-- so a province's colour stops at its real shore. The strips are what a click picks.
+local function tintStrips(parent: Instance)
+	local cols, rows = math.floor(2000 / CELL), math.floor(1500 / CELL)
+	for r = 1, rows do
+		local zc = (r - 0.5) * CELL
+		local runStart, runProv = 0, nil :: string?
+		for c = 1, cols + 1 do
+			local xc = (c - 0.5) * CELL
+			local prov = if c <= cols and Relief.isLand(xc, zc) then Relief.provinceAt(xc, zc) else nil
+			if prov ~= runProv then
+				local rp = runProv
+				if rp then
+					local x0, x1 = (runStart - 1) * CELL, (c - 1) * CELL
+					local strip = part(parent, Vector3.new((x1 - x0) * S, 0.1, CELL * S), CFrame.new(Board.toWorld((x0 + x1) / 2, zc, LAND + 0.05)), baseColour[rp] or PARCH)
+					strip.Transparency = TINT
+					strip.CastShadow = false
+					strip.CanQuery = true
+					strip:SetAttribute("prov", rp)
+					table.insert(landParts[rp], strip)
+				end
+				runStart, runProv = c, prov
+			end
+		end
+		if r % 16 == 0 then
+			task.wait()
+		end
+	end
+end
+
+-- The point where a port's coast is nearest its centre, and the way out to sea.
+local function coastOf(p: any): (Vector3?, Vector3?)
+	local best: { x: number, z: number, dx: number, dz: number }? = nil
+	local bestR = math.huge
+	for a = 0, 23 do
+		local dx, dz = math.cos(a / 24 * math.pi * 2), math.sin(a / 24 * math.pi * 2)
+		for r = 4, 160, 4 do
+			local x, z = p.centre.x + dx * r, p.centre.z + dz * r
+			if not Relief.isLand(x, z) then
+				if r < bestR then
+					bestR, best = r, { x = x - dx * 4, z = z - dz * 4, dx = dx, dz = dz }
+				end
+				break
+			end
+		end
+	end
+	local b = best
+	if not b then
+		return nil, nil
+	end
+	return Board.toWorld(b.x, b.z), Vector3.new(b.dx, 0, -b.dz)
 end
 
 function Board.build()
@@ -23659,44 +24090,21 @@ function Board.build()
 	end
 	local f = Instance.new("Folder") :: Folder
 	f.Name = "EoEGrandBoard"
-	-- table, gilt edge and the sea
+	-- the walnut table and its gilt edge; the land and the sea are terrain (writeRelief)
 	local mid = ORIGIN + Vector3.new(W / 2, 0, -D / 2)
-	part(f, Vector3.new(W + 140, 6, D + 140), CFrame.new(mid + Vector3.new(0, -3.2, 0)), Kit.WALNUT_LIGHT, Enum.Material.Wood)
+	part(f, Vector3.new(W + 140, 6, D + 140), CFrame.new(mid + Vector3.new(0, Y0 - 3, 0)), Kit.WALNUT_LIGHT, Enum.Material.Wood)
 	for _, e in { { Vector3.new(0, 0, -D / 2 - 4), Vector3.new(W + 8, 0, 0) }, { Vector3.new(0, 0, D / 2 + 4), Vector3.new(W + 8, 0, 0) }, { Vector3.new(-W / 2 - 4, 0, 0), Vector3.new(0, 0, D + 8) }, { Vector3.new(W / 2 + 4, 0, 0), Vector3.new(0, 0, D + 8) } } do
 		local c, l = e[1], e[2]
-		part(f, Vector3.new(math.max(l.X, 3), 1.2, math.max(l.Z, 3)), CFrame.new(mid + c + Vector3.new(0, 0.2, 0)), Kit.GILT, Enum.Material.Foil)
+		part(f, Vector3.new(math.max(l.X, 3), LAND - Y0 + 1, math.max(l.Z, 3)), CFrame.new(mid + c + Vector3.new(0, (LAND + Y0) / 2, 0)), Kit.GILT, Enum.Material.Foil)
 	end
-	local sea = part(f, Vector3.new(W + 4, 1, D + 4), CFrame.new(mid + Vector3.new(0, SEA_Y - 0.5, 0)), Color3.fromRGB(86, 90, 160))
-	sea.CastShadow = false
-	local sg = Instance.new("SurfaceGui") :: SurfaceGui
-	sg.Face = Enum.NormalId.Top
-	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-	sg.CanvasSize = Vector2.new(256, 192)
-	sg.LightInfluence = 1
-	sg.Parent = sea
-	local grad = Instance.new("Frame") :: Frame
-	grad.Size = UDim2.fromScale(1, 1)
-	grad.BackgroundColor3 = Color3.new(1, 1, 1)
-	grad.BorderSizePixel = 0
-	grad.Parent = sg
-	Kit.gradient(grad, Color3.fromRGB(112, 116, 186), Color3.fromRGB(66, 66, 134), 35)
 
 	local statics = Instance.new("Folder") :: Folder
 	statics.Name = "Statics"
 	statics.Parent = f
 	for _, p in Data.Provinces do
 		local pts = p.outline :: { Pt }
-		local out: { BasePart } = {}
-		local colour = Data.colour(p.owner1805):Lerp(PARCH, 0.22)
-		for _, t in Board.triangulate(pts) do
-			local a, b, c = pts[t[1]], pts[t[2]], pts[t[3]]
-			triangle(f, Board.toWorld(a.x, a.z, LAND / 2), Board.toWorld(b.x, b.z, LAND / 2), Board.toWorld(c.x, c.z, LAND / 2), LAND, colour, out)
-		end
-		for _, w in out do
-			w:SetAttribute("prov", p.id)
-		end
-		landParts[p.id] = out
-		baseColour[p.id] = colour
+		landParts[p.id] = {}
+		baseColour[p.id] = Data.colour(p.owner1805):Lerp(PARCH, 0.22)
 		for i = 1, #pts do
 			local a, b = pts[i], pts[i % #pts + 1]
 			local ka, kb = key(a), key(b)
@@ -23714,35 +24122,24 @@ function Board.build()
 		local at = c + Vector3.new(0, 0.25, 0)
 		table.insert(labels, { part = groundLabel(statics, p.name, at + Vector3.new(0, 0, 14 + base * 0.5), base), base = base, at = at })
 		if p.isCapital then
-			capital(statics, c + Vector3.new(-17, 0, -15))
+			capital(statics, Board.toWorld(p.centre.x - 17 / S, p.centre.z + 15 / S))
 		end
 		if (p.fort or 0) > 0 then
-			bastion(statics, c + Vector3.new(17, 0, -15), p.fort)
+			bastion(statics, Board.toWorld(p.centre.x + 17 / S, p.centre.z + 15 / S), p.fort)
 		end
 	end
-	-- piers on the nearest stretch of coast of each port
+	tintStrips(f)
+	-- piers where each port's coast is nearest its centre
 	for _, p in Data.Provinces do
 		if p.isPort then
-			local best, bestD = nil :: Edge?, math.huge
-			for _, e in edges do
-				if #e.provs == 1 and e.provs[1] == p.id then
-					local mx, mz = (e.a.x + e.b.x) / 2, (e.a.z + e.b.z) / 2
-					local d = (mx - p.centre.x) ^ 2 + (mz - p.centre.z) ^ 2
-					if d < bestD then
-						best, bestD = e, d
-					end
-				end
-			end
-			if best then
-				local m = Board.toWorld((best.a.x + best.b.x) / 2, (best.a.z + best.b.z) / 2)
-				local out = m - Board.toWorld(p.centre.x, p.centre.z)
-				local dir = Vector3.new(out.X, 0, out.Z).Unit
-				pier(statics, m, dir)
-				moorings[p.id] = { at = m, dir = dir }
+			local at, dir = coastOf(p)
+			if at and dir then
+				pier(statics, at, dir)
+				moorings[p.id] = { at = at, dir = dir }
 			end
 		end
 	end
-	mountains(statics)
+	writeRelief()
 	local dy = Instance.new("Folder") :: Folder
 	dy.Name = "Dynamic"
 	dy.Parent = f
@@ -23784,11 +24181,18 @@ local function hatch(parent: Instance, pts: { Pt }, colour: Color3)
 		end
 		table.sort(ts)
 		for i = 1, #ts - 1, 2 do
-			local p = Board.toWorld(ox + dx * ts[i], oz + dz * ts[i], LAND + 0.06)
-			local q = Board.toWorld(ox + dx * ts[i + 1], oz + dz * ts[i + 1], LAND + 0.06)
-			local st = segment(parent, p, q, 2.2, 0.12, colour)
-			if st then
-				st.Transparency = 0.15
+			-- in coast-length pieces, so the stripes stop at the shore
+			local n = math.max(1, math.ceil((ts[i + 1] - ts[i]) / CELL))
+			for k = 0, n - 1 do
+				local t0 = ts[i] + (ts[i + 1] - ts[i]) * k / n
+				local t1 = ts[i] + (ts[i + 1] - ts[i]) * (k + 1) / n
+				local tm = (t0 + t1) / 2
+				if Relief.isLand(ox + dx * tm, oz + dz * tm) then
+					local st = segment(parent, Board.toWorld(ox + dx * t0, oz + dz * t0, LAND + 0.15), Board.toWorld(ox + dx * t1, oz + dz * t1, LAND + 0.15), 2.2, 0.12, colour)
+					if st then
+						st.Transparency = 0.15
+					end
+				end
 			end
 		end
 		s += 18
@@ -23941,12 +24345,26 @@ function Board.setView(view: any?)
 			hatch(d, p.outline, Data.colour(ps.occupiedBy))
 		end
 	end
+	-- borders between provinces, drawn only over land (the coast is the terrain's own shore):
+	-- gilt where the owners differ, a fine ink line inside one nation
 	for _, e in edges do
-		local a, b = Board.toWorld(e.a.x, e.a.z, LAND + 0.1), Board.toWorld(e.b.x, e.b.z, LAND + 0.1)
-		if #e.provs >= 2 and owner[e.provs[1]] ~= owner[e.provs[2]] then
-			segment(d, a + Vector3.new(0, 0.1, 0), b + Vector3.new(0, 0.1, 0), 1.3, 0.45, Kit.GILT)
-		else
-			segment(d, a, b, if #e.provs >= 2 then 0.4 else 0.6, 0.25, INK)
+		if #e.provs >= 2 then
+			local foreign = owner[e.provs[1]] ~= owner[e.provs[2]]
+			local len = math.sqrt((e.b.x - e.a.x) ^ 2 + (e.b.z - e.a.z) ^ 2)
+			local n = math.max(1, math.ceil(len / CELL))
+			for i = 0, n - 1 do
+				local t0, t1 = i / n, (i + 1) / n
+				local ax, az = e.a.x + (e.b.x - e.a.x) * t0, e.a.z + (e.b.z - e.a.z) * t0
+				local bx, bz = e.a.x + (e.b.x - e.a.x) * t1, e.a.z + (e.b.z - e.a.z) * t1
+				if Relief.isLand((ax + bx) / 2, (az + bz) / 2) then
+					local y = LAND + 0.2
+					if foreign then
+						segment(d, Board.toWorld(ax, az, y + 0.1), Board.toWorld(bx, bz, y + 0.1), 1.3, 0.45, Kit.GILT)
+					else
+						segment(d, Board.toWorld(ax, az, y), Board.toWorld(bx, bz, y), 0.4, 0.25, INK)
+					end
+				end
+			end
 		end
 	end
 	if not view then
@@ -24139,7 +24557,7 @@ function Board.updateLabels(cameraHeight: number)
 end
 
 return Board
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000061"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignCamera</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Board camera: orbit (middle drag), pan (WASD / arrows), zoom (wheel), clamped to the board
 -- and smoothed. Runs after the battlefield camera in the render step, so it owns the view
 -- while the campaign is open; the battlefield camera is told to ignore its keys meanwhile.
@@ -24277,7 +24695,7 @@ function CampaignCamera.stop()
 end
 
 return CampaignCamera
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000062"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignUI</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign panels in the Kit style: top bar, selected army and province (left),
 -- diplomacy (right) and the documents on top: event dispatches, the battle dialog, the
 -- turn summary, victory/defeat and the choice of nation. Rebuilt from the view on each
@@ -25290,7 +25708,7 @@ function UI.destroy()
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000063"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000065"><Properties><bool name="Disabled">false</bool><string name="Name">Data</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Grand-campaign static data (shared EuropeData) and the nation look-ups the board and panels
 -- share: colour, name, flag.
 
@@ -25344,7 +25762,7 @@ function Data.flag(nation: string?): Factions.Flag
 end
 
 return Data
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000064"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Logic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pure grand-campaign view logic (no Roblox types, so tests run it in the Luau CLI): who may act,
 -- march routes mirroring the server's Movement rules, reachable provinces, readable reasons,
 -- the turn summary and offer terms.
@@ -25692,7 +26110,7 @@ function Logic.offerText(o: any): string
 end
 
 return Logic
-]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000066"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Cinematic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Historical moments on screen (server: Sim/Moments). A `moment` event shows a title card in the
 -- First Empire manner (spaced gilt Garamond capitals over ivory italic text on a translucent dark
 -- ribbon) between letterbox bars, and pans the camera to the moment's spot and back over ~6 s.
@@ -25863,7 +26281,7 @@ function Cinematic.clear()
 end
 
 return Cinematic
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000067"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Pooled one-shot visual effects driven by snapshot events (plus a cavalry dust trail read from
 -- formation state). Smoke and dust are soft translucent particles (built-in smoke texture, no
 -- asset ids) burst from a small round-robin pool of emitter parts; flashes, earth spray and rout
@@ -25872,6 +26290,7 @@ return Cinematic
 local TweenService = game:GetService("TweenService") :: TweenService
 local Debris = game:GetService("Debris") :: Debris
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Assets = require(Shared.Assets)
 local Settings = require(script.Parent.Settings)
 local BattleState = require(script.Parent.BattleState)
 local Camera = require(script.Parent.Camera)
@@ -25911,7 +26330,7 @@ end
 -- builds up over a sustained firefight · dust: hooves, feet, routs · spurt: earth thrown up by
 -- roundshot grazes and canister
 type EmitterKind = "smoke" | "plume" | "haze" | "dust" | "spurt"
-local EMITTERS: { [EmitterKind]: number } = { smoke = 10, plume = 4, haze = 3, dust = 6, spurt = 6 }
+local EMITTERS: { [EmitterKind]: number } = { smoke = 14, plume = 4, haze = 3, dust = 6, spurt = 6 }
 local emitters: { [EmitterKind]: { { part: Part, pe: ParticleEmitter } } } = { smoke = {}, plume = {}, haze = {}, dust = {}, spurt = {} }
 local cursor: { [EmitterKind]: number } = { smoke = 0, plume = 0, haze = 0, dust = 0, spurt = 0 }
 local qualityScale = 1
@@ -25979,11 +26398,11 @@ local function makeEmitter(kind: EmitterKind, parent: Instance): { part: Part, p
 		-- billows a few studs forward off the muzzles, then hangs and drifts downwind
 		pe.Drag = 1.4
 		pe.Acceleration = wind(1.4, 0.25)
-		pe.Lifetime = NumberRange.new(9, 14)
+		pe.Lifetime = NumberRange.new(12, 18)
 		pe.Speed = NumberRange.new(3, 8)
 		pe.SpreadAngle = Vector2.new(22, 8)
-		pe.Size = seq({ { 0, 1.4 }, { 0.15, 4.5 }, { 1, 10 } })
-		pe.Transparency = seq({ { 0, 0.3 }, { 0.2, 0.45 }, { 0.7, 0.76 }, { 1, 1 } })
+		pe.Size = seq({ { 0, 1.4 }, { 0.15, 5 }, { 1, 12 } })
+		pe.Transparency = seq({ { 0, 0.25 }, { 0.2, 0.4 }, { 0.7, 0.72 }, { 1, 1 } })
 		pe.Color = ColorSequence.new(Color3.fromRGB(240, 238, 232), Color3.fromRGB(196, 194, 188))
 	elseif kind == "plume" then
 		pe.Drag = 1.8
@@ -26265,12 +26684,76 @@ local function charge(ev: any)
 	end
 end
 
+-- Burning buildings: a moment whose id ends in "ablaze" sets the houses nearest its spot alight
+-- for the rest of the battle, flames on the roofs under a dark column of smoke.
+local HOUSE_MESHES: { [string]: boolean } = {}
+for _, key in { "houseA", "houseB", "houseC", "barn", "church", "windmill" } do
+	local slot = Assets.get(key)
+	if slot then
+		HOUSE_MESHES[slot.mesh] = true
+	end
+end
+local function setAblaze(x: number, z: number)
+	local root = workspace:FindFirstChild("EoEWorld")
+	local f = folder
+	if not root or not f then
+		return
+	end
+	local found: { { p: BasePart, d: number } } = {}
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") then
+			local bp = d :: BasePart
+			local m = bp:FindFirstChildOfClass("SpecialMesh") :: SpecialMesh?
+			if bp:IsA("WedgePart") or (m and HOUSE_MESHES[m.MeshId]) then
+				local dist = Vector2.new(bp.Position.X - x, bp.Position.Z - z).Magnitude
+				if dist < 90 then
+					table.insert(found, { p = bp, d = dist })
+				end
+			end
+		end
+	end
+	table.sort(found, function(a: { p: BasePart, d: number }, b: { p: BasePart, d: number }): boolean
+		return a.d < b.d
+	end)
+	for i = 1, math.min(4, #found) do
+		local house = found[i].p
+		local anchor = Instance.new("Part") :: Part
+		anchor.Anchored, anchor.CanCollide, anchor.CanQuery, anchor.CanTouch = true, false, false, false
+		anchor.Transparency = 1
+		anchor.Size = Vector3.new(house.Size.X * 0.6, 1, house.Size.Z * 0.6)
+		anchor.CFrame = CFrame.new(house.Position + Vector3.new(0, house.Size.Y / 2, 0))
+		anchor.Parent = f
+		local fire = Instance.new("Fire") :: Fire
+		fire.Size = math.clamp(house.Size.X * 0.8, 6, 18)
+		fire.Heat = 14
+		fire.Parent = anchor
+		local pe = Instance.new("ParticleEmitter") :: ParticleEmitter
+		pe.Texture = SMOKE_TEXTURE
+		pe.Rate = 5 * qualityScale
+		pe.Lifetime = NumberRange.new(10, 16)
+		pe.Speed = NumberRange.new(4, 7)
+		pe.EmissionDirection = Enum.NormalId.Top
+		pe.SpreadAngle = Vector2.new(12, 12)
+		pe.Drag = 0.5
+		pe.Acceleration = wind(0.5, 1.2)
+		pe.Rotation = NumberRange.new(0, 360)
+		pe.RotSpeed = NumberRange.new(-8, 8)
+		pe.Size = seq({ { 0, 5 }, { 1, 28 } })
+		pe.Transparency = seq({ { 0, 0.35 }, { 0.6, 0.6 }, { 1, 1 } })
+		pe.Color = ColorSequence.new(Color3.fromRGB(70, 64, 58), Color3.fromRGB(150, 146, 140))
+		pe.LightInfluence = 1
+		pe.Parent = anchor
+	end
+end
+
 function Effects.onEvent(ev: any)
 	if not folder then
 		return
 	end
 	local kind = ev.kind
-	if kind == "volley" then
+	if kind == "moment" and type(ev.momentId) == "string" and string.sub(ev.momentId, -6) == "ablaze" and ev.x and ev.z then
+		setAblaze(ev.x, ev.z)
+	elseif kind == "volley" then
 		volley(ev)
 	elseif kind == "cannon" then
 		cannon(ev)
@@ -26382,7 +26865,7 @@ function Effects.clear()
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000068"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Factions</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Faction look-ups shared by the HUD, figures, props and minimap: colours (palette key from a
 -- unit `colour` override, else the faction), display names and marker-flag designs.
 
@@ -26480,7 +26963,7 @@ function Factions.slabDarken(faction: string?): number
 end
 
 return Factions
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000069"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Figures</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Formation visuals: procedural figures (near LOD) or rank blocks (far LOD), nameplate
 -- markers, selection rings, destination ghosts and route lines. Purely cosmetic: nothing here
 -- is read for gameplay. Parts are anchored and moved with workspace:BulkMoveTo.
@@ -27145,8 +27628,8 @@ local function buildMarker(g: Group, f: any): Marker
 		p.Parent = folder
 	end
 
-	local pxW = if g.ghost then 56 elseif hq then 230 else 168
-	local pxH = if g.ghost then 34 elseif hq then 58 else 44
+	local pxW = if g.ghost then 56 elseif hq then 184 else 136
+	local pxH = if g.ghost then 34 elseif hq then 46 else 36
 	local gui = Instance.new("BillboardGui") :: BillboardGui
 	gui.Size = UDim2.fromOffset(pxW, pxH + 16)
 	gui.SizeOffset = Vector2.new(0, 0.1)
@@ -27627,8 +28110,8 @@ end
 -- Plates scale with distance between a floor and their design size (so they never cover the
 -- field at the deployment zoom). Far away, only HQs, the selection and the hovered unit keep a
 -- full plate; the rest shrink to a small banner in the unit's colour.
-local PLATE_STUDS = 24 -- world width a plate represents before clamping
-local PLATE_MIN_W = 84
+local PLATE_STUDS = 15 -- world width a plate represents before clamping (TW-sized: the men, not the plates, fill the view)
+local PLATE_MIN_W = 72
 local BANNER_W, BANNER_H = 34, 10
 local FULL_PLATE_DEPTH = 560 -- camera depth beyond which ordinary plates become banners
 
@@ -28105,7 +28588,7 @@ function Figures.clear()
 end
 
 return Figures
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000070"><Properties><bool name="Disabled">false</bool><string name="Name">Ground</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Ground</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Rendered-ground sampler for everything cosmetic (figures, bodies, rings, ghosts, smoke).
 -- The sim's heightmap (`Grid.heightAt`) is an approximation of the voxel terrain; the
 -- figures must stand on what is actually drawn, so this casts rays down onto
@@ -28266,7 +28749,7 @@ end
 Ground.CLEARANCE = CLEARANCE
 
 return Ground
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000071"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Input</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Mouse and keyboard for the battlefield. Picking is done against formation footprints from
 -- BattleState (never against cosmetic parts); the ground point comes from a terrain raycast.
 
@@ -29325,7 +29808,7 @@ function Input.destroy()
 end
 
 return Input
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000072"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Main</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client bootstrap: waits for shared modules and remotes, readies the world per map (the
 -- server builds it; the client adds its detail tier and waits for replication and terrain
 -- meshing), wires the modules together and drives the match lifecycle from MatchState messages.
@@ -29398,6 +29881,7 @@ local function ensureWorld(mapId: string): boolean
 	builtMapId = nil
 	local t0 = os.clock()
 	local q = Settings.get().quality
+	Terrain.paintGround()
 	Terrain.setDecoration(q >= 2)
 	local ok = Props.build(map, q, function(p: number)
 		Loading.setProgress(p * 0.3, "Planting woods and villages…")
@@ -29935,7 +30419,7 @@ task.spawn(function()
 		onMatchState({ matchId = "", state = "menu", viewerFaction = "", isCommander = false, difficulty = "normal", speed = 1 })
 	end
 end)
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000073"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Remote wrapper. Owns requestId generation, client-side validation and a send queue
 -- throttled under the server rate limit. Everything else talks to Net, never to remotes.
 
@@ -30079,7 +30563,7 @@ function Net.campaign(action: string, data: { [string]: any }?): string?
 end
 
 return Net
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000074"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Selection</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Selected formation ids, control groups and the hovered formation. Pure state + signal.
 
 local Signal = require(script.Parent.Signal)
@@ -30230,7 +30714,7 @@ function Selection.reset()
 end
 
 return Selection
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000075"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Settings</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Viewer settings store. Lives for the session; `changed` fires (key, value) on every set.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
@@ -30319,7 +30803,7 @@ function Settings.set(key: string, value: any)
 end
 
 return Settings
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000076"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimal synchronous signal. Handlers run in order; a handler error is reported, not fatal.
 
 export type Connection = { Disconnect: (self: Connection) -> () }
@@ -30363,7 +30847,7 @@ function Signal.DisconnectAll(self: Signal)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000077"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">Touch</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Touch mode, pure: detection, gesture phases and the UI scale (docs/mobile-contract.md).
 -- No Roblox calls here so the spec can run headless; Settings.touch() feeds the device in.
 
@@ -30413,7 +30897,7 @@ function Touch.scale(viewportX: number, viewportY: number, touch: boolean): numb
 end
 
 return Touch
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000078"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">Tutorial</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Interactive tutorial on the "tutorial" scenario: eleven lessons voiced by the aide-de-camp.
 -- Each step names an objective, points at a HUD element or a spot on the ground, and completes
 -- from real client state (selection, accepted orders in snapshots, formation shapes, events).
@@ -30819,7 +31303,7 @@ function Tutorial.begin()
 end
 
 return Tutorial
-]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000097"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000079"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000099"><Properties><string name="Name">UI</string></Properties><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">BattleSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle select: Quick battles (each battle a framed painting header over its two episode
 -- cards) or Full battles (the paintings with history and Fight); a difficulty selector on top.
 
@@ -31172,7 +31656,7 @@ function BattleSelect.destroy()
 end
 
 return BattleSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000080"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">CampaignScreen</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Campaign screen: stylised region map (nodes, roads, owner fills, army stacks), side panel
 -- (resources, selected army, recruitment, objectives, log), End Turn, pending-battle dialog.
 -- The server view is the only state; every action goes back through `callbacks.send`.
@@ -31864,7 +32348,7 @@ function CampaignScreen.destroy()
 end
 
 return CampaignScreen
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000081"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">CardBar</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Unit card bar (bottom centre): one card per own formation in roster order, grouped by corps,
 -- then greyed cards for reinforcements still on the road. Click selects, shift-click toggles,
 -- double-click focuses the camera. Routing cards flash; destroyed or exited formations grey
@@ -32618,7 +33102,7 @@ function CardBar.destroy()
 end
 
 return CardBar
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000082"><Properties><bool name="Disabled">false</bool><string name="Name">CustomSelect</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">CustomSelect</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Custom battle: your nation and the enemy's, a field, a budget, and the regiments you buy from
 -- the campaign's unit table (shared CustomBattle rules); the server builds the battle and the AI
 -- buys its army for the same budget.
@@ -32785,7 +33269,7 @@ function CustomSelect.hide()
 end
 
 return CustomSelect
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000083"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">Deployment</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Deployment phase: the pre-battle briefing (date, weather, orders, difficulty, history),
 -- placement hints and a prominent Start Battle. Dragging formations is handled by Input in
 -- "deploy" mode; this panel only explains and sends `ready`.
@@ -33033,7 +33517,7 @@ function Deployment.destroy()
 end
 
 return Deployment
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000084"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">DevPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- F9 developer panel: AI goals from the server's Debug remote. Collapsible, hidden by default.
 
 local Kit = require(script.Parent.Kit)
@@ -33118,7 +33602,7 @@ function DevPanel.destroy()
 end
 
 return DevPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000085"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battle HUD, laid out after Napoleon: Total War. Top bar (name, clock / limit, pause and
 -- speeds, weather), balance of power and objective banners under it, message ticker top-left,
 -- selection inspector and command panel bottom-left, unit cards bottom-centre, framed minimap
@@ -34273,7 +34757,7 @@ function HUD.destroy()
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000086"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Help</string><ProtectedString name="Source"><![CDATA[--!strict
 -- "How to Command": controls table and one-line formation explanations (docs/architecture.md,
 -- docs/rules.md). Static text; shown as a centred panel.
 
@@ -34383,7 +34867,7 @@ function Help.destroy()
 end
 
 return Help
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000087"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Native-GUI toolkit in the First Empire manner: dark walnut panels in a gold double frame with
 -- corner rosettes, ivory Garamond capitals, gilt plaque buttons on blue lacquer (crimson for
 -- primary actions), parchment only for documents: aged post, tea-stained at the edges with
@@ -35458,7 +35942,7 @@ function Kit.hideTooltip()
 end
 
 return Kit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000088"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000090"><Properties><bool name="Disabled">false</bool><string name="Name">Ledger</string><ProtectedString name="Source"><![CDATA[--!strict
 -- What the client saw of its own army during one battle, for the results report: one record per
 -- own formation (start, last strength, final status) and counts of squares, charges, routs,
 -- rallies and losses. Survives the HUD teardown at the end of a battle; resets per match.
@@ -35612,7 +36096,7 @@ function Ledger.counts(): Counts
 end
 
 return Ledger
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000089"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">Loading</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Full-screen loading overlay with a progress bar (world replication + terrain settle).
 -- Fades out rather than cutting, so the first frame of the field is never a pop.
 
@@ -35756,7 +36240,7 @@ function Loading.destroy()
 end
 
 return Loading
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000090"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000092"><Properties><bool name="Disabled">false</bool><string name="Name">Menu</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Main menu: a full-height imperial column on the left (laurel badge, title, tricolour, gilt
 -- text entries) over the live battlefield. Entries call back into Main.
 
@@ -35915,7 +36399,7 @@ function Menu.destroy()
 end
 
 return Menu
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000091"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000093"><Properties><bool name="Disabled">false</bool><string name="Name">Minimap</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Minimap: terrain classes painted as run-length Frames (2 px per 16 studs), formation dots,
 -- objectives, camera frustum, click to pan. North (+z) is up.
 
@@ -36183,7 +36667,7 @@ function Minimap.destroy()
 end
 
 return Minimap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000092"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000094"><Properties><bool name="Disabled">false</bool><string name="Name">OrderWheel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Radial order wheel for touch (docs/mobile-contract.md): eight brass plaques around a gilt
 -- ring under the finger that held a selected unit. Slide onto a plaque and lift to pick it.
 -- Positions come in screen pixels; the screen carries Kit's UIScale, so they are divided out.
@@ -36345,7 +36829,7 @@ function OrderWheel.destroy()
 end
 
 return OrderWheel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000093"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000095"><Properties><bool name="Disabled">false</bool><string name="Name">PaperLayout</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Where the stains fall on an aged sheet. Pure numbers (no Roblox types) so the headless spec
 -- can check it: every mark lies inside the unit square, and the same seed gives the same sheet.
 
@@ -36397,7 +36881,7 @@ function PaperLayout.sheet(seed: number): Sheet
 end
 
 return PaperLayout
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000094"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000096"><Properties><bool name="Disabled">false</bool><string name="Name">Results</string><ProtectedString name="Source"><![CDATA[--!strict
 -- End-of-battle screen in the Napoleon: Total War manner: the verdict, casualties per side as
 -- bars, the objectives with their final owners, notes from the field and the way out.
 
@@ -36777,7 +37261,7 @@ function Results.destroy()
 end
 
 return Results
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000095"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000097"><Properties><bool name="Disabled">false</bool><string name="Name">SettingsPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Settings: quality, volumes, reduced shake/effects, typeface, place names, AI difficulty.
 -- Applies live via Settings.
 
@@ -36976,7 +37460,7 @@ Settings.changed:Connect(function(key: string)
 end)
 
 return SettingsPanel
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000096"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000098"><Properties><bool name="Disabled">false</bool><string name="Name">TutorialPanel</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Tutorial dispatch from the aide-de-camp: a walnut panel at the right under the top bar with
 -- the step's objective, Skip step / Skip tutorial, plus the two pointers the lesson needs: a
 -- pulsing gilt frame over a HUD element and a gilt ring on the ground. Logic lives in Tutorial.
@@ -37146,7 +37630,7 @@ function TutorialPanel.hide()
 end
 
 return TutorialPanel
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000103"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000098"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000105"><Properties><string name="Name">World</string></Properties><Item class="ModuleScript" referent="RBX00000100"><Properties><bool name="Disabled">false</bool><string name="Name">Lighting</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Battlefield light, graded like a painted campaign map: a warm late-afternoon sun by default,
 -- a pale morning fog that lifts into clear sun (the Sun of Austerlitz), and a soft wet overcast
 -- for rain and mud (Waterloo). Built-in sky and post effects only (no asset ids).
@@ -37609,7 +38093,7 @@ function Lighting.destroy()
 end
 
 return Lighting
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000099"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000101"><Properties><bool name="Disabled">false</bool><string name="Name">Props</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client-side props. The structure (trees, houses, bridges, walls, hedges, ground) is built
 -- by the server from WorldGen and replicates under workspace.EoEWorld; this module adds the
 -- detail tier for this client (hearth smoke, valley fog) from the same WorldGen, plus ground
@@ -38064,7 +38548,7 @@ function Props.clear()
 end
 
 return Props
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000100"><Properties><bool name="Disabled">false</bool><string name="Name">Ready</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000102"><Properties><bool name="Disabled">false</bool><string name="Name">Ready</string><ProtectedString name="Source"><![CDATA[--!strict
 -- World readiness gate. The loading screen stays up until (i) the server's world folder has
 -- replicated (part count against its WorldReady attribute), (ii) terrain meshing has settled
 -- (a grid of raycasts hits terrain three checks running) and (iii) two consecutive frames
@@ -38201,7 +38685,7 @@ function Ready.wait(mapId: string, map: any, alive: () -> boolean, onProgress: (
 end
 
 return Ready
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000101"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000103"><Properties><bool name="Disabled">false</bool><string name="Name">Soldiers</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Near-LOD figure builders: NTW-style silhouettes from plain parts (no meshes, no asset ids).
 -- Builders call `add(part, localCFrame, anim, pivot)`; Figures parents, places and animates.
 -- Local frame: +X forward, +Y up, +Z right; origin on the ground under the figure. ~3.2 studs tall.
@@ -39416,7 +39900,7 @@ function Soldiers.gun(add: Add, L: Look, limbered: boolean, detail: boolean, see
 end
 
 return Soldiers
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000102"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000104"><Properties><bool name="Disabled">false</bool><string name="Name">Terrain</string><ProtectedString name="Source"><![CDATA[--!strict
 -- Client side of the terrain: the voxels, palette and pick planes are built by the server
 -- (src/server/World.luau) and replicate; this keeps only the per-client bits.
 
@@ -39429,6 +39913,29 @@ function Terrain.setDecoration(on: boolean)
 	end)
 end
 
+-- Painted ground: the place's generated MaterialVariants (default.project.json, MaterialService)
+-- stand in for the base materials the battle terrain and walls use. A place without them keeps
+-- the stock look. The season tint (Terrain:SetMaterialColor) still applies over them.
+local GROUND: { [EnumMaterial]: string } = {
+	[Enum.Material.Grass] = "EoEMeadow",
+	[Enum.Material.LeafyGrass] = "EoEPasture",
+	[Enum.Material.Limestone] = "EoEStubble",
+	[Enum.Material.Mud] = "EoEPlough",
+	[Enum.Material.Ground] = "EoETrack",
+	[Enum.Material.Cobblestone] = "EoECobble",
+	[Enum.Material.Rock] = "EoERock",
+}
+function Terrain.paintGround()
+	local ms = game:GetService("MaterialService")
+	for base, name in GROUND do
+		if ms:FindFirstChild(name) then
+			pcall(function()
+				ms:SetBaseMaterialOverride(base, name)
+			end)
+		end
+	end
+end
+
 -- The folder holding the server's pick-plane tiles; raycast include lists take descendants.
 function Terrain.pickPlane(): Instance?
 	local root = workspace:FindFirstChild("EoEWorld")
@@ -39436,4 +39943,4 @@ function Terrain.pickPlane(): Instance?
 end
 
 return Terrain
-]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000107"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000108"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000109"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item><Item class="MaterialService" referent="RBX00000117"><Properties><string name="Name">MaterialService</string></Properties><Item class="MaterialVariant" referent="RBX00000110"><Properties><string name="Name">EoECobble</string><token name="BaseMaterial">880</token><token name="MaterialPattern">0</token><float name="StudsPerTile">6</float><Content name="ColorMap"><url>rbxassetid://79736977436140</url></Content><Content name="NormalMap"><url>rbxassetid://113484690303056</url></Content><Content name="RoughnessMap"><url>rbxassetid://119432424787435</url></Content><Content name="MetalnessMap"><url>rbxassetid://134483936862056</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000111"><Properties><string name="Name">EoEMeadow</string><token name="BaseMaterial">1280</token><token name="MaterialPattern">1</token><float name="StudsPerTile">16</float><Content name="ColorMap"><url>rbxassetid://78932914441511</url></Content><Content name="NormalMap"><url>rbxassetid://81780368344271</url></Content><Content name="RoughnessMap"><url>rbxassetid://113158174693874</url></Content><Content name="MetalnessMap"><url>rbxassetid://122977018905764</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000112"><Properties><string name="Name">EoEPasture</string><token name="BaseMaterial">1284</token><token name="MaterialPattern">1</token><float name="StudsPerTile">16</float><Content name="ColorMap"><url>rbxassetid://115647152528133</url></Content><Content name="NormalMap"><url>rbxassetid://93935057440567</url></Content><Content name="RoughnessMap"><url>rbxassetid://103132240653576</url></Content><Content name="MetalnessMap"><url>rbxassetid://97900847873380</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000113"><Properties><string name="Name">EoEPlough</string><token name="BaseMaterial">1344</token><token name="MaterialPattern">0</token><float name="StudsPerTile">12</float><Content name="ColorMap"><url>rbxassetid://96559109836885</url></Content><Content name="NormalMap"><url>rbxassetid://139572798572594</url></Content><Content name="RoughnessMap"><url>rbxassetid://137053200521316</url></Content><Content name="MetalnessMap"><url>rbxassetid://84338619181484</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000114"><Properties><string name="Name">EoERock</string><token name="BaseMaterial">896</token><token name="MaterialPattern">1</token><float name="StudsPerTile">16</float><Content name="ColorMap"><url>rbxassetid://84667174225819</url></Content><Content name="NormalMap"><url>rbxassetid://75534608631731</url></Content><Content name="RoughnessMap"><url>rbxassetid://132248790045498</url></Content><Content name="MetalnessMap"><url>rbxassetid://100376469784147</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000115"><Properties><string name="Name">EoEStubble</string><token name="BaseMaterial">820</token><token name="MaterialPattern">0</token><float name="StudsPerTile">12</float><Content name="ColorMap"><url>rbxassetid://101412108847914</url></Content><Content name="NormalMap"><url>rbxassetid://128583329948941</url></Content><Content name="RoughnessMap"><url>rbxassetid://75057153088692</url></Content><Content name="MetalnessMap"><url>rbxassetid://113543384398088</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000116"><Properties><string name="Name">EoETrack</string><token name="BaseMaterial">1360</token><token name="MaterialPattern">1</token><float name="StudsPerTile">10</float><Content name="ColorMap"><url>rbxassetid://121103934617408</url></Content><Content name="NormalMap"><url>rbxassetid://80805631795827</url></Content><Content name="RoughnessMap"><url>rbxassetid://89046260325359</url></Content><Content name="MetalnessMap"><url>rbxassetid://92732721869428</url></Content></Properties></Item></Item></roblox>
+]]></ProtectedString></Properties></Item></Item></Item></Item></Item><Item class="Players" referent="RBX00000109"><Properties><string name="Name">Players</string><bool name="CharacterAutoLoads">false</bool></Properties></Item><Item class="Workspace" referent="RBX00000110"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBX00000111"><Properties><string name="Name">Lighting</string><float name="ClockTime">9.5</float><float name="Brightness">2.2</float><bool name="GlobalShadows">true</bool><float name="EnvironmentDiffuseScale">0.6</float><float name="EnvironmentSpecularScale">0.4</float></Properties></Item><Item class="MaterialService" referent="RBX00000119"><Properties><string name="Name">MaterialService</string></Properties><Item class="MaterialVariant" referent="RBX00000112"><Properties><string name="Name">EoECobble</string><token name="BaseMaterial">880</token><token name="MaterialPattern">0</token><float name="StudsPerTile">6</float><Content name="ColorMap"><url>rbxassetid://79736977436140</url></Content><Content name="NormalMap"><url>rbxassetid://113484690303056</url></Content><Content name="RoughnessMap"><url>rbxassetid://119432424787435</url></Content><Content name="MetalnessMap"><url>rbxassetid://134483936862056</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000113"><Properties><string name="Name">EoEMeadow</string><token name="BaseMaterial">1280</token><token name="MaterialPattern">1</token><float name="StudsPerTile">16</float><Content name="ColorMap"><url>rbxassetid://78932914441511</url></Content><Content name="NormalMap"><url>rbxassetid://81780368344271</url></Content><Content name="RoughnessMap"><url>rbxassetid://113158174693874</url></Content><Content name="MetalnessMap"><url>rbxassetid://122977018905764</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000114"><Properties><string name="Name">EoEPasture</string><token name="BaseMaterial">1284</token><token name="MaterialPattern">1</token><float name="StudsPerTile">16</float><Content name="ColorMap"><url>rbxassetid://115647152528133</url></Content><Content name="NormalMap"><url>rbxassetid://93935057440567</url></Content><Content name="RoughnessMap"><url>rbxassetid://103132240653576</url></Content><Content name="MetalnessMap"><url>rbxassetid://97900847873380</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000115"><Properties><string name="Name">EoEPlough</string><token name="BaseMaterial">1344</token><token name="MaterialPattern">0</token><float name="StudsPerTile">12</float><Content name="ColorMap"><url>rbxassetid://96559109836885</url></Content><Content name="NormalMap"><url>rbxassetid://139572798572594</url></Content><Content name="RoughnessMap"><url>rbxassetid://137053200521316</url></Content><Content name="MetalnessMap"><url>rbxassetid://84338619181484</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000116"><Properties><string name="Name">EoERock</string><token name="BaseMaterial">896</token><token name="MaterialPattern">1</token><float name="StudsPerTile">16</float><Content name="ColorMap"><url>rbxassetid://84667174225819</url></Content><Content name="NormalMap"><url>rbxassetid://75534608631731</url></Content><Content name="RoughnessMap"><url>rbxassetid://132248790045498</url></Content><Content name="MetalnessMap"><url>rbxassetid://100376469784147</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000117"><Properties><string name="Name">EoEStubble</string><token name="BaseMaterial">820</token><token name="MaterialPattern">0</token><float name="StudsPerTile">12</float><Content name="ColorMap"><url>rbxassetid://101412108847914</url></Content><Content name="NormalMap"><url>rbxassetid://128583329948941</url></Content><Content name="RoughnessMap"><url>rbxassetid://75057153088692</url></Content><Content name="MetalnessMap"><url>rbxassetid://113543384398088</url></Content></Properties></Item><Item class="MaterialVariant" referent="RBX00000118"><Properties><string name="Name">EoETrack</string><token name="BaseMaterial">1360</token><token name="MaterialPattern">1</token><float name="StudsPerTile">10</float><Content name="ColorMap"><url>rbxassetid://121103934617408</url></Content><Content name="NormalMap"><url>rbxassetid://80805631795827</url></Content><Content name="RoughnessMap"><url>rbxassetid://89046260325359</url></Content><Content name="MetalnessMap"><url>rbxassetid://92732721869428</url></Content></Properties></Item></Item></roblox>

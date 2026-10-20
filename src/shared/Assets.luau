@@ -78,7 +78,14 @@ Assets.slots = {
 		native = { 4, 16, 4 },
 		tint = { 0.8, 0.85, 0.75 }, -- the generated greens read lime against the palette (qa rounds 27-28)
 	},
-	treeWillow = slot(),
+	treeWillow = { -- generated weeping willow (graphics pass); native bounds read in Studio
+		mesh = "rbxassetid://122959187552284",
+		texture = "rbxassetid://109222457137290",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 9.71, 11, 8.97 },
+		tint = { 0.85, 0.88, 0.8 },
+	},
 	houseA = { -- original 788-triangle whitewashed cottage; ridge along +X
 		mesh = "rbxassetid://91534964288834",
 		texture = "rbxassetid://84033137999917",
@@ -116,8 +123,34 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 20, 20, 20 },
 	},
-	bridgeStone = slot(), -- deck along +X, length = the span given
-	bridgeTimber = slot(),
+	bridgeStone = { -- generated stone arch bridge; deck along +X, length = the span given
+		mesh = "rbxassetid://75690320300014",
+		texture = "rbxassetid://85086594158546",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 12.4, 6, 4.77 },
+	},
+	bridgeTimber = { -- generated trestle bridge; deck along +X
+		mesh = "rbxassetid://116235833337035",
+		texture = "rbxassetid://77191135426847",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 5.6, 4, 3.32 },
+	},
+	hedge = { -- generated hedgerow section, long along Z (the border's length)
+		mesh = "rbxassetid://109481830924513",
+		texture = "rbxassetid://91535360470320",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 1.75, 2.88, 10 },
+	},
+	cart = { -- generated two-wheeled farm cart, shafts along Z
+		mesh = "rbxassetid://112271944313587",
+		texture = "rbxassetid://121727660050649",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 2.15, 2.2, 2.99 },
+	},
 	-- World textures (Texture instances on part faces; `texture` only, mesh stays "")
 	-- image ids (not the store's decal ids), free on the Creator Store, picked in Studio (qa round 22)
 	bark = slot("rbxassetid://6490108541"), -- "TexturesCom_PineBark2_512_albedo", DarthRevan404

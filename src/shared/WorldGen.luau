@@ -1222,6 +1222,10 @@ local function house(group: string, x: number, z: number, heading: number, w: nu
 end
 
 local function cart(group: string, x: number, z: number, heading: number)
+	-- the generated cart's shafts run along its Z, so it is turned a quarter to the heading
+	if meshObject(group, "cart", x, z, heading + math.pi / 2, 2.4, 2.2, 5.6) then
+		return
+	end
 	obj("point", function()
 		local y = groundY(x, z)
 		local base = yaw(x, y, z, heading)
@@ -1763,7 +1767,10 @@ local function borderPiece(group: string, kind: number, ax: number, az: number, 
 	if kind == 1 then
 		local hh = 2.6 + h01(mx, mz, 90) * 1.2
 		obj("linear", function()
-			along(hh, 2.6, hh / 2 - 0.3, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+			local hedge = along(hh, 2.6, hh / 2 - 0.3, look.hedge:Lerp(c3(52, 68, 36), h01(mz, mx, 91) * 0.3), Enum.Material.Grass, 1.2)
+			if Assets.get("hedge") then
+				hedge.fileMesh = "hedge" -- the generated hedgerow, fitted to this piece's box
+			end
 		end)
 		if h01(mx, mz, 92) < 0.13 then
 			tree(group, "oak", mx, mz, 4 + h01(mz, mx, 93) * 2, true)

@@ -1,20 +1,29 @@
 --!strict
--- Grand-campaign tabletop: Europe as a painted relief board on a walnut table, far from the
--- battlefield. Static geometry (land, sea, mountains, towns, forts, piers, names) builds once;
+-- Grand-campaign tabletop: Europe as a painted relief on a walnut table, far from the
+-- battlefield. The land is terrain (real coasts, rivers and mountains from Relief/EuropeGeo,
+-- written locally on this client) under a tint of owner colours clipped to the coast. Static
+-- geometry (terrain, tint strips, towns, forts, piers, names) builds once;
 -- owner colours, borders, occupation hatching, armies, highlights and the path preview follow
 -- each view. Map units (0..2000 × 0..1500, +z north) map to world X east, world -Z north, so
 -- the default camera looking along -Z sees north at the top and east on the right.
 
 local UserInputService = game:GetService("UserInputService") :: UserInputService
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
+local Relief = require(Shared.Relief)
 local Data = require(script.Parent.Data)
+local Soldiers = require(script.Parent.Parent.World.Soldiers)
 local Kit = require(script.Parent.Parent.UI.Kit)
 
 local Board = {}
 
 local ORIGIN = Vector3.new(8000, 0, 0) -- the battlefield spans 0..1600 × 0..1200
 local S = 0.55 -- studs per map unit
-local LAND = 2 -- land top above the table base
-local SEA_Y = 0.6
+local LAND = 2 -- the lowland's surface; hills rise from it
+local TINT_Y = LAND + 0.35 -- the owner tint lies just over the lowland, so hills rise through it
+local SEA_Y = 0 -- water surface
+local CELL = 8 -- map units per land cell (EuropeGeo.Cell)
+local VOX = 4 -- terrain voxel, studs
+local TINT = 0.45 -- transparency of the owner tint over the land
 local W, D = 2000 * S, 1500 * S
 
 local PARCH = Color3.fromRGB(226, 212, 176)
@@ -23,17 +32,6 @@ local STONE = Color3.fromRGB(150, 144, 134)
 local WALL = Color3.fromRGB(196, 178, 146)
 local ROOF = Color3.fromRGB(122, 66, 46)
 local RED = Color3.fromRGB(196, 58, 44)
-
--- Mountain chains in map units, from EuropeData's projection x = (lon + 10) * 40,
--- z = (lat - 36) * 62.5: Alps, Pyrenees, Carpathians, Balkans, Apennines, Norway.
-local CHAINS: { { snow: boolean, pts: { { number } } } } = {
-	{ snow = true, pts = { { 660, 560 }, { 700, 625 }, { 760, 650 }, { 840, 675 }, { 920, 690 }, { 990, 705 } } },
-	{ snow = true, pts = { { 340, 420 }, { 400, 415 }, { 460, 418 }, { 520, 415 } } },
-	{ snow = false, pts = { { 1120, 844 }, { 1240, 831 }, { 1360, 769 }, { 1420, 688 }, { 1420, 594 }, { 1320, 588 } } },
-	{ snow = false, pts = { { 1320, 425 }, { 1400, 420 }, { 1480, 425 } } },
-	{ snow = false, pts = { { 800, 519 }, { 870, 460 }, { 920, 406 }, { 1020, 281 } } },
-	{ snow = true, pts = { { 660, 1380 }, { 700, 1430 }, { 740, 1480 } } },
-}
 
 local folder: Folder? = nil
 local dyn: Folder? = nil -- borders, hatching, armies (rebuilt per view)
@@ -50,8 +48,9 @@ local labels: { Label } = {}
 local labelK = 0
 local FIG = 1.6 -- figure scale
 
+-- A map point on the board; without `y` it stands on the ground (the tint, or a hill above it).
 function Board.toWorld(x: number, z: number, y: number?): Vector3
-	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or LAND), ORIGIN.Z - z * S)
+	return Vector3.new(ORIGIN.X + x * S, ORIGIN.Y + (y or (TINT_Y + 0.1 + math.max(0, Relief.height(x, z) - 0.45))), ORIGIN.Z - z * S)
 end
 
 -- World-space rectangle of the board (x0 < x1, z0 < z1) and the base height.
@@ -99,111 +98,7 @@ local function ridge(parent: Instance, pos: Vector3, yaw: number, len: number, s
 	return part(parent, Vector3.new(len, s, s), CFrame.new(pos) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(math.rad(45), 0, 0), colour, material)
 end
 
--- Flat triangle a,b,c (centre plane) of thickness t as two wedges (the standard split at the
--- foot of the altitude onto the longest edge).
-local function triangle(parent: Instance, a: Vector3, b: Vector3, c: Vector3, t: number, colour: Color3, out: { BasePart })
-	local ab, ac, bc = b - a, c - a, c - b
-	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
-	if abd > acd and abd > bcd then
-		c, a = a, c
-	elseif acd > bcd and acd > abd then
-		a, b = b, a
-	end
-	ab, ac, bc = b - a, c - a, c - b
-	local n = ac:Cross(ab)
-	if n.Magnitude < 1e-4 then
-		return
-	end
-	local right = n.Unit
-	local up = bc:Cross(right).Unit
-	local back = bc.Unit
-	local height = math.abs(ab:Dot(up))
-	if height < 0.05 then
-		return
-	end
-	for _, w in { { (a + b) / 2, right, back, math.abs(ab:Dot(back)) }, { (a + c) / 2, -right, -back, math.abs(ac:Dot(back)) } } do
-		local depth = w[4] :: number
-		if depth > 0.01 then
-			local p = Instance.new("WedgePart") :: WedgePart
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanTouch = false
-			p.Size = Vector3.new(t, height, depth)
-			p.CFrame = CFrame.fromMatrix(w[1] :: Vector3, w[2] :: Vector3, up, w[3] :: Vector3)
-			p.Color = colour
-			p.Material = Enum.Material.SmoothPlastic
-			p.Parent = parent
-			table.insert(out, p)
-		end
-	end
-end
-
 type Pt = { x: number, z: number }
-
-local function cross(o: Pt, a: Pt, b: Pt): number
-	return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x)
-end
-
--- Ear clipping for a simple polygon; returns index triples.
-function Board.triangulate(pts: { Pt }): { { number } }
-	local n = #pts
-	local area = 0
-	for i = 1, n do
-		local p, q = pts[i], pts[i % n + 1]
-		area += p.x * q.z - q.x * p.z
-	end
-	local sign = if area >= 0 then 1 else -1
-	local idx = {}
-	for i = 1, n do
-		idx[i] = i
-	end
-	local tris = {}
-	while #idx > 3 do
-		local m = #idx
-		local cut = false
-		for i = 1, m do
-			local i0, i1, i2 = idx[(i - 2) % m + 1], idx[i], idx[i % m + 1]
-			local a, b, c = pts[i0], pts[i1], pts[i2]
-			local cr = cross(a, b, c) * sign
-			if cr > 1e-9 then
-				local ear = true
-				for _, j in idx do
-					if j ~= i0 and j ~= i1 and j ~= i2 then
-						local p = pts[j]
-						if cross(a, b, p) * sign >= 0 and cross(b, c, p) * sign >= 0 and cross(c, a, p) * sign >= 0 then
-							ear = false
-							break
-						end
-					end
-				end
-				if ear then
-					table.insert(tris, { i0, i1, i2 })
-					table.remove(idx, i)
-					cut = true
-					break
-				end
-			end
-		end
-		if not cut then
-			-- only collinear or degenerate corners left: drop a flat one, else give up
-			local flat = nil
-			for i = 1, m do
-				if math.abs(cross(pts[idx[(i - 2) % m + 1]], pts[idx[i]], pts[idx[i % m + 1]])) <= 1e-9 then
-					flat = i
-					break
-				end
-			end
-			if not flat then
-				break
-			end
-			table.remove(idx, flat)
-		end
-	end
-	if #idx == 3 then
-		table.insert(tris, { idx[1], idx[2], idx[3] })
-	end
-	return tris
-end
 
 local function key(p: Pt): string
 	return string.format("%d,%d", math.round(p.x), math.round(p.z))
@@ -229,10 +124,11 @@ local function groundLabel(parent: Instance, text: string, pos: Vector3, height:
 	l.Font = Enum.Font.Garamond
 	l.TextScaled = true
 	l.Text = text
-	l.TextColor3 = Kit.IVORY
-	l.TextStrokeColor3 = INK
-	l.TextStrokeTransparency = 0.55
-	l.TextTransparency = 0.1
+	-- dark ink with a pale halo reads on every owner tint and on the terrain (ivory did not)
+	l.TextColor3 = INK
+	l.TextStrokeColor3 = Kit.IVORY
+	l.TextStrokeTransparency = 0.45
+	l.TextTransparency = 0.05
 	l.Parent = gui
 	return p
 end
@@ -284,74 +180,186 @@ local function pier(parent: Instance, from: Vector3, dir: Vector3)
 	end
 end
 
-local function mountains(parent: Instance)
-	local rng = Random.new(1805)
-	for _, chain in CHAINS do
-		for i = 1, #chain.pts - 1 do
-			local p0, p1 = chain.pts[i], chain.pts[i + 1]
-			local steps = math.max(1, math.floor(math.sqrt((p1[1] - p0[1]) ^ 2 + (p1[2] - p0[2]) ^ 2) / 22))
-			for k = 0, steps - 1 do
-				local t = (k + rng:NextNumber()) / steps
-				local x = p0[1] + (p1[1] - p0[1]) * t + rng:NextNumber(-14, 14)
-				local z = p0[2] + (p1[2] - p0[2]) * t + rng:NextNumber(-14, 14)
-				local s = rng:NextNumber(5, 9)
-				local yaw = math.atan2(-(p1[2] - p0[2]), p1[1] - p0[1]) + rng:NextNumber(-0.5, 0.5)
-				local pos = Board.toWorld(x, z)
-				local len = rng:NextNumber(7, 14)
-				ridge(parent, pos, yaw, len, s, Color3.fromRGB(128, 122, 114), Enum.Material.Slate)
-				if chain.snow and s > 6.5 then
-					local s2 = s * 0.42
-					ridge(parent, pos + Vector3.new(0, (s - s2) * 0.707, 0), yaw, len * 0.6, s2, Color3.fromRGB(236, 234, 228), Enum.Material.Snow)
+-- The land as terrain, written on this client only (the server never sees the board). Columns
+-- of 4-stud voxels: sea bed and water off the coast and in the rivers, ground up to the
+-- lowland or the hills elsewhere, with rock on the slopes and snow on the high chains.
+local function landMaterial(mx: number, mz: number, h: number): EnumMaterial
+	if Relief.snow(mx, mz) then
+		return Enum.Material.Snow
+	elseif h > 2.5 then
+		return Enum.Material.Rock
+	end
+	local coast = not (Relief.isLand(mx + CELL, mz) and Relief.isLand(mx - CELL, mz) and Relief.isLand(mx, mz + CELL) and Relief.isLand(mx, mz - CELL))
+	if coast then
+		return Enum.Material.Sand
+	end
+	local n = math.noise(mx / 61, mz / 61, 7.1)
+	if mz < 300 and n > -0.15 then
+		return Enum.Material.Ground -- the dry south: Iberia, southern Italy, Greece, Anatolia
+	end
+	return if n > 0.18 then Enum.Material.LeafyGrass else Enum.Material.Grass
+end
+
+local function riverCells(): { [number]: boolean }
+	local wet: { [number]: boolean } = {}
+	for _, r in Relief.rivers() do
+		for i = 1, #r.pts - 1 do
+			local a, b = r.pts[i], r.pts[i + 1]
+			local len = math.sqrt((b.x - a.x) ^ 2 + (b.z - a.z) ^ 2)
+			for k = 0, math.ceil(len / 2) do
+				local t = k / math.max(1, math.ceil(len / 2))
+				local wx = ORIGIN.X + (a.x + (b.x - a.x) * t) * S
+				local wz = ORIGIN.Z - (a.z + (b.z - a.z) * t) * S
+				wet[math.floor(wx / VOX) * 100000 + math.floor(wz / VOX)] = true
+			end
+		end
+	end
+	return wet
+end
+
+local Y0, LAYERS = -8, 7 -- terrain floor and voxel layers (to y = 20)
+local function writeRelief()
+	local terrain = workspace.Terrain
+	local wet = riverCells()
+	local gx0 = math.floor(ORIGIN.X / VOX)
+	local gx1 = math.ceil((ORIGIN.X + W) / VOX) - 1
+	local gz0 = math.floor((ORIGIN.Z - D) / VOX)
+	local gz1 = math.ceil(ORIGIN.Z / VOX) - 1
+	local CHUNK = 24
+	for cx = gx0, gx1, CHUNK do
+		local nx = math.min(CHUNK, gx1 - cx + 1)
+		local nz = gz1 - gz0 + 1
+		local mats: { { { EnumMaterial } } } = {}
+		local occ: { { { number } } } = {}
+		for i = 1, nx do
+			local mi: { { EnumMaterial } } = {}
+			local oi: { { number } } = {}
+			for j = 1, LAYERS do
+				mi[j] = table.create(nz, Enum.Material.Air)
+				oi[j] = table.create(nz, 0)
+			end
+			mats[i], occ[i] = mi, oi
+			local gx = cx + i - 1
+			local mx = ((gx + 0.5) * VOX - ORIGIN.X) / S
+			for k = 1, nz do
+				local gz = gz0 + k - 1
+				local mz = (ORIGIN.Z - (gz + 0.5) * VOX) / S
+				local land = Relief.isLand(mx, mz) and not wet[gx * 100000 + gz]
+				if land then
+					local h = Relief.height(mx, mz)
+					local top = LAND + h -- the surface, board y
+					local m = landMaterial(mx, mz, h)
+					for j = 1, LAYERS do
+						local lo = Y0 + (j - 1) * VOX
+						if top >= lo + VOX then
+							mi[j][k], oi[j][k] = if j <= 2 or top - (lo + VOX) > VOX then Enum.Material.Rock else m, 1
+						elseif top > lo then
+							-- smooth terrain draws a part-full voxel's surface between its middle
+							-- (nearly empty) and its top (full), measured in Studio
+							mi[j][k], oi[j][k] = m, math.clamp((top - lo - VOX / 2) / (VOX / 2), 0.02, 1)
+						end
+					end
+				else
+					-- a river runs over a dark bed, the sea over sand
+					mi[1][k], oi[1][k] = if Relief.isLand(mx, mz) then Enum.Material.Mud else Enum.Material.Sand, 1
+					mi[2][k], oi[2][k] = Enum.Material.Water, 1
 				end
 			end
+		end
+		local lo = Vector3.new(cx * VOX, ORIGIN.Y + Y0, gz0 * VOX)
+		local region = Region3.new(lo, lo + Vector3.new(nx * VOX, LAYERS * VOX, nz * VOX))
+		terrain:WriteVoxels(region, VOX, mats, occ)
+		task.wait()
+	end
+end
+
+-- Owner tint over the land: one thin strip per row run of a province, clipped to the coast,
+-- so a province's colour stops at its real shore. The strips are what a click picks.
+local function tintStrips(parent: Instance)
+	local cols, rows = math.floor(2000 / CELL), math.floor(1500 / CELL)
+	for r = 1, rows do
+		local zc = (r - 0.5) * CELL
+		local runStart, runProv = 0, nil :: string?
+		for c = 1, cols + 1 do
+			local xc = (c - 0.5) * CELL
+			local prov = if c <= cols and Relief.isLand(xc, zc) then Relief.provinceAt(xc, zc) else nil
+			if prov ~= runProv then
+				local rp = runProv
+				if rp then
+					local x0, x1 = (runStart - 1) * CELL, (c - 1) * CELL
+					local strip = part(parent, Vector3.new((x1 - x0) * S, 0.1, CELL * S), CFrame.new(Board.toWorld((x0 + x1) / 2, zc, TINT_Y)), baseColour[rp] or PARCH)
+					strip.Transparency = TINT
+					strip.CastShadow = false
+					strip.CanQuery = true
+					strip:SetAttribute("prov", rp)
+					table.insert(landParts[rp], strip)
+				end
+				runStart, runProv = c, prov
+			end
+		end
+		if r % 16 == 0 then
+			task.wait()
 		end
 	end
 end
 
+-- The point where a port's coast is nearest its centre, and the way out to sea.
+local function coastOf(p: any): (Vector3?, Vector3?)
+	local best: { x: number, z: number, dx: number, dz: number }? = nil
+	local bestR = math.huge
+	for a = 0, 23 do
+		local dx, dz = math.cos(a / 24 * math.pi * 2), math.sin(a / 24 * math.pi * 2)
+		for r = 4, 160, 4 do
+			local x, z = p.centre.x + dx * r, p.centre.z + dz * r
+			if not Relief.isLand(x, z) then
+				if r < bestR then
+					bestR, best = r, { x = x - dx * 4, z = z - dz * 4, dx = dx, dz = dz }
+				end
+				break
+			end
+		end
+	end
+	local b = best
+	if not b then
+		return nil, nil
+	end
+	return Board.toWorld(b.x, b.z), Vector3.new(b.dx, 0, -b.dz)
+end
+
+-- The server clears all terrain when it builds a battle map, the board's local relief with it;
+-- reopening the board writes it again.
+local function reliefMissing(): boolean
+	local c = Data.Provinces[1].centre
+	local at = Board.toWorld(c.x, c.z, LAND - 1)
+	local lo = Vector3.new(math.floor(at.X / VOX) * VOX, math.floor(at.Y / VOX) * VOX, math.floor(at.Z / VOX) * VOX)
+	local mats = workspace.Terrain:ReadVoxels(Region3.new(lo, lo + Vector3.one * VOX), VOX)
+	return mats[1][1][1] == Enum.Material.Air
+end
+
 function Board.build()
 	if folder then
+		if reliefMissing() then
+			writeRelief()
+		end
 		return
 	end
 	local f = Instance.new("Folder") :: Folder
 	f.Name = "EoEGrandBoard"
-	-- table, gilt edge and the sea
+	-- the walnut table and its gilt edge; the land and the sea are terrain (writeRelief)
 	local mid = ORIGIN + Vector3.new(W / 2, 0, -D / 2)
-	part(f, Vector3.new(W + 140, 6, D + 140), CFrame.new(mid + Vector3.new(0, -3.2, 0)), Kit.WALNUT_LIGHT, Enum.Material.Wood)
+	part(f, Vector3.new(W + 140, 6, D + 140), CFrame.new(mid + Vector3.new(0, Y0 - 3, 0)), Kit.WALNUT_LIGHT, Enum.Material.Wood)
 	for _, e in { { Vector3.new(0, 0, -D / 2 - 4), Vector3.new(W + 8, 0, 0) }, { Vector3.new(0, 0, D / 2 + 4), Vector3.new(W + 8, 0, 0) }, { Vector3.new(-W / 2 - 4, 0, 0), Vector3.new(0, 0, D + 8) }, { Vector3.new(W / 2 + 4, 0, 0), Vector3.new(0, 0, D + 8) } } do
 		local c, l = e[1], e[2]
-		part(f, Vector3.new(math.max(l.X, 3), 1.2, math.max(l.Z, 3)), CFrame.new(mid + c + Vector3.new(0, 0.2, 0)), Kit.GILT, Enum.Material.Foil)
+		part(f, Vector3.new(math.max(l.X, 3), LAND - Y0 + 1, math.max(l.Z, 3)), CFrame.new(mid + c + Vector3.new(0, (LAND + Y0) / 2, 0)), Kit.GILT, Enum.Material.Foil)
 	end
-	local sea = part(f, Vector3.new(W + 4, 1, D + 4), CFrame.new(mid + Vector3.new(0, SEA_Y - 0.5, 0)), Color3.fromRGB(86, 90, 160))
-	sea.CastShadow = false
-	local sg = Instance.new("SurfaceGui") :: SurfaceGui
-	sg.Face = Enum.NormalId.Top
-	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-	sg.CanvasSize = Vector2.new(256, 192)
-	sg.LightInfluence = 1
-	sg.Parent = sea
-	local grad = Instance.new("Frame") :: Frame
-	grad.Size = UDim2.fromScale(1, 1)
-	grad.BackgroundColor3 = Color3.new(1, 1, 1)
-	grad.BorderSizePixel = 0
-	grad.Parent = sg
-	Kit.gradient(grad, Color3.fromRGB(112, 116, 186), Color3.fromRGB(66, 66, 134), 35)
 
 	local statics = Instance.new("Folder") :: Folder
 	statics.Name = "Statics"
 	statics.Parent = f
 	for _, p in Data.Provinces do
 		local pts = p.outline :: { Pt }
-		local out: { BasePart } = {}
-		local colour = Data.colour(p.owner1805):Lerp(PARCH, 0.22)
-		for _, t in Board.triangulate(pts) do
-			local a, b, c = pts[t[1]], pts[t[2]], pts[t[3]]
-			triangle(f, Board.toWorld(a.x, a.z, LAND / 2), Board.toWorld(b.x, b.z, LAND / 2), Board.toWorld(c.x, c.z, LAND / 2), LAND, colour, out)
-		end
-		for _, w in out do
-			w:SetAttribute("prov", p.id)
-		end
-		landParts[p.id] = out
-		baseColour[p.id] = colour
+		landParts[p.id] = {}
+		baseColour[p.id] = Data.colour(p.owner1805):Lerp(PARCH, 0.22)
 		for i = 1, #pts do
 			local a, b = pts[i], pts[i % #pts + 1]
 			local ka, kb = key(a), key(b)
@@ -369,35 +377,24 @@ function Board.build()
 		local at = c + Vector3.new(0, 0.25, 0)
 		table.insert(labels, { part = groundLabel(statics, p.name, at + Vector3.new(0, 0, 14 + base * 0.5), base), base = base, at = at })
 		if p.isCapital then
-			capital(statics, c + Vector3.new(-17, 0, -15))
+			capital(statics, Board.toWorld(p.centre.x - 17 / S, p.centre.z + 15 / S))
 		end
 		if (p.fort or 0) > 0 then
-			bastion(statics, c + Vector3.new(17, 0, -15), p.fort)
+			bastion(statics, Board.toWorld(p.centre.x + 17 / S, p.centre.z + 15 / S), p.fort)
 		end
 	end
-	-- piers on the nearest stretch of coast of each port
+	tintStrips(f)
+	-- piers where each port's coast is nearest its centre
 	for _, p in Data.Provinces do
 		if p.isPort then
-			local best, bestD = nil :: Edge?, math.huge
-			for _, e in edges do
-				if #e.provs == 1 and e.provs[1] == p.id then
-					local mx, mz = (e.a.x + e.b.x) / 2, (e.a.z + e.b.z) / 2
-					local d = (mx - p.centre.x) ^ 2 + (mz - p.centre.z) ^ 2
-					if d < bestD then
-						best, bestD = e, d
-					end
-				end
-			end
-			if best then
-				local m = Board.toWorld((best.a.x + best.b.x) / 2, (best.a.z + best.b.z) / 2)
-				local out = m - Board.toWorld(p.centre.x, p.centre.z)
-				local dir = Vector3.new(out.X, 0, out.Z).Unit
-				pier(statics, m, dir)
-				moorings[p.id] = { at = m, dir = dir }
+			local at, dir = coastOf(p)
+			if at and dir then
+				pier(statics, at, dir)
+				moorings[p.id] = { at = at, dir = dir }
 			end
 		end
 	end
-	mountains(statics)
+	writeRelief()
 	local dy = Instance.new("Folder") :: Folder
 	dy.Name = "Dynamic"
 	dy.Parent = f
@@ -439,11 +436,18 @@ local function hatch(parent: Instance, pts: { Pt }, colour: Color3)
 		end
 		table.sort(ts)
 		for i = 1, #ts - 1, 2 do
-			local p = Board.toWorld(ox + dx * ts[i], oz + dz * ts[i], LAND + 0.06)
-			local q = Board.toWorld(ox + dx * ts[i + 1], oz + dz * ts[i + 1], LAND + 0.06)
-			local st = segment(parent, p, q, 2.2, 0.12, colour)
-			if st then
-				st.Transparency = 0.15
+			-- in coast-length pieces, so the stripes stop at the shore
+			local n = math.max(1, math.ceil((ts[i + 1] - ts[i]) / CELL))
+			for k = 0, n - 1 do
+				local t0 = ts[i] + (ts[i + 1] - ts[i]) * k / n
+				local t1 = ts[i] + (ts[i + 1] - ts[i]) * (k + 1) / n
+				local tm = (t0 + t1) / 2
+				if Relief.isLand(ox + dx * tm, oz + dz * tm) then
+					local st = segment(parent, Board.toWorld(ox + dx * t0, oz + dz * t0, TINT_Y + 0.1), Board.toWorld(ox + dx * t1, oz + dz * t1, TINT_Y + 0.1), 2.2, 0.12, colour)
+					if st then
+						st.Transparency = 0.15
+					end
+				end
 			end
 		end
 		s += 18
@@ -488,16 +492,32 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	plinth.CanQuery = true
 	cylinder(m, pos + Vector3.new(0, 1.15, 0), 0.25, 7.3, Kit.GILT, Enum.Material.Foil)
 	local top = 1.2
-	piece(Vector3.new(4.4, 1.9, 1.8), Vector3.new(0, top + 3.1, 0), horse)
-	for _, l in { { 1.6, 0.6 }, { 1.6, -0.6 }, { -1.6, 0.6 }, { -1.6, -0.6 } } do
-		piece(Vector3.new(0.5, 2.3, 0.5), Vector3.new(l[1], top + 1.15, l[2]), horse)
+	local kit = Soldiers.mountedKit(a.nation)
+	if kit then
+		-- the nation's generated horse and rider, twice battle size, as a painted token
+		for _, k in kit do
+			local p = k.part
+			p.CFrame = CFrame.new(pos + Vector3.new(0, top, 0)) * CFrame.new(k.cf.Position * 2) * k.cf.Rotation
+			p.Size *= 2
+			local m2 = p:FindFirstChildOfClass("SpecialMesh") :: SpecialMesh?
+			if m2 then
+				m2.Scale *= 2
+			end
+			p.CanQuery = true
+			p.Parent = m
+		end
+	else
+		piece(Vector3.new(4.4, 1.9, 1.8), Vector3.new(0, top + 3.1, 0), horse)
+		for _, l in { { 1.6, 0.6 }, { 1.6, -0.6 }, { -1.6, 0.6 }, { -1.6, -0.6 } } do
+			piece(Vector3.new(0.5, 2.3, 0.5), Vector3.new(l[1], top + 1.15, l[2]), horse)
+		end
+		piece(Vector3.new(1, 2.2, 1), Vector3.new(2.3, top + 4.4, 0), horse, CFrame.Angles(0, 0, math.rad(-30)))
+		piece(Vector3.new(1.8, 0.9, 0.9), Vector3.new(3.1, top + 5.4, 0), horse)
+		piece(Vector3.new(1.3, 2.2, 1.2), Vector3.new(-0.2, top + 5.1, 0), coat)
+		local head = piece(Vector3.new(0.95, 0.95, 0.95), Vector3.new(-0.2, top + 6.7, 0), Color3.fromRGB(226, 190, 160))
+		head.Shape = Enum.PartType.Ball
+		piece(Vector3.new(2, 0.6, 0.8), Vector3.new(-0.2, top + 7.3, 0), INK)
 	end
-	piece(Vector3.new(1, 2.2, 1), Vector3.new(2.3, top + 4.4, 0), horse, CFrame.Angles(0, 0, math.rad(-30)))
-	piece(Vector3.new(1.8, 0.9, 0.9), Vector3.new(3.1, top + 5.4, 0), horse)
-	piece(Vector3.new(1.3, 2.2, 1.2), Vector3.new(-0.2, top + 5.1, 0), coat)
-	local head = piece(Vector3.new(0.95, 0.95, 0.95), Vector3.new(-0.2, top + 6.7, 0), Color3.fromRGB(226, 190, 160))
-	head.Shape = Enum.PartType.Ball
-	piece(Vector3.new(2, 0.6, 0.8), Vector3.new(-0.2, top + 7.3, 0), INK)
 	local poleX = -2.9
 	cylinder(m, pos + Vector3.new(poleX, top + 5, 0), 10, 0.25, Kit.GILT_DARK)
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
@@ -596,12 +616,26 @@ function Board.setView(view: any?)
 			hatch(d, p.outline, Data.colour(ps.occupiedBy))
 		end
 	end
+	-- borders between provinces, drawn only over land (the coast is the terrain's own shore):
+	-- gilt where the owners differ, a fine ink line inside one nation
 	for _, e in edges do
-		local a, b = Board.toWorld(e.a.x, e.a.z, LAND + 0.1), Board.toWorld(e.b.x, e.b.z, LAND + 0.1)
-		if #e.provs >= 2 and owner[e.provs[1]] ~= owner[e.provs[2]] then
-			segment(d, a + Vector3.new(0, 0.1, 0), b + Vector3.new(0, 0.1, 0), 1.3, 0.45, Kit.GILT)
-		else
-			segment(d, a, b, if #e.provs >= 2 then 0.4 else 0.6, 0.25, INK)
+		if #e.provs >= 2 then
+			local foreign = owner[e.provs[1]] ~= owner[e.provs[2]]
+			local len = math.sqrt((e.b.x - e.a.x) ^ 2 + (e.b.z - e.a.z) ^ 2)
+			local n = math.max(1, math.ceil(len / CELL))
+			for i = 0, n - 1 do
+				local t0, t1 = i / n, (i + 1) / n
+				local ax, az = e.a.x + (e.b.x - e.a.x) * t0, e.a.z + (e.b.z - e.a.z) * t0
+				local bx, bz = e.a.x + (e.b.x - e.a.x) * t1, e.a.z + (e.b.z - e.a.z) * t1
+				if Relief.isLand((ax + bx) / 2, (az + bz) / 2) then
+					local y = TINT_Y + 0.15
+					if foreign then
+						segment(d, Board.toWorld(ax, az, y + 0.1), Board.toWorld(bx, bz, y + 0.1), 1.3, 0.45, Kit.GILT)
+					else
+						segment(d, Board.toWorld(ax, az, y), Board.toWorld(bx, bz, y), 0.4, 0.25, INK)
+					end
+				end
+			end
 		end
 	end
 	if not view then
@@ -695,13 +729,13 @@ function Board.setPath(fromId: string?, steps: { Step }?)
 	if not start or not steps or #steps == 0 then
 		return
 	end
-	local prev = Board.toWorld(start.centre.x, start.centre.z, LAND + 0.3)
+	local prev = Board.toWorld(start.centre.x, start.centre.z, TINT_Y + 0.3)
 	for i, s in steps do
 		local p = Data.byId[s.id]
 		if not p then
 			return
 		end
-		local here = Board.toWorld(p.centre.x, p.centre.z, LAND + 0.3)
+		local here = Board.toWorld(p.centre.x, p.centre.z, TINT_Y + 0.3)
 		local colour = if s.stop then RED elseif s.turn == 1 then Kit.IVORY else Kit.MUTED
 		local len = (here - prev).Magnitude
 		local n = math.max(1, math.floor(len / 4))
