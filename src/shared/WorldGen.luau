@@ -1613,10 +1613,19 @@ local function buildRiverside(group: string, river: any, jobs: { Job })
 					if k < 0.55 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 1.5 + k * 3)))
 						if classAt(p.x, p.z) ~= nil and classAt(p.x, p.z) ~= IDS.water and classAt(p.x, p.z) ~= IDS.ford and not nearBridge(p.x, p.z, 6) then
-							-- a reed bed: clusters of thin tall stems, each leaning its own way, khaki-green
+							-- a reed bed: the generated clump (reeds, a few cattails), or clusters of thin tall
+							-- stems, each leaning its own way, khaki-green
 							withQ(2, function()
 								obj("point", function()
 									local hd = Vec.heading(dir)
+									if Assets.get("reeds") then
+										local hh = 2.2 + k * 1.2
+										local wide = hh * 0.9
+										local r = part(group, nil, Vector3.new(wide * 1.3, hh, wide), yaw(p.x, groundY(p.x, p.z) + hh / 2 - 0.25, p.z, hd + k * 6), c3(128, 132, 76), Enum.Material.Grass)
+										r.fileMesh = "reeds"
+										r.castShadow = false
+										return
+									end
 									for j = -1, 1 do
 										local q = Vec.add(p, Vec.scale(dir, j * 1.6))
 										local hh = 2.0 + k * 1.2 + h01(q.x, q.z, 71) * 0.8

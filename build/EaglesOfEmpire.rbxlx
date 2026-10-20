@@ -151,6 +151,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 0.81, 1.6, 4.98 },
 	},
+	reeds = { -- generated clump of river reeds and cattails on a muddy tuft
+		mesh = "rbxassetid://129739908545802",
+		texture = "rbxassetid://135174526017932",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 2.15, 2.6, 2.02 },
+	},
 	ship = { -- generated 74-gun ship of the line (campaign fleet token), keel along Z
 		mesh = "rbxassetid://123365547551398",
 		texture = "rbxassetid://82494823051177",
@@ -432,6 +439,8 @@ Assets.kits = {
 	head_bearskin = { headgear = { mesh = "rbxassetid://76596095858373", texture = "rbxassetid://75179736797078", size = { 0.370, 0.800, 0.561 }, scale = { 0.935, 0.935, 0.935 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
 	head_bicorne = { headgear = { mesh = "rbxassetid://129696614120605", texture = "rbxassetid://104357746964512", size = { 0.768, 0.360, 0.420 }, scale = { 1.536, 1.536, 1.536 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
 	head_crested = { headgear = { mesh = "rbxassetid://119676080371945", texture = "rbxassetid://85213909999178", size = { 0.325, 0.620, 0.436 }, scale = { 1.033, 1.033, 1.033 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
+	-- the Austrian helmet sits 0.08 lower than its box: its chin strap hangs below the brim
+	head_kaskett = { headgear = { mesh = "rbxassetid://88414765373172", texture = "rbxassetid://129616501674009", size = { 0.450, 0.736, 0.519 }, scale = { 1.339, 1.339, 1.339 }, cf = { 0, -0.08, 0, 0, -1.571, 0 } } },
 	head_bonnet = { headgear = { mesh = "rbxassetid://101140967079858", texture = "rbxassetid://121301412148902", size = { 0.527, 0.780, 0.528 }, scale = { 1.040, 1.040, 1.040 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
 	-- gun_*: barrel, carriage, wheelL, wheelR; muzzle to +X, axle over the origin, 2 studs tall
 	gun_france = {
@@ -7919,10 +7928,19 @@ local function buildRiverside(group: string, river: any, jobs: { Job })
 					if k < 0.55 then
 						local p = Vec.add(c, Vec.scale(right, side * (half + 1.5 + k * 3)))
 						if classAt(p.x, p.z) ~= nil and classAt(p.x, p.z) ~= IDS.water and classAt(p.x, p.z) ~= IDS.ford and not nearBridge(p.x, p.z, 6) then
-							-- a reed bed: clusters of thin tall stems, each leaning its own way, khaki-green
+							-- a reed bed: the generated clump (reeds, a few cattails), or clusters of thin tall
+							-- stems, each leaning its own way, khaki-green
 							withQ(2, function()
 								obj("point", function()
 									local hd = Vec.heading(dir)
+									if Assets.get("reeds") then
+										local hh = 2.2 + k * 1.2
+										local wide = hh * 0.9
+										local r = part(group, nil, Vector3.new(wide * 1.3, hh, wide), yaw(p.x, groundY(p.x, p.z) + hh / 2 - 0.25, p.z, hd + k * 6), c3(128, 132, 76), Enum.Material.Grass)
+										r.fileMesh = "reeds"
+										r.castShadow = false
+										return
+									end
 									for j = -1, 1 do
 										local q = Vec.add(p, Vec.scale(dir, j * 1.6))
 										local hh = 2.0 + k * 1.2 + h01(q.x, q.z, 71) * 0.8
@@ -8627,7 +8645,6 @@ local PATH_CMDS = { Move = true, AttackMove = true, Engage = true, Charge = true
 local MAX_PATH_CMDS = 8
 local WINGS = { "centre", "left", "right" }
 local MUSKET = Config.Units.infantry.musket.range
-local SQUARE_NOW = 70 -- cavalry this close (or charging) puts a line into square whatever else is near
 
 -- Helpers ------------------------------------------------------------------------------------
 
@@ -9549,13 +9566,7 @@ local function infantry(state: AIState, f: Formation)
 		end
 		return
 	end
-	-- Cavalry threat: form square unless friendly cavalry screens. With enemy foot in musket
-	-- range a square is shot and bayoneted to pieces (Auerstedt: Gudin's squares lost more men in
-	-- melee with Prussian foot than to Blücher's horse), so there the line holds until the horse
-	-- is on it: charging, or within SQUARE_NOW.
-	local foot = nearestVisible(state, f.pos, MUSKET + 20, function(e)
-		return e.class == "infantry" and e.state ~= "routing"
-	end)
+	-- Cavalry threat: form square unless friendly cavalry screens.
 	local threat, td = nearestVisible(state, f.pos, 140, function(e)
 		if not isCav(e) then
 			return false
@@ -9564,8 +9575,7 @@ local function infantry(state: AIState, f: Formation)
 		local approaching = Vec.dot(Vec.fromHeading(e.heading), Vec.normalize(Vec.sub(f.pos, e.pos))) > 0.3 and (e.state == "charging" or e.state == "moving")
 		return d < 90 or approaching
 	end)
-	local imminent = threat ~= nil and (td < SQUARE_NOW or threat.state == "charging")
-	if threat and not friendlyCavScreens(state, f, threat) and (foot == nil or imminent) then
+	if threat and not friendlyCavScreens(state, f, threat) then
 		if f.shape ~= "square" and f.pendingShape ~= "square" then
 			issue(state, "Shape", { f.id }, { shape = "square" })
 		end
@@ -9575,10 +9585,7 @@ local function infantry(state: AIState, f: Formation)
 	end
 	if f.shape == "square" or f.pendingShape == "square" then
 		local cav = nearestVisible(state, f.pos, 200, isCav)
-		-- the horse gone, or drawn off while enemy foot comes on: back to line
-		local close = nearestVisible(state, f.pos, SQUARE_NOW + 40, isCav)
-		local drawnOff = foot ~= nil and close == nil and not (cav ~= nil and cav.state == "charging")
-		if ((not cav and clock >= u.squareUntil) or drawnOff) and f.state ~= "reforming" then
+		if not cav and clock >= u.squareUntil and f.state ~= "reforming" then
 			if issue(state, "Shape", { f.id }, { shape = "line" }) then
 				setGoal(state, f.id, "reform", "cavalry gone, back to line", 5)
 			end
@@ -40483,8 +40490,9 @@ local function kitHeadgear(add: Add, kit: Assets.Kit, L: Look, seed: number): bo
 	local hat = Assets.kit("head_" .. L.head)
 	local g = kit.headgear.cf
 	if hat then
+		-- standing where the kit's own headgear stands, raised or lowered by the hat's cf height
 		local bottom = g[2] - kit.headgear.size[2] / 2 + 0.02
-		add(piece(hat.headgear), CFrame.new(g[1], bottom + hat.headgear.size[2] / 2, g[3]) * at(hat.headgear).Rotation, 0, 0)
+		add(piece(hat.headgear), CFrame.new(g[1], bottom + hat.headgear.size[2] / 2 + hat.headgear.cf[2], g[3]) * at(hat.headgear).Rotation, 0, 0)
 		return true
 	end
 	local N = NATIONS[L.nation]

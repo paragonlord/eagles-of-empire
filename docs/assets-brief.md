@@ -149,7 +149,13 @@ All made with Studio's generators through the MCP and published to Bartosz's acc
   a ship of the line for the campaign fleets (`ship`).
 - Ground: seven MaterialVariants (meadow, pasture, stubble, plough, track, cobbles, rock) in
   `default.project.json` under MaterialService, chosen from four candidates each.
-- Tried and dropped: the Austrian kaskett (two attempts came out as a box) and a post-and-rail
+- `head_kaskett` (2026-10-21, third attempt): mesh 88414765373172, texture 129616501674009, an
+  1806 Austrian helmet with brass badge, black crest and chin strap; worn 0.08 below its box so
+  the brim sits on the brow (`t3-austrian-helmet.jpg`).
+- `reeds` (2026-10-21): mesh 129739908545802, texture 135174526017932, native 2.15 × 2.6 × 2.02, a
+  clump of reeds and cattails on a muddy tuft; one per reed spot on the river banks, fitted 2.2-3.4
+  tall (it replaces three flat green slabs).
+- Tried and dropped: a post-and-rail
   fence (three attempts, the last as a single bay, each came out a flat sliver a fraction of the
   asked size); those stay part-built.
 - `stoneWall` (2026-10-20, third attempt): mesh 127916614194194, texture 85059598017560, native
@@ -158,7 +164,7 @@ All made with Studio's generators through the MCP and published to Bartosz's acc
 
 ## Priority order (what is left)
 
-1. A kaskett for Austria and a fence section (both failed in generation; see above).
+1. A fence section (failed three times; see above).
 2. Separate kit layouts for light infantry (no knapsack) and grenadiers if the hats are not
    enough to tell them apart.
 3. `church` and `windmill` regenerated in the painterly look (today's are the earlier meshes).

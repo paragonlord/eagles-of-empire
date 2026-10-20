@@ -934,8 +934,9 @@ local function kitHeadgear(add: Add, kit: Assets.Kit, L: Look, seed: number): bo
 	local hat = Assets.kit("head_" .. L.head)
 	local g = kit.headgear.cf
 	if hat then
+		-- standing where the kit's own headgear stands, raised or lowered by the hat's cf height
 		local bottom = g[2] - kit.headgear.size[2] / 2 + 0.02
-		add(piece(hat.headgear), CFrame.new(g[1], bottom + hat.headgear.size[2] / 2, g[3]) * at(hat.headgear).Rotation, 0, 0)
+		add(piece(hat.headgear), CFrame.new(g[1], bottom + hat.headgear.size[2] / 2 + hat.headgear.cf[2], g[3]) * at(hat.headgear).Rotation, 0, 0)
 		return true
 	end
 	local N = NATIONS[L.nation]

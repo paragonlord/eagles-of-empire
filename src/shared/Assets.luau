@@ -151,6 +151,13 @@ Assets.slots = {
 		offset = { 0, 0, 0 },
 		native = { 0.81, 1.6, 4.98 },
 	},
+	reeds = { -- generated clump of river reeds and cattails on a muddy tuft
+		mesh = "rbxassetid://129739908545802",
+		texture = "rbxassetid://135174526017932",
+		scale = { 1, 1, 1 },
+		offset = { 0, 0, 0 },
+		native = { 2.15, 2.6, 2.02 },
+	},
 	ship = { -- generated 74-gun ship of the line (campaign fleet token), keel along Z
 		mesh = "rbxassetid://123365547551398",
 		texture = "rbxassetid://82494823051177",
@@ -432,6 +439,8 @@ Assets.kits = {
 	head_bearskin = { headgear = { mesh = "rbxassetid://76596095858373", texture = "rbxassetid://75179736797078", size = { 0.370, 0.800, 0.561 }, scale = { 0.935, 0.935, 0.935 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
 	head_bicorne = { headgear = { mesh = "rbxassetid://129696614120605", texture = "rbxassetid://104357746964512", size = { 0.768, 0.360, 0.420 }, scale = { 1.536, 1.536, 1.536 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
 	head_crested = { headgear = { mesh = "rbxassetid://119676080371945", texture = "rbxassetid://85213909999178", size = { 0.325, 0.620, 0.436 }, scale = { 1.033, 1.033, 1.033 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
+	-- the Austrian helmet sits 0.08 lower than its box: its chin strap hangs below the brim
+	head_kaskett = { headgear = { mesh = "rbxassetid://88414765373172", texture = "rbxassetid://129616501674009", size = { 0.450, 0.736, 0.519 }, scale = { 1.339, 1.339, 1.339 }, cf = { 0, -0.08, 0, 0, -1.571, 0 } } },
 	head_bonnet = { headgear = { mesh = "rbxassetid://101140967079858", texture = "rbxassetid://121301412148902", size = { 0.527, 0.780, 0.528 }, scale = { 1.040, 1.040, 1.040 }, cf = { 0, 0, 0, 0, -1.571, 0 } } },
 	-- gun_*: barrel, carriage, wheelL, wheelR; muzzle to +X, axle over the origin, 2 studs tall
 	gun_france = {
