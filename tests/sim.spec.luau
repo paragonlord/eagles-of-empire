@@ -545,6 +545,13 @@ test("Facing distinguishes front, flank and rear fire", function()
 	assertEq(Vec.attackSide(t.pos, t.heading, sim.formations[2].pos), "front")
 	assertEq(Vec.attackSide(t.pos, t.heading, sim.formations[3].pos), "flank")
 	assertEq(Vec.attackSide(t.pos, t.heading, sim.formations[4].pos), "rear")
+	-- a square, or men holding a building, face every way: all fire, charges and melee are frontal
+	assertEq(Combat.sideOf(t, sim.formations[4].pos), "rear")
+	for _, shape in { "square", "garrison" } do
+		t.shape = shape
+		assertEq(Combat.sideOf(t, sim.formations[3].pos), "front", shape .. " flank")
+		assertEq(Combat.sideOf(t, sim.formations[4].pos), "front", shape .. " rear")
+	end
 end)
 
 test("A volley inflicts casualties and shakes morale; routing overrides orders", function()
@@ -880,6 +887,18 @@ test("Reinforcements stay off the map until their arrival time and never count a
 		end
 	end
 	assertTrue(seen, "visible after arrival")
+end)
+
+test("Collapse by strength measures the troops on the field, not reinforcements still to come", function()
+	local Objectives = require(Server.Sim.Objectives)
+	local late = unit("france", "infantry", "Late", 800, 100, math.pi / 2, 3000)
+	late.arrival = { seconds = 600, pos = { x = 800, z = 100 } }
+	local sim = newSim({ unit("france", "infantry", "F", A.x, A.z, 0), late })
+	local f, reserve = sim.formations[1], sim.formations[4]
+	f.strength = 300 -- 900 of the 1200 on the field
+	assertTrue(not Objectives.collapsed(sim, "france"), "three quarters of the field army stands")
+	f.strength, reserve.strength = 100, 200 -- 300 of 1200
+	assertTrue(Objectives.collapsed(sim, "france"), "a quarter of it has collapsed")
 end)
 
 test("Weather: fog shortens spotting and clears at weatherUntil; mud slows the march", function()

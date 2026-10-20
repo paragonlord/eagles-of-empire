@@ -133,10 +133,12 @@ function Objectives.view(sim: SimLike): { Types.ObjectiveView }
 end
 
 local function sideStats(sim: SimLike, faction: string)
-	local total, broken, strength = 0, 0, 0
+	local total, broken, strength, waiting = 0, 0, 0, 0
 	for _, id in sim.order do
 		local f = sim.formations[id]
-		if f and f.faction == faction and f.state ~= "offmap" then
+		if f and f.faction == faction and f.state == "offmap" then
+			waiting += f.strength
+		elseif f and f.faction == faction then
 			total += 1
 			if f.state == "routing" or f.state == "rallying" or f.shattered or not Formation.isActive(f) then
 				broken += 1
@@ -146,9 +148,16 @@ local function sideStats(sim: SimLike, faction: string)
 			end
 		end
 	end
-	return total, broken, strength
+	return total, broken, strength, waiting
 end
 
+-- Strength a side has brought onto the field: deployed less reinforcements still off the map.
+function Objectives.fieldDeployed(sim: SimLike, faction: string): number
+	local _, _, _, waiting = sideStats(sim, faction)
+	return (sim.deployed[faction] or 1) - waiting
+end
+
+-- Reinforcements still off the map count toward neither test.
 function Objectives.collapsed(sim: SimLike, faction: string): boolean
 	local total, broken, strength = sideStats(sim, faction)
 	if total == 0 then
@@ -157,8 +166,7 @@ function Objectives.collapsed(sim: SimLike, faction: string): boolean
 	if broken / total >= Config.Victory.CollapseFraction then
 		return true
 	end
-	local deployed = sim.deployed[faction] or 1
-	return strength < deployed * Config.Victory.CollapseStrengthFraction
+	return strength < Objectives.fieldDeployed(sim, faction) * Config.Victory.CollapseStrengthFraction
 end
 
 function Objectives.heldAll(sim: SimLike, faction: string): boolean

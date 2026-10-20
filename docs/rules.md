@@ -117,7 +117,9 @@ hit        = accuracy(0.07) * rangeF * (1 - cover) * (1 - 0.3 fatigue/100) * (1 
 casualties = round(shooters * hit)       (seeded roll: floor + chance(frac))
 ```
 targetShape: line 1.0, column 1.5, square 1.3, travel 1.6. sideFactor: front 1.0, flank 1.35,
-rear 1.6 (side is computed from the target's heading and the shooter's position). Reload 15 s.
+rear 1.6 (side is computed from the target's heading and the shooter's position). A square, or a
+battalion holding a building, faces every way: fire, charges and melee on it are all frontal, and so
+is the morale shock. Reload 15 s.
 
 Artillery: per gun, per shot. Round shot range 60–450, hit 0.5 × rangeF, 3 casualties per hit
 × shape.artillery, +3 morale. Canister range 0–120, hit 0.9, 7 per hit, +5 morale. Reload 20 /
@@ -231,7 +233,8 @@ eligible formations inside (progress freezes). Ownership shows on the HUD and mi
 
 Victory evaluator (one, server, runs after step 9, terminal once):
 1. **Collapse**: a side with ≥ 70 % of formations routing/shattered/destroyed/exited, or
-   remaining strength < 35 % of deployed → the other side wins.
+   remaining strength < 35 % of the strength it has brought onto the field (reinforcements still
+   off the map count toward neither test) → the other side wins.
 2. **Objectives**: a side holding every objective for 120 s continuous wins, but not before
    minute 10 (`HoldAllEarliest`) and only if at least one of them was taken from the enemy
    during the battle, so a defender starting on the objectives cannot win by default.

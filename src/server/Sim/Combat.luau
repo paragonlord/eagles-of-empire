@@ -178,6 +178,15 @@ function Combat.pickFireTarget(sim: SimLike, f: Formation): Formation?
 	return best
 end
 
+-- The side of `target` an attack from `from` strikes. A square, or men holding a building, face
+-- every way: fire, charges and melee on them are all frontal (and so is the morale shock).
+function Combat.sideOf(target: Formation, from: Vec): string
+	if target.shape == "square" or target.shape == "garrison" then
+		return "front"
+	end
+	return Vec.attackSide(target.pos, target.heading, from)
+end
+
 local function uphill(sim: SimLike, a: Vec, b: Vec): boolean
 	return Grid.heightAt(sim.grid, a.x, a.z) > Grid.heightAt(sim.grid, b.x, b.z) + 3
 end
@@ -205,7 +214,7 @@ local function volley(sim: SimLike, f: Formation, target: Formation, attacks: { 
 		end
 	end
 	cover = math.min(0.9, cover)
-	local side = Vec.attackSide(target.pos, target.heading, f.pos)
+	local side = Combat.sideOf(target, f.pos)
 	local sideF = if side == "front" then 1 elseif side == "flank" then C.FlankFireFactor else C.RearFireFactor
 	local hit = musket.accuracy * rangeF * (1 - cover) * Formation.fatigueFactor(f, C.FatigueAccuracyPenalty) * (1 + C.ExperienceAccuracy * f.experience)
 	hit *= (C.TargetShapeFactor :: any)[target.shape] or 1
@@ -247,7 +256,7 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 	f.ammo -= 1
 	f.lastShotTick = sim.tick
 	f.state = if f.state == "idle" then "firing" else f.state
-	local side = Vec.attackSide(target.pos, target.heading, f.pos)
+	local side = Combat.sideOf(target, f.pos)
 	attacks[#attacks + 1] = { attackerId = f.id, targetId = target.id, casualties = casualties, side = side, moraleExtra = ammo.morale, kind = "cannon" }
 	sim.emit(sim, { kind = "cannon", tick = sim.tick, id = f.id, targetId = target.id, faction = f.faction, x = f.pos.x, z = f.pos.z, tx = target.pos.x, tz = target.pos.z, n = casualties, text = if gun.indirect and mode == "roundShot" then "shell" else mode })
 	if ammo.splash then
@@ -258,7 +267,7 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 				local d = Vec.dist(o.pos, target.pos) - o.halfRadius * 0.5
 				if d < ammo.splash then
 					local n = rollCasualties(sim, expected / shapeF * 0.5 * (1 - math.max(0, d) / ammo.splash) * (Config.Shapes :: any)[o.shape].artillery)
-					attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+					attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Combat.sideOf(o, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
 				end
 			end
 		end
@@ -284,7 +293,7 @@ local function cannonade(sim: SimLike, f: Formation, target: Formation, attacks:
 		for i = 1, math.min(R.maxHits, #inLane) do
 			local o, t = inLane[i].o, inLane[i].t
 			local n = rollCasualties(sim, strike * R.factor * (1 - 0.5 * t) * (Config.Shapes :: any)[o.shape].artillery)
-			attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Vec.attackSide(o.pos, o.heading, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
+			attacks[#attacks + 1] = { attackerId = f.id, targetId = o.id, casualties = n, side = Combat.sideOf(o, f.pos), moraleExtra = ammo.morale * 0.5, kind = "cannon" }
 		end
 	end
 end
@@ -299,11 +308,8 @@ local function meleeDamage(sim: SimLike, att: Formation, def: Formation, attacks
 	local unitA = Formation.unitConfig(att)
 	local unitD = Formation.unitConfig(def)
 	local shapeA = (Config.Shapes :: any)[att.shape]
-	local side = Vec.attackSide(def.pos, def.heading, att.pos)
+	local side = Combat.sideOf(def, att.pos)
 	local dirF = (C.MeleeDirFactor :: any)[side]
-	if def.shape == "square" then
-		dirF = 1 -- a square has no flank
-	end
 	local rate = att.strength * C.MeleeRatePerSecond * unitA.melee.attack * shapeA.melee * dirF
 	rate *= Formation.fatigueFactor(att, C.FatigueMeleePenalty) * (1 + C.ExperienceMelee * att.experience) * att.mods.melee
 	if att.timers.bayonet > 0 then
@@ -344,14 +350,11 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 	if Formation.mounted(att) then
 		local ch = unit.charge
 		local runUpF = math.clamp(att.runUp / ch.runUp, C.MinRunUpFactor, 1)
-		local side = Vec.attackSide(def.pos, def.heading, att.pos)
+		local side = Combat.sideOf(def, att.pos)
 		local dirF = if side == "front" then ch.frontFactor elseif side == "flank" then ch.flankFactor else ch.rearFactor
 		local shapeF = (C.ChargeShapeFactor :: any)[def.shape] or 1
 		if def.state == "reforming" then
 			shapeF *= 1.5
-		end
-		if def.shape == "square" then
-			dirF = 1
 		end
 		if def.state == "routing" then
 			shapeF *= C.ChargeRoutingFactor * (unit.pursuit or 1) -- light cavalry rides down fugitives
@@ -370,7 +373,7 @@ local function chargeImpact(sim: SimLike, att: Formation, def: Formation, attack
 		sim.emit(sim, { kind = "charge", tick = sim.tick, id = att.id, targetId = def.id, faction = att.faction, x = att.pos.x, z = att.pos.z, tx = def.pos.x, tz = def.pos.z, n = casualties, text = if def.shape == "square" then "square" else side })
 	else
 		-- bayonet assault
-		local side = Vec.attackSide(def.pos, def.heading, att.pos)
+		local side = Combat.sideOf(def, att.pos)
 		local shock = if side == "front" then C.BayonetMoraleShock.front else C.BayonetMoraleShock.flank
 		att.timers.bayonet = C.BayonetBonusSeconds
 		attacks[#attacks + 1] = { attackerId = att.id, targetId = def.id, casualties = 0, side = side, moraleExtra = shock, kind = "charge" }
