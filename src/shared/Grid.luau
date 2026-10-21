@@ -187,8 +187,12 @@ end
 -- class sightHeight (woods/village block). Samples within `skip` studs of either end are
 -- ignored so a unit at a wood's edge can see out; spotting units *inside* cover is handled by
 -- Config.Vision.WoodsReveal in the visibility module.
--- `through`: a terrain class seen through (a garrison's village: the houses are its cover, not a wall).
-function Grid.lineOfSight(g: Grid, a: Vec, b: Vec, eyeA: number?, eyeB: number?, through: number?): boolean
+-- The village or wood an end stands in does not block its own line within OWN_COVER studs: men in
+-- houses or among trees look and fire out of them, and are seen and fired on there (the terrain's
+-- cover counts instead). A village, wood or crest between the two still blocks. Without this every
+-- line into or out of a village was blocked and village fights stood still.
+local OWN_COVER = 80
+function Grid.lineOfSight(g: Grid, a: Vec, b: Vec, eyeA: number?, eyeB: number?): boolean
 	local ea = (eyeA or Config.Vision.EyeHeight)
 	local eb = (eyeB or Config.Vision.EyeHeight)
 	local ha = Grid.heightAt(g, a.x, a.z) + ea
@@ -198,6 +202,7 @@ function Grid.lineOfSight(g: Grid, a: Vec, b: Vec, eyeA: number?, eyeB: number?,
 	if len < g.cell then
 		return true
 	end
+	local clsA, clsB = Grid.classAt(g, a.x, a.z), Grid.classAt(g, b.x, b.z)
 	local step = g.cell
 	local skip = 8
 	local steps = math.floor(len / step)
@@ -209,7 +214,8 @@ function Grid.lineOfSight(g: Grid, a: Vec, b: Vec, eyeA: number?, eyeB: number?,
 			local z = a.z + dz * t
 			local cx, cz = Grid.cellOf(g, x, z)
 			local cls = g.class[cz * g.cols + cx + 1]
-			local terrainH = Grid.heightAt(g, x, z) + (if cls == through then 0 else TERRAIN[cls].sightHeight)
+			local own = (cls == clsA and s <= OWN_COVER) or (cls == clsB and len - s <= OWN_COVER)
+			local terrainH = Grid.heightAt(g, x, z) + (if own then 0 else TERRAIN[cls].sightHeight)
 			local lineH = ha + (hb - ha) * t
 			if terrainH > lineH + Config.Vision.SightTolerance then
 				return false

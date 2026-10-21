@@ -144,10 +144,7 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 	end
 	-- howitzer shells are lobbed: over the crest and over friends, at anything the side can see
 	local lobbed = unit.gun and unit.gun.indirect and Combat.artilleryMode(f, dist) == "roundShot"
-	-- men holding a building fire from its windows and are fired on there: its village's houses
-	-- are the cover the garrison already counts, not a wall across the line
-	local through = if f.shape == "garrison" or target.shape == "garrison" then Config.TerrainIds.village else nil
-	if not lobbed and not Grid.lineOfSight(sim.grid, f.pos, target.pos, nil, nil, through) then
+	if not lobbed and not Grid.lineOfSight(sim.grid, f.pos, target.pos) then
 		return "Line of fire blocked"
 	end
 	if not lobbed and laneBlocked(sim, f, target) then

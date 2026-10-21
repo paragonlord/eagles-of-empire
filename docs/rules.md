@@ -156,7 +156,7 @@ Every village (and farm: Hougoumont, La Haye Sainte, Papelotte…) has one stron
 - Inside: footprint 16 × 16, fires all round at 0.45 of its muskets, hit ×0.4 by muskets (on top of
   the village's cover) and ×0.5 by guns, melee ×1.4; cavalry charges do nothing and horse fight it at
   ×0.15. It cannot move. Its own village's houses do not block a line of fire to or from it (they
-  are the cover above); woods, crests and other villages still do.
+  are the cover above; see Visibility).
 - Leaving: any march, charge or shape order files it out (column, 8 s) and then carries the order
   out; Engage, Hold and Face only choose its target from the windows. A routing garrison pours out at
   once. The building is free as soon as its holder leaves, breaks or dies.
@@ -227,8 +227,11 @@ that moves less than 5 in 20 s (hemmed in) scatters: exited, counted as lost.
 ## Visibility
 
 A formation sees enemies within its spot radius (infantry 260, cavalry 320, artillery 240, HQ
-300) with clear LOS (heightmap + woods/village sight height, eye height 4, tolerance 0.5). Enemies inside woods or villages
-are only seen within 90. Formations whose footprints come within 15 of each other always see
+300) with clear LOS (heightmap + woods/village sight height, eye height 4, tolerance 0.5). The
+village or wood an end of the line stands in does not block it within 80 studs of that end (men
+in houses or among trees look and fire out, and are fired on there under the terrain's cover); a
+village, wood or crest between the two still blocks. Enemies inside woods or villages are only
+seen within 90. Formations whose footprints come within 15 of each other always see
 each other (contact reveals). Visible set per faction is the union; last-known entries remember
 position, heading, shape and class with an age, and are forgotten after 180 s. AI receives the
 same observation set as the player. Snapshots to a client contain only that faction's view.

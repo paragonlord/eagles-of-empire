@@ -475,6 +475,31 @@ test("An idle line wheels to an enemy in musket range when none is to its front"
 	assertTrue(math.abs(Vec.angleDiff(sim2.formations[1].heading, math.pi / 2)) < 0.01, "a held line keeps its facing")
 end)
 
+test("A battalion in a village fires out and is fired on; a village between two lines blocks them", function()
+	-- every line into or out of a village was blocked by its own houses: battalions in Hassenhausen
+	-- or Vierzehnheiligen neither shot nor were shot, and village fights stood still
+	local IDS = Config.TerrainIds
+	local inside, outside, across
+	for _, v in MAP.villages do
+		for k = 0, 7 do
+			local a = k * math.pi / 4
+			local p = { x = v.pos.x + math.cos(a) * (v.radius + 35), z = v.pos.z + math.sin(a) * (v.radius + 35) }
+			local q = { x = v.pos.x - math.cos(a) * (v.radius + 35), z = v.pos.z - math.sin(a) * (v.radius + 35) }
+			local open = function(x) return Grid.classAt(MAP.grid, x.x, x.z) == IDS.open end
+			if not inside and open(p) and Vec.dist(p, v.pos) < 85 and Grid.classAt(MAP.grid, v.pos.x, v.pos.z) == IDS.village then
+				inside, outside = v.pos, p
+			end
+			if not across and open(p) and open(q) then
+				across = { p, q }
+			end
+		end
+	end
+	assertTrue(inside ~= nil and across ~= nil, "fixtures on the Jena map")
+	assertTrue(Grid.lineOfSight(MAP.grid, outside, inside), "into the village from its edge")
+	assertTrue(Grid.lineOfSight(MAP.grid, inside, outside), "and out of it")
+	assertTrue(not Grid.lineOfSight(MAP.grid, across[1], across[2]), "a whole village between two lines blocks them")
+end)
+
 test("Buildings: a garrison is shot at through its own village's houses and fires out of them", function()
 	-- the houses round the building blocked every line into or out of it: men in Hougoumont could
 	-- neither be shot nor shoot, and the French beside the farm stood idle with "No target"
@@ -485,7 +510,11 @@ test("Buildings: a garrison is shot at through its own village's houses and fire
 			local a = k * math.pi / 4
 			local p = { x = cand.pos.x + math.cos(a) * 80, z = cand.pos.z + math.sin(a) * 80 }
 			local cls = Grid.classAt(MAP.grid, p.x, p.z)
-			if (cls == IDS.open or cls == IDS.road) and not Grid.lineOfSight(MAP.grid, p, cand.pos) then
+			local houses = false -- village cells between the building and the line
+			for t = 0.2, 0.8, 0.1 do
+				houses = houses or Grid.classAt(MAP.grid, cand.pos.x + (p.x - cand.pos.x) * t, cand.pos.z + (p.z - cand.pos.z) * t) == IDS.village
+			end
+			if (cls == IDS.open or cls == IDS.road) and houses then
 				sp, at = cand, p
 				break
 			end
