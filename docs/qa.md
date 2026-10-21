@@ -1111,6 +1111,16 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   Auerstedt's Lissbach by 2). A river's surface now never stands above the land it runs
   through, lower waters are cut first, and a test checks every map (`b2-brook-after.jpg`).
   `[EoE clip]` 120 → 108, the rest being the decorative trees past the map edge, now marked.
+- Fixed: **the Quick battles were fought in the wrong season and Hougoumont had no walls**: an
+  episode map (`austerlitz_pratzen`, `waterloo_hougoumont`...) was looked up by its own id, so
+  Austerlitz's and Waterloo's episodes got Jena's October, and the walled farms were built only
+  on the full Waterloo map. An episode now takes its battle's season and buildings
+  (`b3-austerlitz-before.jpg`, `b3-hougoumont-walls.jpg`).
+- Changed: in winter the oak, beech and poplar meshes keep brown dead leaves (rust to dull
+  olive), pines stay green (`b3-austerlitz-after.jpg`).
+- Fixed: **Hougoumont never burned in the full Waterloo battle**: its moment's id did not end
+  in "ablaze", the cue the fire effect listens for. Renamed, with a test over every moment;
+  seen burning in the Hougoumont episode (`b3-hougoumont-ablaze.jpg`).
 
 ## Known failures
 

@@ -541,7 +541,7 @@ Scenarios.waterloo = {
 	mode = "full",
 	moments = {
 		{
-			id = "waterloo_hougoumont",
+			id = "hougoumont_ablaze",
 			title = "Hougoumont ablaze",
 			text = "French howitzers have set Hougoumont alight. The château and the great barn burn over the wounded, and still the Guards hold the walls.",
 			when = { time = 600, formationNear = { faction = "france", objective = "hougoumont", radius = 180 } },

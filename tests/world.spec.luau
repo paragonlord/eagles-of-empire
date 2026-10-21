@@ -58,6 +58,52 @@ test("WorldGen: no river stands above the land beside it", function()
 	end
 end)
 
+test("WorldGen: winter dresses the oak and beech meshes in brown leaves, pines stay green", function()
+	setMeshes(true)
+	local function tints(id: string)
+		local map = MapGen.generate(id)
+		local seen = {}
+		for _, s in WorldGen.props(map, WorldGen.terrain(map)) do
+			if s.fileMesh then
+				local t = seen[s.fileMesh] or { tinted = 0, plain = 0 }
+				seen[s.fileMesh] = t
+				if s.meshTint then
+					t.tinted += 1
+				else
+					t.plain += 1
+				end
+			end
+		end
+		return seen
+	end
+	local winter = tints("austerlitz")
+	local autumn = tints("jena")
+	setMeshes(false)
+	assert(winter.treeOak and winter.treeOak.tinted > 0 and winter.treeOak.plain == 0, "winter oaks")
+	assert(winter.treePine and winter.treePine.tinted == 0, "pines keep their needles")
+	assert(autumn.treeOak and autumn.treeOak.tinted == 0, "Jena's oaks keep the slot's green")
+end)
+
+test("WorldGen: an episode is its battle's field: the season and Waterloo's walled farms", function()
+	-- the Quick battles fought Austerlitz and Waterloo in October, and Hougoumont without its walls
+	assertEq(WorldGen.seasonOf("austerlitz_pratzen"), "winter")
+	assertEq(WorldGen.seasonOf("waterloo_hougoumont"), "summer")
+	assertEq(WorldGen.seasonOf("province:lombardy"), "autumn")
+	local function farmWalls(id: string): number
+		local map = MapGen.generate(id)
+		local n = 0
+		for _, s in WorldGen.props(map, WorldGen.terrain(map)) do
+			if s.size.X == 0.9 and s.size.Y == 4 then
+				n += 1
+			end
+		end
+		return n
+	end
+	local full = farmWalls("waterloo")
+	assert(full > 0, "Waterloo has its walled farms")
+	assertEq(farmWalls("waterloo_hougoumont"), full, "and so does the Hougoumont episode")
+end)
+
 local function fingerprint(specs)
 	local parts = {}
 	for i, s in specs do

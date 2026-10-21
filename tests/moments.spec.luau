@@ -68,6 +68,17 @@ local function momentEvents(sim)
 	return out
 end
 
+test("Moments: every burning moment sets the fire (its id ends in ablaze)", function()
+	-- full Waterloo's "Hougoumont ablaze" was id waterloo_hougoumont: the farm never burned
+	for _, entry in Scenarios.list() do
+		for _, m in (Scenarios :: any)[entry.id].moments or {} do
+			if m.title and string.find(string.lower(m.title), "ablaze") then
+				assertEq(string.sub(m.id, -6), "ablaze", entry.id .. " moment " .. m.id)
+			end
+		end
+	end
+end)
+
 test("Moments: each condition kind evaluates against sim state", function()
 	local sim = fixture({})
 	local holds = Moments.holds

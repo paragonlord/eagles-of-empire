@@ -194,7 +194,7 @@ function WorldBuild.instance(s: WorldGen.Spec): BasePart
 		local fit = if n then Vector3.new(s.size.X / n[1], s.size.Y / n[2], s.size.Z / n[3]) else Vector3.one
 		m.Scale = fit * Vector3.new(slot.scale[1], slot.scale[2], slot.scale[3])
 		m.Offset = Vector3.new(slot.offset[1], slot.offset[2], slot.offset[3])
-		local tint = slot.tint
+		local tint = s.meshTint or slot.tint
 		if tint then
 			m.VertexColor = Vector3.new(tint[1], tint[2], tint[3])
 		end
