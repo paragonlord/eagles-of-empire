@@ -235,6 +235,7 @@ function Sim.start(self: Sim)
 		end
 	end
 	Visibility.update(self :: any)
+	Objectives.claimStart(self :: any)
 	self:log("The battle begins")
 end
 

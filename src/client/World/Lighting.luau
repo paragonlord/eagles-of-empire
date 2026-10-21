@@ -271,6 +271,15 @@ local function setFogRate(folder: Folder, rate: number, seconds: number)
 	end
 end
 
+-- The atmosphere's density for a grade seen from height y: the haze thins as the camera climbs
+-- (from the 440-stud battle view the whole field lies 500+ studs off and washed out; low views
+-- keep their depth); fog lifts later and further.
+local function densityAt(name: string, y: number): number
+	local g = GRADES[name]
+	local factor = if name == "fog" then math.clamp(1 - (y - 330) / 900, 0.4, 1) else math.clamp(1 - (y - 150) / 1000, 0.6, 1)
+	return g.atmoDensity * factor
+end
+
 local function setGrade(name: string, seconds: number)
 	currentGrade = name
 	local g = GRADES[name]
@@ -313,8 +322,10 @@ local function setGrade(name: string, seconds: number)
 	to(cc, { TintColor = g.tint, Contrast = g.contrast - haze / 3, Saturation = g.saturation - haze })
 	to(bloom, { Intensity = g.bloom })
 	to(rays, { Intensity = g.rays })
+	local cam = workspace.CurrentCamera
 	atmoTween = to(atmosphere, {
-		Density = if board then BOARD.density else g.atmoDensity,
+		-- aimed at the height-adjusted value, or the haze snaps when a fog lift ends
+		Density = if board then BOARD.density else densityAt(name, if cam then cam.CFrame.Position.Y else 0),
 		Offset = g.atmoOffset,
 		Color = g.atmoColor,
 		Decay = g.atmoDecay,
@@ -426,12 +437,7 @@ function Lighting.apply(quality: number)
 		if at and at.PlaybackState == Enum.PlaybackState.Playing then
 			return
 		end
-		local g = GRADES[currentGrade]
-		-- the haze thins as the camera climbs: from the 440-stud battle view the whole field lies 500+
-		-- studs off and washed out; low views keep their depth (fog lifts later and further)
-		local y = cam.CFrame.Position.Y
-		local factor = if currentGrade == "fog" then math.clamp(1 - (y - 330) / 900, 0.4, 1) else math.clamp(1 - (y - 150) / 1000, 0.6, 1)
-		atmo.Density = if board then BOARD.density else g.atmoDensity * factor
+		atmo.Density = if board then BOARD.density else densityAt(currentGrade, cam.CFrame.Position.Y)
 		planeTick += 1
 		if planeTick % 8 == 0 then
 			tintToGrade(currentGrade) -- the world's ground plane may have arrived since the grade was set

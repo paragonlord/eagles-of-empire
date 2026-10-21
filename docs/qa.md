@@ -1179,6 +1179,10 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   (×0.71 at the default view, never under ×0.6; fog keeps its own stronger rule) and waits only
   for the atmosphere's own tween (`b10-haze-after.jpg`, the same view). The tutorial's first step
   names X and Z.
+- Fixed: Waterloo opened with "Anglo-allied captured Mont-Saint-Jean crossroads" and the results'
+  chronicle listed "00:30 Prussia captured Closewitz" at Landgrafenberg, for ground held from the
+  start: an objective only one side stands on when the battle begins is now that side's at once,
+  without a capture (`docs/balance.md`: the defending AI now garrisons Hougoumont from the start).
 
 ## Known failures
 

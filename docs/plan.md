@@ -87,7 +87,7 @@ The gate history of the first build (gates 0–6) is in git history and `docs/qa
 - [x] Reload and melee animations
 
 ## Assets (Studio)
-- [~] Priority sounds from the Creator Store: 13 slots filled with measured ids (volleys, cannon, hooves, drums, ambience, four music tracks, victory) and checked playing in a battle; not yet listened to by a person (`docs/assets-brief.md`); bugles, melee, clicks, rain still empty
+- [~] Priority sounds from the Creator Store: 16 slots filled with measured ids (volleys, cannon, hooves, drums, field and rain ambience, four music tracks, victory, click, paper) and checked playing in a battle; not yet listened to by a person (`docs/assets-brief.md`); bugles and melee still empty
 - [ ] Soldier meshes (Bartosz picks)
 
 # Graphics pass (toward the TW:N look; plan approved 2026-10-20)
@@ -113,9 +113,9 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 - [x] Ground MaterialVariants (seven generated, in the place file; lighter season tints over them)
 - [~] Lighting: LightingStyle Realistic, quality-first shadows at High; the four grades kept (they read well over the painted ground)
 - [x] Place names off the battle at low camera
-- [~] Props: olive tree tint, full-size cottage; generated hedgerow, willow, stone and trestle bridges, cart (wall and fence generations failed: part-built; no reeds or manor mesh)
+- [~] Props: olive tree tint, full-size cottage; generated hedgerow, willow, stone and trestle bridges, cart, dry-stone wall, reed clumps, oak and beech past the map edge (the fence failed three times: part-built; no manor mesh)
 - [x] Powder smoke banks, muzzle light (High), howitzer shell bursts, burning roofs on 'ablaze' moments
-- [~] Map edge: the 5000-stud ground plane now takes the painted meadow too; the far edge was not re-checked from a low camera
+- [x] Map edge: the 5000-stud ground plane takes the painted meadow and the generated trees; checked from the low, turning menu camera (QA round 42, `b4-menu-after.jpg`)
 
 ## G3: campaign map
 - [x] Real coasts, lakes and rivers (Natural Earth), province tint clipped to the shore

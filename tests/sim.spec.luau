@@ -419,6 +419,20 @@ test("Fords: brooks can be waded at their fords, slowly and without firing", fun
 	assertTrue(blocked, "no volleys from the middle of the brook")
 end)
 
+test("Objectives a side stands on when the battle begins are its own, without a capture", function()
+	-- Waterloo opened with "Anglo-allied captured Mont-Saint-Jean crossroads" for ground the allies
+	-- held from the start; the chronicle listed the same
+	local o = MAP.objectives[1]
+	local sim = newSim({ unit("prussia", "infantry", "Holding it", o.pos.x, o.pos.z, 0) })
+	local obj = sim.objectives[1]
+	assertEq(obj.owner, "prussia", "held from the start")
+	run(sim, 40)
+	for _, ev in sim.events do
+		assertTrue(ev.kind ~= "capture", "no capture for ground already held")
+	end
+	assertEq(obj.takenFromEnemy, false)
+end)
+
 test("Fire status names why an enemy in range is not fired on, not just No target", function()
 	-- a line facing north with the enemy 60 studs to its east said "No target": turn it, it fires
 	local sim = newSim({
@@ -813,16 +827,24 @@ test("Objectives: routing and HQ units cannot capture; victory applies once", fu
 	})
 	run(sim, 40)
 	assertEq(sim.objectives[1].owner, nil, "HQ alone cannot capture")
+	-- arriving after the start (ground held at the start is claimed without a capture)
+	local function arrive(s, f)
+		f.pos = { x = obj.x, z = obj.z }
+		Formation.refreshFootprint(f)
+	end
 	local sim2 = newSim({
-		unit("france", "infantry", "F", obj.x, obj.z, 0),
+		unit("france", "infantry", "F", obj.x + 300, obj.z, 0),
 		unit("prussia", "infantry", "P", 300, 900, 0),
 	})
+	assertEq(sim2.objectives[1].owner, nil, "nobody on it at the start")
+	arrive(sim2, sim2.formations[1])
 	run(sim2, Config.Objectives.CaptureSeconds + 1)
 	assertEq(sim2.objectives[1].owner, "france")
 	local sim3 = newSim({
-		unit("france", "infantry", "F", obj.x, obj.z, 0),
+		unit("france", "infantry", "F", obj.x + 300, obj.z, 0),
 		unit("prussia", "infantry", "P", 300, 900, 0),
 	})
+	arrive(sim3, sim3.formations[1])
 	sim3.formations[1].state = "routing"
 	run(sim3, Config.Objectives.CaptureSeconds + 1)
 	assertEq(sim3.objectives[1].owner, nil, "routing cannot capture")
@@ -1195,11 +1217,13 @@ test("Contact reveals hidden defenders; frozen routers leave the field; chronicl
 	-- chronicle
 	local obj = MAP.objectives[1].pos
 	local sim3 = Sim.new({ matchId = "m", scenario = (function()
-		local sc = scenario({ unit("france", "infantry", "F", obj.x, obj.z, 0), FAR_ENEMY, FAR_FRIEND })
+		local sc = scenario({ unit("france", "infantry", "F", obj.x + 300, obj.z, 0), FAR_ENEMY, FAR_FRIEND })
 		sc.factionNames = { france = "France", prussia = "Prussia" }
 		return sc
 	end)(), map = MAP, seed = 1 })
 	sim3:start()
+	sim3.formations[1].pos = { x = obj.x, z = obj.z } -- arrives after the start, so it captures
+	Formation.refreshFootprint(sim3.formations[1])
 	run(sim3, Config.Objectives.CaptureSeconds + 1)
 	local found = false
 	for _, line in sim3.logLines do

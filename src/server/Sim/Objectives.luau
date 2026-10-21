@@ -62,6 +62,27 @@ local function eligible(f: Formation): boolean
 	return true
 end
 
+-- The battle begins: ground only one side stands on is that side's, with no capture to announce
+-- (Waterloo opened with the allies "capturing" the crossroads they held all along).
+function Objectives.claimStart(sim: SimLike)
+	for _, obj in sim.objectives do
+		local r2 = obj.def.radius * obj.def.radius
+		local only: string? = nil
+		local mixed = false
+		for _, id in sim.order do
+			local f = sim.formations[id]
+			if f and eligible(f) and Vec.dist2(f.pos, obj.def.pos) <= r2 then
+				mixed = mixed or (only ~= nil and only ~= f.faction)
+				only = f.faction
+			end
+		end
+		if only and not mixed and obj.owner == nil then
+			obj.owner = only
+			obj.heldSince = sim.tick
+		end
+	end
+end
+
 function Objectives.update(sim: SimLike)
 	for _, obj in sim.objectives do
 		local present: { [string]: number } = {}

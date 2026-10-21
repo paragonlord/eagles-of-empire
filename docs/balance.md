@@ -270,3 +270,13 @@ easy (France takes the farm against the easy AI now that the garrison can be sho
 The full battles at 10 seeds (historical winner's wins out of 30, against the last kept column of
 the table above): Waterloo 21 (23), Austerlitz 9 (10), Jena 29, Auerstedt 0. Within the noise:
 the day's changes leave the balance where it was.
+
+## Ground held at the start (2026-10-21, 5 seeds a cell)
+
+An objective only one side stands on when the battle begins is that side's from the first tick,
+with no "captured" message (Waterloo opened with the allies "capturing" the crossroads they held).
+Side effect, a good one: the defending AI garrisons the buildings by objectives it holds, and it
+used to hold nothing until its first capture at 0:30, so Hougoumont's garrison went in late and
+the French took the farm in 12 of 15. Now the British are in the farm from the start and hold it
+in 14 of 15 ("Hougoumont held all day"). Historical results 71 of 180 (56 before this change,
+64 at the start of the day); flags 14; against history 3, all Auerstedt, as before the day.
