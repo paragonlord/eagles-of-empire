@@ -21,8 +21,10 @@ Resume from here; do not recap. Updated 2026-10-21.
   is not firing (and nothing when nobody is about), the AI lays its guns, ground held at the
   start is owned from the first tick; the haze thins with camera height (the default view was
   washed out), a lower battle intro, Auto-fill for custom armies, tooltips that hide with their
-  button, "Ammo: auto" instead of a bare "Auto". Balance: `docs/balance.md` (historical
-  results 71 of 180, the best yet; Auerstedt still goes to Prussia).
+  button, "Ammo: auto" instead of a bare "Auto"; no edge scrolling with the mouse outside the
+  window (the camera drifted off to the map's edge). The balance tool now plays each battle's
+  real time limit (it ran 40 minutes): the historical winner takes 75 of 120 full battles, and
+  Auerstedt goes to France on easy and normal (`docs/balance.md`).
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
@@ -126,6 +128,10 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
    Touch in Settings before judging the touch layout.
 5. A human playthrough of the grand campaign to a peace.
 6. The fence generation failed three times (part-built).
+7. Decide on the `village-fire` branch: battalions standing in a village can neither shoot out nor
+   be shot from outside (garrisons can, since 2026-10-21). The branch fixes it, but the AI-vs-AI
+   pass drops the historical winner from 75 to 58 of 120 full battles (Waterloo's farms fall);
+   it needs a look at how both AIs use villages first (`docs/balance.md`, last section).
 
 ## Where things live
 
