@@ -182,7 +182,7 @@ local function stepIntro(): boolean
 	cur.yaw = a.yaw + (b.yaw - a.yaw) * e
 	cur.pitch = a.pitch + (b.pitch - a.pitch) * e
 	-- rise a little mid-sweep, then settle onto the default view
-	cur.height = a.height + (b.height - a.height) * e + math.sin(e * math.pi) * 120
+	cur.height = a.height + (b.height - a.height) * e + math.sin(e * math.pi) * 60
 	return true
 end
 
@@ -427,7 +427,9 @@ function Camera.playIntro()
 	-- start across the map centre from the destination, looking back toward it
 	local fx = math.clamp(cx + (cx - to.x) * 0.6, map.width * 0.2, map.width * 0.8)
 	local fz = math.clamp(cz + (cz - to.z) * 0.6, map.depth * 0.2, map.depth * 0.8)
-	local from: View = { x = fx, z = fz, yaw = to.yaw - 2.4, pitch = math.rad(40), height = 700 }
+	-- from the default height, not 700 up: from there the whole field sank into the haze and the
+	-- map's edge showed, the first thing seen of every battle
+	local from: View = { x = fx, z = fz, yaw = to.yaw - 2.4, pitch = math.rad(38), height = DEFAULT_HEIGHT }
 	intro = { t0 = os.clock(), from = from, to = to }
 	cur.x, cur.z, cur.yaw, cur.pitch, cur.height = from.x, from.z, from.yaw, from.pitch, from.height
 end

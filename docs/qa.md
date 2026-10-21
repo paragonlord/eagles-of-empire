@@ -1168,6 +1168,10 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
 - Added: **Auto-fill and Clear on the custom battle**: one click buys the same mixed army the
   AI buys, for your nation and budget (Total War's auto-generate); before, a full army took
   twenty clicks on "+" (`b8-custom-autofill.jpg`).
+- Changed: **every battle opened on a teal haze**: the briefing's camera sweep started 700 studs
+  up, where the field sank into the atmosphere and the map's edge showed (`b9-intro-before.jpg`).
+  It now starts at the battle camera's own height and rises less (`b9-intro-after.jpg`, the same
+  moment of the tutorial's sweep).
 
 ## Known failures
 
