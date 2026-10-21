@@ -6111,6 +6111,14 @@ function WorldBuild.applyPalette(map: any)
 	t.WaterWaveSize = 0.12
 	t.WaterWaveSpeed = 8
 	t.WaterReflectance = 0.3
+	if WorldGen.seasonOf(map.id) == "winter" then
+		-- December: still, pale grey water skinned with ice (Austerlitz's ponds)
+		t.WaterColor = Color3.fromRGB(150, 162, 168)
+		t.WaterTransparency = 0.05
+		t.WaterWaveSize = 0
+		t.WaterWaveSpeed = 0
+		t.WaterReflectance = 0.15
+	end
 end
 
 -- Writes the map and its skirt as 4-stud voxels, chunk by chunk, yielding between chunks.

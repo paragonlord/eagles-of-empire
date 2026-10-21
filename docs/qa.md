@@ -1183,6 +1183,8 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   chronicle listed "00:30 Prussia captured Closewitz" at Landgrafenberg, for ground held from the
   start: an objective only one side stands on when the battle begins is now that side's at once,
   without a capture (`docs/balance.md`: the defending AI now garrisons Hougoumont from the start).
+- Changed: Austerlitz's ponds were summer-blue with a ripple; on winter maps the water is now
+  still and pale grey, skinned with ice (`b11-pond-before.jpg`, `b11-pond-ice.jpg`).
 
 ## Known failures
 
