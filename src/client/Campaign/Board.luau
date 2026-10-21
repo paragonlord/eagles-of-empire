@@ -348,6 +348,11 @@ local function reliefMissing(): boolean
 	return mats[1][1][1] == Enum.Material.Air
 end
 
+-- The board's mountain rock, lighter than the battlefield's (terrain colours are shared): at the
+-- board's scale the battle rock read as black serpents. Set while the board is up.
+local BOARD_ROCK = Color3.fromRGB(150, 140, 118)
+local rockWas: Color3? = nil
+
 function Board.build()
 	if folder then
 		if reliefMissing() then
@@ -355,6 +360,8 @@ function Board.build()
 		end
 		return
 	end
+	rockWas = workspace.Terrain:GetMaterialColor(Enum.Material.Rock)
+	workspace.Terrain:SetMaterialColor(Enum.Material.Rock, BOARD_ROCK)
 	local f = Instance.new("Folder") :: Folder
 	f.Name = "EoEGrandBoard"
 	-- the walnut table and its gilt edge; the land and the sea are terrain (writeRelief)
@@ -897,6 +904,11 @@ end
 function Board.destroy()
 	if folder then
 		folder:Destroy()
+	end
+	local was = rockWas
+	if was then
+		workspace.Terrain:SetMaterialColor(Enum.Material.Rock, was)
+		rockWas = nil
 	end
 	folder, dyn, hi, highlight = nil, nil, nil, nil
 	table.clear(landParts)

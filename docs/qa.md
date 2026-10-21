@@ -1201,7 +1201,9 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   desktop screen looks as before.
 - Changed: the campaign board's Alps were one unbroken white band along the spine
   (`b13-alps-before.jpg`); the snow line now wanders, leaving caps on the peaks with rock between
-  (`b13-alps-after.jpg`, tested along the spine). The diplomacy panel shows the new flags.
+  (`b13-alps-after.jpg`, tested along the spine). The other chains read as black serpents in the
+  battlefield's dark rock; the board now sets a lighter rock while it is up and gives the
+  battlefield its own back on close (`b13-board-rock.jpg`). The diplomacy panel shows the new flags.
 
 ## Known failures
 
