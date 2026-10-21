@@ -35791,6 +35791,8 @@ local FORMATIONS = {
 	{ "Cavalry wedge", "Charge formation: impact grows with the run-up. Never charge a formed square." },
 	{ "Limbered / deployed", "Guns move only when limbered and fire only when deployed (20–25 s to change)." },
 	{ "Status words", "Shaken: morale under 40 — rally with the HQ nearby. Routing: no orders accepted until it rallies." },
+	{ "Not firing?", "The status under the plate says why: Target not to the front, Line of fire blocked, Out of range, Holding fire. An idle line turns to face an enemy beside it; Hold keeps the facing you gave it." },
+	{ "Villages and farms", "Men holding a building fire from the windows and are hard to hit; troops merely standing among the houses cannot fire out of them (Occupy puts a battalion inside)." },
 	{ "Objectives", "Infantry or cavalry inside the ring for 30 s capture it; both sides inside = contested." },
 }
 
