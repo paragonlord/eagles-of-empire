@@ -6,6 +6,7 @@
 local RunService = game:GetService("RunService") :: RunService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local MainCamera = require(script.Parent.Parent.Camera)
+local WorldLighting = require(script.Parent.Parent.World.Lighting)
 
 local CampaignCamera = {}
 
@@ -40,6 +41,12 @@ local function keys(dt: number)
 	end
 	local fwd = down(Enum.KeyCode.W, Enum.KeyCode.Up) - down(Enum.KeyCode.S, Enum.KeyCode.Down)
 	local side = down(Enum.KeyCode.D, Enum.KeyCode.Right) - down(Enum.KeyCode.A, Enum.KeyCode.Left)
+	-- X up, Z down, as on the battlefield (MainCamera.HEIGHT_KEYS)
+	local rise = down(MainCamera.HEIGHT_KEYS.up, MainCamera.HEIGHT_KEYS.up) - down(MainCamera.HEIGHT_KEYS.down, MainCamera.HEIGHT_KEYS.down)
+	if rise ~= 0 then
+		target.height *= math.exp(1.1 * rise * dt)
+		clamp()
+	end
 	if fwd ~= 0 or side ~= 0 then
 		local lx, lz = math.cos(cur.yaw), math.sin(cur.yaw)
 		local speed = PAN * cur.height * dt
@@ -77,6 +84,7 @@ function CampaignCamera.start(x0: number, z0: number, x1: number, z1: number, y:
 	end
 	running = true
 	MainCamera.setEnabled(false)
+	WorldLighting.setBoard(true)
 	-- the battlefield cloud layer would sit between the table and a high camera
 	clouds = workspace.Terrain:FindFirstChildOfClass("Clouds") :: Clouds?
 	if clouds then
@@ -133,6 +141,7 @@ function CampaignCamera.stop()
 		clouds.Enabled = true
 		clouds = nil
 	end
+	WorldLighting.setBoard(false)
 end
 
 return CampaignCamera

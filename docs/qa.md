@@ -1074,6 +1074,34 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   desktop during a session; pick Touch in Settings (as the contract says) before judging the
   touch layout. Clicks in the simulator land 62 px left and 20 px up of the screen position.
 
+**2026-10-21 round 42 (tweaks, sound, campaign phones, props, campaign board), Studio MCP, builds
+63111a7 → this commit.** No script errors in the console.
+- Fixed: **A panned right and D left** (the strafe vector was mirrored; edge scroll and finger
+  drags too). X raises and Z lowers the camera, on the battlefield and the campaign board;
+  charge moved to J and retreat to N to free them.
+- Changed: the orders sit in two rows of eight above the unit cards, as in Total War, with the
+  unit details in the corner under its ability (`t1-orders-above-cards.jpg`). Rivers are
+  green-grey with a ripple and muddy banks (`t1-river-before.jpg`, `t1-river-after.jpg`).
+- Sound: 16 slots filled with measured Creator Store ids and heard in a battle (volleys, cannon,
+  hooves, drums, field and rain ambience, menu, battle and campaign music, victory, click, paper).
+- Fixed: **both campaign screens ran off a phone** (`t2-phone-grand-before.jpg`,
+  `t2-phone-thuringia-before.jpg`). Thuringia splits map and orders by height and its roads were
+  drawn at the touch scale twice; the grand campaign has a two-row top bar under 1,100 units and
+  scaled columns (`t2-phone-grand.jpg`, `t2-phone-thuringia.jpg`, `t2-grand-compact-columns.jpg`).
+- Props: field walls are a generated dry-stone section; the fence failed a third time and stays
+  part-built. Austrian infantry wear a generated helmet, river banks get reed clumps
+  (`t3-austrian-helmet.jpg`, `t3-reeds-bank.jpg`), and the country past the map edge is the
+  generated oak and beech (`t3-horizon-trees.jpg`).
+- Fixed: **zoomed out, the campaign board was haze and clutter**: the battlefield's air hid
+  half of Europe, the nation names ran into each other and the army plates covered both. The
+  board now has its own clear air, nation names are light spaced capitals over each nation's
+  heartland that never overlap (`Logic.placeNames`), and the strength plates give way to the
+  names from 460 up, so armies read as their banners (`b1-board-far.jpg`).
+- Fixed: **close up, the army plates were thin bars**: their offset was in camera space, so
+  "below the plinth" pointed into the board on the tilted view and the ground hid all but the
+  top edge. Each plate now stands on its flag pole at every zoom, and two armies in a province
+  slide their plates apart (`b1-board-plates.jpg`).
+
 ## Known failures
 
 None recorded yet.

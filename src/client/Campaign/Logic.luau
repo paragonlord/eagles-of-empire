@@ -348,6 +348,46 @@ end
 -- Board label tiers by camera height, as text transparencies (0 shown, 1 hidden): province
 -- names up close, nation names across their lands from high up, cross-fading in between.
 local TIER_LOW, TIER_HIGH = 360, 560
+-- Big names on the board, given largest first as { x, z, size, aspect } (world studs; a name is
+-- size × aspect long along x, size deep along z): each that runs into one already placed steps
+-- north or south a line at a time (up to two lines) at its own size, then the same a size
+-- smaller, down to 14; where nothing is clear it keeps the smallest size, two lines off.
+export type Name = { x: number, z: number, size: number, aspect: number }
+function Logic.placeNames(names: { Name }): { Name }
+	local placed: { Name } = {}
+	local function clear(n: Name): boolean
+		for _, o in placed do
+			if math.abs(n.x - o.x) < (n.size * n.aspect + o.size * o.aspect) / 2 and math.abs(n.z - o.z) < (n.size + o.size) / 2 then
+				return false
+			end
+		end
+		return true
+	end
+	local OFFSETS = { 0, 1, -1, 2, -2 }
+	for _, n0 in names do
+		local n = table.clone(n0)
+		local done = false
+		while not done do
+			for _, k in OFFSETS do
+				n.z = n0.z + k * n.size * 1.1
+				if clear(n) then
+					done = true
+					break
+				end
+			end
+			if not done then
+				if n.size <= 14 then
+					done = true -- nowhere clear: the last offset tried, at the smallest size
+				else
+					n.size = math.max(14, n.size * 0.85)
+				end
+			end
+		end
+		table.insert(placed, n)
+	end
+	return placed
+end
+
 function Logic.labelTiers(cameraHeight: number): (number, number)
 	local t = math.clamp((cameraHeight - TIER_LOW) / (TIER_HIGH - TIER_LOW), 0, 1)
 	return t, 1 - t

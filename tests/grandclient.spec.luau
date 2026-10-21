@@ -115,3 +115,24 @@ test("Board: province names up close, nation names from high up, as on a TW camp
 	p, n = Logic.labelTiers(450)
 	assertTrue(p > 0 and p < 1 and n > 0 and n < 1, "between: a cross-fade")
 end)
+
+test("Board: nation names never run into each other", function()
+	-- two long names centred close together, as France and Austria are round the Alps
+	local names = {
+		{ x = 0, z = 0, size = 40, aspect = 9 },
+		{ x = 200, z = 10, size = 34, aspect = 9 },
+		{ x = 900, z = 0, size = 20, aspect = 9 },
+	}
+	local placed = Logic.placeNames(names)
+	local function overlaps(a, b)
+		return math.abs(a.x - b.x) < (a.size * a.aspect + b.size * b.aspect) / 2 and math.abs(a.z - b.z) < (a.size + b.size) / 2
+	end
+	for i = 1, #placed do
+		for j = i + 1, #placed do
+			assertTrue(not overlaps(placed[i], placed[j]), "names " .. i .. " and " .. j .. " overlap")
+		end
+	end
+	assertEq(placed[1].size, 40, "the first (largest) name keeps its place and size")
+	assertEq(placed[3].z, 0, "a name with room is not moved")
+	assertTrue(placed[2].size >= 14, "never below a readable size")
+end)

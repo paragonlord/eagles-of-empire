@@ -195,6 +195,10 @@ local currentGrade = "afternoon"
 local fogLifted = false -- the battle opened in fog: the clear light after it is morning, not afternoon
 
 local atmosphere: Atmosphere? = nil
+-- The campaign board is read from 60-720 studs up: the battlefield's haze washed its colours to
+-- teal (and Low's close fog would hide it), so while it is open the air is nearly clear.
+local BOARD = { density = 0.08, haze = 0.3, fogStart = 3000, fogEnd = 9000 }
+local board = false
 local groundFog: Folder? = nil
 local tweens: { Tween } = {}
 local heightConn: RBXScriptConnection? = nil
@@ -297,8 +301,8 @@ local function setGrade(name: string, seconds: number)
 		OutdoorAmbient = g.outdoor,
 		ColorShift_Top = g.shiftTop,
 		ExposureCompensation = g.exposure,
-		FogStart = g.fogStart,
-		FogEnd = g.fogEnd,
+		FogStart = if board then BOARD.fogStart else g.fogStart,
+		FogEnd = if board then BOARD.fogEnd else g.fogEnd,
 		FogColor = g.fogColor,
 	})
 	-- Low has no Atmosphere, whose haze softens the painted ground; a duller grade stands in
@@ -307,11 +311,11 @@ local function setGrade(name: string, seconds: number)
 	to(bloom, { Intensity = g.bloom })
 	to(rays, { Intensity = g.rays })
 	to(atmosphere, {
-		Density = g.atmoDensity,
+		Density = if board then BOARD.density else g.atmoDensity,
 		Offset = g.atmoOffset,
 		Color = g.atmoColor,
 		Decay = g.atmoDecay,
-		Haze = g.atmoHaze,
+		Haze = if board then BOARD.haze else g.atmoHaze,
 		Glare = g.atmoGlare,
 	})
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
@@ -321,6 +325,15 @@ local function setGrade(name: string, seconds: number)
 		setFogRate(groundFog, if name == "fog" then fogRate else 0, seconds)
 	end
 	tintToGrade(name)
+end
+
+-- The campaign board opens (true) or closes (false): clear air over it, the grade's after.
+function Lighting.setBoard(on: boolean)
+	if on == board then
+		return
+	end
+	board = on
+	setGrade(currentGrade, 0)
 end
 
 -- Props hands over the folder of chimney-smoke anchors (each with a ParticleEmitter).
@@ -411,7 +424,7 @@ function Lighting.apply(quality: number)
 		end
 		local g = GRADES[currentGrade]
 		local factor = if currentGrade == "fog" then math.clamp(1 - (cam.CFrame.Position.Y - 330) / 900, 0.4, 1) else 1
-		atmo.Density = g.atmoDensity * factor
+		atmo.Density = if board then BOARD.density else g.atmoDensity * factor
 		planeTick += 1
 		if planeTick % 8 == 0 then
 			tintToGrade(currentGrade) -- the world's ground plane may have arrived since the grade was set

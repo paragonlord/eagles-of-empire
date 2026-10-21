@@ -24037,6 +24037,7 @@ local Data = require(script.Parent.Data)
 local Soldiers = require(script.Parent.Parent.World.Soldiers)
 local Assets = require(Shared.Assets)
 local Kit = require(script.Parent.Parent.UI.Kit)
+local Logic = require(script.Parent.Logic)
 
 local Board = {}
 
@@ -24132,16 +24133,18 @@ end
 
 -- ------------------------------------------------------------------ static pieces
 
--- Same technique as World/Props ground labels: a Top-face SurfaceGui (400×100 canvas) whose
--- text runs along the part's -Z, here turned -90° so it reads left-to-right looking along -Z.
-local function groundLabel(parent: Instance, text: string, pos: Vector3, height: number): BasePart
-	local len = height * 4
+-- Same technique as World/Props ground labels: a Top-face SurfaceGui (aspect × 100 canvas, so the
+-- letters keep their shape) whose text runs along the part's -Z, here turned -90° so it reads
+-- left-to-right looking along -Z.
+local function groundLabel(parent: Instance, text: string, pos: Vector3, height: number, aspect: number?): BasePart
+	local a = aspect or 4
+	local len = height * a
 	local p = part(parent, Vector3.new(height, 0.2, len), CFrame.new(pos) * CFrame.Angles(0, -math.pi / 2, 0), Color3.new(1, 1, 1))
 	p.Transparency = 1
 	p.CastShadow = false
 	local gui = Instance.new("SurfaceGui") :: SurfaceGui
 	gui.Face = Enum.NormalId.Top
-	gui.CanvasSize = Vector2.new(400, 100)
+	gui.CanvasSize = Vector2.new(100 * a, 100)
 	gui.LightInfluence = 0
 	gui.Parent = p
 	local l = Instance.new("TextLabel") :: TextLabel
@@ -24520,8 +24523,9 @@ local function flagCloth(parent: Instance, nation: string, at: Vector3)
 	end
 end
 
--- A mounted general on a plinth with his nation's flag and a strength plate.
-local function figure(parent: Instance, a: any, pos: Vector3): Model
+-- A mounted general on a plinth with his nation's flag and a strength plate, slid `shift` of its
+-- width sideways so the plates of armies sharing a province do not cover each other.
+local function figure(parent: Instance, a: any, pos: Vector3, shift: number): Model
 	local m = Instance.new("Model") :: Model
 	m.Name = "Army"
 	m:SetAttribute("army", a.id)
@@ -24567,7 +24571,10 @@ local function figure(parent: Instance, a: any, pos: Vector3): Model
 	flagCloth(m, a.nation, pos + Vector3.new(poleX + 1.9, top + 8.6, 0))
 	local bb = Instance.new("BillboardGui") :: BillboardGui
 	bb.Size = UDim2.new(7, 64, 1.4, 16) -- grows when zoomed in, never below 64×16 px
-	bb.StudsOffset = Vector3.new(0, -2.5, 0)
+	-- standing on the pole top like a banner, at any zoom. The offset is in the plinth's axes (a
+	-- cylinder on its side: X is up); the old camera-space one sank the plate into the board.
+	bb.StudsOffsetWorldSpace = Vector3.new(10.6, 0, 0)
+	bb.SizeOffset = Vector2.new(shift, 0.5)
 	bb.LightInfluence = 0
 	bb.Adornee = plinth
 	bb.Parent = m
@@ -24701,21 +24708,48 @@ function Board.setView(view: any?)
 	end
 	-- each nation's name across the middle of its lands, in capitals
 	table.clear(nationLabels)
-	local sum: { [string]: { x: number, z: number, n: number } } = {}
+	local sum: { [string]: { x: number, z: number, n: number, x0: number, x1: number } } = {}
 	for _, p in Data.Provinces do
 		local o = owner[p.id]
-		local acc = sum[o] or { x = 0, z = 0, n = 0 }
+		local acc = sum[o] or { x = 0, z = 0, n = 0, x0 = math.huge, x1 = -math.huge }
 		acc.x, acc.z, acc.n = acc.x + p.centre.x, acc.z + p.centre.z, acc.n + 1
+		acc.x0, acc.x1 = math.min(acc.x0, p.centre.x), math.max(acc.x1, p.centre.x)
 		sum[o] = acc
 	end
+	-- spaced capitals as on a TW campaign map, read from 560-720 up: over the nation's heartland
+	-- (halfway from the middle of its lands to its capital), no longer than it is wide, and
+	-- moved off any bigger nation's name (Logic.placeNames)
+	local names: { Logic.Name } = {}
+	local who: { string } = {}
 	for nation, acc in sum do
 		local nat = Data.Nations[nation]
 		if nat and acc.n >= 2 then
-			local size = math.clamp(10 + acc.n * 2.2, 14, 34)
-			local part = groundLabel(d, string.upper((string.gsub(nat.name, "^[Tt]he ", ""))), Board.toWorld(acc.x / acc.n, acc.z / acc.n, TINT_Y + 4), size)
-			part.Size = Vector3.new(size, 0.2, size * 7)
-			table.insert(nationLabels, part)
+			local cx, cz = acc.x / acc.n, acc.z / acc.n
+			local cap = nat.capital and Data.byId[nat.capital]
+			if cap and owner[cap.id] == nation then
+				cx, cz = (cx + cap.centre.x) / 2, (cz + cap.centre.z) / 2
+			end
+			local wide = (acc.x1 - acc.x0 + 160) * S
+			local w = Board.toWorld(cx, cz, TINT_Y + 4)
+			table.insert(names, { x = w.X, z = w.Z, size = math.clamp(math.min(14 + acc.n * 3, wide / 9), 14, 48), aspect = 9 })
+			table.insert(who, nation)
 		end
+	end
+	local order = {}
+	for i in names do
+		table.insert(order, i)
+	end
+	table.sort(order, function(a, b)
+		return names[a].size > names[b].size
+	end)
+	local sorted = {}
+	for _, i in order do
+		table.insert(sorted, names[i])
+	end
+	for k, n in Logic.placeNames(sorted) do
+		local nat = Data.Nations[who[order[k]]]
+		local part = groundLabel(d, Kit.spaced((string.gsub(nat.name, "^[Tt]he ", ""))), Vector3.new(n.x, ORIGIN.Y + TINT_Y + 4, n.z), n.size, n.aspect)
+		table.insert(nationLabels, part) -- faded with a stronger halo (fadeLabel) over the darker tints
 	end
 	nationDirty = true
 	if not view then
@@ -24741,7 +24775,7 @@ function Board.setView(view: any?)
 			local r = if n == 1 then 0 else 5 + 2.4 * n * FIG
 			for i, a in list do
 				local ang = math.pi + (i - 1) / n * 2 * math.pi -- two armies sit west and east
-				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8))
+				armyModels[a.id] = figure(d, a, c + Vector3.new(math.cos(ang) * r, 0, math.sin(ang) * r * 0.8), if n > 1 then math.cos(ang) * 0.4 else 0)
 			end
 		end
 	end
@@ -24794,7 +24828,6 @@ function Board.setSelection(armyId: any?, provinceId: string?, reachable: { [str
 	end
 end
 
-local Logic = require(script.Parent.Logic)
 export type Step = Logic.Step
 
 -- Dotted march from `fromId` through `steps`; a numbered marker ends each turn's leg, red
@@ -24894,12 +24927,16 @@ function Board.destroy()
 	labelK = 0
 end
 
-local function fadeLabel(part: BasePart, alpha: number)
+local function fadeLabel(part: BasePart, alpha: number, stroke: number?)
 	local gui = part:FindFirstChildOfClass("SurfaceGui") :: SurfaceGui?
 	local l = if gui then gui:FindFirstChildOfClass("TextLabel") :: TextLabel? else nil
 	if l then
+		local s0 = stroke or 0.45
 		l.TextTransparency = 0.05 + 0.95 * alpha
-		l.TextStrokeTransparency = 0.45 + 0.55 * alpha
+		l.TextStrokeTransparency = s0 + (1 - s0) * alpha
+		if stroke then -- nation names: light ink with a dark edge, as TW's far zoom, on the dark tints too
+			l.TextColor3, l.TextStrokeColor3 = Kit.IVORY, INK
+		end
 	end
 	if gui then
 		gui.Enabled = alpha < 0.99
@@ -24925,7 +24962,14 @@ function Board.updateLabels(cameraHeight: number)
 			fadeLabel(l.part, pa)
 		end
 		for _, part in nationLabels do
-			fadeLabel(part, na)
+			fadeLabel(part, na, 0.2)
+		end
+		-- the strength plates give way to the nation names: from far up armies are their banners
+		for _, m in armyModels do
+			local bb = m:FindFirstChildOfClass("BillboardGui") :: BillboardGui?
+			if bb then
+				bb.Enabled = pa < 0.5
+			end
 		end
 	end
 end
@@ -24939,6 +24983,7 @@ return Board
 local RunService = game:GetService("RunService") :: RunService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
 local MainCamera = require(script.Parent.Parent.Camera)
+local WorldLighting = require(script.Parent.Parent.World.Lighting)
 
 local CampaignCamera = {}
 
@@ -24973,6 +25018,12 @@ local function keys(dt: number)
 	end
 	local fwd = down(Enum.KeyCode.W, Enum.KeyCode.Up) - down(Enum.KeyCode.S, Enum.KeyCode.Down)
 	local side = down(Enum.KeyCode.D, Enum.KeyCode.Right) - down(Enum.KeyCode.A, Enum.KeyCode.Left)
+	-- X up, Z down, as on the battlefield (MainCamera.HEIGHT_KEYS)
+	local rise = down(MainCamera.HEIGHT_KEYS.up, MainCamera.HEIGHT_KEYS.up) - down(MainCamera.HEIGHT_KEYS.down, MainCamera.HEIGHT_KEYS.down)
+	if rise ~= 0 then
+		target.height *= math.exp(1.1 * rise * dt)
+		clamp()
+	end
 	if fwd ~= 0 or side ~= 0 then
 		local lx, lz = math.cos(cur.yaw), math.sin(cur.yaw)
 		local speed = PAN * cur.height * dt
@@ -25010,6 +25061,7 @@ function CampaignCamera.start(x0: number, z0: number, x1: number, z1: number, y:
 	end
 	running = true
 	MainCamera.setEnabled(false)
+	WorldLighting.setBoard(true)
 	-- the battlefield cloud layer would sit between the table and a high camera
 	clouds = workspace.Terrain:FindFirstChildOfClass("Clouds") :: Clouds?
 	if clouds then
@@ -25066,6 +25118,7 @@ function CampaignCamera.stop()
 		clouds.Enabled = true
 		clouds = nil
 	end
+	WorldLighting.setBoard(false)
 end
 
 return CampaignCamera
@@ -26564,6 +26617,46 @@ end
 -- Board label tiers by camera height, as text transparencies (0 shown, 1 hidden): province
 -- names up close, nation names across their lands from high up, cross-fading in between.
 local TIER_LOW, TIER_HIGH = 360, 560
+-- Big names on the board, given largest first as { x, z, size, aspect } (world studs; a name is
+-- size × aspect long along x, size deep along z): each that runs into one already placed steps
+-- north or south a line at a time (up to two lines) at its own size, then the same a size
+-- smaller, down to 14; where nothing is clear it keeps the smallest size, two lines off.
+export type Name = { x: number, z: number, size: number, aspect: number }
+function Logic.placeNames(names: { Name }): { Name }
+	local placed: { Name } = {}
+	local function clear(n: Name): boolean
+		for _, o in placed do
+			if math.abs(n.x - o.x) < (n.size * n.aspect + o.size * o.aspect) / 2 and math.abs(n.z - o.z) < (n.size + o.size) / 2 then
+				return false
+			end
+		end
+		return true
+	end
+	local OFFSETS = { 0, 1, -1, 2, -2 }
+	for _, n0 in names do
+		local n = table.clone(n0)
+		local done = false
+		while not done do
+			for _, k in OFFSETS do
+				n.z = n0.z + k * n.size * 1.1
+				if clear(n) then
+					done = true
+					break
+				end
+			end
+			if not done then
+				if n.size <= 14 then
+					done = true -- nowhere clear: the last offset tried, at the smallest size
+				else
+					n.size = math.max(14, n.size * 0.85)
+				end
+			end
+		end
+		table.insert(placed, n)
+	end
+	return placed
+end
+
 function Logic.labelTiers(cameraHeight: number): (number, number)
 	local t = math.clamp((cameraHeight - TIER_LOW) / (TIER_HIGH - TIER_LOW), 0, 1)
 	return t, 1 - t
@@ -38699,6 +38792,10 @@ local currentGrade = "afternoon"
 local fogLifted = false -- the battle opened in fog: the clear light after it is morning, not afternoon
 
 local atmosphere: Atmosphere? = nil
+-- The campaign board is read from 60-720 studs up: the battlefield's haze washed its colours to
+-- teal (and Low's close fog would hide it), so while it is open the air is nearly clear.
+local BOARD = { density = 0.08, haze = 0.3, fogStart = 3000, fogEnd = 9000 }
+local board = false
 local groundFog: Folder? = nil
 local tweens: { Tween } = {}
 local heightConn: RBXScriptConnection? = nil
@@ -38801,8 +38898,8 @@ local function setGrade(name: string, seconds: number)
 		OutdoorAmbient = g.outdoor,
 		ColorShift_Top = g.shiftTop,
 		ExposureCompensation = g.exposure,
-		FogStart = g.fogStart,
-		FogEnd = g.fogEnd,
+		FogStart = if board then BOARD.fogStart else g.fogStart,
+		FogEnd = if board then BOARD.fogEnd else g.fogEnd,
 		FogColor = g.fogColor,
 	})
 	-- Low has no Atmosphere, whose haze softens the painted ground; a duller grade stands in
@@ -38811,11 +38908,11 @@ local function setGrade(name: string, seconds: number)
 	to(bloom, { Intensity = g.bloom })
 	to(rays, { Intensity = g.rays })
 	to(atmosphere, {
-		Density = g.atmoDensity,
+		Density = if board then BOARD.density else g.atmoDensity,
 		Offset = g.atmoOffset,
 		Color = g.atmoColor,
 		Decay = g.atmoDecay,
-		Haze = g.atmoHaze,
+		Haze = if board then BOARD.haze else g.atmoHaze,
 		Glare = g.atmoGlare,
 	})
 	to(clouds, { Cover = g.cloudCover, Density = g.cloudDensity, Color = g.cloudColor })
@@ -38825,6 +38922,15 @@ local function setGrade(name: string, seconds: number)
 		setFogRate(groundFog, if name == "fog" then fogRate else 0, seconds)
 	end
 	tintToGrade(name)
+end
+
+-- The campaign board opens (true) or closes (false): clear air over it, the grade's after.
+function Lighting.setBoard(on: boolean)
+	if on == board then
+		return
+	end
+	board = on
+	setGrade(currentGrade, 0)
 end
 
 -- Props hands over the folder of chimney-smoke anchors (each with a ParticleEmitter).
@@ -38915,7 +39021,7 @@ function Lighting.apply(quality: number)
 		end
 		local g = GRADES[currentGrade]
 		local factor = if currentGrade == "fog" then math.clamp(1 - (cam.CFrame.Position.Y - 330) / 900, 0.4, 1) else 1
-		atmo.Density = g.atmoDensity * factor
+		atmo.Density = if board then BOARD.density else g.atmoDensity * factor
 		planeTick += 1
 		if planeTick % 8 == 0 then
 			tintToGrade(currentGrade) -- the world's ground plane may have arrived since the grade was set
