@@ -235,3 +235,10 @@ their reserves) and 5/5 wins for the historical winner in episodes.
   range and the horse was not yet charging (or within 70) halved those losses and cut the flags
   17 to 13, but Auerstedt stayed Prussian and the allies' wins at Waterloo fell from 12 to 6 of
   15: Wellington's squares against Ney's cavalry were the battle. Reverted.
+
+## After the river and episode fixes (2026-10-21, 5 seeds a cell)
+
+Rivers no longer stand above their banks (the Rau-Bach's mouth at Jena, the Goldbach's at
+Austerlitz, the Lissbach at Auerstedt), so a few cells of terrain changed. The same 5-seed pass:
+16 flags (was 17), 2 against history (was 3: Auerstedt on easy now goes to France once in five).
+Every other cell moved by at most one battle in five, within the noise of five seeds.

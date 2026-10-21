@@ -32136,7 +32136,9 @@ local function episodeCard(parent: Instance, e: Entry, order: number, cb: Callba
 	f.LayoutOrder = order
 	local name = Kit.title(f, e.name, { size = UDim2.new(1, 0, 0, 22), textSize = 19, caps = false, colour = Kit.IVORY })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
-	local kind = Kit.label(f, "Quick battle · " .. minutes(e, 10) .. (if e.date then "   ·   " .. e.date else ""), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 22), textSize = 16, colour = Kit.GILT })
+	-- the battle's card above carries the day: an episode adds its hour ("late morning")
+	local when = if e.date then string.match(e.date, ",%s*(.+)$") or e.date else nil
+	local kind = Kit.label(f, "Quick battle · " .. minutes(e, 10) .. (if when then "   ·   " .. when else ""), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 22), textSize = 16, colour = Kit.GILT })
 	kind.FontFace = Kit.ITALIC
 	kind.TextTruncate = Enum.TextTruncate.AtEnd
 	local summary = Kit.label(f, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 52), position = UDim2.fromOffset(0, 42), textSize = 15, font = Enum.Font.Garamond, wrap = true, colour = Kit.MUTED })
@@ -35642,7 +35644,7 @@ local CONTROLS = {
 	{ "Ctrl + 1…9 / 1…9", "Assign a control group / recall it (twice: centre on it) · Ctrl + A: everyone" },
 	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
 	{ "T J M R", "Fire at will · charge · attack-move · run / walk" },
-	{ "H ⌫ N", "Hold · halt · retreat" },
+	{ "H · Bksp · N", "Hold · halt (Backspace) · retreat" },
 	{ "U I P O", "Guns: limber · ammunition · HQ: rally · Occupy a village or farm (then right-click it)" },
 	{ "Left click ground", "Clear the selection · an order's key or button again cancels it (Esc is Roblox's own menu)" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
@@ -38416,9 +38418,12 @@ function SettingsPanel.show()
 		Kit.toggle(list, "Reduced effects (half the smoke and dust)", v.reducedEffects, function(x)
 			Settings.set("reducedEffects", x)
 		end).LayoutOrder = next()
-		Kit.toggle(list, "Audio log (prints every sound hook to the output)", v.debugAudio, function(x)
-			Settings.set("debugAudio", x)
-		end).LayoutOrder = next()
+		local studio = game:GetService("RunService"):IsStudio() -- developer rows stay out of players' way
+		if studio then
+			Kit.toggle(list, "Audio log (prints every sound hook to the output)", v.debugAudio, function(x)
+				Settings.set("debugAudio", x)
+			end).LayoutOrder = next()
+		end
 
 		-- a row of choices: the chosen one sits sunk
 		local function choices(label: string, key: string, options: { string }, names: { string }?)
@@ -38444,7 +38449,7 @@ function SettingsPanel.show()
 			end
 			refresh()
 		end
-		choices("Controls (choose Touch in Studio's device emulator)", "controls", Settings.CONTROLS, { "Auto", "Touch", "Desktop" })
+		choices(if studio then "Controls (choose Touch in Studio's device emulator)" else "Controls", "controls", Settings.CONTROLS, { "Auto", "Touch", "Desktop" })
 		choices("Typeface (headings and text)", "typeface", Settings.TYPEFACES, nil)
 		choices("Place names on the field", "placeNames", Settings.PLACE_NAMES, { "On the ground", "Floating", "Under cursor", "Off" })
 

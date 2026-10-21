@@ -110,7 +110,9 @@ local function episodeCard(parent: Instance, e: Entry, order: number, cb: Callba
 	f.LayoutOrder = order
 	local name = Kit.title(f, e.name, { size = UDim2.new(1, 0, 0, 22), textSize = 19, caps = false, colour = Kit.IVORY })
 	name.TextTruncate = Enum.TextTruncate.AtEnd
-	local kind = Kit.label(f, "Quick battle · " .. minutes(e, 10) .. (if e.date then "   ·   " .. e.date else ""), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 22), textSize = 16, colour = Kit.GILT })
+	-- the battle's card above carries the day: an episode adds its hour ("late morning")
+	local when = if e.date then string.match(e.date, ",%s*(.+)$") or e.date else nil
+	local kind = Kit.label(f, "Quick battle · " .. minutes(e, 10) .. (if when then "   ·   " .. when else ""), { size = UDim2.new(1, 0, 0, 18), position = UDim2.fromOffset(0, 22), textSize = 16, colour = Kit.GILT })
 	kind.FontFace = Kit.ITALIC
 	kind.TextTruncate = Enum.TextTruncate.AtEnd
 	local summary = Kit.label(f, tostring(e.summary or ""), { size = UDim2.new(1, 0, 0, 52), position = UDim2.fromOffset(0, 42), textSize = 15, font = Enum.Font.Garamond, wrap = true, colour = Kit.MUTED })

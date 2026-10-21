@@ -111,9 +111,12 @@ function SettingsPanel.show()
 		Kit.toggle(list, "Reduced effects (half the smoke and dust)", v.reducedEffects, function(x)
 			Settings.set("reducedEffects", x)
 		end).LayoutOrder = next()
-		Kit.toggle(list, "Audio log (prints every sound hook to the output)", v.debugAudio, function(x)
-			Settings.set("debugAudio", x)
-		end).LayoutOrder = next()
+		local studio = game:GetService("RunService"):IsStudio() -- developer rows stay out of players' way
+		if studio then
+			Kit.toggle(list, "Audio log (prints every sound hook to the output)", v.debugAudio, function(x)
+				Settings.set("debugAudio", x)
+			end).LayoutOrder = next()
+		end
 
 		-- a row of choices: the chosen one sits sunk
 		local function choices(label: string, key: string, options: { string }, names: { string }?)
@@ -139,7 +142,7 @@ function SettingsPanel.show()
 			end
 			refresh()
 		end
-		choices("Controls (choose Touch in Studio's device emulator)", "controls", Settings.CONTROLS, { "Auto", "Touch", "Desktop" })
+		choices(if studio then "Controls (choose Touch in Studio's device emulator)" else "Controls", "controls", Settings.CONTROLS, { "Auto", "Touch", "Desktop" })
 		choices("Typeface (headings and text)", "typeface", Settings.TYPEFACES, nil)
 		choices("Place names on the field", "placeNames", Settings.PLACE_NAMES, { "On the ground", "Floating", "Under cursor", "Off" })
 

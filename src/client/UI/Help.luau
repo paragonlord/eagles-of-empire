@@ -20,7 +20,7 @@ local CONTROLS = {
 	{ "Ctrl + 1…9 / 1…9", "Assign a control group / recall it (twice: centre on it) · Ctrl + A: everyone" },
 	{ "L C B K Y", "Line · column · square (box) · skirmish · wedge" },
 	{ "T J M R", "Fire at will · charge · attack-move · run / walk" },
-	{ "H ⌫ N", "Hold · halt · retreat" },
+	{ "H · Bksp · N", "Hold · halt (Backspace) · retreat" },
 	{ "U I P O", "Guns: limber · ammunition · HQ: rally · Occupy a village or farm (then right-click it)" },
 	{ "Left click ground", "Clear the selection · an order's key or button again cancels it (Esc is Roblox's own menu)" },
 	{ "F1 · F9", "This help · developer panel (when the server allows it)" },
