@@ -1128,6 +1128,15 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   edge carried the backdrop off the map.
 - Checked: all twelve battles and the tutorial load in 6–9 s and run with no client or server
   errors (started through the Control remote, readied, run for 8 s each).
+- Fixed: **the grand campaign's dispatches were the lines dated with the turn just ended**, so
+  the first one was "The campaign opens" (`b5-dispatch-before.jpg`), news from the start of a
+  turn (events, nations taking the field) came a turn late, and a quiet turn replayed the last
+  twelve old lines. The server now keeps what was logged since the turn was ended and sends
+  exactly that; a quiet turn shows nothing (`b5-dispatch-after.jpg`: Austria beaten in Bavaria,
+  Trafalgar, both of that turn).
+- Changed: Russia flies white-blue-red and Austria the Habsburg black over gold (a green field
+  with a gold diamond and a white field with black bars read as neither); the campaign board's
+  flags draw horizontal stripes like the battle and menu flags (`b5-picker-flags.jpg`).
 
 ## Known failures
 

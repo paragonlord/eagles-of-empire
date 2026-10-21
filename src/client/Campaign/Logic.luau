@@ -270,23 +270,6 @@ function Logic.reachable(view: any, a: any): { [string]: boolean }
 	return out
 end
 
--- Log lines dated `turn` ("May 1805: …"); the newest dozen when none carry that date.
-function Logic.turnLines(view: any, turn: number): { string }
-	local prefix = EuropeData.dateOf(turn) .. ":"
-	local all, dated = {}, {}
-	for _, e in view.log or {} do
-		local s = if type(e) == "table" then tostring(e.text or "") else tostring(e)
-		table.insert(all, s)
-		if string.sub(s, 1, #prefix) == prefix then
-			table.insert(dated, (string.gsub(string.sub(s, #prefix + 1), "^%s+", "")))
-		end
-	end
-	if #dated > 0 then
-		return dated
-	end
-	return { table.unpack(all, math.max(1, #all - 11)) }
-end
-
 local function nationName(id: string?): string
 	local n = EuropeData.Nations[id or ""]
 	return if n then n.name else tostring(id)

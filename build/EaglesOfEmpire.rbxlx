@@ -12060,6 +12060,7 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 		return false, "wrongPhase"
 	end
 	local autoplay = opts ~= nil and opts.autoplay == true
+	s.news = {}
 	Events.closeTurn(s)
 	s.offers = {}
 	for _, n in EuropeData.NationOrder do
@@ -12690,6 +12691,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		agents = agents,
 		fleets = fleets,
 		log = table.clone(s.log),
+		news = table.clone(s.news or {}),
 		victory = State.copy(s.victory),
 		objectives = objectives(s),
 	}
@@ -16290,6 +16292,7 @@ export type State = {
 	counters: { [string]: number },
 	nextId: number,
 	log: { string },
+	news: { string }?, -- logged since the turn was last ended: the dispatch (not saved)
 	pendingBattles: { Battle },
 	appliedBattles: { Applied },
 	usedSetPieces: { [string]: boolean },
@@ -16365,6 +16368,10 @@ end
 
 function State.log(s: State, text: string)
 	s.log[#s.log + 1] = EuropeData.dateOf(s.turn) .. ": " .. text
+	local news = s.news
+	if news then
+		news[#news + 1] = text
+	end
 	while #s.log > State.LOG_MAX do
 		table.remove(s.log, 1)
 	end
@@ -24057,8 +24064,9 @@ function Grand.handle(msg: any, canShow: boolean): boolean
 			open()
 		end
 		if isOpen then
-			if prevTurn and lastTurn and lastTurn > prevTurn then
-				UI.showSummary("Dispatches · " .. tostring(view.date or ""), Logic.turnLines(view, prevTurn))
+			local news = view.news
+			if prevTurn and lastTurn and lastTurn > prevTurn and type(news) == "table" and #news > 0 then
+				UI.showSummary("Dispatches · " .. tostring(view.date or ""), news)
 			end
 			Board.setView(view)
 			render()
@@ -24583,10 +24591,14 @@ end
 local function flagCloth(parent: Instance, nation: string, at: Vector3)
 	local fl = Data.flag(nation)
 	local w, h = 3.6, 2.4
-	local bands = fl.bands
+	local bands, stripes = fl.bands, fl.stripes
 	if bands then
 		for i, c in bands do
 			part(parent, Vector3.new(w / #bands, h, 0.15), CFrame.new(at + Vector3.new((i - 0.5) / #bands * w - w / 2, 0, 0)), c)
+		end
+	elseif stripes then
+		for i, c in stripes do
+			part(parent, Vector3.new(w, h / #stripes, 0.15), CFrame.new(at + Vector3.new(0, h / 2 - (i - 0.5) / #stripes * h, 0)), c)
 		end
 	else
 		part(parent, Vector3.new(w, h, 0.15), CFrame.new(at), fl.field or Kit.IVORY)
@@ -26618,23 +26630,6 @@ function Logic.reachable(view: any, a: any): { [string]: boolean }
 	return out
 end
 
--- Log lines dated `turn` ("May 1805: …"); the newest dozen when none carry that date.
-function Logic.turnLines(view: any, turn: number): { string }
-	local prefix = EuropeData.dateOf(turn) .. ":"
-	local all, dated = {}, {}
-	for _, e in view.log or {} do
-		local s = if type(e) == "table" then tostring(e.text or "") else tostring(e)
-		table.insert(all, s)
-		if string.sub(s, 1, #prefix) == prefix then
-			table.insert(dated, (string.gsub(string.sub(s, #prefix + 1), "^%s+", "")))
-		end
-	end
-	if #dated > 0 then
-		return dated
-	end
-	return { table.unpack(all, math.max(1, #all - 11)) }
-end
-
 local function nationName(id: string?): string
 	local n = EuropeData.Nations[id or ""]
 	return if n then n.name else tostring(id)
@@ -27602,10 +27597,12 @@ local GOLD = Color3.fromRGB(205, 168, 62)
 
 local FLAGS: { [string]: Flag } = {
 	france = { bands = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }, mark = "diamond", markColour = GOLD },
-	-- black-white-black; renderers without `stripes` fall back to white with two black bars
+	-- black-white-black
 	prussia = { stripes = { BLACK, WHITE, BLACK }, field = WHITE, mark = "double", markColour = BLACK },
-	russia = { field = Color3.fromRGB(40, 96, 56), mark = "diamond", markColour = GOLD },
-	austria = { field = WHITE, mark = "double", markColour = BLACK },
+	-- white-blue-red, the flag players know Russia by (it flew on her merchant ships from 1705)
+	russia = { stripes = { WHITE, Color3.fromRGB(36, 66, 150), Color3.fromRGB(186, 40, 46) }, field = WHITE, mark = "double", markColour = Color3.fromRGB(36, 66, 150) },
+	-- the Habsburg black over gold
+	austria = { stripes = { BLACK, GOLD }, field = GOLD, mark = "double", markColour = BLACK },
 	-- Union flag approximation: blue field, white saltire, red upright cross
 	britain = { field = Color3.fromRGB(28, 44, 110), mark = "x", markColour = WHITE, cross = Color3.fromRGB(190, 34, 44) },
 	-- allied contingents carried their own colours (unit palette override picks these up close)

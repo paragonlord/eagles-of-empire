@@ -307,8 +307,9 @@ function Grand.handle(msg: any, canShow: boolean): boolean
 			open()
 		end
 		if isOpen then
-			if prevTurn and lastTurn and lastTurn > prevTurn then
-				UI.showSummary("Dispatches · " .. tostring(view.date or ""), Logic.turnLines(view, prevTurn))
+			local news = view.news
+			if prevTurn and lastTurn and lastTurn > prevTurn and type(news) == "table" and #news > 0 then
+				UI.showSummary("Dispatches · " .. tostring(view.date or ""), news)
 			end
 			Board.setView(view)
 			render()

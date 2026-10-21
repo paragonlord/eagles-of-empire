@@ -64,6 +64,7 @@ export type State = {
 	counters: { [string]: number },
 	nextId: number,
 	log: { string },
+	news: { string }?, -- logged since the turn was last ended: the dispatch (not saved)
 	pendingBattles: { Battle },
 	appliedBattles: { Applied },
 	usedSetPieces: { [string]: boolean },
@@ -139,6 +140,10 @@ end
 
 function State.log(s: State, text: string)
 	s.log[#s.log + 1] = EuropeData.dateOf(s.turn) .. ": " .. text
+	local news = s.news
+	if news then
+		news[#news + 1] = text
+	end
 	while #s.log > State.LOG_MAX do
 		table.remove(s.log, 1)
 	end

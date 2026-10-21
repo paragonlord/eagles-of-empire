@@ -481,10 +481,14 @@ end
 local function flagCloth(parent: Instance, nation: string, at: Vector3)
 	local fl = Data.flag(nation)
 	local w, h = 3.6, 2.4
-	local bands = fl.bands
+	local bands, stripes = fl.bands, fl.stripes
 	if bands then
 		for i, c in bands do
 			part(parent, Vector3.new(w / #bands, h, 0.15), CFrame.new(at + Vector3.new((i - 0.5) / #bands * w - w / 2, 0, 0)), c)
+		end
+	elseif stripes then
+		for i, c in stripes do
+			part(parent, Vector3.new(w, h / #stripes, 0.15), CFrame.new(at + Vector3.new(0, h / 2 - (i - 0.5) / #stripes * h, 0)), c)
 		end
 	else
 		part(parent, Vector3.new(w, h, 0.15), CFrame.new(at), fl.field or Kit.IVORY)

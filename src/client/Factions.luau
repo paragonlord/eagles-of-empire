@@ -70,10 +70,12 @@ local GOLD = Color3.fromRGB(205, 168, 62)
 
 local FLAGS: { [string]: Flag } = {
 	france = { bands = { Color3.fromRGB(30, 62, 150), Color3.fromRGB(240, 238, 230), Color3.fromRGB(190, 42, 50) }, mark = "diamond", markColour = GOLD },
-	-- black-white-black; renderers without `stripes` fall back to white with two black bars
+	-- black-white-black
 	prussia = { stripes = { BLACK, WHITE, BLACK }, field = WHITE, mark = "double", markColour = BLACK },
-	russia = { field = Color3.fromRGB(40, 96, 56), mark = "diamond", markColour = GOLD },
-	austria = { field = WHITE, mark = "double", markColour = BLACK },
+	-- white-blue-red, the flag players know Russia by (it flew on her merchant ships from 1705)
+	russia = { stripes = { WHITE, Color3.fromRGB(36, 66, 150), Color3.fromRGB(186, 40, 46) }, field = WHITE, mark = "double", markColour = Color3.fromRGB(36, 66, 150) },
+	-- the Habsburg black over gold
+	austria = { stripes = { BLACK, GOLD }, field = GOLD, mark = "double", markColour = BLACK },
 	-- Union flag approximation: blue field, white saltire, red upright cross
 	britain = { field = Color3.fromRGB(28, 44, 110), mark = "x", markColour = WHITE, cross = Color3.fromRGB(190, 34, 44) },
 	-- allied contingents carried their own colours (unit palette override picks these up close)

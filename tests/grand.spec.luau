@@ -137,6 +137,22 @@ test("Grand data: outlines are simple non-degenerate polygons around their centr
 	assertTrue(total > 0.5 * EuropeData.Width * EuropeData.Depth, "land covers too little of the map")
 end)
 
+test("Grand: the dispatch is exactly what was logged while the turn ended", function()
+	-- it was the lines dated with the old turn: events at the new turn's start came a turn late,
+	-- the opening line came after turn 1, and a quiet turn replayed the last twelve old lines
+	local s = GrandCampaign.new(1, "france")
+	State.log(s, "an order of the player's own turn")
+	local before = #s.log
+	assertTrue(GrandCampaign.endTurn(s))
+	local news = GrandCampaign.view(s).news
+	assertEq(#news, #s.log - before)
+	for i, line in news do
+		local logged = s.log[before + i]
+		assertEq(string.sub(logged, -#line), line, "in order")
+		assertTrue(not string.find(line, "campaign opens", 1, true) and not string.find(line, "own turn", 1, true), line)
+	end
+end)
+
 test("Grand data: January 1805 ownership, capitals, nations, armies and wars", function()
 	local s = GrandCampaign.new(1, "france")
 	local function owner(id)

@@ -126,6 +126,7 @@ function GrandCampaign.endTurn(s: State, opts: EndTurnOpts?): (boolean, string?)
 		return false, "wrongPhase"
 	end
 	local autoplay = opts ~= nil and opts.autoplay == true
+	s.news = {}
 	Events.closeTurn(s)
 	s.offers = {}
 	for _, n in EuropeData.NationOrder do
@@ -756,6 +757,7 @@ function GrandCampaign.view(s: State): { [string]: any }
 		agents = agents,
 		fleets = fleets,
 		log = table.clone(s.log),
+		news = table.clone(s.news or {}),
 		victory = State.copy(s.victory),
 		objectives = objectives(s),
 	}
