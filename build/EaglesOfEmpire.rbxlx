@@ -9886,7 +9886,8 @@ local function artillery(state: AIState, f: Formation)
 	-- every mark at first sight gave the side with more guns Auerstedt, Austerlitz and Waterloo.
 	local reach = Formation.unitConfig(f).gun.roundShot.range * 0.8
 	local mark = nearestVisible(state, f.pos, reach, function(e)
-		return e.state ~= "routing" and Vec.dist(f.pos, e.pos) >= 150 and Combat.canLayOn(sim :: any, f, e)
+		local d = Vec.dist(f.pos, e.pos)
+		return e.state ~= "routing" and d >= 150 and d <= reach and Combat.canLayOn(sim :: any, f, e)
 	end)
 	if not (limbered and f.state == "moving") then
 		u.marchFrom = nil
