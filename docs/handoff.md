@@ -131,7 +131,9 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 7. Decide on the `village-fire` branch: battalions standing in a village can neither shoot out nor
    be shot from outside (garrisons can, since 2026-10-21). The branch fixes it, but the AI-vs-AI
    pass drops the historical winner from 75 to 58 of 120 full battles (Waterloo's farms fall);
-   it needs a look at how both AIs use villages first (`docs/balance.md`, last section).
+   it needs a look at how both AIs use villages first (`docs/balance.md`, last section). It is
+   also why Auerstedt's AI battles are so bloodless (attackers and village defenders cannot shoot
+   each other). If it goes in, change the help's "Villages and farms" line (`UI/Help.luau`).
 
 ## Where things live
 
