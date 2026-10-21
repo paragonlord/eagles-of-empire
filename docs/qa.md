@@ -1137,6 +1137,9 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
 - Changed: Russia flies white-blue-red and Austria the Habsburg black over gold (a green field
   with a gold diamond and a white field with black bars read as neither); the campaign board's
   flags draw horizontal stripes like the battle and menu flags (`b5-picker-flags.jpg`).
+- Fixed: the nation choice showed the campaign's top bar with an empty treasury and a blank
+  flag behind it, and the grand and Thuringian campaigns' dimmers stopped at Roblox's top bar,
+  leaving a bright strip above them (`b5-picker-flags.jpg` before, `b5-picker-after.jpg`).
 
 ## Known failures
 

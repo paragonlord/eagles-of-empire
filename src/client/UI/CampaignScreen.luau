@@ -579,7 +579,8 @@ local function build()
 	end
 	local root = Kit.fitScreen(sg, 600, 260, relayout)
 	local back = Instance.new("Frame") :: Frame
-	back.Size = UDim2.fromScale(1, 1)
+	back.Size = UDim2.new(1, 0, 1, 100)
+	back.Position = UDim2.fromOffset(0, -100) -- on up under Roblox's top bar, or a bright strip shows there
 	back.BackgroundColor3 = Color3.fromRGB(28, 26, 22)
 	back.BackgroundTransparency = 0.35
 	back.BorderSizePixel = 0

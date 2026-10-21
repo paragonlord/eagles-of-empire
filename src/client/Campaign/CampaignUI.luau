@@ -714,13 +714,15 @@ end
 
 local function modal(sg: ScreenGui, w: number, parchment: boolean?): Frame
 	local shade = Instance.new("Frame") :: Frame
-	shade.Size = UDim2.fromScale(1, 1)
+	shade.Size = UDim2.new(1, 0, 1, 100)
+	shade.Position = UDim2.fromOffset(0, -100) -- on up under Roblox's top bar, or a bright strip shows there
 	shade.BackgroundColor3 = Color3.new(0, 0, 0)
 	shade.BackgroundTransparency = 0.55
 	shade.BorderSizePixel = 0
 	shade.Active = true
 	shade.Parent = sg
-	local p = Kit.panel(shade, { size = UDim2.fromOffset(w, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), padding = 22, parchment = parchment })
+	-- centred on the screen, not on the shade (it reaches 100 above it)
+	local p = Kit.panel(shade, { size = UDim2.fromOffset(w, 0), position = UDim2.new(0.5, 0, 0.5, 50), anchor = Vector2.new(0.5, 0.5), padding = 22, parchment = parchment })
 	p.AutomaticSize = Enum.AutomaticSize.Y
 	local l = Kit.list(p, 10)
 	l.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -927,7 +929,7 @@ function UI.render(ctx: Ctx)
 	end
 	Kit.hideTooltip()
 	local view = ctx.view
-	local barH = topBar(sg, ctx)
+	local barH = if view then topBar(sg, ctx) else 0 -- no empty treasury behind the nation choice
 	local units = Kit.screenUnits(sg)
 	local compact = units.X < COMPACT_W
 	local top = 8 + barH + 10
