@@ -338,5 +338,8 @@ The fix (the village or wood a unit stands in does not block its own line within
 the `village-fire` branch with its test. At 10 seeds and real time limits it makes village fights
 bloody and decisive but takes the historical winner from 75 to 58 of the 120 full battles
 (Waterloo 21 → 11, Austerlitz 7 → 4, Auerstedt 18 → 14; Jena 29 unchanged); raising village cover
-from 0.5 to 0.65 did not help (58, Waterloo 8). It needs a look at how both AIs use villages before
-it goes in.
+from 0.5 to 0.65 did not help (58, Waterloo 8), nor did keeping the see-through for musketry only
+(guns still blocked by the target's houses): 58, Waterloo 6. So it is the French infantry's fire
+into the farms that turns Waterloo, not the Grande Batterie. It needs a look at how both AIs use
+villages (the allied lines stand in the farms instead of garrisoning them or standing behind the
+ridge) before it goes in.
