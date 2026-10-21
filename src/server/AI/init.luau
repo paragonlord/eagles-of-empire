@@ -43,6 +43,7 @@ type Unit = {
 	point: Vec?, -- goal point for guard / exploit goals
 	lastPos: Vec?, -- artillery: where it was at lastPosAt (progress check while limbered)
 	lastPosAt: number,
+	marchFrom: number?, -- artillery: when it set out limbered (a mark is laid on after MARK_AFTER)
 	guardId: number?, -- infantry on guard: the battery it covers
 }
 
@@ -1180,6 +1181,8 @@ local function cavalry(state: AIState, f: Formation)
 	maintain(state, f, u)
 end
 
+local MARK_AFTER = 45 -- seconds a limbered battery chases its position before laying on a mark
+
 local function artillery(state: AIState, f: Formation)
 	local sim = state.sim
 	local clock = sim.clock
@@ -1239,6 +1242,21 @@ local function artillery(state: AIState, f: Formation)
 		return
 	end
 	local gp = state.gunPos[f.id]
+	-- A mark in good gun range (150 out to 0.8 of round shot) that it could fire on from here.
+	-- A battery deployed past its arc limbers and lays the guns on it again; one that has chased
+	-- its position for MARK_AFTER (the position moves with an attacking wing) lays them where it
+	-- stands (QA round 42: Hougoumont's guns drove about all battle and fired no shot). Laying on
+	-- every mark at first sight gave the side with more guns Auerstedt, Austerlitz and Waterloo.
+	local reach = Formation.unitConfig(f).gun.roundShot.range * 0.8
+	local mark = nearestVisible(state, f.pos, reach, function(e)
+		return e.state ~= "routing" and Vec.dist(f.pos, e.pos) >= 150 and Combat.canLayOn(sim :: any, f, e)
+	end)
+	if not (limbered and f.state == "moving") then
+		u.marchFrom = nil
+	elseif u.marchFrom == nil then
+		u.marchFrom = clock
+	end
+	local chased = u.marchFrom ~= nil and clock - (u.marchFrom :: number) >= MARK_AFTER
 	if limbered then
 		-- No progress for 30 s (hemmed in by friends, a village, a wood): unlimber where it stands.
 		local stuck = f.state == "moving" and u.lastPos ~= nil and clock - u.lastPosAt >= 30 and Vec.dist(f.pos, u.lastPos :: Vec) < 8
@@ -1247,25 +1265,28 @@ local function artillery(state: AIState, f: Formation)
 		elseif u.lastPos == nil or clock - u.lastPosAt >= 30 then
 			u.lastPos, u.lastPosAt = { x = f.pos.x, z = f.pos.z }, clock
 		end
-		if gp and Vec.dist(f.pos, gp) > 24 and not stuck then
+		local layHere = mark ~= nil and (chased or f.state == "idle")
+		if gp and Vec.dist(f.pos, gp) > 24 and not stuck and not layHere then
 			if f.state == "idle" and clock >= u.nextMove then
 				u.nextMove = clock + 10
 				if issue(state, "Move", { f.id }, { pos = gp, heading = state.facing }) then
 					setGoal(state, f.id, "deploying", "moving into position")
 				end
 			end
-		elseif stuck then
+		elseif stuck and not layHere then
 			if issue(state, "Limber", { f.id }, { limbered = false }) then
 				setGoal(state, f.id, "unlimbering", "hemmed in: deploying here")
 			end
-		elseif f.state == "idle" then
-			if math.abs(Vec.angleDiff(f.heading, state.facing)) > 0.3 then
-				if clock >= u.nextMove then
+		elseif f.state == "idle" or (layHere and f.state == "moving") then
+			-- in position, or a mark in range: turn the trails to it (a Face halts a march), unlimber
+			local face = if layHere and mark then Vec.heading(Vec.sub(mark.pos, f.pos)) else state.facing
+			if math.abs(Vec.angleDiff(f.heading, face)) > 0.3 or f.state ~= "idle" then
+				if clock >= u.nextMove or f.state ~= "idle" then
 					u.nextMove = clock + 5
-					issue(state, "Face", { f.id }, { heading = state.facing })
+					issue(state, "Face", { f.id }, { heading = face })
 				end
 			elseif issue(state, "Limber", { f.id }, { limbered = false }) then
-				setGoal(state, f.id, "unlimbering", "deploying the guns")
+				setGoal(state, f.id, "unlimbering", if layHere and mark then "laying the guns on " .. mark.name else "deploying the guns")
 			end
 		end
 		return
@@ -1293,6 +1314,9 @@ local function artillery(state: AIState, f: Formation)
 			end
 		end
 		u.goal, u.reason = "fire", "firing on " .. best.name
+	elseif mark and not committed(state, u) and math.abs(Vec.bearing(f.pos, f.heading, mark.pos)) > Formation.unitConfig(f).gun.arcHalfAngle and issue(state, "Limber", { f.id }, { limbered = true }) then
+		-- the guns cannot traverse past their arc: limber, turn and lay them again
+		setGoal(state, f.id, "deploying", "re-laying on " .. mark.name)
 	elseif gp and Vec.dist(f.pos, gp) > 120 and issue(state, "Limber", { f.id }, { limbered = true }) then
 		setGoal(state, f.id, "deploying", "relocating the battery")
 	else

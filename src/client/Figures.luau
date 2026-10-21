@@ -698,7 +698,9 @@ local function buildMarker(g: Group, f: any): Marker
 		return l
 	end
 	local nameText = Kit.upper(tostring(f.name or ("#" .. g.id)))
-	local corpsText = Kit.upper(tostring(f.corps or ""))
+	-- the plate's second line is 11 px: the corps alone ("V CORPS"), not its commanders after it
+	-- (the card and the inspector carry the whole chain)
+	local corpsText = Kit.upper((string.match(tostring(f.corps or ""), "^(.-)%s+·") or tostring(f.corps or "")))
 	if hq then
 		-- "Napoléon — Imperial HQ" -> NAPOLÉON / IMPERIAL HQ
 		local a, b = string.match(nameText, "^(.-)%s+[—%-]+%s+(.+)$")

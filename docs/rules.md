@@ -111,6 +111,9 @@ target visible to the faction, target centre inside range, bearing within the fi
 (infantry ±60°, artillery ±30° from the gun line), line of sight clear, no friendly formation
 within the fire lane (half-width 10) unless `FriendlyBlocksFire = false`. Infantry halts to
 volley (movement resumes after). Fire-at-will off ⇒ never fires unless ordered to Engage.
+An idle line (no order but a finished march) with nobody in its arc and an enemy in range beside
+it wheels to that enemy at its turn rate; a Hold or Face order keeps the facing. The status names
+why the nearest enemy in range is not fired on (`Target not to the front`, `Holding fire`...).
 
 ```
 shooters   = strength * shape.fire * readiness          (readiness = cohesion, ≥ 0.4; ×0.7 when shaken)
@@ -151,7 +154,8 @@ Every village (and farm: Hougoumont, La Haye Sainte, Papelotte…) has one stron
   friend, the order ends; the enemy, the order becomes a charge on the garrison (storming).
 - Inside: footprint 16 × 16, fires all round at 0.45 of its muskets, hit ×0.4 by muskets (on top of
   the village's cover) and ×0.5 by guns, melee ×1.4; cavalry charges do nothing and horse fight it at
-  ×0.15. It cannot move.
+  ×0.15. It cannot move. Its own village's houses do not block a line of fire to or from it (they
+  are the cover above); woods, crests and other villages still do.
 - Leaving: any march, charge or shape order files it out (column, 8 s) and then carries the order
   out; Engage, Hold and Face only choose its target from the windows. A routing garrison pours out at
   once. The building is free as soon as its holder leaves, breaks or dies.

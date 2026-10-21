@@ -1148,6 +1148,23 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   (I pressed it for that and the army stood still for ten minutes); it reads "AMMO: AUTO",
   "AMMO: SHOT" or "AMMO: CANISTER". The help spells out Backspace (the font has no ⌫), episode
   cards give the hour, and the audio-log toggle stays in Studio.
+- Fixed: **battalions beside Hougoumont stood idle saying "No target"** with the farm's garrison
+  20–70 studs away (played the episode: whole army ordered onto the farm). Three causes, traced
+  headless: the houses round a building blocked every line of fire into or out of it (so a
+  garrison could neither be shot nor shoot, against the rules); lines that finished their march
+  faced the march direction and never turned to an enemy beside them (the AI turns its own); and
+  the status said "No target" whatever the reason. Now a garrison is fired on through its own
+  village and fires out, an idle line wheels to the enemy at hand at its turn rate (a Hold or
+  Face order keeps the player's facing), the status names the real reason ("Target not to the
+  front", "Line of fire blocked", "Holding fire"), and a march with nobody about says nothing.
+- Fixed: **the AI's batteries drove about all battle**: they chased a gun position that moved with
+  the attacking wing (Hougoumont's two batteries fired no shot in ten minutes; the British troop
+  was overrun limbered), and a deployed battery never turned to a target past its 30° arc. A
+  battery that has chased its position for 45 s now lays its guns on a mark it can fire on, and
+  a deployed one limbers, turns and lays again. Balance: `docs/balance.md` (the day's three sim
+  changes together: flags 16 → 13, Waterloo to the allies 11 of 15).
+- Changed: the unit plate's second line shows the corps alone ("V CORPS"): the commanders after
+  it made 11-pixel text nobody could read (`b7-vierzehnheiligen.jpg`).
 
 ## Known failures
 

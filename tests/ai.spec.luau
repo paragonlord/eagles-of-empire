@@ -163,6 +163,43 @@ test("AI never acts on an enemy it has not seen", function()
 	assertTrue(closest > 80, "never approached the hidden unit, closest " .. closest)
 end)
 
+test("AI guns: a battery lays its guns on an enemy in good range, and re-lays for one outside its arc", function()
+	-- batteries chased a gun position that moved with the attacking wing, limbered all battle, and
+	-- a deployed one with its target outside the 30° arc stood "in battery, no target"
+	local Grid = require(Shared.Grid)
+	local IDS = Config.TerrainIds
+	local function open(p)
+		local c = Grid.classAt(MAP.grid, p.x, p.z)
+		return c == IDS.open or c == IDS.road
+	end
+	-- open ground with a clear view 200 south (ahead of a Prussian battery) and 200 east
+	local at
+	for x = 300, 1300, 50 do
+		for z = 400, 1000, 50 do
+			local g, ahead, flank = { x = x, z = z }, { x = x, z = z - 200 }, { x = x + 200, z = z }
+			if not at and open(g) and open(ahead) and open(flank) and Grid.lineOfSight(MAP.grid, g, ahead) and Grid.lineOfSight(MAP.grid, g, flank) then
+				at = g
+			end
+		end
+	end
+	assertTrue(at ~= nil, "a clear spot on the Jena map")
+	local function firesWithin(seconds, deployed, targetAt)
+		local sim = newSim({
+			unit("prussia", "artillery", "Battery", at.x, at.z, -math.pi / 2),
+			unit("france", "infantry", "Target", targetAt.x, targetAt.z, math.pi / 2),
+		})
+		local g, t = sim.formations[1], sim.formations[2]
+		g.shape = if deployed then "deployed" else "limbered"
+		Formation.refreshFootprint(g)
+		t.fireAtWill = false
+		attach(sim)
+		run(sim, seconds)
+		return t.strength < t.startStrength
+	end
+	assertTrue(firesWithin(60, false, { x = at.x, z = at.z - 200 }), "unlimbers on a target 200 ahead and fires")
+	assertTrue(firesWithin(120, true, { x = at.x + 200, z = at.z }), "re-lays for a target 200 to its flank and fires")
+end)
+
 test("Infantry forms square against approaching cavalry and returns to line", function()
 	local sim = newSim({
 		unit("prussia", "infantry", "Line", 760, 250, 0),

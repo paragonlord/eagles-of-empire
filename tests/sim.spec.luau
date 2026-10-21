@@ -419,6 +419,78 @@ test("Fords: brooks can be waded at their fords, slowly and without firing", fun
 	assertTrue(blocked, "no volleys from the middle of the brook")
 end)
 
+test("Fire status names why an enemy in range is not fired on, not just No target", function()
+	-- a line facing north with the enemy 60 studs to its east said "No target": turn it, it fires
+	local sim = newSim({
+		unit("france", "infantry", "Facing north", 300, 300, math.pi / 2),
+		unit("prussia", "infantry", "To the east", 360, 300, math.pi),
+	})
+	sim.formations[2].fireAtWill = false
+	cmd(sim, "Hold", { 1 }, {}) -- held: it keeps its facing (an idle line would wheel to the enemy)
+	run(sim, 2)
+	assertEq(sim.formations[1].status, "Target not to the front")
+	sim.formations[1].fireAtWill = false
+	run(sim, 1)
+	assertEq(sim.formations[1].status, "Holding fire", "fire at will off")
+end)
+
+test("An idle line wheels to an enemy in musket range when none is to its front", function()
+	-- the player's lines finished their march facing north and stood sideways to the enemy beside
+	-- them (the AI turned its own); now they wheel at their turn rate and open fire
+	local sim = newSim({
+		unit("france", "infantry", "Facing north", 300, 300, math.pi / 2),
+		unit("prussia", "infantry", "To the east", 360, 300, math.pi),
+	})
+	local f, e = sim.formations[1], sim.formations[2]
+	e.fireAtWill = false
+	run(sim, 8)
+	assertTrue(math.abs(Vec.angleDiff(f.heading, 0)) < math.rad(30), string.format("faces east (heading %.0f°)", math.deg(f.heading)))
+	assertTrue(e.strength < e.startStrength, "and fires")
+	-- held fire or an order to hold: the line stays as it was put
+	local sim2 = newSim({
+		unit("france", "infantry", "Holding", 300, 300, math.pi / 2),
+		unit("prussia", "infantry", "To the east", 360, 300, math.pi),
+	})
+	sim2.formations[2].fireAtWill = false
+	cmd(sim2, "Hold", { 1 }, {})
+	run(sim2, 8)
+	assertTrue(math.abs(Vec.angleDiff(sim2.formations[1].heading, math.pi / 2)) < 0.01, "a held line keeps its facing")
+end)
+
+test("Buildings: a garrison is shot at through its own village's houses and fires out of them", function()
+	-- the houses round the building blocked every line into or out of it: men in Hougoumont could
+	-- neither be shot nor shoot, and the French beside the farm stood idle with "No target"
+	local IDS = Config.TerrainIds
+	local sp, at
+	for _, cand in MAP.strongpoints do
+		for k = 0, 7 do
+			local a = k * math.pi / 4
+			local p = { x = cand.pos.x + math.cos(a) * 80, z = cand.pos.z + math.sin(a) * 80 }
+			local cls = Grid.classAt(MAP.grid, p.x, p.z)
+			if (cls == IDS.open or cls == IDS.road) and not Grid.lineOfSight(MAP.grid, p, cand.pos) then
+				sp, at = cand, p
+				break
+			end
+		end
+		if sp then
+			break
+		end
+	end
+	assertTrue(sp ~= nil, "a building with open ground 80 studs out and houses between")
+	local sim = newSim({
+		unit("prussia", "infantry", "Inside", sp.pos.x, sp.pos.z, 0),
+		unit("france", "infantry", "Outside", at.x, at.z, Vec.heading(Vec.sub(sp.pos, at))),
+	})
+	local g, o = sim.formations[1], sim.formations[2]
+	g.garrison, g.shape = sp.id, "garrison"
+	sim.strongpoints[sp.id].holder = g.id
+	Formation.refreshFootprint(g)
+	run(sim, Config.Sim.DT * Config.Sim.VisibilityEveryTicks * 2)
+	g.reload, o.reload = 0, 0
+	assertEq(Combat.fireBlockReason(sim, o, g), nil, "the line fires at the building")
+	assertEq(Combat.fireBlockReason(sim, g, o), nil, "the garrison fires out of its windows")
+end)
+
 test("Buildings: a battalion garrisons a village heart, is hard to shoot or charge, and gives it up to march", function()
 	local sp = MAP.strongpoints[1]
 	assertTrue(sp ~= nil and Grid.terrainAt(MAP.grid, sp.pos.x, sp.pos.z).passable, "every village has a strongpoint")

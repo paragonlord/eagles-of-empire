@@ -242,3 +242,27 @@ Rivers no longer stand above their banks (the Rau-Bach's mouth at Jena, the Gold
 Austerlitz, the Lissbach at Auerstedt), so a few cells of terrain changed. The same 5-seed pass:
 16 flags (was 17), 2 against history (was 3: Auerstedt on easy now goes to France once in five).
 Every other cell moved by at most one battle in five, within the noise of five seeds.
+
+## Garrisons, idle lines and the AI's guns (2026-10-21, 5 seeds a cell)
+
+Three sim fixes found by playing Hougoumont (QA round 42):
+
+- **Garrisons can be shot and shoot out.** The houses round a building blocked every line of fire
+  into or out of it, so a garrison was immune to musketry from outside its village (the rules
+  give it hit ×0.4 under the village's cover). Lines to or from a garrison now see through its
+  own village. Alone: flags 16 → 9, historical results 64 → 58 of 180 (5 seeds is ±6).
+- **Idle lines wheel to the enemy at hand.** A line that finished its march with no enemy to its
+  front and one in musket range beside it stood idle ("No target"); the AI turned its own, the
+  player's never turned. Now any idle line without a Hold or Face order wheels at its turn
+  rate. With the above: historical 58, Waterloo to the allies 8 of 15.
+- **The AI lays its guns.** Batteries chased a gun position that moved with an attacking wing and
+  stayed limbered all battle; a deployed one with its target outside the 30° arc never turned.
+  Laying on every mark at first sight tripled the shots (20 → 54 a battle) and gave the side with
+  more guns Auerstedt, Austerlitz and Waterloo (historical 47 of 180): dropped. Kept: a battery
+  that has chased its position for 45 s lays its guns on a mark it can fire on, and a deployed
+  one re-lays (limber, turn, unlimber) for a mark past its arc.
+
+All three together: historical results 56 of 180 (64 before the day's changes), full battles
+30 of 60 (32), Waterloo to the allies 11 of 15 (12), 13 flags (16), 4 against history: Auerstedt
+on every difficulty (Prussia 5/5, as before on normal and hard) and the Hougoumont episode on
+easy (France takes the farm against the easy AI now that the garrison can be shot).

@@ -75,6 +75,14 @@ local function laneBlocked(sim: SimLike, shooter: Formation, target: Formation):
 	return false
 end
 
+-- Whether guns laid here could fire on `target`: a clear line (or lobbed shells) and no friends
+-- in between. The AI asks before unlimbering on a mark.
+function Combat.canLayOn(sim: SimLike, f: Formation, target: Formation): boolean
+	local gun = Formation.unitConfig(f).gun
+	local lobbed = gun ~= nil and gun.indirect == true
+	return (lobbed or Grid.lineOfSight(sim.grid, f.pos, target.pos)) and not laneBlocked(sim, f, target)
+end
+
 local function inArc(shooter: Formation, target: Formation, halfAngle: number): boolean
 	return math.abs(Vec.bearing(shooter.pos, shooter.heading, target.pos)) <= halfAngle
 end
@@ -136,7 +144,10 @@ function Combat.fireBlockReason(sim: SimLike, f: Formation, target: Formation?):
 	end
 	-- howitzer shells are lobbed: over the crest and over friends, at anything the side can see
 	local lobbed = unit.gun and unit.gun.indirect and Combat.artilleryMode(f, dist) == "roundShot"
-	if not lobbed and not Grid.lineOfSight(sim.grid, f.pos, target.pos) then
+	-- men holding a building fire from its windows and are fired on there: its village's houses
+	-- are the cover the garrison already counts, not a wall across the line
+	local through = if f.shape == "garrison" or target.shape == "garrison" then Config.TerrainIds.village else nil
+	if not lobbed and not Grid.lineOfSight(sim.grid, f.pos, target.pos, nil, nil, through) then
 		return "Line of fire blocked"
 	end
 	if not lobbed and laneBlocked(sim, f, target) then
@@ -152,6 +163,24 @@ function Combat.artilleryMode(f: Formation, dist: number): "roundShot" | "canist
 		return "roundShot"
 	end
 	return if dist <= Formation.unitConfig(f).gun.canister.range then "canister" else "roundShot"
+end
+
+-- The nearest visible enemy within its weapon's reach (fired on or not): what the status explains.
+local function nearestInReach(sim: SimLike, f: Formation): Formation?
+	local unit = Formation.unitConfig(f)
+	local reach = if unit.gun then unit.gun.roundShot.range elseif unit.musket then unit.musket.range else 0
+	local best: Formation? = nil
+	local bestD = reach * reach
+	for _, id in sim.order do
+		local o = sim.formations[id]
+		if o and o.faction ~= f.faction and Formation.isActive(o) and sim.isVisibleTo(sim, f.faction, o.id) then
+			local d = Vec.dist2(f.pos, o.pos)
+			if d <= bestD then
+				best, bestD = o, d
+			end
+		end
+	end
+	return best
 end
 
 -- Best visible enemy for fire-at-will: nearest in arc and range with a clear lane.
@@ -517,7 +546,27 @@ function Combat.gather(sim: SimLike): { Attack }
 			elseif f.state == "firing" then
 				f.state = "idle"
 			end
-			f.status = if f.class ~= "cavalry" and f.class ~= "hq" then Combat.fireBlockReason(sim, f, target) else nil
+			if f.class == "cavalry" or f.class == "hq" then
+				f.status = nil
+			elseif target then
+				f.status = Combat.fireBlockReason(sim, f, target)
+			elseif not f.fireAtWill and f.class ~= "artillery" then
+				f.status = "Holding fire"
+			else
+				-- why the enemy at hand is not fired on (turn to it, clear the lane...), not "No target";
+				-- and a march with nobody about says nothing ("Marching · No target" was noise)
+				local foe = nearestInReach(sim, f)
+				local why = Combat.fireBlockReason(sim, f, foe)
+				f.status = if why == "No target" and f.state == "moving" then nil else why
+				-- an idle line with nobody to its front wheels to the enemy at hand, at its turn rate
+				-- (the AI turns its own; the player's stood sideways beside Hougoumont). A Hold or a
+				-- Face order keeps the facing the player chose.
+				local o = f.order
+				if foe and why == "Target not to the front" and f.class == "infantry" and f.state == "idle" and #f.queue == 0 and (o == nil or o.kind == "Move") then
+					f.order = { kind = "Face", heading = Vec.heading(Vec.sub(foe.pos, f.pos)), issuedTick = sim.tick } :: any
+					f.path = nil
+				end
+			end
 		end
 	end
 	return attacks
