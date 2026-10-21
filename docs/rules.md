@@ -237,7 +237,8 @@ same observation set as the player. Snapshots to a client contain only that fact
 
 Objective: radius 60, capture 30 s by eligible formations (infantry/cavalry, not routing /
 shattered / destroyed / exited / reforming into square), contested when both sides have
-eligible formations inside (progress freezes). Ownership shows on the HUD and minimap.
+eligible formations inside (progress freezes). Ground only one side stands on when the battle
+begins is that side's from the first tick, without a capture. Ownership shows on the HUD and minimap.
 
 Victory evaluator (one, server, runs after step 9, terminal once):
 1. **Collapse**: a side with ≥ 70 % of formations routing/shattered/destroyed/exited, or

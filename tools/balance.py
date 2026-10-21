@@ -3,9 +3,10 @@
 
 Usage: tools/balance.py [--seeds 5] [--jobs 4] [--difficulties easy,normal,hard] [--only jena,...]
                         [--md docs/balance.md]
-Every (scenario, difficulty, seed) is played for the scenario's time limit (40 min for full
-battles) with both sides under the same AI difficulty. Prints a per-scenario table and the
-degenerate outcomes it flags (see docs/balance.md for the thresholds).
+Every (scenario, difficulty, seed) is played for the scenario's own time limit, the one a player
+gets (Jena and Auerstedt 25 min, Austerlitz and Waterloo 30, episodes 10), with both sides under
+the same AI difficulty. Prints a per-scenario table and the degenerate outcomes it flags (see
+docs/balance.md for the thresholds). Until 2026-10-21 full battles ran 40 min, past every limit.
 """
 import argparse
 import collections
@@ -20,8 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import test as harness  # noqa: E402  (tools/test.py: bundle helpers)
 
 ROOT = harness.ROOT
-FULL_MINUTES = 40
-EPISODE_MINUTES = 10
+SCENARIO_LIMIT = 0  # minutes = 0: the runner plays the scenario's own time limit
 # player (France) is listed first; "lopsided" = history was a rout, a 100 % win rate is fine.
 HISTORY = {
     "jena": ("france", "French victory (decisive)", True),
@@ -179,11 +179,11 @@ def main():
     args = ap.parse_args()
     scenarios = args.only.split(",") if args.only else list(HISTORY)
     jobs = [
-        (sc, d, seed, FULL_MINUTES if sc in FULL else EPISODE_MINUTES)
+        (sc, d, seed, SCENARIO_LIMIT)
         for sc in scenarios for d in args.difficulties.split(",") for seed in range(1, args.seeds + 1)
     ]
-    # longest battles first so the round-robin spreads them
-    jobs.sort(key=lambda j: -j[3])
+    # full battles (the longest) first so the round-robin spreads them
+    jobs.sort(key=lambda j: j[0] not in FULL)
     t0 = time.time()
     rows = run(jobs, args.jobs)
     summary = summarize(rows)

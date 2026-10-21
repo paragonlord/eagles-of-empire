@@ -2,10 +2,11 @@
 
 Run: `tools/balance.py` (bundles `src` with `tools/balance.luau` through the `tools/test.py`
 machinery and runs it in the Luau CLI, four processes in parallel). Every listed scenario is played
-with both sides under the same AI difficulty (easy, normal, hard), 5 seeds each: full battles for
-40 minutes, episodes for their 10-minute limit. 180 battles take about 16 minutes of wall time on
-four cores (a 40-minute Austerlitz is ~60 s; the no-contact runs of the first pass were the slow
-ones). `--seeds`, `--difficulties`, `--only` and `--md` narrow or export a run.
+with both sides under the same AI difficulty (easy, normal, hard): every battle for its own time
+limit, the one a player gets (Jena and Auerstedt 25 minutes, Austerlitz and Waterloo 30, episodes
+10). Until 2026-10-21 full battles ran 40 minutes, past every limit, and the tables below that date
+read the end of battles no player ever fights. 360 battles (10 seeds) take about 20 minutes on ten
+cores. `--seeds`, `--difficulties`, `--only` and `--md` narrow or export a run.
 
 Columns: winner counts over the seeds, the commonest end reason, mean duration (min), mean time to
 the first volley/cannonade/charge, casualties as % of deployed (France / enemy), rout events,
@@ -18,7 +19,53 @@ without contact, casualties > 60 % or < 5 %, more than half of a side's formatio
 artillery that never fires, cavalry that never charges, objectives never contested, and quick
 battles decided by the clock without a single capture.
 
-## Final table (5 seeds, both sides AI; after the reinforcement and counterattack pass, 2026-10-20)
+## Final table (10 seeds, real time limits, 2026-10-21)
+
+The historical winner takes 75 of the 120 full battles: Jena 29 of 30, Waterloo 21, Auerstedt 18
+(France on easy and normal; on hard the Prussian numbers tell by minute 20), Austerlitz 7 (the
+allies still hold more ground when the 30 minutes run out). The 40-minute runs had Auerstedt at 0
+of 30: Kalckreuth's reserve arrives at minute 20 and only broke Davout after minute 30.
+
+| scenario | diff | winner (n) | reason | min | contact | cas% F/E | routs F/E | shat F/E | lost F/E | flips | guns | charges | history | flags |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| jena | easy | france 10 | The enemy army has collapsed | 16.5 | 1.0 | 33/57 | 6.6/23.9 | 1%/5% | 0.6/5.2 | 4.3 | 42 | 27.5 | French victory (decisive) | - |
+| jena | normal | france 9 prussia 1 | All objectives held | 16.1 | 1.0 | 39/55 | 8.3/22.8 | 2%/3% | 1.5/4.9 | 4.6 | 41 | 26.3 | French victory (decisive) | - |
+| jena | hard | france 10 | The enemy army has collapsed | 13.7 | 1.1 | 27/48 | 5.3/21.4 | 0%/2% | 0.6/4.0 | 4.5 | 48 | 21.9 | French victory (decisive) | - |
+| auerstedt | easy | france 10 | Time expired holding more objectives | 25.0 | 7.2 | 5/8 | 0.2/1.0 | 0%/0% | 0.0/0.0 | 3.0 | 137 | 0.0 | French victory (Davout outnumbered 2:1) | cavalry never charges |
+| auerstedt | normal | france 8 prussia 2 | Time expired holding more objectives | 25.0 | 5.8 | 9/9 | 1.8/3.1 | 0%/0% | 0.6/0.4 | 3.2 | 117 | 2.3 | French victory (Davout outnumbered 2:1) | - |
+| auerstedt | hard | prussia 10 | Your army has collapsed | 22.4 | 6.5 | 60/31 | 26.7/10.0 | 8%/2% | 6.7/1.3 | 4.1 | 98 | 22.7 | French victory (Davout outnumbered 2:1) | prussia wins 10/10 against history; france casualties 60% |
+| austerlitz | easy | russia 8 france 2 | Time expired; the enemy holds more objectives | 29.1 | 4.8 | 57/47 | 40.5/32.4 | 3%/1% | 8.3/4.5 | 5.4 | 131 | 36.8 | French victory (decisive) | - |
+| austerlitz | normal | russia 7 france 3 | Time expired; the enemy holds more objectives | 29.7 | 3.4 | 55/48 | 39.6/37.1 | 3%/4% | 8.6/5.9 | 4.3 | 136 | 41.3 | French victory (decisive) | - |
+| austerlitz | hard | russia 8 france 2 | Time expired; the enemy holds more objectives | 29.8 | 2.7 | 58/52 | 43.0/38.4 | 1%/3% | 9.8/6.9 | 4.6 | 131 | 45.0 | French victory (decisive) | - |
+| waterloo | easy | britain 7 france 3 | The enemy holds every objective | 20.7 | 0.5 | 53/46 | 30.1/32.2 | 1%/0% | 6.1/8.5 | 4.3 | 134 | 40.4 | Allied victory (decisive) | - |
+| waterloo | normal | britain 10 | The enemy holds every objective | 16.8 | 0.5 | 48/29 | 33.6/21.0 | 0%/0% | 5.0/2.7 | 3.7 | 136 | 32.4 | Allied victory (decisive) | - |
+| waterloo | hard | france 6 britain 4 | The enemy army has collapsed | 19.4 | 0.5 | 51/51 | 28.6/38.7 | 3%/1% | 5.7/10.4 | 3.6 | 112 | 53.4 | Allied victory (decisive) | - |
+| jena_landgrafenberg | easy | draw 5 prussia 4 france 1 | Time expired with the field divided | 10.0 | 0.5 | 33/26 | 6.0/5.5 | 2%/1% | 0.3/0.4 | 0.7 | 28 | 3.7 | Closewitz and Cospeda taken | - |
+| jena_landgrafenberg | normal | draw 7 france 3 | Time expired with the field divided | 10.0 | 0.5 | 28/25 | 2.7/7.2 | 0%/0% | 0.1/1.1 | 1.3 | 20 | 5.4 | Closewitz and Cospeda taken | - |
+| jena_landgrafenberg | hard | france 4 draw 4 prussia 2 | Time expired with the field divided | 9.8 | 0.5 | 31/22 | 5.8/5.6 | 0%/0% | 0.1/0.8 | 1.1 | 30 | 5.2 | Closewitz and Cospeda taken | - |
+| jena_vierzehnheiligen | easy | france 6 prussia 4 | Time expired; the enemy holds more objectives | 10.0 | 0.3 | 31/43 | 1.8/8.1 | 1%/0% | 0.1/0.8 | 1.6 | 28 | 12.4 | village taken, Grawert's line shot to pieces | - |
+| jena_vierzehnheiligen | normal | france 8 prussia 2 | All objectives held | 9.9 | 0.3 | 37/34 | 3.3/7.2 | 0%/1% | 0.8/0.3 | 1.8 | 18 | 12.0 | village taken, Grawert's line shot to pieces | - |
+| jena_vierzehnheiligen | hard | france 6 draw 4 | Time expired holding more objectives | 9.5 | 0.3 | 31/35 | 3.2/6.0 | 0%/0% | 0.8/0.6 | 0.5 | 21 | 12.5 | village taken, Grawert's line shot to pieces | - |
+| auerstedt_hassenhausen | easy | draw 5 prussia 5 | Time expired with the field divided | 10.0 | 1.8 | 38/22 | 6.6/2.6 | 1%/0% | 0.6/0.0 | 2.5 | 8 | 9.4 | Gudin held Hassenhausen | - |
+| auerstedt_hassenhausen | normal | prussia 7 draw 3 | Time expired; the enemy holds more objectives | 9.8 | 1.5 | 46/26 | 8.4/2.8 | 4%/0% | 1.4/0.0 | 2.6 | 9 | 9.1 | Gudin held Hassenhausen | - |
+| auerstedt_hassenhausen | hard | draw 5 prussia 5 | Time expired with the field divided | 10.0 | 1.3 | 40/32 | 7.5/3.8 | 1%/1% | 0.7/0.1 | 2.5 | 10 | 11.7 | Gudin held Hassenhausen | - |
+| auerstedt_spielberg | easy | draw 10 | Time expired with the field divided | 10.0 | 2.9 | 18/20 | 2.1/0.8 | 0%/3% | 0.0/0.0 | 2.0 | 8 | 4.6 | Friant turned the Prussian left | draw 10/10 |
+| auerstedt_spielberg | normal | draw 10 | Time expired with the field divided | 10.0 | 3.1 | 25/18 | 3.9/0.9 | 0%/0% | 0.2/0.0 | 2.0 | 10 | 8.6 | Friant turned the Prussian left | draw 10/10 |
+| auerstedt_spielberg | hard | draw 10 | Time expired with the field divided | 10.0 | 2.8 | 17/21 | 1.5/1.6 | 0%/7% | 0.1/0.1 | 2.0 | 9 | 5.9 | Friant turned the Prussian left | draw 10/10 |
+| austerlitz_pratzen | easy | france 8 draw 2 | All objectives held | 10.0 | 0.6 | 25/28 | 2.3/7.4 | 2%/4% | 0.0/1.1 | 3.4 | 11 | 2.5 | Pratzen taken | - |
+| austerlitz_pratzen | normal | france 6 draw 4 | Time expired with the field divided | 10.0 | 0.6 | 24/27 | 2.9/6.8 | 1%/0% | 0.0/1.3 | 4.2 | 8 | 3.2 | Pratzen taken | - |
+| austerlitz_pratzen | hard | france 10 | All objectives held | 10.0 | 0.6 | 25/26 | 2.6/6.9 | 3%/0% | 0.2/1.0 | 3.0 | 10 | 2.7 | Pratzen taken | france wins 10/10 |
+| austerlitz_sokolnitz | easy | draw 10 | Time expired with the field divided | 10.0 | 1.5 | 25/17 | 5.9/3.0 | 0%/0% | 0.7/0.0 | 1.0 | 18 | 1.0 | Telnitz/Sokolnitz held, allied left stuck | draw 10/10 |
+| austerlitz_sokolnitz | normal | draw 10 | Time expired with the field divided | 10.0 | 1.6 | 31/21 | 7.0/1.5 | 0%/0% | 0.8/0.0 | 1.0 | 14 | 0.4 | Telnitz/Sokolnitz held, allied left stuck | draw 10/10 |
+| austerlitz_sokolnitz | hard | draw 9 russia 1 | Time expired with the field divided | 10.0 | 1.6 | 30/24 | 8.0/2.3 | 0%/0% | 0.7/0.0 | 1.1 | 17 | 0.3 | Telnitz/Sokolnitz held, allied left stuck | draw 9/10 |
+| waterloo_hougoumont | easy | britain 9 france 1 | Time expired; the enemy holds more objectives | 10.0 | 0.7 | 36/21 | 6.8/3.3 | 4%/3% | 0.2/0.0 | 0.1 | 22 | 0.6 | Hougoumont held all day | britain wins 9/10 |
+| waterloo_hougoumont | normal | britain 10 | Time expired; the enemy holds more objectives | 10.0 | 0.7 | 33/17 | 7.3/2.5 | 3%/1% | 0.1/0.2 | 0.0 | 18 | 0.2 | Hougoumont held all day | britain wins 10/10; decided by the clock alone |
+| waterloo_hougoumont | hard | britain 9 france 1 | Time expired; the enemy holds more objectives | 10.0 | 0.9 | 37/27 | 5.5/5.7 | 1%/4% | 0.0/0.9 | 0.1 | 16 | 1.9 | Hougoumont held all day | britain wins 9/10 |
+| waterloo_lahayesainte | easy | draw 6 britain 4 | Time expired with the field divided | 10.0 | 0.8 | 34/18 | 4.3/3.4 | 6%/0% | 0.0/0.2 | 2.2 | 30 | 2.9 | La Haye Sainte fell | - |
+| waterloo_lahayesainte | normal | draw 5 britain 3 france 2 | Time expired with the field divided | 9.5 | 0.8 | 39/28 | 6.3/6.0 | 1%/1% | 0.0/0.3 | 2.3 | 32 | 4.2 | La Haye Sainte fell | - |
+| waterloo_lahayesainte | hard | draw 8 france 1 britain 1 | Time expired with the field divided | 10.0 | 0.8 | 42/29 | 6.1/6.9 | 1%/1% | 0.0/0.5 | 2.4 | 32 | 4.6 | La Haye Sainte fell | - |
+
+## Earlier table (5 seeds, 40-minute full battles; after the reinforcement and counterattack pass, 2026-10-20)
 
 | scenario | diff | winner (n) | reason | min | contact | cas% F/E | routs F/E | shat F/E | lost F/E | flips | guns | charges | history | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -280,3 +327,16 @@ used to hold nothing until its first capture at 0:30, so Hougoumont's garrison w
 the French took the farm in 12 of 15. Now the British are in the farm from the start and hold it
 in 14 of 15 ("Hougoumont held all day"). Historical results 71 of 180 (56 before this change,
 64 at the start of the day); flags 14; against history 3, all Auerstedt, as before the day.
+
+## Open: battalions in a village can neither fire out nor be fired on (2026-10-21)
+
+Found while playing Vierzehnheiligen: a battalion standing in a village (not garrisoned) is
+behind its own houses on every line of fire, so it can neither shoot out nor be shot from outside
+(measured: every pair tried, 163 of 163 on Jena, Auerstedt, Waterloo and Austerlitz). Garrisons
+were fixed today; ordinary battalions were not, because the fix moves the balance a long way.
+The fix (the village or wood a unit stands in does not block its own line within 80 studs) is on
+the `village-fire` branch with its test. At 10 seeds and real time limits it makes village fights
+bloody and decisive but takes the historical winner from 75 to 58 of the 120 full battles
+(Waterloo 21 → 11, Austerlitz 7 → 4, Auerstedt 18 → 14; Jena 29 unchanged); raising village cover
+from 0.5 to 0.65 did not help (58, Waterloo 8). It needs a look at how both AIs use villages before
+it goes in.

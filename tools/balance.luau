@@ -20,7 +20,9 @@ end
 
 local function play(job)
 	local sc = assert(Scenarios.get(job.scenario), "no scenario " .. job.scenario)
-	local sim = Sim.new({ matchId = "b", scenario = sc, map = mapFor(sc.map), seed = job.seed, difficulty = job.difficulty, timeLimit = job.minutes * 60 })
+	-- minutes 0: the scenario's own limit (the sim's default when it has none), as a player plays it
+	local limit = if job.minutes > 0 then job.minutes * 60 else (sc.timeLimit or Config.Victory.TimeLimitSeconds)
+	local sim = Sim.new({ matchId = "b", scenario = sc, map = mapFor(sc.map), seed = job.seed, difficulty = job.difficulty, timeLimit = limit })
 	local a = AI.new(sim, sc.factions.player, job.difficulty)
 	local b = AI.new(sim, sc.factions.enemy, job.difficulty)
 	sim.aiStep = function()
@@ -29,7 +31,7 @@ local function play(job)
 	end
 	sim:start()
 	local firstContact, cannon, cavCharges, flips, contested = nil, 0, 0, 0, false
-	local maxTicks = job.minutes * 60 * Config.Sim.TickRate
+	local maxTicks = limit * Config.Sim.TickRate
 	for _ = 1, maxTicks do
 		sim:step()
 		for _, ev in sim.events do
