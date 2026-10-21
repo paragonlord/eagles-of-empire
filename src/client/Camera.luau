@@ -80,6 +80,18 @@ local function clampTarget()
 	target.z = math.clamp(target.z, bounds.z0 + margin, bounds.z1 - margin)
 end
 
+-- Edge scrolling from the pointer (mx, my) in a view vw x vh pixels: (side, forward), each -1, 0
+-- or 1. A pointer outside the view pans nothing: Roblox reports (-1, -1) once the mouse leaves
+-- the window, which read as the top-left corner sent the camera off to the map's edge.
+function Camera.edgeScroll(mx: number, my: number, vw: number, vh: number): (number, number)
+	if mx < 0 or my < 0 or mx > vw or my > vh then
+		return 0, 0
+	end
+	local side = if mx <= EDGE_PX then -1 elseif mx >= vw - EDGE_PX then 1 else 0
+	local fwd = if my <= EDGE_PX then 1 elseif my >= vh - EDGE_PX then -1 else 0
+	return side, fwd
+end
+
 local function readKeys(dt: number)
 	if not enabled or textBoxFocused() then
 		return
@@ -105,19 +117,11 @@ local function readKeys(dt: number)
 	-- turns: a pointer resting on the screen's edge would carry the backdrop away)
 	if Settings.get().edgeScroll and windowFocused and drift == 0 and not Settings.touch() then
 		local cam = workspace.CurrentCamera
-		local m = UserInputService:GetMouseLocation()
 		if cam then
-			local v = cam.ViewportSize
-			if m.X <= EDGE_PX then
-				side -= 1
-			elseif m.X >= v.X - EDGE_PX then
-				side += 1
-			end
-			if m.Y <= EDGE_PX then
-				fwd += 1
-			elseif m.Y >= v.Y - EDGE_PX then
-				fwd -= 1
-			end
+			local m, v = UserInputService:GetMouseLocation(), cam.ViewportSize
+			local es, ef = Camera.edgeScroll(m.X, m.Y, v.X, v.Y)
+			side += es
+			fwd += ef
 		end
 	end
 	if fwd ~= 0 or side ~= 0 then

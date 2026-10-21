@@ -83,6 +83,23 @@ test("Camera: D pans to the screen's right and A to its left, at any heading", f
 	assertEq(Camera.HEIGHT_KEYS.down, Enum.KeyCode.Z, "Z lowers it")
 end)
 
+test("Camera: edge scrolling follows a pointer on the window's border, never one outside it", function()
+	-- Roblox reports (-1, -1) for a pointer outside the window: read as the top-left corner it panned
+	-- the camera off to the map's edge whenever the mouse left the game
+	local Camera = require(Client.Camera)
+	local function edge(x, y)
+		return Camera.edgeScroll(x, y, 1000, 600)
+	end
+	assertEq(select(1, edge(-1, -1)), 0, "outside the window: no pan")
+	assertEq(select(2, edge(-1, -1)), 0)
+	assertEq(select(1, edge(2, 300)), -1, "left border pans left")
+	assertEq(select(1, edge(998, 300)), 1, "right border pans right")
+	assertEq(select(2, edge(500, 3)), 1, "top border pans forward")
+	assertEq(select(2, edge(500, 597)), -1, "bottom border pans back")
+	assertEq(select(1, edge(500, 300)), 0, "middle: still")
+	assertEq(select(1, edge(1200, 300)), 0, "past the right edge (another screen): no pan")
+end)
+
 test("Touch: a screen too small for its layout shrinks to its minimum, never grows", function()
 	assertEq(Touch.fitScreen(1920, 1022, 600, 260), 1, "a desktop keeps its size")
 	local k = Touch.fitScreen(500, 215, 600, 260)

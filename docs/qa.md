@@ -1185,6 +1185,11 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   without a capture (`docs/balance.md`: the defending AI now garrisons Hougoumont from the start).
 - Changed: Austerlitz's ponds were summer-blue with a ripple; on winter maps the water is now
   still and pale grey, skinned with ice (`b11-pond-before.jpg`, `b11-pond-ice.jpg`).
+- Fixed: **the camera drifted to the map's edge whenever the mouse left the game window**: Roblox
+  reports the pointer at (-1, -1) outside the window, which edge scrolling read as the top-left
+  corner, panning the view forward and left until it hit the edge (the menu camera wandered off
+  the same way; seen in Studio with the pointer over another panel). Edge scrolling now ignores a
+  pointer outside the view (`Camera.edgeScroll`, tested).
 
 ## Known failures
 
