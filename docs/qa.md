@@ -1101,6 +1101,16 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   "below the plinth" pointed into the board on the tilted view and the ground hid all but the
   top edge. Each plate now stands on its flag pole at every zoom, and two armies in a province
   slide their plates apart (`b1-board-plates.jpg`).
+- Fixed: **the game took 37 s to start** (Jena's world, Studio): the prop builder waited a
+  frame after each of its 1,811 jobs, 30 s of waiting for 0.25 s of work, and the voxel writer
+  did two 3.5 ms chunks a frame. Both now work in slices (8 ms for props, 20 ms for voxels
+  behind the loading screen): the server builds Jena in 3.3 s and the menu is ready after 5.2 s.
+- Fixed: **Jena's Rau-Bach stood up to 16 studs above the Saale valley as a sheet of glass**
+  (`b2-brook-before.jpg`): a river kept one water level from end to end, so where the land
+  fell away the water stood over its banks (Austerlitz's Goldbach by 4 studs at the map edge,
+  Auerstedt's Lissbach by 2). A river's surface now never stands above the land it runs
+  through, lower waters are cut first, and a test checks every map (`b2-brook-after.jpg`).
+  `[EoE clip]` 120 → 108, the rest being the decorative trees past the map edge, now marked.
 
 ## Known failures
 

@@ -43,8 +43,12 @@ export type Options = {
 	maxQ: number?, -- skip specs needing a higher quality (default 3)
 	structure: boolean?, -- emit the "s" tier (default true)
 	detail: boolean?, -- emit the "d" tier (default true)
-	yield: (() -> ())?, -- called between jobs (task.wait on the engine)
+	yield: (() -> ())?, -- called between jobs once YIELD_AFTER of work is done (task.wait on the engine)
 }
+
+-- Seconds of work between yields: half a 60 Hz frame. A wait after every job cost Jena 1,811
+-- frames (30 s) for 0.25 s of work.
+WorldGen.YIELD_AFTER = 0.008
 
 local function rgb(t: { number }): Color3
 	return Color3.fromRGB(t[1], t[2], t[3])
@@ -418,7 +422,7 @@ local function analyse(map: any): ({ [number]: number }, Marks, Marks, Dist, Mar
 			end
 			if cls == IDS.water or cls == IDS.bridge or cls == IDS.ford then
 				local c = { x = (cx + 0.5) * g.cell, z = (cz + 0.5) * g.cell }
-				local lvl = waterLevelAt(map, c.x, c.z)
+				local lvl = (g.water and g.water[idx]) or waterLevelAt(map, c.x, c.z)
 				if lvl then
 					water[idx] = lvl
 					if cls == IDS.water then
@@ -541,7 +545,11 @@ function WorldGen.terrain(map: any): TerrainModel
 				local nearEdge = e.x < 60 or e.z < 60 or e.x > map.width - 60 or e.z > map.depth - 60
 				if nearEdge then
 					local dir = Vec.normalize(Vec.sub(e, prev))
-					table.insert(outs, { a = e, b = Vec.add(e, Vec.scale(dir, 800)), half = river.width / 2, level = river.level })
+					-- leaving at the level it reached at the border (MapGen lowers it with the land)
+					local ex, ez = math.clamp(e.x // cell, 0, cols - 1), math.clamp(e.z // cell, 0, rows - 1)
+					local level = (g.water and g.water[ez * cols + ex + 1]) or river.level
+					planeY = math.min(planeY, level - 8)
+					table.insert(outs, { a = e, b = Vec.add(e, Vec.scale(dir, 800)), half = river.width / 2, level = level })
 				end
 			end
 		end
@@ -2075,6 +2083,7 @@ local function buildCountry(group: string, jobs: { Job })
 							local m = meshObject(group, SPECIES_KEY[sp], px, pz, h01(px, pz, 140) * 6.28, r * 2.4, r * 2.4, r * 2.4)
 							if m then
 								m.castShadow = false
+								m.buried = true -- trunk into the slope on its uphill side, as trees stand
 							else
 								obj("point", function()
 									local p = part(group, Enum.PartType.Ball, Vector3.one * r * 2, CFrame.new(px, y + r * 1.15, pz), crownColor(px, pz))
@@ -2225,11 +2234,13 @@ function WorldGen.props(map: any, terrain: TerrainModel, opts: Options?): { Spec
 		end
 	end
 
+	local last = os.clock()
 	for _, j in jobs do
 		if (j.tag ~= "d" and wantS) or (j.tag ~= "s" and wantD) then
 			j.run()
-			if o.yield then
+			if o.yield and os.clock() - last >= WorldGen.YIELD_AFTER then
 				o.yield()
+				last = os.clock()
 			end
 		end
 	end

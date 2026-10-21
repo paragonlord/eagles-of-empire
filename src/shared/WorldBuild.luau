@@ -12,7 +12,9 @@ local WorldBuild = {}
 
 local VOXEL = WorldGen.VOXEL
 local CHUNK = 32 -- columns per chunk side
-local CHUNKS_PER_YIELD = 2
+-- seconds of voxel writing per frame: a chunk is about 3.5 ms, and two a frame spread Jena's
+-- 1.6 s of work over 3.8 s behind the loading screen
+local VOXEL_SLICE = 0.02
 WorldBuild.BATCH = 300 -- parts parented per frame
 
 local function rgb(t: { number }): Color3
@@ -64,6 +66,7 @@ function WorldBuild.writeVoxels(model: WorldGen.TerrainModel, alive: () -> boole
 	local colH = table.create(CHUNK * CHUNK, 0)
 	local colM: { EnumMaterial } = table.create(CHUNK * CHUNK, AIR)
 	local colW: { number | false } = table.create(CHUNK * CHUNK, false)
+	local last = os.clock()
 
 	for chz = 0, nChunksZ - 1 do
 		for chx = 0, nChunksX - 1 do
@@ -132,8 +135,9 @@ function WorldBuild.writeVoxels(model: WorldGen.TerrainModel, alive: () -> boole
 			if onProgress then
 				onProgress(done / total)
 			end
-			if done % CHUNKS_PER_YIELD == 0 then
+			if os.clock() - last >= VOXEL_SLICE then
 				task.wait()
+				last = os.clock()
 			end
 		end
 	end

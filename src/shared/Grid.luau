@@ -17,6 +17,7 @@ export type Grid = {
 	height: { number },
 	class: { number },
 	clearance: { number }, -- studs to nearest impassable cell / map edge
+	water: { [number]: number }?, -- river cells: the water surface there (MapGen)
 }
 
 local Grid = {}

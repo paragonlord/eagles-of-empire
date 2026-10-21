@@ -713,9 +713,15 @@ function MapGen.generate(mapId: string): MapData
 		roadSegs[i] = segments(r.points, r.width)
 	end
 	local riverSegs: { { Seg } } = {}
+	local riverOrder: { number } = {} -- lowest first: a higher brook then meets the banks they cut
 	for i, r in def.rivers do
 		riverSegs[i] = segments(r.points, r.width / 2 + 30)
+		table.insert(riverOrder, i)
 	end
+	table.sort(riverOrder, function(a: number, b: number): boolean
+		local la, lb = def.rivers[a].level, def.rivers[b].level
+		return la < lb or (la == lb and a < b)
+	end)
 	local bridgeBox: { Rect } = {}
 	for i, b in def.bridges do
 		bridgeBox[i] = bbox({ b.a, b.b }, b.width / 2 + 2)
@@ -735,6 +741,8 @@ function MapGen.generate(mapId: string): MapData
 	-- Pass 1: heights and classes.
 	local heightArr = g.height
 	local classArr = g.class
+	local waterArr: { [number]: number } = {}
+	g.water = waterArr
 	for cz = 0, rows - 1 do
 		for cx = 0, cols - 1 do
 			local x = (cx + 0.5) * cell
@@ -767,21 +775,27 @@ function MapGen.generate(mapId: string): MapData
 					break
 				end
 			end
-			for i, river in def.rivers do
+			for _, i in riverOrder do
+				local river = def.rivers[i]
 				local d = nearest(riverSegs[i], p)
 				local half = river.width / 2
+				-- the river's level, but never above the land it runs through (as earlier rivers
+				-- cut it): a brook running down into a valley falls with the ground instead of
+				-- standing over its banks
+				local level = math.min(river.level, h - 0.5)
 				if d < half then
 					cls = IDS.water
-					h = math.min(h, river.level - 3)
+					h = math.min(h, level - 3)
+					waterArr[cz * cols + cx + 1] = math.max(waterArr[cz * cols + cx + 1] or -math.huge, level)
 					for _, ford in river.fords or {} do
 						if Vec.dist2(p, ford) < FORD_HALF * FORD_HALF then
 							cls = IDS.ford
-							h = river.level - 1
+							h = level - 1
 						end
 					end
 				elseif d < half + 24 then
 					local t = smooth((d - half) / 24)
-					h = math.min(h, (river.level + 0.5) + (h - (river.level + 0.5)) * t)
+					h = math.min(h, (level + 0.5) + (h - (level + 0.5)) * t)
 				end
 			end
 			for i, road in def.roads do
@@ -821,6 +835,19 @@ function MapGen.generate(mapId: string): MapData
 				end
 			end
 		end
+	end
+
+	-- No river stands above the land beside it, even where another water's banks cut across it.
+	for idx, lvl in waterArr do
+		local cx, cz = (idx - 1) % cols, (idx - 1) // cols
+		for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+			local nx, nz = cx + d[1], cz + d[2]
+			local j = nz * cols + nx + 1
+			if nx >= 0 and nz >= 0 and nx < cols and nz < rows and waterArr[j] == nil then
+				lvl = math.min(lvl, heightArr[j] + 0.5)
+			end
+		end
+		waterArr[idx] = lvl
 	end
 
 	-- Pass 2: slope classes on natural ground.

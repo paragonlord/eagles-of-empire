@@ -21,6 +21,43 @@ local function setMeshes(on: boolean)
 end
 setMeshes(false)
 
+test("WorldGen: props yield after a slice of work, not after every job", function()
+	-- a wait per job held Jena's build for 1,811 frames (30 s) over 0.25 s of work
+	local last, n = os.clock(), 0
+	local specs = WorldGen.props(MAP, WorldGen.terrain(MAP), { yield = function()
+		local now = os.clock()
+		assert(now - last >= WorldGen.YIELD_AFTER, string.format("yielded after %.4f s", now - last))
+		last, n = now, n + 1
+	end })
+	assert(#specs > 1000, "a full field")
+	assert(n < #specs / 20, "yields " .. n)
+end)
+
+test("WorldGen: no river stands above the land beside it", function()
+	-- the Rau-Bach kept its plateau level (18) down into the Saale valley and stood 16 studs
+	-- over its banks there, a sheet of glass across the valley
+	local IDS = require(Shared.Config).TerrainIds
+	for _, id in MapGen.list() do
+		local map = MapGen.generate(id)
+		local g = map.grid
+		local t = WorldGen.terrain(map)
+		for cz = 1, g.rows - 2 do
+			for cx = 1, g.cols - 2 do
+				local cls = g.class[cz * g.cols + cx + 1]
+				if cls == IDS.water or cls == IDS.ford or cls == IDS.bridge then
+					local _, _, lvl = t.column(cx, cz)
+					if lvl then
+						for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+							local h, _, l2 = t.column(cx + d[1], cz + d[2])
+							assert(l2 or lvl <= h + 0.5, string.format("%s: water at %.1f beside land at %.1f (cell %d,%d)", id, lvl, h, cx, cz))
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
 local function fingerprint(specs)
 	local parts = {}
 	for i, s in specs do
