@@ -1121,6 +1121,13 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
 - Fixed: **Hougoumont never burned in the full Waterloo battle**: its moment's id did not end
   in "ablaze", the cue the fire effect listens for. Renamed, with a test over every moment;
   seen burning in the Hougoumont episode (`b3-hougoumont-ablaze.jpg`).
+- Changed: **the menu's backdrop was the battle camera's overhead view**, which read as a map
+  (`b4-menu-before.jpg`). The intro sweep now lands low over the field (140 studs, the lowest
+  pitch) and the view turns slowly about it until the player takes the camera
+  (`b4-menu-after.jpg`). Edge scrolling waits while it turns: a pointer resting on the screen's
+  edge carried the backdrop off the map.
+- Checked: all twelve battles and the tutorial load in 6–9 s and run with no client or server
+  errors (started through the Control remote, readied, run for 8 s each).
 
 ## Known failures
 

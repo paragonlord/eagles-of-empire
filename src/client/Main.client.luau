@@ -364,6 +364,7 @@ local function onMatchState(msg: any)
 			local m = BattleState.map
 			Camera.setDefaultYaw(nil)
 			Camera.reset(m.width / 2, m.depth * 0.45)
+			Camera.menuView()
 			Camera.playIntro() -- the menu's sweep over the field starts only once the world is in
 		end
 	elseif state == "loading" then

@@ -23322,6 +23322,7 @@ type View = { x: number, z: number, yaw: number, pitch: number, height: number }
 local intro: { t0: number, from: View, to: View }? = nil
 local lastFrameHeight = DEFAULT_HEIGHT
 local follow: (() -> (number?, number?))? = nil -- the camera tracks a formation until the player pans
+local drift = 0 -- the menu: radians a second the view turns about its focus, until the player moves it
 local windowFocused = true
 
 local function groundY(x: number, z: number): number
@@ -23376,8 +23377,9 @@ local function readKeys(dt: number)
 	if isDown(Enum.KeyCode.A) or isDown(Enum.KeyCode.Left) then
 		side -= 1
 	end
-	-- edge scrolling (desktop only, never while the window is out of focus)
-	if Settings.get().edgeScroll and windowFocused and not Settings.touch() then
+	-- edge scrolling (desktop only, never while the window is out of focus or the menu's view
+	-- turns: a pointer resting on the screen's edge would carry the backdrop away)
+	if Settings.get().edgeScroll and windowFocused and drift == 0 and not Settings.touch() then
 		local cam = workspace.CurrentCamera
 		local m = UserInputService:GetMouseLocation()
 		if cam then
@@ -23463,6 +23465,7 @@ end
 local function step(dt: number)
 	if not stepIntro() then
 		readKeys(dt)
+		target.yaw += drift * dt
 		local track = follow
 		if track then
 			local x, z = track()
@@ -23570,6 +23573,9 @@ function Camera.init()
 	end))
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input: InputObject)
 		local t = input.UserInputType
+		if t == Enum.UserInputType.Keyboard or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.Touch or t == Enum.UserInputType.Gamepad1 then
+			drift = 0 -- a menu click leaves the view turning; taking the camera stops it
+		end
 		if intro and (t == Enum.UserInputType.Keyboard or t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.Touch or t == Enum.UserInputType.Gamepad1) then
 			finishIntro()
 		end
@@ -23599,9 +23605,12 @@ function Camera.init()
 		end
 	end))
 	table.insert(connections, UserInputService.InputChanged:Connect(function(input: InputObject, gp: boolean)
-		if input.UserInputType == Enum.UserInputType.MouseWheel and intro then
-			finishIntro()
-			return
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			drift = 0
+			if intro then
+				finishIntro()
+				return
+			end
 		end
 		if gp or not enabled or input.UserInputType ~= Enum.UserInputType.MouseWheel then
 			return
@@ -23662,11 +23671,20 @@ end
 -- Default angle: high oblique, look north from the south at 52°, 420 studs up.
 function Camera.reset(x: number, z: number)
 	intro = nil
+	drift = 0
 	target.yaw = defaultYaw
 	target.pitch = DEFAULT_PITCH
 	target.height = DEFAULT_HEIGHT
 	Camera.focusOn(x, z, true)
 	cur.yaw, cur.pitch, cur.height = target.yaw, target.pitch, target.height
+end
+
+-- The menu: low over the field (call after Camera.reset, before playIntro), turning slowly
+-- about it once the sweep lands, until the player takes the camera.
+function Camera.menuView()
+	target.height, target.pitch = 140, MIN_PITCH
+	cur.height, cur.pitch = target.height, target.pitch
+	drift = 0.02
 end
 
 -- The yaw Camera.reset returns to; nil restores north. Each side looks toward its enemy.
@@ -30841,6 +30859,7 @@ local function onMatchState(msg: any)
 			local m = BattleState.map
 			Camera.setDefaultYaw(nil)
 			Camera.reset(m.width / 2, m.depth * 0.45)
+			Camera.menuView()
 			Camera.playIntro() -- the menu's sweep over the field starts only once the world is in
 		end
 	elseif state == "loading" then
