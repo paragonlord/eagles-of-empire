@@ -1140,6 +1140,14 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
 - Fixed: the nation choice showed the campaign's top bar with an empty treasury and a blank
   flag behind it, and the grand and Thuringian campaigns' dimmers stopped at Roblox's top bar,
   leaving a bright strip above them (`b5-picker-flags.jpg` before, `b5-picker-after.jpg`).
+- Fixed: **a tooltip stayed on screen after its button went away** (the speed tip over the
+  results, `b6-results-stuck-tip.jpg`): tips hid only on MouseLeave, which never fires when a
+  screen hides under a still pointer. A tip now checks four times a second that its button is
+  still shown and under the pointer.
+- Changed: the guns' ammunition button read "AUTO", which reads as "let the computer command"
+  (I pressed it for that and the army stood still for ten minutes); it reads "AMMO: AUTO",
+  "AMMO: SHOT" or "AMMO: CANISTER". The help spells out Backspace (the font has no ⌫), episode
+  cards give the hour, and the audio-log toggle stays in Studio.
 
 ## Known failures
 

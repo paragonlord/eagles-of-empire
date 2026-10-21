@@ -642,7 +642,7 @@ local COMMANDS: { CommandDef } = {
 	{ key = "stop", text = "Halt", tip = "Cancel orders and halt" },
 	{ key = "retreat", text = "Retreat", tip = "Retreat (N): fall back toward your edge" },
 	{ key = "limber", text = "Limber", tip = "Guns: limber to move, unlimber to fire" },
-	{ key = "ammo", text = "Auto", tip = "Ammunition, click to cycle: auto / round shot (long) / canister (short)" },
+	{ key = "ammo", text = "Ammo: auto", tip = "Guns' ammunition, click to cycle: auto / round shot (long) / canister (short)" },
 	{ key = "rally", text = "Rally", tip = "HQ: rally routing formations within 100 studs" },
 	{ key = "occupy", text = "Occupy", tip = "Infantry (O): then right-click a village or farm to garrison it. On a garrison: leave" },
 }
@@ -963,7 +963,8 @@ local function decorateCommand(key: string, b: TextButton, forms: { any }): stri
 	elseif key == "ammo" then
 		local art = firstOfClass(forms, "artillery")
 		local mode = if art and art.ammoMode then art.ammoMode else "auto"
-		b.Text = if mode == "roundShot" then "Shot" elseif mode == "canister" then "Canister" else "Auto"
+		-- named as ammunition: a bare "Auto" read as "let the computer command"
+		b.Text = if mode == "roundShot" then "Ammo: shot" elseif mode == "canister" then "Ammo: canister" else "Ammo: auto"
 	elseif key == "rally" then
 		local cd = 0
 		for _, f in forms do

@@ -8,6 +8,7 @@
 local Players = game:GetService("Players") :: Players
 local TweenService = game:GetService("TweenService") :: TweenService
 local UserInputService = game:GetService("UserInputService") :: UserInputService
+local GuiService = game:GetService("GuiService") :: GuiService
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("EoE")
 local Config = require(Shared.Config)
 local Factions = require(script.Parent.Parent.Factions)
@@ -843,9 +844,48 @@ local function ensureTooltip()
 	tooltip = t
 end
 
-local function showTooltip(text: string)
+-- Shown over a GUI object while it stays on screen under the pointer. MouseLeave never fires
+-- when a screen hides under a still mouse (the speed tip stayed over the results), so a watch
+-- hides the tip once its object is hidden or the pointer is off it.
+local tipOwner: GuiObject? = nil
+local function onScreen(o: GuiObject): boolean
+	local node: Instance? = o
+	while node do
+		if node:IsA("GuiObject") and not (node :: GuiObject).Visible then
+			return false
+		elseif node:IsA("LayerCollector") then
+			return (node :: LayerCollector).Enabled
+		end
+		node = node.Parent
+	end
+	return false
+end
+local function watchTooltip(owner: GuiObject)
+	task.delay(0.25, function()
+		local t = tooltip
+		if not t or not t.Visible or tipOwner ~= owner then
+			return
+		end
+		local sg = owner:FindFirstAncestorOfClass("ScreenGui") :: ScreenGui?
+		local m = UserInputService:GetMouseLocation()
+		if sg and not sg.IgnoreGuiInset then
+			m -= GuiService:GetGuiInset() -- AbsolutePosition starts under Roblox's top bar there
+		end
+		local p, sz = owner.AbsolutePosition, owner.AbsoluteSize
+		local over = m.X >= p.X and m.Y >= p.Y and m.X <= p.X + sz.X and m.Y <= p.Y + sz.Y
+		if owner.Parent and onScreen(owner) and over then
+			watchTooltip(owner)
+		else
+			t.Visible = false
+		end
+	end)
+end
+
+local function showTooltip(text: string, owner: GuiObject)
 	ensureTooltip()
 	local t = tooltip :: TextLabel
+	tipOwner = owner
+	watchTooltip(owner)
 	t.Text = text
 	local m = UserInputService:GetMouseLocation()
 	local cam = workspace.CurrentCamera
@@ -1006,9 +1046,9 @@ function Kit.button(parent: Instance, text: string, onClick: () -> (), props: Bu
 		local reason = b:GetAttribute("reason")
 		local tip = b:GetAttribute("tip")
 		if type(reason) == "string" and reason ~= "" then
-			showTooltip(reason)
+			showTooltip(reason, b)
 		elseif type(tip) == "string" and tip ~= "" then
-			showTooltip(tip)
+			showTooltip(tip, b)
 		end
 	end)
 	b.MouseLeave:Connect(function()
@@ -1034,7 +1074,7 @@ function Kit.hoverTip(obj: GuiObject, text: () -> string)
 	obj.MouseEnter:Connect(function()
 		local t = text()
 		if t ~= "" then
-			showTooltip(t)
+			showTooltip(t, obj)
 		end
 	end)
 	obj.MouseLeave:Connect(hideTooltip)
