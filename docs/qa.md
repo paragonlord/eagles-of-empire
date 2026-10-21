@@ -1195,6 +1195,10 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   regiments could not be bought by hand (`b12-phone-custom-before.jpg`). The choices and the
   regiments now scroll as one body (`b12-phone-custom-after.jpg`); the desktop layout is unchanged.
   The Thuringian campaign screen was checked on the phone too: it fits.
+- Fixed: the results screen had the same trap: its fixed block of both sides (264 units) and the
+  buttons took more than a phone's panel in touch scale, so the report had no room and the buttons
+  overlapped the tallies. The two sides now open the scrolling report under the verdict; the
+  desktop screen looks as before.
 
 ## Known failures
 

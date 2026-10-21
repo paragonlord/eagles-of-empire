@@ -239,11 +239,25 @@ function Results.show(results: any, cb: Callbacks)
 	subLine.FontFace = Kit.ITALIC
 	Kit.rule(panel, UDim2.new(0.5, 0, 0, 84), 320, 0.5)
 
+	-- the report scrolls under the verdict: both sides, objectives, notes, the chronicle, the order
+	-- of battle (on a phone the panel is cut to the screen, and a fixed block of both sides left the
+	-- rest no room)
+	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
+	body.Size = UDim2.new(1, 0, 1, -94 - 52)
+	body.Position = UDim2.new(0, 0, 0, 94)
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = Kit.GILT_DARK
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.CanvasSize = UDim2.new()
+	body.Parent = panel
+	Kit.list(body, 6)
 	local sidesRow = Instance.new("Frame") :: Frame
-	sidesRow.Size = UDim2.new(1, 0, 0, 160)
-	sidesRow.Position = UDim2.new(0, 0, 0, 94)
+	sidesRow.Size = UDim2.new(1, -10, 0, 160)
 	sidesRow.BackgroundTransparency = 1
-	sidesRow.Parent = panel
+	sidesRow.LayoutOrder = 0
+	sidesRow.Parent = body
 	Kit.list(sidesRow, 12, true)
 	local order = 0
 	for _, faction in { BattleState.viewerFaction, BattleState.enemyFaction } do
@@ -253,19 +267,6 @@ function Results.show(results: any, cb: Callbacks)
 			sideBlock(sidesRow, faction, names[faction] or Kit.factionName(faction), s, order)
 		end
 	end
-
-	-- the rest of the report scrolls: objectives, notes, the chronicle, the order of battle
-	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
-	body.Size = UDim2.new(1, 0, 1, -264 - 52)
-	body.Position = UDim2.new(0, 0, 0, 264)
-	body.BackgroundTransparency = 1
-	body.BorderSizePixel = 0
-	body.ScrollBarThickness = 6
-	body.ScrollBarImageColor3 = Kit.GILT_DARK
-	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	body.CanvasSize = UDim2.new()
-	body.Parent = panel
-	Kit.list(body, 6)
 	local n = 0
 	local function nextOrder(): number
 		n += 1
