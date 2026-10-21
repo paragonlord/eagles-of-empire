@@ -144,3 +144,9 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 - [x] Menu backdrop: low over the field, slowly turning
 - [x] Campaign board: clear air, readable nation names, plates on the pole and off at far zoom
 - [x] Grand-campaign dispatches: the turn's news only; Russian and Austrian flags; no empty top bar behind the nation choice
+- [x] Battle sim: garrisons fire and are fired on; idle lines wheel to an enemy beside them; the status says why a unit is not firing; ground held at the start is owned; the AI lays its guns
+- [x] Camera: haze thins with height; lower battle intro; no edge scrolling with the pointer outside the window
+- [x] Phones: the custom battle and the results scroll as one body; Auto-fill for custom armies
+- [x] Board: snow caps and lighter rock on the mountain chains; icy winter water on the battlefield
+- [x] Balance tool plays each battle's real time limit (75 of 120 full battles go the historical way)
+- [!] Fire into and out of villages (`village-fire` branch): mechanically right, but moves the balance (75 to 58 of 120); needs Bartosz's call and an AI look

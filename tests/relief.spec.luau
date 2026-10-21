@@ -23,6 +23,16 @@ test("Relief: seas are water, the Alps stand high and the plains low", function(
 	assertTrue(alps > plain + 5, "alps " .. alps .. " over plain " .. plain)
 	assertTrue(Relief.snow(840, 675), "snow on the Alps")
 	assertTrue(not Relief.snow((12 + 10) * 40, (52.5 - 36) * 62.5), "no snow on the plain")
+	-- caps on the peaks, rock between: a band of unbroken snow along the spine read as a white worm
+	local snowy, along = 0, 0
+	for t = 0, 1, 0.01 do
+		local x, z = 700 + (990 - 700) * t, 625 + (705 - 625) * t -- the Alps' spine
+		along += 1
+		if Relief.snow(x, z) then
+			snowy += 1
+		end
+	end
+	assertTrue(snowy > along * 0.3 and snowy < along * 0.85, string.format("the spine is %d of %d snow", snowy, along))
 end)
 
 test("Relief: rivers are polylines inside the map", function()
