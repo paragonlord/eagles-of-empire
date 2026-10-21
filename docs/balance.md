@@ -266,3 +266,7 @@ All three together: historical results 56 of 180 (64 before the day's changes), 
 30 of 60 (32), Waterloo to the allies 11 of 15 (12), 13 flags (16), 4 against history: Auerstedt
 on every difficulty (Prussia 5/5, as before on normal and hard) and the Hougoumont episode on
 easy (France takes the farm against the easy AI now that the garrison can be shot).
+
+The full battles at 10 seeds (historical winner's wins out of 30, against the last kept column of
+the table above): Waterloo 21 (23), Austerlitz 9 (10), Jena 29, Auerstedt 0. Within the noise:
+the day's changes leave the balance where it was.

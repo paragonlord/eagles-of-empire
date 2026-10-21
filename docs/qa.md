@@ -1172,6 +1172,13 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   up, where the field sank into the atmosphere and the map's edge showed (`b9-intro-before.jpg`).
   It now starts at the battle camera's own height and rises less (`b9-intro-after.jpg`, the same
   moment of the tutorial's sweep).
+- Fixed: **the default battle view (440 up) was washed out by haze** (`b10-haze-before.jpg`,
+  Waterloo at 0:15): the Atmosphere stayed at the grade's full density whatever the height, and
+  the rule meant to thin the fog with height waited for every lighting tween to finish, which
+  in practice blocked it all battle. The haze now thins as the camera climbs in every weather
+  (×0.71 at the default view, never under ×0.6; fog keeps its own stronger rule) and waits only
+  for the atmosphere's own tween (`b10-haze-after.jpg`, the same view). The tutorial's first step
+  names X and Z.
 
 ## Known failures
 

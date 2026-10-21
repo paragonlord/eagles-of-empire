@@ -105,7 +105,7 @@ end
 local STEPS: { Step } = {
 	{
 		title = "The field",
-		text = "Mon général, survey the ground before committing a man. Pan with W A S D, turn the view with Q and E or the middle mouse, and zoom with the wheel.",
+		text = "Mon général, survey the ground before committing a man. Pan with W A S D, turn the view with Q and E or the middle mouse, zoom with the wheel, and raise or lower it with X and Z.",
 		spot = at(420, 330, 40),
 		done = function(ctx: Ctx): boolean
 			local c = ctx.cam

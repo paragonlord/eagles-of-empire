@@ -201,6 +201,7 @@ local BOARD = { density = 0.08, haze = 0.3, fogStart = 3000, fogEnd = 9000 }
 local board = false
 local groundFog: Folder? = nil
 local tweens: { Tween } = {}
+local atmoTween: Tween? = nil -- the grade's own atmosphere tween: the height rule waits for it alone
 local heightConn: RBXScriptConnection? = nil
 local cc: ColorCorrectionEffect? = nil
 local bloom: BloomEffect? = nil
@@ -279,18 +280,20 @@ local function setGrade(name: string, seconds: number)
 	end
 	table.clear(tweens)
 	local info = TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-	local function to(inst: Instance?, props: { [string]: any })
+	local function to(inst: Instance?, props: { [string]: any }): Tween?
 		if not inst then
-			return
+			return nil
 		end
 		if seconds <= 0 then
 			for k, v in props do
 				(inst :: any)[k] = v
 			end
+			return nil
 		else
 			local t = TweenService:Create(inst, info, props)
 			t:Play()
 			table.insert(tweens, t)
+			return t
 		end
 	end
 	to(L, {
@@ -310,7 +313,7 @@ local function setGrade(name: string, seconds: number)
 	to(cc, { TintColor = g.tint, Contrast = g.contrast - haze / 3, Saturation = g.saturation - haze })
 	to(bloom, { Intensity = g.bloom })
 	to(rays, { Intensity = g.rays })
-	to(atmosphere, {
+	atmoTween = to(atmosphere, {
 		Density = if board then BOARD.density else g.atmoDensity,
 		Offset = g.atmoOffset,
 		Color = g.atmoColor,
@@ -417,13 +420,17 @@ function Lighting.apply(quality: number)
 		if not atmo or not cam then
 			return
 		end
-		for _, t in tweens do
-			if t.PlaybackState == Enum.PlaybackState.Playing then
-				return
-			end
+		-- only the atmosphere's own tween: waiting on every lighting tween kept the haze at full
+		-- density through whole battles (QA round 42)
+		local at = atmoTween
+		if at and at.PlaybackState == Enum.PlaybackState.Playing then
+			return
 		end
 		local g = GRADES[currentGrade]
-		local factor = if currentGrade == "fog" then math.clamp(1 - (cam.CFrame.Position.Y - 330) / 900, 0.4, 1) else 1
+		-- the haze thins as the camera climbs: from the 440-stud battle view the whole field lies 500+
+		-- studs off and washed out; low views keep their depth (fog lifts later and further)
+		local y = cam.CFrame.Position.Y
+		local factor = if currentGrade == "fog" then math.clamp(1 - (y - 330) / 900, 0.4, 1) else math.clamp(1 - (y - 150) / 1000, 0.6, 1)
 		atmo.Density = if board then BOARD.density else g.atmoDensity * factor
 		planeTick += 1
 		if planeTick % 8 == 0 then
