@@ -4,7 +4,7 @@ Resume from here; do not recap. Updated 2026-10-21.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 249 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 254 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
 - Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–11 and the
@@ -16,7 +16,13 @@ Resume from here; do not recap. Updated 2026-10-21.
   buildings (Hougoumont's walls); winter trees; Hougoumont burns in the full Waterloo; a low,
   turning menu backdrop; campaign board names, plates and clear air; grand-campaign dispatches
   are exactly the turn's news; Russian and Austrian flags; A/D, X/Z and the orders above the
-  cards; sounds wired; both campaigns fit a phone.
+  cards; sounds wired; both campaigns fit a phone. Then, from playing Hougoumont: garrisons can
+  be shot and shoot out, idle lines wheel to the enemy beside them, the status says why a unit
+  is not firing (and nothing when nobody is about), the AI lays its guns, ground held at the
+  start is owned from the first tick; the haze thins with camera height (the default view was
+  washed out), a lower battle intro, Auto-fill for custom armies, tooltips that hide with their
+  button, "Ammo: auto" instead of a bare "Auto". Balance: `docs/balance.md` (historical
+  results 71 of 180, the best yet; Auerstedt still goes to Prussia).
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
