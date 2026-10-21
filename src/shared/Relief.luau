@@ -78,9 +78,11 @@ function Relief.height(x: number, z: number): number
 	return (relief(x, z))
 end
 
+-- The snow line wanders (noise about 15 map units across) so the high chains carry caps on their
+-- peaks with rock between, not one unbroken band along the spine.
 function Relief.snow(x: number, z: number): boolean
 	local h, snowy = relief(x, z)
-	return snowy and h > SNOW_LINE
+	return snowy and h > SNOW_LINE + 6 * math.noise(x / 15, z / 15, 5.3)
 end
 
 -- The province a point of land belongs to: the nearest province centre (the same bisectors as

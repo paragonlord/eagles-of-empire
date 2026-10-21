@@ -1199,6 +1199,9 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   buttons took more than a phone's panel in touch scale, so the report had no room and the buttons
   overlapped the tallies. The two sides now open the scrolling report under the verdict; the
   desktop screen looks as before.
+- Changed: the campaign board's Alps were one unbroken white band along the spine
+  (`b13-alps-before.jpg`); the snow line now wanders, leaving caps on the peaks with rock between
+  (`b13-alps-after.jpg`, tested along the spine). The diplomacy panel shows the new flags.
 
 ## Known failures
 
