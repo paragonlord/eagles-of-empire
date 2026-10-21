@@ -20030,11 +20030,11 @@ function Combat.gather(sim: SimLike): { Attack }
 			elseif not f.fireAtWill and f.class ~= "artillery" then
 				f.status = "Holding fire"
 			else
-				-- why the enemy at hand is not fired on (turn to it, clear the lane...), not "No target";
-				-- and a march with nobody about says nothing ("Marching · No target" was noise)
+				-- why the enemy at hand is not fired on (turn to it, clear the lane...), not "No target"
+				-- ("Holding · No target" and "Marching · No target" on every quiet battalion were noise)
 				local foe = nearestInReach(sim, f)
 				local why = Combat.fireBlockReason(sim, f, foe)
-				f.status = if why == "No target" and f.state == "moving" then nil else why
+				f.status = if why == "No target" then nil else why -- nobody about: nothing to explain
 				-- an idle line with nobody to its front wheels to the enemy at hand, at its turn rate
 				-- (the AI turns its own; the player's stood sideways beside Hougoumont). A Hold or a
 				-- Face order keeps the facing the player chose.

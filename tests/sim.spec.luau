@@ -432,6 +432,10 @@ test("Fire status names why an enemy in range is not fired on, not just No targe
 	sim.formations[1].fireAtWill = false
 	run(sim, 1)
 	assertEq(sim.formations[1].status, "Holding fire", "fire at will off")
+	-- nobody within reach: nothing to explain ("Holding · No target" on every idle battalion)
+	local quiet = newSim({ unit("france", "infantry", "Alone", 300, 300, math.pi / 2) })
+	run(quiet, 2)
+	assertEq(quiet.formations[1].status, nil, "an idle line with no enemy about")
 end)
 
 test("An idle line wheels to an enemy in musket range when none is to its front", function()

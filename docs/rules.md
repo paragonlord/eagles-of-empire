@@ -113,7 +113,8 @@ within the fire lane (half-width 10) unless `FriendlyBlocksFire = false`. Infant
 volley (movement resumes after). Fire-at-will off ⇒ never fires unless ordered to Engage.
 An idle line (no order but a finished march) with nobody in its arc and an enemy in range beside
 it wheels to that enemy at its turn rate; a Hold or Face order keeps the facing. The status names
-why the nearest enemy in range is not fired on (`Target not to the front`, `Holding fire`...).
+why the nearest enemy in range is not fired on (`Target not to the front`, `Holding fire`...), and
+is empty with no enemy in range.
 
 ```
 shooters   = strength * shape.fire * readiness          (readiness = cohesion, ≥ 0.4; ×0.7 when shaken)
