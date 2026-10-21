@@ -70,7 +70,19 @@ render = function(cb: Callbacks)
 	local function nationName(id: any): string
 		return EuropeData.Nations[id].adjective
 	end
-	choiceRow(panel, 46, "You", CustomBattle.Nations, spec.player, nationName, function(n: any)
+	-- the choices and the regiments scroll as one body: on a phone the panel is cut to the screen's
+	-- height, and a fixed header left the regiment list no room at all
+	local body = Instance.new("ScrollingFrame") :: ScrollingFrame
+	body.Size = UDim2.new(1, 0, 1, -46 - 50)
+	body.Position = UDim2.fromOffset(0, 46)
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = Kit.GILT
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.CanvasSize = UDim2.new()
+	body.Parent = panel
+	choiceRow(body, 0, "You", CustomBattle.Nations, spec.player, nationName, function(n: any)
 		spec.player = n
 		if spec.enemy == n then
 			spec.enemy = if n == "france" then "austria" else "france"
@@ -83,21 +95,21 @@ render = function(cb: Callbacks)
 		end
 		render(cb)
 	end, 110)
-	choiceRow(panel, 80, "Enemy", CustomBattle.Nations, spec.enemy, nationName, function(n: any)
+	choiceRow(body, 34, "Enemy", CustomBattle.Nations, spec.enemy, nationName, function(n: any)
 		if n ~= spec.player then
 			spec.enemy = n
 			render(cb)
 		end
 	end, 110)
-	choiceRow(panel, 114, "Field", { table.unpack(CustomBattle.Maps, 1, 4) }, spec.map, mapName, function(m: any)
+	choiceRow(body, 68, "Field", { table.unpack(CustomBattle.Maps, 1, 4) }, spec.map, mapName, function(m: any)
 		spec.map = m
 		render(cb)
 	end, 110)
-	choiceRow(panel, 146, "", { table.unpack(CustomBattle.Maps, 5) }, spec.map, mapName, function(m: any)
+	choiceRow(body, 100, "", { table.unpack(CustomBattle.Maps, 5) }, spec.map, mapName, function(m: any)
 		spec.map = m
 		render(cb)
 	end, 110)
-	choiceRow(panel, 180, "Budget", CustomBattle.Budgets, spec.budget, function(b: any): string
+	choiceRow(body, 134, "Budget", CustomBattle.Budgets, spec.budget, function(b: any): string
 		return tostring(b) .. " gold"
 	end, function(b: any)
 		spec.budget = b
@@ -107,17 +119,13 @@ render = function(cb: Callbacks)
 	local spent = CustomBattle.cost(spec.units)
 	local n = count()
 	local over = spent > spec.budget
-	Kit.label(panel, string.format("Spent %d of %d gold · %d of %d regiments", spent, spec.budget, n, CustomBattle.MAX_UNITS), { size = UDim2.new(1, 0, 0, 24), position = UDim2.fromOffset(0, 218), textSize = 15, colour = if over then Kit.HOSTILE else Kit.IVORY })
-	local scroll = Instance.new("ScrollingFrame") :: ScrollingFrame
-	scroll.Size = UDim2.new(1, 0, 1, -300)
-	scroll.Position = UDim2.fromOffset(0, 248)
+	Kit.label(body, string.format("Spent %d of %d gold · %d of %d regiments", spent, spec.budget, n, CustomBattle.MAX_UNITS), { size = UDim2.new(1, 0, 0, 24), position = UDim2.fromOffset(0, 172), textSize = 15, colour = if over then Kit.HOSTILE else Kit.IVORY })
+	local scroll = Instance.new("Frame") :: Frame
+	scroll.Size = UDim2.new(1, -10, 0, 0)
+	scroll.AutomaticSize = Enum.AutomaticSize.Y
+	scroll.Position = UDim2.fromOffset(0, 202)
 	scroll.BackgroundTransparency = 1
-	scroll.BorderSizePixel = 0
-	scroll.ScrollBarThickness = 6
-	scroll.ScrollBarImageColor3 = Kit.GILT
-	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	scroll.CanvasSize = UDim2.new()
-	scroll.Parent = panel
+	scroll.Parent = body
 	Kit.list(scroll, 4)
 	local order = 0
 	for _, t in EuropeData.UnitTypeOrder do

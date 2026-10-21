@@ -1190,6 +1190,11 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   corner, panning the view forward and left until it hit the edge (the menu camera wandered off
   the same way; seen in Studio with the pointer over another panel). Edge scrolling now ignores a
   pointer outside the view (`Camera.edgeScroll`, tested).
+- Fixed: **on a phone the custom battle had no regiment list** (iPhone 17 Pro in the simulator):
+  the panel is cut to the screen's height and its fixed header and buttons took all of it, so
+  regiments could not be bought by hand (`b12-phone-custom-before.jpg`). The choices and the
+  regiments now scroll as one body (`b12-phone-custom-after.jpg`); the desktop layout is unchanged.
+  The Thuringian campaign screen was checked on the phone too: it fits.
 
 ## Known failures
 
