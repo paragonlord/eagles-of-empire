@@ -1,15 +1,22 @@
 # Handoff / checkpoint
 
-Resume from here; do not recap. Updated 2026-10-20.
+Resume from here; do not recap. Updated 2026-10-21.
 
 ## State of the build
 
-- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 239 tests.
+- Everything on `main` builds and passes: 0 analyzer diagnostics in 97 files, 249 tests.
   `build/EaglesOfEmpire.rbxlx` is regenerated from source on every integration (never edit the
   place by hand: anything only in Studio is lost on the next rebuild).
 - Roadmap toward Total War: Napoleon: `docs/plan.md` (living tracker; Phases 0–11 and the
-  whole-game balance and AI pass done) and the graphics pass G0–G4 (generated soldiers, painted
-  ground, real Europe on the board, paintings and portraits); next: the open items below.
+  whole-game balance and AI pass done) and the graphics pass G0–G5 (generated soldiers, painted
+  ground, real Europe on the board, paintings and portraits, frame time and phones); next: the
+  open items below.
+- 2026-10-21 (round 42): the game starts in about 5 s (was 37: the world builders waited a frame
+  per job); rivers never stand above their banks; Quick battles take their battle's season and
+  buildings (Hougoumont's walls); winter trees; Hougoumont burns in the full Waterloo; a low,
+  turning menu backdrop; campaign board names, plates and clear air; grand-campaign dispatches
+  are exactly the turn's news; Russian and Austrian flags; A/D, X/Z and the orders above the
+  cards; sounds wired; both campaigns fit a phone.
 - Features in: tactical battles (12 scenarios, quick and full modes), tutorial, Thuringian
   campaign, grand campaign 1805–1815, co-op (2–4 players by wing), PvP (1v1 to 2v2), mobile touch
   controls, audio layer (silent until ids are filled), aged-paper UI with typeface presets and
@@ -29,7 +36,7 @@ Resume from here; do not recap. Updated 2026-10-20.
   blockades); either side in the listed battles,
   custom battles, kills and an In history section in the results, loading tips, visible round
   shot, reload and bayonet animations.
-- Studio QA log: `docs/qa.md` (rounds 1–41). Balance table: `docs/balance.md`.
+- Studio QA log: `docs/qa.md` (rounds 1–42). Balance table: `docs/balance.md`.
 
 ## Workflow
 
@@ -86,21 +93,21 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
 - Filled earlier: trees, houses, barn, church, windmill, bark/roof/wall/thatch textures.
 - Sound candidates with links (licensed APM / Pro Sound Effects first) are in
   `docs/assets-brief.md` "Sound candidates": audition, then fill the slots.
-- Next: the eight priority sounds in `Assets.sounds` (musketVolley, cannonFire, drumsMarchFr,
-  ambienceField, menuMusic, uiClick, bugleCharge, cavalryCharge); a kaskett for Austria; a wall
-  and a fence section (both generations failed, they stay part-built).
+- Sounds: 16 slots filled (`Assets.sounds`, table in `docs/assets-brief.md`); bugleCharge and
+  the melee slots are still empty. Generated since: the Austrian kaskett, a dry-stone wall
+  section, reed clumps. The fence failed three times and stays part-built.
 
 ## Open items
 
-0. Studio checklist, what is left after QA round 41: the kit soldiers marching, reloading and
+0. Studio checklist, what is left after QA round 42: the kit soldiers marching, reloading and
    thrusting in motion (stills cannot show them), the round shot in motion (1.3-stud ball), the
-   volley light and the howitzer shell burst, burning Hougoumont at Waterloo's 4:00 moment, and
-   the frame rate of a full Waterloo on a real machine (Studio's unfocused 15 fps hides the
-   distant battalions' slower refresh, `Soldiers.refreshInterval`).
+   volley light and the howitzer shell burst, and the frame rate of a full Waterloo on a real
+   machine (Studio's unfocused 15 fps hides the distant battalions' slower refresh,
+   `Soldiers.refreshInterval`). Hougoumont burning was seen in its Quick battle (round 42).
 
 1. Two-player Studio test (Test → Clients and Servers → 2 Players, by hand): co-op wings, pause
    vote, pings, assign; PvP side picker, per-side fog, both result screens. Never run yet.
-2. Sound: 13 slots now have ids, chosen by measurement (length, envelope, bass share) and seen
+2. Sound: 16 slots now have ids, chosen by measurement (length, envelope, bass share) and seen
    playing in a battle, but nobody has listened yet. Play one battle with sound on: swap any id
    that sounds wrong (`src/shared/Assets.luau`, bottom), check volleys from many battalions do not
    stack into a wall, and fill bugles, melee and clicks (`docs/assets-brief.md`).
@@ -112,8 +119,7 @@ cp build/release/luau build/release/luau-analyze ~/.local/bin/
    drags were mirrored sideways like A/D, fixed). The Device Simulator keeps a keyboard: pick
    Touch in Settings before judging the touch layout.
 5. A human playthrough of the grand campaign to a peace.
-6. The fence generation failed three times (part-built); the stone wall, the reeds and the
-   Austrian helmet are generated meshes now.
+6. The fence generation failed three times (part-built).
 
 ## Where things live
 

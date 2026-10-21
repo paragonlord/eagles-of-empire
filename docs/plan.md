@@ -134,4 +134,13 @@ painterly realistic. Ids live in `src/shared/Assets.luau`; an empty slot keeps t
 ## G5: performance and phones
 - [x] Frame time: Waterloo measured at High, Medium and Low (QA round 41); distant battalions refresh 15–30 times a second, the soldiers' script 13 → 2 ms at the default view; a real machine's frame rate still to see
 - [x] Phone check (Device Simulator, iPhone 17 Pro): menu, battle picker, panels and the battle HUD fit; Low's haze restored
-- [ ] Final QA round and handoff
+- [x] Final QA round and handoff (round 42, handoff 2026-10-21)
+
+## Polish (2026-10-21)
+- [x] Start-up 37 s → 5 s (world builders work in time slices)
+- [x] Rivers never stand above their banks (tested on every map)
+- [x] Quick battles: their battle's season and buildings; winter leaves
+- [x] Hougoumont burns in the full Waterloo
+- [x] Menu backdrop: low over the field, slowly turning
+- [x] Campaign board: clear air, readable nation names, plates on the pole and off at far zoom
+- [x] Grand-campaign dispatches: the turn's news only; Russian and Austrian flags; no empty top bar behind the nation choice
