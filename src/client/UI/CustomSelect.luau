@@ -144,6 +144,15 @@ render = function(cb: Callbacks)
 			Kit.setEnabled(plus, n < CustomBattle.MAX_UNITS and spent + c.cost <= spec.budget, if n >= CustomBattle.MAX_UNITS then "An army of twenty regiments at most" else "Over budget")
 		end
 	end
+	-- as Total War's auto-generate: the same mixed army the AI buys, for your nation and budget
+	Kit.button(panel, "Auto-fill", function()
+		spec.units = CustomBattle.enemyArmy(spec.player, spec.budget)
+		render(cb)
+	end, { size = UDim2.fromOffset(120, 40), position = UDim2.new(1, -150, 1, 0), anchor = Vector2.new(1, 1), textSize = 15, tooltip = "Buy a mixed army for the whole budget, as the enemy does" })
+	Kit.button(panel, "Clear", function()
+		spec.units = {}
+		render(cb)
+	end, { size = UDim2.fromOffset(90, 40), position = UDim2.new(1, -280, 1, 0), anchor = Vector2.new(1, 1), textSize = 15 })
 	local fight = Kit.button(panel, "Fight", function()
 		cb.fight(spec)
 	end, { size = UDim2.fromOffset(140, 40), position = UDim2.new(1, 0, 1, 0), anchor = Vector2.new(1, 1), primary = true, textSize = 18 })

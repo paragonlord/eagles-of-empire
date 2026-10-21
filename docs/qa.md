@@ -1165,6 +1165,9 @@ b21735f → f7394f9.** No script errors in the console (only Studio's own UIBlox
   changes together: flags 16 → 13, Waterloo to the allies 11 of 15).
 - Changed: the unit plate's second line shows the corps alone ("V CORPS"): the commanders after
   it made 11-pixel text nobody could read (`b7-vierzehnheiligen.jpg`).
+- Added: **Auto-fill and Clear on the custom battle**: one click buys the same mixed army the
+  AI buys, for your nation and budget (Total War's auto-generate); before, a full army took
+  twenty clicks on "+" (`b8-custom-autofill.jpg`).
 
 ## Known failures
 
